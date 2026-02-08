@@ -1,0 +1,61 @@
+# ==========================
+# CLion / JetBrains IDE
+# ==========================
+.idea/
+cmake-build-*/
+.clion.source.upload.marker
+
+# ==========================
+# CMake Build Files
+# ==========================
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.ninja
+build/
+bin/
+lib/
+
+# ==========================
+# Qt Generated Files
+# ==========================
+# MOC (Meta-Object Compiler) が生成するファイル
+*_autogen/
+*.moc
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+
+# Qt Creator settings (もし使った場合)
+*.pro.user
+*.pro.user.*
+
+# ==========================
+# Compiled Object Files
+# ==========================
+*.o
+*.obj
+*.res
+
+# ==========================
+# Executables / Libraries
+# ==========================
+# Windows
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+
+# Mac / Linux
+*.app
+*.dylib
+*.so
+*.out
+
+# ==========================
+# OS Specific
+# ==========================
+.DS_Store
+Thumbs.db
