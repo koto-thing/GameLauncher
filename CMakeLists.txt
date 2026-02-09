@@ -22,6 +22,7 @@ add_executable(GameLauncher main.cpp
         LauncherWindow.cpp
         GameRunner.h
         GameRunner.cpp
+        resources.qrc
 )
 target_link_libraries(GameLauncher
         Qt::Core

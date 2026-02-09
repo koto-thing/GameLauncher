@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>images/launcher_background_placeholder.png</file>
+    </qresource>
+</RCC>
