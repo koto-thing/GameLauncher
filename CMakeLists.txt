@@ -30,6 +30,14 @@ add_executable(GameLauncher main.cpp
         SettingsManager.h
         SettingsManager.cpp
         SettingsManager.cpp
+        GameListFactory.cpp
+        GameListFactory.h
+        GameListItemWidget.h
+        GameListItemWidget.cpp
+        GameStoreWidget.h
+        GameStoreWidget.cpp
+        GameDetailsWidget.h
+        GameDetailsWidget.cpp
 )
 
 target_link_libraries(GameLauncher

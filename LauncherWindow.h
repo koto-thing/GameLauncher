@@ -1,11 +1,11 @@
 #ifndef GAMELAUNCHER_LAUNCHERWINDOW_H
 #define GAMELAUNCHER_LAUNCHERWINDOW_H
 
-#include <QPushButton>
-#include <QLabel>
 #include <QVBoxLayout>
 
+#include "GameDetailsWidget.h"
 #include "GameRunner.h"
+#include "GameStoreWidget.h"
 #include "OptionOverlay.h"
 
 class LauncherWindow : public QWidget {
@@ -25,10 +25,26 @@ protected:
 private:
     void loadStyleSheet(QWidget* widget, const QString& filePath);
     void setupUI();
+    void showGameDetails();
+    void showGameStore();
 
-    QLabel *statusLabel;
-    QPushButton *launchButton;
-    QVBoxLayout *mainLayout;
+    // メイン画面のUI要素
+    QHBoxLayout *mainLayout;
+
+    // 左側のゲームリスト
+    QVBoxLayout *gameListLayout;
+    QListWidget *gameListWidget;
+    QPushButton *addGameButton;
+
+    // 右側のレイアウト
+    QVBoxLayout *rightLayout;
+    QStackedWidget *contentStack;
+
+    // ゲーム詳細画面
+    GameDetailsWidget *m_gameDetailsView;
+
+    // ゲームストア画面
+    GameStoreWidget *m_gameStoreView;
 
     // 閉じるボタンと最小化ボタンとオプションボタン
     QPushButton *m_closeButton;

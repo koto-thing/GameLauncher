@@ -2,9 +2,13 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QFile>
+#include <QGridLayout>
+#include <QFrame>
 
 #include "LauncherWindow.h"
-
+#include "GameListFactory.h"
+#include "GameStoreWidget.h"
+#include "GameDetailsWidget.h"
 /**
  * @brief コンストラクタ
  * @param parent 親ウィジェット
@@ -114,29 +118,122 @@ void LauncherWindow::setupUI() {
     resize(1280, 720);
 
     // レイアウトを作成
-    mainLayout = new QVBoxLayout(this);
+    mainLayout = new QHBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
 
-    // ラベルを作成
-    statusLabel = new QLabel("準備完了", this);
-    statusLabel->setAlignment(Qt::AlignCenter);
-    mainLayout->addWidget(statusLabel);
+    /* ---左側のゲームリスト--- */
+    gameListLayout = new QVBoxLayout;
+    gameListLayout->setContentsMargins(0, 0, 0, 0);
+    gameListLayout->setSpacing(0);
 
+    // 左側の黒背景コンテナを作成
+    QWidget *leftContainer = new QWidget(this);
+    leftContainer->setMaximumWidth(150);
+    leftContainer->setStyleSheet(
+        "QWidget {"
+        "    background-color: rgba(0, 0, 0, 200);"
+        "    border-top-left-radius: 20px;"
+        "    border-bottom-left-radius: 20px;"
+        "}"
+    );
+
+    QVBoxLayout *leftContainerLayout = new QVBoxLayout(leftContainer);
+    leftContainerLayout->setContentsMargins(0, 0, 0, 0);
+    leftContainerLayout->setSpacing(0);
+
+    // ゲーム追加ボタンを作成
+    addGameButton = new QPushButton("+", leftContainer);
+    addGameButton->setProperty("class", "AddGameButton");
+    addGameButton->setFixedSize(50, 50);
+    addGameButton->setStyleSheet(
+        "QPushButton {"
+        "    background-color: rgba(255, 255, 255, 30);"
+        "    border: 2px solid rgba(255, 255, 255, 100);"
+        "    border-radius: 8px;"
+        "    color: #ffffff;"
+        "    font-size: 24px;"
+        "    font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: rgba(255, 255, 255, 50);"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: rgba(255, 150, 0, 100);"
+        "}"
+    );
+    connect(addGameButton, &QPushButton::clicked, this, &LauncherWindow::showGameStore);
+
+    QHBoxLayout *addButtonLayout = new QHBoxLayout;
+    addButtonLayout->setContentsMargins(10, 15, 10, 15);
+    addButtonLayout->addWidget(addGameButton, 0, Qt::AlignCenter);
+    leftContainerLayout->addLayout(addButtonLayout);
+
+    // セパレーターラインを追加
+    QFrame *separatorLine = new QFrame(leftContainer);
+    separatorLine->setFrameShape(QFrame::HLine);
+    separatorLine->setFrameShadow(QFrame::Plain);
+    separatorLine->setFixedHeight(2);
+    separatorLine->setStyleSheet("background-color: rgba(255, 255, 255, 50); border: none; margin: 0px 10px;");
+    leftContainerLayout->addWidget(separatorLine);
+
+    // ゲームリストウィジェットを作成
+    gameListWidget = new QListWidget(leftContainer);
+    gameListWidget->setProperty("class", "GameListWidget");
+    gameListWidget->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    gameListWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    gameListWidget->setFocusPolicy(Qt::NoFocus);
+    gameListWidget->setStyleSheet("QListWidget { background-color: transparent; border: none; }");
+
+    // サンプルゲームアイテムを追加（セパレーター付き）
+    GameListFactory::addGameItemWithWidget(gameListWidget, "ゲーム1", ":/images/placeholder_100x100.png");
+    GameListFactory::addGameItemWithWidget(gameListWidget, "ゲーム2", ":/images/placeholder_100x100.png");
+    GameListFactory::addGameItemWithWidget(gameListWidget, "ゲーム3", ":/images/placeholder_100x100.png");
+
+    // ゲームリストアイテムをクリックしたらゲーム詳細画面に戻る
+    connect(gameListWidget, &QListWidget::itemClicked, this, &LauncherWindow::showGameDetails);
+
+    leftContainerLayout->addWidget(gameListWidget);
+
+    gameListLayout->addWidget(leftContainer);
+    mainLayout->addLayout(gameListLayout);
+
+    /* ---画面右側--- */
+    rightLayout = new QVBoxLayout();
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(0);
+
+    // スタックウィジェットを作成（画面切り替え用）
+    contentStack = new QStackedWidget(this);
+
+    // ゲーム詳細画面を作成
+    m_gameDetailsView = new GameDetailsWidget(this);
+    contentStack->addWidget(m_gameDetailsView);
+
+    // ゲームストア画面を作成
+    m_gameStoreView = new GameStoreWidget(this);
+    contentStack->addWidget(m_gameStoreView);
+
+    rightLayout->addWidget(contentStack);
+    mainLayout->addLayout(rightLayout);
+
+    /* ---画面上部右側--- */
     // 閉じるボタン
     m_closeButton = new QPushButton("x", this);
+    m_closeButton->setProperty("class", "CloseButton");
     m_closeButton->setGeometry(width() - 40, 10, 30, 30);
-    m_closeButton->setStyleSheet("background-color: transparent; color: white; font-weight: bold; font-size: 32px;");
     connect(m_closeButton, &QPushButton::clicked, this, &QWidget::close);
 
     // 最小化ボタン
     m_minimizeButton = new QPushButton("-", this);
+    m_minimizeButton->setProperty("class", "MinimizeButton");
     m_minimizeButton->setGeometry(width() - 80, 10, 30, 30);
-    m_minimizeButton->setStyleSheet("background-color: transparent; color: white; font-weight: bold; font-size: 32px;");
     connect(m_minimizeButton, &QPushButton::clicked, this, &QWidget::showMinimized);
 
     // オプションボタン
     m_optionButton = new QPushButton("⚙", this);
+    m_optionButton->setProperty("class", "OptionButton");
     m_optionButton->setGeometry(width() - 120, 10, 30, 30);
-    m_optionButton->setStyleSheet("background-color: transparent; color: white; font-weight: bold; font-size: 16px;");
 
     /* ---オプション関連--- */
     m_optionOverlay = new OptionOverlay(this);
@@ -146,20 +243,25 @@ void LauncherWindow::setupUI() {
         m_optionOverlay->show();
     });
 
-    // ボタンを作成
-    launchButton = new QPushButton("ゲーム起動", this);
-    launchButton->setProperty("class", "LaunchButton");
-    mainLayout->addWidget(launchButton);
-
     // GameRunnerのインスタンスを作成
     m_runner = new GameRunner(this);
     m_runner->setGamePath("C:/Windows/System32/notepad.exe");
 
-    // シグナルとスロットの接続
-    connect(m_runner, &GameRunner::onStatusChanged, this, [this]() {
-        statusLabel->setText(m_runner->status());
-    });
-
-    // ボタンがクリックされた時にゲームを起動
-    connect(launchButton, &QPushButton::clicked, m_runner, &GameRunner::launchGame);
+    // GameDetailsWidgetにGameRunnerを設定
+    m_gameDetailsView->setGameRunner(m_runner);
 }
+
+/**
+ * @brief ゲーム詳細画面を表示
+ */
+void LauncherWindow::showGameDetails() {
+    contentStack->setCurrentWidget(m_gameDetailsView);
+}
+
+/**
+ * @brief ゲームストア画面を表示
+ */
+void LauncherWindow::showGameStore() {
+    contentStack->setCurrentWidget(m_gameStoreView);
+}
+
