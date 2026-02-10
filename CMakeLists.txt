@@ -23,7 +23,15 @@ add_executable(GameLauncher main.cpp
         GameRunner.h
         GameRunner.cpp
         resources.qrc
+        OptionOverlay.h
+        OptionOverlay.cpp
+        SettingsPageFactory.h
+        SettingsPageFactory.cpp
+        SettingsManager.h
+        SettingsManager.cpp
+        SettingsManager.cpp
 )
+
 target_link_libraries(GameLauncher
         Qt::Core
         Qt::Gui

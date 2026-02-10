@@ -1,0 +1,15 @@
+/* mainWindow.qss */
+
+#MainWindow {
+
+}
+
+.LaunchButton {
+    background-color: #FF9600;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: bold;
+}
