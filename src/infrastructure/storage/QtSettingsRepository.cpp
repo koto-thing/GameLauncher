@@ -1,0 +1,191 @@
+#include "QtSettingsRepository.h"
+#include <QJsonDocument>
+#include <QStandardPaths>
+#include <QDir>
+#include <QFile>
+#include <QDebug>
+
+QtSettingsRepository::QtSettingsRepository(QObject *parent) : QObject(parent) {
+    setDefaultSettings();
+    connect(this, &QtSettingsRepository::settingsChanged, [this]() {
+        for (auto& callback : m_callbacks) {
+            callback();
+        }
+    });
+}
+
+bool QtSettingsRepository::loadSettings() {
+    QString filePath = getSettingsFilePath();
+    QFile file(filePath);
+
+    if (!file.exists()) {
+        return false;
+    }
+
+    if (!file.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (doc.isNull() || !doc.isObject()) {
+        return false;
+    }
+
+    fromJson(doc.object());
+    return true;
+}
+
+bool QtSettingsRepository::saveSettings() {
+    QString filePath = getSettingsFilePath();
+    QFile file(filePath);
+
+    if (!file.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+
+    QJsonDocument doc(toJson());
+    file.write(doc.toJson(QJsonDocument::Indented));
+    file.close();
+
+    return true;
+}
+
+WindowCloseAction QtSettingsRepository::getWindowCloseAction() const {
+    return static_cast<WindowCloseAction>(m_windowCloseAction);
+}
+
+void QtSettingsRepository::setLanguage(const std::string& lang) {
+    QString qlang = QString::fromStdString(lang);
+    if (m_language != qlang) {
+        m_language = qlang;
+        emit settingsChanged();
+    }
+}
+
+void QtSettingsRepository::setAutoRunOnStartup(bool enabled) {
+    if (m_autoRunOnStartup != enabled) {
+        m_autoRunOnStartup = enabled;
+        emit settingsChanged();
+    }
+}
+
+void QtSettingsRepository::setShowLauncherAfterGameExit(bool enabled) {
+    if (m_showLauncherAfterGameExit != enabled) {
+        m_showLauncherAfterGameExit = enabled;
+        emit settingsChanged();
+    }
+}
+
+void QtSettingsRepository::setWindowCloseAction(WindowCloseAction action) {
+    int iaction = static_cast<int>(action);
+    if (m_windowCloseAction != iaction) {
+        m_windowCloseAction = iaction;
+        emit settingsChanged();
+    }
+}
+
+void QtSettingsRepository::setAutoUpdateEnabled(bool enabled) {
+    if (m_autoUpdateEnabled != enabled) {
+        m_autoUpdateEnabled = enabled;
+        emit settingsChanged();
+    }
+}
+
+void QtSettingsRepository::setDownloadSpeedUnlimited(bool unlimited) {
+    if (m_downloadSpeedUnlimited != unlimited) {
+        m_downloadSpeedUnlimited = unlimited;
+        emit settingsChanged();
+    }
+}
+
+void QtSettingsRepository::setDownloadSpeedLimit(int limit) {
+    if (m_downloadSpeedLimit != limit) {
+        m_downloadSpeedLimit = limit;
+        emit settingsChanged();
+    }
+}
+
+void QtSettingsRepository::setContinueDownloadAfterGameStart(bool enabled) {
+    if (m_continueDownloadAfterGameStart != enabled) {
+        m_continueDownloadAfterGameStart = enabled;
+        emit settingsChanged();
+    }
+}
+
+void QtSettingsRepository::setDesktopNotificationEnabled(bool enabled) {
+    if (m_desktopNotificationEnabled != enabled) {
+        m_desktopNotificationEnabled = enabled;
+        emit settingsChanged();
+    }
+}
+
+void QtSettingsRepository::subscribe(SettingsChangedCallback callback) {
+    m_callbacks.push_back(callback);
+}
+
+QString QtSettingsRepository::getSettingsFilePath() const {
+    QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir dir(appDataPath);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+    return appDataPath + "/settings.json";
+}
+
+void QtSettingsRepository::setDefaultSettings() {
+    m_language = "日本語";
+    m_autoRunOnStartup = false;
+    m_showLauncherAfterGameExit = true;
+    m_windowCloseAction = static_cast<int>(WindowCloseAction::Close);
+    m_autoUpdateEnabled = false;
+    m_downloadSpeedUnlimited = true;
+    m_downloadSpeedLimit = 4096;
+    m_continueDownloadAfterGameStart = true;
+    m_desktopNotificationEnabled = true;
+}
+
+QJsonObject QtSettingsRepository::toJson() const {
+    QJsonObject json;
+    QJsonObject general;
+    general["language"] = m_language;
+    general["autoRunOnStartup"] = m_autoRunOnStartup;
+    general["showLauncherAfterGameExit"] = m_showLauncherAfterGameExit;
+    general["windowCloseAction"] = m_windowCloseAction;
+    general["autoUpdateEnabled"] = m_autoUpdateEnabled;
+    json["general"] = general;
+
+    QJsonObject download;
+    download["speedUnlimited"] = m_downloadSpeedUnlimited;
+    download["speedLimit"] = m_downloadSpeedLimit;
+    download["continueAfterGameStart"] = m_continueDownloadAfterGameStart;
+    json["download"] = download;
+
+    QJsonObject notification;
+    notification["desktopNotificationEnabled"] = m_desktopNotificationEnabled;
+    json["notification"] = notification;
+    return json;
+}
+
+void QtSettingsRepository::fromJson(const QJsonObject& json) {
+    if (json.contains("general") && json["general"].isObject()) {
+        QJsonObject general = json["general"].toObject();
+        m_language = general["language"].toString(m_language);
+        m_autoRunOnStartup = general["autoRunOnStartup"].toBool(m_autoRunOnStartup);
+        m_showLauncherAfterGameExit = general["showLauncherAfterGameExit"].toBool(m_showLauncherAfterGameExit);
+        m_windowCloseAction = general["windowCloseAction"].toInt(m_windowCloseAction);
+        m_autoUpdateEnabled = general["autoUpdateEnabled"].toBool(m_autoUpdateEnabled);
+    }
+    if (json.contains("download") && json["download"].isObject()) {
+        QJsonObject download = json["download"].toObject();
+        m_downloadSpeedUnlimited = download["speedUnlimited"].toBool(m_downloadSpeedUnlimited);
+        m_downloadSpeedLimit = download["speedLimit"].toInt(m_downloadSpeedLimit);
+        m_continueDownloadAfterGameStart = download["continueAfterGameStart"].toBool(m_continueDownloadAfterGameStart);
+    }
+    if (json.contains("notification") && json["notification"].isObject()) {
+        QJsonObject notification = json["notification"].toObject();
+        m_desktopNotificationEnabled = notification["desktopNotificationEnabled"].toBool(m_desktopNotificationEnabled);
+    }
+}

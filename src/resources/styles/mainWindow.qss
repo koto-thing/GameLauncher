@@ -1,0 +1,226 @@
+/* mainWindow.qss */
+
+#MainWindow {
+
+}
+
+/* 左側コンテナ */
+#LeftContainer {
+    background-color: rgba(0, 0, 0, 200);
+    border-top-left-radius: 20px;
+    border-bottom-left-radius: 20px;
+}
+
+/* 左側ゲームリスト */
+.GameListWidget {
+    background-color: transparent;
+    border: none;
+}
+
+QListWidget {
+    background-color: rgba(0, 0, 0, 200);
+    border: none;
+    border-top-left-radius: 20px;
+    border-bottom-left-radius: 20px;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* ゲーム追加ボタン */
+.AddGameButton {
+    background-color: rgba(255, 255, 255, 30);
+    border: 2px solid rgba(255, 255, 255, 100);
+    border-radius: 8px;
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.AddGameButton:hover {
+    background-color: rgba(255, 255, 255, 50);
+}
+
+.AddGameButton:pressed {
+    background-color: rgba(255, 150, 0, 100);
+}
+
+/* セパレーターライン */
+.SeparatorLine {
+    background-color: rgba(255, 255, 255, 50);
+    border: none;
+    margin: 0px 10px;
+}
+
+/* ウィンドウコントロールボタン（閉じる、最小化、オプション） */
+.CloseButton, .MinimizeButton, .OptionButton {
+    background-color: transparent;
+    color: white;
+    font-weight: bold;
+}
+
+.CloseButton, .MinimizeButton {
+    font-size: 32px;
+}
+
+.OptionButton {
+    font-size: 16px;
+}
+
+/* スクロールバーを非表示 */
+QListWidget QScrollBar:horizontal {
+    width: 0px;
+}
+
+QListWidget QScrollBar:vertical {
+    width: 0px;
+}
+
+QListWidget::item {
+    height: 50px;
+    padding-left: 5px;
+    padding-right: 5px;
+    font-size: 14px;
+    color: #ffffff;
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+    margin: 4px 8px;
+    outline: none;
+}
+
+QListWidget::item:selected {
+    background-color: rgba(255, 150, 0, 150);
+    border-radius: 8px;
+    outline: none;
+}
+
+QListWidget::item:hover {
+    background-color: rgba(255, 255, 255, 20);
+    border-radius: 8px;
+}
+
+QListWidget::item:focus {
+    outline: none;
+    border: none;
+}
+
+/* ゲーム起動ボタン */
+.LaunchButton {
+    background-color: #FF9600;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.LaunchButton:hover {
+    background-color: #FFA500;
+}
+
+.LaunchButton:pressed {
+    background-color: #FF8C00;
+}
+
+/* ステータスラベル */
+.StatusLabel {
+    background-color: transparent;
+    color: #ffffff;
+}
+
+/* ゲームストアウィジェット */
+GameStoreWidget {
+    background-color: rgba(0, 0, 0, 180);
+}
+
+/* ゲームストアタイトル */
+.GameStoreTitle {
+    color: #ffffff;
+    font-size: 28px;
+    font-weight: bold;
+    background-color: transparent;
+}
+
+/* ページナビゲーションボタン */
+.PageNavButton {
+    background-color: rgba(255, 255, 255, 50);
+    color: #ffffff;
+    border: none;
+    border-radius: 25px;
+    font-size: 20px;
+}
+
+.PageNavButton:hover {
+    background-color: rgba(255, 255, 255, 80);
+}
+
+.PageNavButton:disabled {
+    background-color: rgba(100, 100, 100, 30);
+    color: rgba(255, 255, 255, 50);
+}
+
+/* ゲームカードサムネイル */
+.GameCardThumbnail {
+    background-color: rgba(100, 100, 100, 150);
+    border-radius: 12px;
+}
+
+/* ゲームカードタイトル */
+.GameCardTitle {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: bold;
+    background-color: transparent;
+}
+
+/* ダウンロードボタン */
+.DownloadButton {
+    background-color: #FF9600;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.DownloadButton:hover {
+    background-color: #FFA500;
+}
+
+.DownloadButton:pressed {
+    background-color: #FF8C00;
+}
+
+/* ページインジケーターアクティブ */
+.PageIndicatorActive {
+    background-color: #FF9600;
+    border-radius: 6px;
+}
+
+/* ページインジケーター非アクティブ */
+.PageIndicatorInactive {
+    background-color: rgba(255, 255, 255, 50);
+    border-radius: 6px;
+}
+
+/* ゲームリストアイテム */
+.GameListItem {
+    background-color: transparent;
+}
+
+.GameListItem QLabel {
+    background-color: transparent;
+}
+
+.GameListItemSeparator {
+    background-color: rgba(255, 255, 255, 100);
+}
+
+.GameListItemTitle {
+    color: #ffffff;
+    font-size: 14px;
+    background-color: transparent;
+}
+
