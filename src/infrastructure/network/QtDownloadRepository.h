@@ -4,8 +4,6 @@
 #include "../../domain/repositories/IDownloadRepository.h"
 #include <QObject>
 #include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QFile>
 
 class QtDownloadRepository : public QObject, public IDownloadRepository {
     Q_OBJECT
@@ -14,12 +12,14 @@ public:
 
     void startDownload(
         const DownloadTask &task,
-        ProgressCallback onProgress,
-        FinishedCallback onFinished,
-        ErrorCallback onError
+        ProgressCallback   onProgress,
+        FinishedCallback   onFinished,
+        ErrorCallback      onError
     ) override;
 
 private:
+    bool verifyChecksum(const QString &filePath, const QString &checksum);
+
     QNetworkAccessManager *m_manager;
 };
 

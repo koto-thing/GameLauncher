@@ -15,8 +15,13 @@ public:
     bool loadSettings() override;
     bool saveSettings() override;
 
+    LauncherSettings load() override;
+    void save(const LauncherSettings& settings) override;
+
     // Getters
+    std::string getLauncherVersion() const override { return m_launcherVersion.toStdString(); }
     std::string getLanguage() const override { return m_language.toStdString(); }
+    std::string getInstallDir() const override { return m_installDir.toStdString(); }
     bool isAutoRunOnStartup() const override { return m_autoRunOnStartup; }
     bool isShowLauncherAfterGameExit() const override { return m_showLauncherAfterGameExit; }
     WindowCloseAction getWindowCloseAction() const override;
@@ -28,6 +33,7 @@ public:
 
     // Setters
     void setLanguage(const std::string& lang) override;
+    void setInstallDir(const std::string& dir) override;
     void setAutoRunOnStartup(bool enabled) override;
     void setShowLauncherAfterGameExit(bool enabled) override;
     void setWindowCloseAction(WindowCloseAction action) override;
@@ -49,6 +55,8 @@ private:
     void fromJson(const QJsonObject& json);
 
     QString m_language;
+    QString m_installDir;
+    QString m_launcherVersion;
     bool m_autoRunOnStartup;
     bool m_showLauncherAfterGameExit;
     int m_windowCloseAction; // stored as int to avoid dependency issue in Json

@@ -1,6 +1,5 @@
 #include "LauncherWindow.h"
 #include "GameListFactory.h"
-#include "../../infrastructure/system/QtGameRunner.h"
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -9,11 +8,27 @@
 #include <QFrame>
 #include <QDebug>
 
-LauncherWindow::LauncherWindow(ISettingsRepository* settings, IGameRunner* runner, QWidget *parent) 
-    : QWidget(parent), m_runner(runner) {
+LauncherWindow::LauncherWindow(AppContainer* container, QWidget *parent) 
+    : QWidget(parent) {
+    
+    m_runner = container->getGameRunner();
+    ISettingsRepository* settings = container->getSettingsRepository();
+    
+    // UIをセットアップしてからデータを渡す
     setupUI();
-    m_optionOverlay->setSettingsRepository(settings);
-    m_gameDetailsView->setGameRunner(m_runner);
+    
+    if (m_optionOverlay && settings) {
+        m_optionOverlay->setDependencies(
+            settings,
+            container->getCheckLauncherUpdateUseCase(),
+            container->getApplyLauncherUpdateUseCase()
+        );
+    }
+    
+    if (m_gameDetailsView && m_runner) {
+        m_gameDetailsView->setGameRunner(m_runner);
+        m_runner->setGamePath("C:/Windows/System32/notepad.exe");
+    }
 }
 
 void LauncherWindow::mousePressEvent(QMouseEvent *event) {
@@ -62,8 +77,6 @@ void LauncherWindow::loadStyleSheet(QWidget *widget, const QString& filePath) {
     if (QFile file(filePath); file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         widget->setStyleSheet(file.readAll());
         file.close();
-    } else {
-        qDebug() << "Error: Could not open stylesheet file:" << filePath;
     }
 }
 
@@ -154,10 +167,6 @@ void LauncherWindow::setupUI() {
         m_optionOverlay->resize(this->size());
         m_optionOverlay->show();
     });
-
-    if (m_runner) {
-        m_runner->setGamePath("C:/Windows/System32/notepad.exe");
-    }
 }
 
 void LauncherWindow::showGameDetails() {

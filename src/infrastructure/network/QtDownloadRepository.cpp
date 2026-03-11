@@ -1,6 +1,9 @@
 #include "QtDownloadRepository.h"
 #include <QNetworkRequest>
-#include <QUrl>
+#include <QNetworkReply>
+#include <QDir>
+#include <QCryptographicHash>
+#include <QFileInfo>
 
 QtDownloadRepository::QtDownloadRepository(QObject *parent)
     : QObject(parent), m_manager(new QNetworkAccessManager(this)) {
@@ -9,41 +12,83 @@ QtDownloadRepository::QtDownloadRepository(QObject *parent)
 
 void QtDownloadRepository::startDownload(
     const DownloadTask &task,
-    ProgressCallback onProgress,
-    FinishedCallback onFinished,
-    ErrorCallback onError
+    ProgressCallback   onProgress,
+    FinishedCallback   onFinished,
+    ErrorCallback      onError
 ) {
-    auto *file = new QFile(QString::fromStdString(task.savePath), this);
+    QString savePath = QString::fromStdString(task.installDir)
+                            + QDir::separator()
+                            + QString::fromStdString(task.file.path);
+
+    QFileInfo fileInfo(savePath);
+    QDir().mkpath(fileInfo.absolutePath());
+
+    auto *file = new QFile(savePath);
     if (!file->open(QIODevice::WriteOnly)) {
-        onError("ファイルを開けませんでした: " + task.savePath);
+        onError("Failed to open file for writing: " + savePath.toStdString());
+        delete file;
         return;
     }
 
-    QNetworkRequest request(QUrl(QString::fromStdString(task.url)));
+    QNetworkRequest request(QUrl(QString::fromStdString(task.file.url)));
     QNetworkReply *reply = m_manager->get(request);
 
-    // 受信するデータをファイルに書き込む
     connect(reply, &QNetworkReply::readyRead, this, [reply, file]() {
-        file->write(reply->readAll());
+        if (reply->error() == QNetworkReply::NoError) {
+            file->write(reply->readAll());
+        }
     });
 
-    // 進捗を通知する
     connect(reply, &QNetworkReply::downloadProgress, this,
         [onProgress](qint64 recv, qint64 total) {
-            onProgress(recv, total);
+            if (onProgress)
+                onProgress(recv, total);
         });
 
-    // 完了・エラー処理
+    // 修正点: エラー発生時および完了時にリソースを確実に解放。
     connect(reply, &QNetworkReply::finished, this,
-        [reply, file, onFinished, onError, savePath = task.savePath]() {
+        [this, reply, file, savePath, task, onFinished, onError]() {
             file->close();
-            if (reply->error() == QNetworkReply::NoError) {
-                onFinished(savePath);
+            
+            if (reply->error() != QNetworkReply::NoError) {
+                if (onError)
+                    onError(reply->errorString().toStdString());
+            } else if (!task.file.checksum.empty()) {
+                if (!verifyChecksum(savePath, QString::fromStdString(task.file.checksum))) {
+                    if (onError)
+                        onError("Checksum verification failed: " + savePath.toStdString());
+                } else {
+                    if (onFinished)
+                        onFinished(savePath.toStdString());
+                }
             } else {
-                onError(reply->errorString().toStdString());
+                if (onFinished)
+                    onFinished(savePath.toStdString());
             }
 
             reply->deleteLater();
-            file->deleteLater();
+            delete file;
         });
+}
+
+bool QtDownloadRepository::verifyChecksum(const QString &filePath, const QString &checksum) {
+    QStringList parts = checksum.split(":");
+    if (parts.size() != 2)
+        return false;
+
+    QCryptographicHash::Algorithm algo;
+    if (parts[0] == "sha256") algo = QCryptographicHash::Sha256;
+    else if (parts[0] == "md5") algo = QCryptographicHash::Md5;
+    else return false;
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+
+    QCryptographicHash hash(algo);
+    if (hash.addData(&file)) {
+        return hash.result().toHex() == parts[1].toLower();
+    }
+
+    return false;
 }

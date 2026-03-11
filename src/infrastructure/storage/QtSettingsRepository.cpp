@@ -53,6 +53,32 @@ bool QtSettingsRepository::saveSettings() {
     return true;
 }
 
+LauncherSettings QtSettingsRepository::load() {
+    loadSettings();
+    LauncherSettings s;
+    s.language = m_language.toStdString();
+    s.startOnBoot = m_autoRunOnStartup;
+    s.installDir = m_installDir.toStdString();
+    s.maxDownloadSpeedKB = m_downloadSpeedLimit;
+    s.closeToTray = (static_cast<WindowCloseAction>(m_windowCloseAction) == WindowCloseAction::Minimize);
+    s.autoUpdate = m_autoUpdateEnabled;
+    s.enableNotifications = m_desktopNotificationEnabled;
+    s.launcherVersion = m_launcherVersion.toStdString();
+    return s;
+}
+
+void QtSettingsRepository::save(const LauncherSettings& settings) {
+    m_language = QString::fromStdString(settings.language);
+    m_autoRunOnStartup = settings.startOnBoot;
+    m_installDir = QString::fromStdString(settings.installDir);
+    m_downloadSpeedLimit = settings.maxDownloadSpeedKB;
+    m_windowCloseAction = static_cast<int>(settings.closeToTray ? WindowCloseAction::Minimize : WindowCloseAction::Close);
+    m_autoUpdateEnabled = settings.autoUpdate;
+    m_desktopNotificationEnabled = settings.enableNotifications;
+    m_launcherVersion = QString::fromStdString(settings.launcherVersion);
+    saveSettings();
+}
+
 WindowCloseAction QtSettingsRepository::getWindowCloseAction() const {
     return static_cast<WindowCloseAction>(m_windowCloseAction);
 }
@@ -61,6 +87,14 @@ void QtSettingsRepository::setLanguage(const std::string& lang) {
     QString qlang = QString::fromStdString(lang);
     if (m_language != qlang) {
         m_language = qlang;
+        emit settingsChanged();
+    }
+}
+
+void QtSettingsRepository::setInstallDir(const std::string& dir) {
+    QString qdir = QString::fromStdString(dir);
+    if (m_installDir != qdir) {
+        m_installDir = qdir;
         emit settingsChanged();
     }
 }
@@ -137,6 +171,8 @@ QString QtSettingsRepository::getSettingsFilePath() const {
 
 void QtSettingsRepository::setDefaultSettings() {
     m_language = "日本語";
+    m_installDir = "";
+    m_launcherVersion = "1.0.0";
     m_autoRunOnStartup = false;
     m_showLauncherAfterGameExit = true;
     m_windowCloseAction = static_cast<int>(WindowCloseAction::Close);
@@ -151,6 +187,8 @@ QJsonObject QtSettingsRepository::toJson() const {
     QJsonObject json;
     QJsonObject general;
     general["language"] = m_language;
+    general["installDir"] = m_installDir;
+    general["launcherVersion"] = m_launcherVersion;
     general["autoRunOnStartup"] = m_autoRunOnStartup;
     general["showLauncherAfterGameExit"] = m_showLauncherAfterGameExit;
     general["windowCloseAction"] = m_windowCloseAction;
@@ -173,6 +211,8 @@ void QtSettingsRepository::fromJson(const QJsonObject& json) {
     if (json.contains("general") && json["general"].isObject()) {
         QJsonObject general = json["general"].toObject();
         m_language = general["language"].toString(m_language);
+        m_installDir = general["installDir"].toString(m_installDir);
+        m_launcherVersion = general["launcherVersion"].toString(m_launcherVersion);
         m_autoRunOnStartup = general["autoRunOnStartup"].toBool(m_autoRunOnStartup);
         m_showLauncherAfterGameExit = general["showLauncherAfterGameExit"].toBool(m_showLauncherAfterGameExit);
         m_windowCloseAction = general["windowCloseAction"].toInt(m_windowCloseAction);

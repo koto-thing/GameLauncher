@@ -8,6 +8,9 @@ GameListItemWidget::GameListItemWidget(const QString& gameTitle, const QString& 
     m_layout->setContentsMargins(8, 8, 8, 8);
     m_layout->setSpacing(10);
 
+    // 全体の背景設定
+    setProperty("class", "GameListItem");
+
     m_iconLabel = new QLabel(this);
     if (!gameIconPath.isEmpty()) {
         QPixmap iconPixmap(gameIconPath);
@@ -17,17 +20,17 @@ GameListItemWidget::GameListItemWidget(const QString& gameTitle, const QString& 
     m_layout->addWidget(m_iconLabel);
 
     m_separatorLine = new QLabel(this);
+    m_separatorLine->setProperty("class", "GameListItemSeparator");
     m_separatorLine->setFixedSize(2, 32);
-    m_separatorLine->setStyleSheet("background-color: white;");
     m_layout->addWidget(m_separatorLine);
 
     m_titleLabel = new QLabel(this);
+    m_titleLabel->setProperty("class", "GameListItemTitle");
     QString displayTitle = gameTitle;
     if (gameTitle.size() > 9) {
         displayTitle = gameTitle.left(6) + "...";
     }
     m_titleLabel->setText(displayTitle);
-    m_titleLabel->setStyleSheet("color: white;");
     m_layout->addWidget(m_titleLabel);
 
     m_layout->addStretch();

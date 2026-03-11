@@ -1,6 +1,5 @@
 #include "OptionOverlay.h"
 #include "SettingsPageFactory.h"
-#include "../../infrastructure/storage/QtSettingsRepository.h"
 #include <QLabel>
 #include <QMouseEvent>
 #include <QHBoxLayout>
@@ -12,6 +11,9 @@
 OptionOverlay::OptionOverlay(QWidget *parent) : QWidget(parent) {
     hide();
     setStyleSheet("background-color: rgba(0, 0, 0, 180)");
+    
+    // UI要素を先に初期化
+    m_contentStack = new QStackedWidget();
     setupUI();
 }
 
@@ -23,8 +25,6 @@ void OptionOverlay::loadStyleSheet(QWidget *widget, const QString& filePath) {
     if (QFile file(filePath); file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         widget->setStyleSheet(file.readAll());
         file.close();
-    } else {
-        qDebug() << "Error: Could not open stylesheet file:" << filePath;
     }
 }
 
@@ -62,14 +62,13 @@ void OptionOverlay::setupUI() {
     headerLayout->setContentsMargins(20, 15, 15, 10);
 
     QLabel *settingsLabel = new QLabel("設定");
-    settingsLabel->setStyleSheet("color: #888888; font-size: 14px; font-weight: normal; background-color: transparent;");
+    settingsLabel->setStyleSheet("color: #888888; font-size: 14px; background-color: transparent;");
     headerLayout->addWidget(settingsLabel);
     headerLayout->addStretch();
 
     m_closeButton = new QPushButton("×", rightContainer);
     m_closeButton->setFixedSize(30, 30);
-    m_closeButton->setCursor(Qt::PointingHandCursor);
-    m_closeButton->setStyleSheet("background-color: transparent; color: #888888; font-weight: bold; font-size: 20px; border: none;");
+    m_closeButton->setStyleSheet("background-color: transparent; color: #888888; font-size: 20px; border: none;");
     connect(m_closeButton, &QPushButton::clicked, this, &QWidget::hide);
     headerLayout->addWidget(m_closeButton);
 
@@ -77,47 +76,37 @@ void OptionOverlay::setupUI() {
 
     QScrollArea *scrollArea = new QScrollArea(rightContainer);
     scrollArea->setWidgetResizable(true);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setStyleSheet("QScrollArea { background-color: transparent; border: none; }");
+    scrollArea->setWidget(m_contentStack); // ここで確実にセット
+    rightLayout->addWidget(scrollArea);
 
-    m_contentStack = new QStackedWidget();
+    panelLayout->addWidget(rightContainer);
 
-    // Default to infrastructure if none provided yet, or wait for setSettingsRepository
-    // For now, let's just initialize the pages if settings is available
+    connect(m_categoryList, &QListWidget::currentRowChanged, m_contentStack, &QStackedWidget::setCurrentIndex);
 }
 
-void OptionOverlay::setSettingsRepository(ISettingsRepository *repository) {
+void OptionOverlay::setDependencies(
+    ISettingsRepository *repository,
+    std::shared_ptr<CheckLauncherUpdateUseCase> checkUpdateUseCase,
+    std::shared_ptr<ApplyLauncherUpdateUseCase> applyUpdateUseCase
+) {
+    if (!repository) return;
+    
     m_settings = repository;
-    if (m_settings) {
-        // Clear previous widgets if any
-        while (m_contentStack->count() > 0) {
-            QWidget* widget = m_contentStack->widget(0);
-            m_contentStack->removeWidget(widget);
-            delete widget;
-        }
-
-        m_contentStack->addWidget(SettingsPageFactory::createGeneralSettingsPage(m_settings));
-        m_contentStack->addWidget(SettingsPageFactory::createDownloadSettingsPage(m_settings));
-        m_contentStack->addWidget(SettingsPageFactory::createNotificationSettingsPage(m_settings));
-        m_contentStack->addWidget(SettingsPageFactory::createDescriptionSettingsPage());
-
-        QScrollArea* scrollArea = qobject_cast<QScrollArea*>(m_contentStack->parentWidget()->parentWidget());
-        if (scrollArea) {
-             scrollArea->setWidget(m_contentStack);
-        } else {
-            // Find scroll area in right container layout
-            QVBoxLayout* rightLayout = qobject_cast<QVBoxLayout*>(m_panel->layout()->itemAt(1)->widget()->layout());
-            if (rightLayout) {
-                QScrollArea* sa = new QScrollArea();
-                sa->setWidgetResizable(true);
-                sa->setWidget(m_contentStack);
-                rightLayout->addWidget(sa);
-            }
-        }
-
-        connect(m_categoryList, &QListWidget::currentRowChanged, m_contentStack, &QStackedWidget::setCurrentIndex);
-        m_categoryList->setCurrentRow(0);
+    m_checkUpdateUseCase = std::move(checkUpdateUseCase);
+    m_applyUpdateUseCase = std::move(applyUpdateUseCase);
+    
+    // スタックの中身を初期化
+    while (m_contentStack->count() > 0) {
+        QWidget* widget = m_contentStack->widget(0);
+        m_contentStack->removeWidget(widget);
+        delete widget;
     }
+
+    m_contentStack->addWidget(SettingsPageFactory::createGeneralSettingsPage(m_settings));
+    m_contentStack->addWidget(SettingsPageFactory::createDownloadSettingsPage(m_settings));
+    m_contentStack->addWidget(SettingsPageFactory::createNotificationSettingsPage(m_settings));
+    m_contentStack->addWidget(SettingsPageFactory::createDescriptionSettingsPage(m_settings, m_checkUpdateUseCase, m_applyUpdateUseCase));
+
+    m_categoryList->setCurrentRow(0);
 }

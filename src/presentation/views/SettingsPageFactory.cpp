@@ -7,6 +7,8 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QFileDialog>
+#include <QMessageBox>
 
 QWidget* SettingsPageFactory::createGeneralSettingsPage(ISettingsRepository* settings) {
     QWidget *page = new QWidget();
@@ -182,6 +184,32 @@ QWidget* SettingsPageFactory::createDownloadSettingsPage(ISettingsRepository* se
     });
     layout->addWidget(group1);
 
+    QLabel *header2 = new QLabel("インストール先", page);
+    layout->addWidget(header2);
+
+    QWidget *group2 = new QWidget(page);
+    group2->setObjectName("installDirGroup");
+    group2->setStyleSheet("#installDirGroup { background-color: #2a2a2a; border-radius: 6px; }");
+    QHBoxLayout *group2Layout = new QHBoxLayout(group2);
+    group2Layout->setContentsMargins(18, 15, 18, 15);
+
+    QLineEdit *dirInput = new QLineEdit();
+    dirInput->setText(QString::fromStdString(settings->getInstallDir()));
+    dirInput->setReadOnly(true);
+    group2Layout->addWidget(dirInput);
+
+    QPushButton *browseBtn = new QPushButton("変更");
+    QObject::connect(browseBtn, &QPushButton::clicked, [settings, dirInput, page]() {
+        QString dir = QFileDialog::getExistingDirectory(page, "インストール先を選択", dirInput->text());
+        if (!dir.isEmpty()) {
+            dirInput->setText(dir);
+            settings->setInstallDir(dir.toStdString());
+            settings->saveSettings();
+        }
+    });
+    group2Layout->addWidget(browseBtn);
+    layout->addWidget(group2);
+
     layout->addStretch();
     return page;
 }
@@ -225,7 +253,11 @@ QWidget* SettingsPageFactory::createNotificationSettingsPage(ISettingsRepository
     return page;
 }
 
-QWidget* SettingsPageFactory::createDescriptionSettingsPage() {
+QWidget* SettingsPageFactory::createDescriptionSettingsPage(
+    ISettingsRepository* settings,
+    std::shared_ptr<CheckLauncherUpdateUseCase> checkUpdateUseCase,
+    std::shared_ptr<ApplyLauncherUpdateUseCase> applyUpdateUseCase
+) {
     QWidget *page = new QWidget();
     page->setStyleSheet("background-color: transparent;");
 
@@ -238,9 +270,48 @@ QWidget* SettingsPageFactory::createDescriptionSettingsPage() {
     title->setStyleSheet("font-size: 20px; font-weight: bold; margin-bottom: 10px; color: #ffffff; background-color: transparent;");
     layout->addWidget(title);
 
-    QLabel *appNameLabel = new QLabel("GameLauncher V1.12.0.322");
+    QString versionStr = QString::fromStdString(settings->getLauncherVersion());
+    QLabel *appNameLabel = new QLabel("GameLauncher V" + versionStr);
     appNameLabel->setStyleSheet("color: #ffffff;");
     layout->addWidget(appNameLabel);
+
+    QPushButton *checkUpdateBtn = new QPushButton("アップデートを確認");
+    checkUpdateBtn->setFixedWidth(150);
+    QObject::connect(checkUpdateBtn, &QPushButton::clicked, [checkUpdateUseCase, applyUpdateUseCase, page, checkUpdateBtn]() {
+        checkUpdateBtn->setEnabled(false);
+        checkUpdateBtn->setText("確認中...");
+        
+        checkUpdateUseCase->execute("", 
+            [applyUpdateUseCase, page, checkUpdateBtn](UpdateCheckResultDto result) {
+                checkUpdateBtn->setEnabled(true);
+                checkUpdateBtn->setText("アップデートを確認");
+                
+                if (result.hasUpdate) {
+                    QMessageBox::StandardButton res = QMessageBox::question(page, "アップデート", 
+                        QString("新しいバージョン(%1)が利用可能です。アップデートしますか？\n\nリリースノート:\n%2")
+                        .arg(QString::fromStdString(result.latestVersion))
+                        .arg(QString::fromStdString(result.releaseNotes)),
+                        QMessageBox::Yes | QMessageBox::No);
+                    
+                    if (res == QMessageBox::Yes) {
+                        applyUpdateUseCase->execute("", [](UpdateCheckResultDto){
+                            // MaintenanceTool가 起動するのでアプリを終了する準備
+                        }, [](const std::string& err) {
+                            QMessageBox::critical(nullptr, "エラー", QString::fromStdString(err));
+                        });
+                    }
+                } else {
+                    QMessageBox::information(page, "アップデート", "最新のバージョンを使用しています。");
+                }
+            },
+            [checkUpdateBtn](const std::string& err) {
+                checkUpdateBtn->setEnabled(true);
+                checkUpdateBtn->setText("アップデートを確認");
+                QMessageBox::critical(nullptr, "エラー", QString::fromStdString(err));
+            }
+        );
+    });
+    layout->addWidget(checkUpdateBtn);
 
     layout->addStretch();
     return page;

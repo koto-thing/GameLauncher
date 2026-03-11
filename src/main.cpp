@@ -9,7 +9,7 @@ int main(int argc, char* argv[])
     AppContainer container;
     container.getSettingsRepository()->loadSettings();
 
-    LauncherWindow window(container.getSettingsRepository(), container.getGameRunner());
+    LauncherWindow window(&container);
     window.show();
 
     int result = QApplication::exec();

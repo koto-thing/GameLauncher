@@ -6,9 +6,12 @@
 
 struct DownloadProgressDto {
     std::string gameId;
-    int64_t bytesReceived = 0;
-    int64_t bytesTotal    = 0;
-    int     percent       = 0; // 0-100
+    std::string currentFile;
+    int         fileIndex = 0;
+    int         fileCount = 0;
+    int64_t     bytesReceived = 0;
+    int64_t     bytesTotal = 0;
+    int         percent = 0;
 };
 
 #endif //GAMELAUNCHER_DOWNLOADPROGRESSDTO_H

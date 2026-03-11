@@ -15,12 +15,13 @@
 #include "GameStoreWidget.h"
 #include "OptionOverlay.h"
 #include "../../domain/repositories/IGameRunner.h"
+#include "../di/AppContainer.h"
 
 class LauncherWindow : public QWidget {
     Q_OBJECT
 
 public:
-    explicit LauncherWindow(ISettingsRepository* settings, IGameRunner* runner, QWidget *parent = nullptr);
+    explicit LauncherWindow(AppContainer* container, QWidget *parent = nullptr);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -35,26 +36,26 @@ private:
     void showGameDetails();
     void showGameStore();
 
-    QHBoxLayout *mainLayout;
-    QVBoxLayout *gameListLayout;
-    QListWidget *gameListWidget;
-    QPushButton *addGameButton;
-    QVBoxLayout *rightLayout;
-    QStackedWidget *contentStack;
+    QHBoxLayout *mainLayout = nullptr;
+    QVBoxLayout *gameListLayout = nullptr;
+    QListWidget *gameListWidget = nullptr;
+    QPushButton *addGameButton = nullptr;
+    QVBoxLayout *rightLayout = nullptr;
+    QStackedWidget *contentStack = nullptr;
 
-    GameDetailsWidget *m_gameDetailsView;
-    GameStoreWidget *m_gameStoreView;
+    GameDetailsWidget *m_gameDetailsView = nullptr;
+    GameStoreWidget *m_gameStoreView = nullptr;
 
-    QPushButton *m_closeButton;
-    QPushButton *m_minimizeButton;
-    QPushButton *m_optionButton;
+    QPushButton *m_closeButton = nullptr;
+    QPushButton *m_minimizeButton = nullptr;
+    QPushButton *m_optionButton = nullptr;
 
     QPoint m_dragPosition;
     bool m_isDragging = false;
     const int TITLE_BAR_HEIGHT = 20;
 
-    IGameRunner *m_runner;
-    OptionOverlay *m_optionOverlay;
+    IGameRunner *m_runner = nullptr;
+    OptionOverlay *m_optionOverlay = nullptr;
 };
 
 #endif //GAMELAUNCHER_LAUNCHERWINDOW_H

@@ -4,19 +4,20 @@
 #include "../entities/DownloadTask.h"
 #include <functional>
 #include <cstdint>
+#include <string>
 
 using ProgressCallback = std::function<void(int64_t bytesReceived, int64_t bytesTotal)>;
 using FinishedCallback = std::function<void(const std::string &filePath)>;
-using ErrorCallback = std::function<void(const std::string &errorMessage)>;
+using ErrorCallback    = std::function<void(const std::string &errorMessage)>;
 
 class IDownloadRepository {
 public:
     virtual ~IDownloadRepository() = default;
     virtual void startDownload(
         const DownloadTask &task,
-        ProgressCallback onProgress,
-        FinishedCallback onFinished,
-        ErrorCallback onError
+        ProgressCallback   onProgress,
+        FinishedCallback   onFinished,
+        ErrorCallback      onError
     ) = 0;
 };
 
