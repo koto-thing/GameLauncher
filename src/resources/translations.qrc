@@ -1,8 +1,0 @@
-<RCC>
-    <qresource prefix="/translations">
-        <file>translations/launcher_ja.qm</file>
-        <file>translations/launcher_en.qm</file>
-        <file>translations/launcher_zh_CN.qm</file>
-        <file>translations/launcher_ko.qm</file>
-    </qresource>
-</RCC>

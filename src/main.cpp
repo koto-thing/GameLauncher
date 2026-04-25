@@ -1,20 +1,17 @@
 #include <QApplication>
-#include "presentation/di/AppContainer.h"
-#include "presentation/views/LauncherWindow.h"
+#include <QDebug>
+
+#include "infrastructure/provider/QtApplicationProvider.h"
+#include "view/MainWindow.h"
 
 int main(int argc, char* argv[])
 {
-    QApplication app(argc, argv);
+    QtApplicationProvider app(argc, argv);
 
-    AppContainer container;
-    container.getSettingsRepository()->loadSettings();
+    MainWindow window;
 
-    LauncherWindow window(&container);
     window.show();
 
-    int result = QApplication::exec();
-
-    container.getSettingsRepository()->saveSettings();
-
+    const int result = app.run();
     return result;
 }

@@ -1,0 +1,7 @@
+﻿<RCC>
+    <qresource prefix="/">
+        <file alias="images/launcher_background_placeholder.png">../images/launcher_background_placeholder.png</file>
+        <file alias="images/placeholder_100x100.png">../images/placeholder_100x100.png</file>
+    </qresource>
+</RCC>
+
