@@ -20,16 +20,16 @@ lib/
 # ==========================
 # Qt Generated Files
 # ==========================
-# MOC (Meta-Object Compiler) が生成するファイル
 *_autogen/
 *.moc
 moc_*.cpp
 qrc_*.cpp
 ui_*.h
 
-# Qt Creator settings (もし使った場合)
+# Qt Creator settings
 *.pro.user
 *.pro.user.*
+*.user
 
 # ==========================
 # Compiled Object Files
@@ -41,18 +41,53 @@ ui_*.h
 # ==========================
 # Executables / Libraries
 # ==========================
-# Windows
 *.exe
 *.dll
 *.lib
 *.pdb
 *.ilk
-
-# Mac / Linux
 *.app
 *.dylib
 *.so
 *.out
+
+# ==========================
+# Generated diagnostics
+# ==========================
+*.log
+__pycache__/
+publisher/.publisher-state.json
+local-test/
+.venv/
+
+# ==========================
+# Secrets / Local credentials
+# ==========================
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Package-manager and CLI credential files
+.npmrc
+.pypirc
+.netrc
+
+# Private keys and signing certificates
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+private*.pem
+*-private.pem
+*_private.pem
+
+# Local service credentials (commit only redacted examples)
+credentials*.json
+service-account*.json
+!credentials*.example.json
+!service-account*.example.json
 
 # ==========================
 # OS Specific

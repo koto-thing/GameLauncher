@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Installer>
+    <Name>PandD Game Launcher</Name>
+    <Version>1.0.0</Version>
+    <Title>PandD Game Launcher Installer</Title>
+    <Publisher>PandD</Publisher>
+    <WizardStyle>Classic</WizardStyle>
+    <WizardShowPageList>false</WizardShowPageList>
+    <WizardDefaultWidth>680</WizardDefaultWidth>
+    <WizardDefaultHeight>460</WizardDefaultHeight>
+    <WizardMinimumWidth>680</WizardMinimumWidth>
+    <WizardMinimumHeight>460</WizardMinimumHeight>
+    <StyleSheet>style.qss</StyleSheet>
+    <TitleColor>#202124</TitleColor>
+    <StartMenuDir>PandD</StartMenuDir>
+    <TargetDir>@ApplicationsDir@/PandD Game Launcher</TargetDir>
+    <MaintenanceToolName>maintenancetool</MaintenanceToolName>
+    <RemoteRepositories>
+        <Repository>
+            <Url>https://downloads.koto-thing.com/v1/launcher/ifw</Url>
+            <Enabled>1</Enabled>
+            <DisplayName>PandD Launcher Updates</DisplayName>
+        </Repository>
+    </RemoteRepositories>
+</Installer>

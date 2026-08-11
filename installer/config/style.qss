@@ -1,0 +1,85 @@
+QWizard {
+    background-color: #ffffff;
+    color: #202124;
+}
+
+QWizardPage {
+    background-color: #ffffff;
+}
+
+QLabel,
+QCheckBox,
+QRadioButton,
+QGroupBox {
+    color: #202124;
+}
+
+QPushButton {
+    min-width: 76px;
+    min-height: 28px;
+    padding: 0 14px;
+    border: 1px solid #b8bdc6;
+    border-radius: 4px;
+    background-color: #ffffff;
+    color: #202124;
+}
+
+QPushButton:hover {
+    border-color: #7a828e;
+    background-color: #f4f6f8;
+}
+
+QPushButton:pressed {
+    background-color: #e8ebef;
+}
+
+QPushButton:default {
+    border-color: #1769aa;
+    background-color: #1769aa;
+    color: #ffffff;
+}
+
+QPushButton:default:hover {
+    border-color: #12588f;
+    background-color: #12588f;
+}
+
+QPushButton:disabled {
+    border-color: #d9dde3;
+    background-color: #f2f3f5;
+    color: #9aa0a6;
+}
+
+QLineEdit,
+QComboBox,
+QListView,
+QTreeView,
+QTextEdit,
+QPlainTextEdit {
+    border: 1px solid #b8bdc6;
+    border-radius: 3px;
+    background-color: #ffffff;
+    color: #202124;
+    selection-background-color: #d9eaf7;
+    selection-color: #202124;
+}
+
+QLineEdit,
+QComboBox {
+    min-height: 28px;
+    padding: 0 7px;
+}
+
+QProgressBar {
+    min-height: 14px;
+    border: 1px solid #c8cdd4;
+    border-radius: 3px;
+    background-color: #eef0f3;
+    color: #202124;
+    text-align: center;
+}
+
+QProgressBar::chunk {
+    border-radius: 2px;
+    background-color: #1769aa;
+}

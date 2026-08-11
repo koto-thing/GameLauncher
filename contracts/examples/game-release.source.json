@@ -1,0 +1,17 @@
+{
+  "gameId": "sample-game",
+  "version": "1.0.0",
+  "minimumLauncherVersion": "1.0.0",
+  "publishedAt": "2026-08-10T00:00:00Z",
+  "engine": "godot",
+  "entrypoint": "bin/sample-game.exe",
+  "workingDirectory": "bin",
+  "saveDirectoryName": "sample-game",
+  "display": {
+    "ja-JP": { "name": "サンプルゲーム", "summary": "Publisher契約テスト用fixture" },
+    "en-US": { "name": "Sample Game", "summary": "Fixture used by publisher contract tests" }
+  },
+  "hero": "hero.png",
+  "heroFocalPoint": { "x": 0.5, "y": 0.38 },
+  "thumbnail": "thumbnail.png"
+}

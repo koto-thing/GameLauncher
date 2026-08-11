@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "releases": [
+    {
+      "version": "1.0.0",
+      "title": "Initial release",
+      "publishedAt": "2026-08-10T00:00:00Z",
+      "changes": [
+        "Added the game catalog, installed-game list, and announcements",
+        "Added game install, update, verify, repair, uninstall, and launch workflows",
+        "Added secure resume, signature verification, and launcher self-update"
+      ]
+    }
+  ]
+}

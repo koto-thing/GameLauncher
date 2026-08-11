@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pandd.org/contracts/v1/announcements-source.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "announcements"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "announcements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "category", "title", "publishedAt", "body"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "category": { "enum": ["event", "announcement", "news"] },
+          "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "publishedAt": { "type": "string", "format": "date-time" },
+          "body": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

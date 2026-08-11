@@ -1,0 +1,289 @@
+#include "presentation/LauncherViewModel.h"
+
+#include <QDir>
+#include <QMetaObject>
+#include <QThreadPool>
+
+#include <algorithm>
+
+namespace pandd {
+namespace {
+
+/** @brief 安定Error Codeを現在言語の利用者メッセージへ変換する */
+QString localizedError(const OperationError& error, const std::string& language) {
+    if (language != "en-US") {
+        return QString::fromStdString(error.userMessage);
+    }
+    switch (error.code) {
+    case ErrorCode::NetworkOffline:
+        return "The distribution server is unavailable. Check your connection and retry.";
+    case ErrorCode::DownloadHttpError:
+    case ErrorCode::DownloadRangeUnsupported:
+        return "The game files could not be downloaded. Please retry.";
+    case ErrorCode::ManifestInvalid:
+    case ErrorCode::ManifestSignatureInvalid:
+        return "The release information is invalid. The operation was stopped for safety.";
+    case ErrorCode::FileHashMismatch:
+        return "Game files are damaged. Run Repair.";
+    case ErrorCode::DiskSpaceInsufficient:
+        return "There is not enough free disk space.";
+    case ErrorCode::InstallPermissionDenied:
+        return QDir::isAbsolutePath(QString::fromStdString(error.detail))
+                   ? "The operation could not be completed. Remaining path: " +
+                         QString::fromStdString(error.detail)
+                   : "The selected location cannot be written to.";
+    case ErrorCode::GameAlreadyRunning:
+        return "Close the game before continuing.";
+    case ErrorCode::LaunchExecutableMissing:
+        return "The game executable is missing. Run Repair.";
+    case ErrorCode::LauncherUpdateFailed:
+        return "The launcher update operation failed.";
+    case ErrorCode::OperationCancelled:
+        return "The operation was cancelled.";
+    case ErrorCode::None:
+        return {};
+    }
+    return "The operation failed.";
+}
+
+} // namespace
+
+LauncherViewModel::LauncherViewModel(LauncherService& service, QObject* parent)
+    : QObject(parent), service_(service), catalog_(service.catalog()),
+      installedGames_(service.installedGames()), announcements_(service.announcements()),
+      launcherChangelog_(service.launcherChangelog()), settings_(service.settings()) {
+    operationPool_.setMaxThreadCount(1);
+    service_.setStateCallback(
+        [this](const GameId& gameId, InstallState state, const OperationError&) {
+            QMetaObject::invokeMethod(this, [this, id = gameId.value(), state] {
+                emit gameStateChanged(QString::fromStdString(id), static_cast<int>(state));
+            });
+        });
+}
+
+LauncherViewModel::~LauncherViewModel() {
+    service_.cancel();
+    operationPool_.clear();
+    operationPool_.waitForDone();
+    service_.setStateCallback({});
+}
+
+void LauncherViewModel::initialize() {
+    runAsync([this] { return service_.load(); }, true, true);
+}
+
+const std::vector<GameCatalogEntry>& LauncherViewModel::catalog() const { return catalog_; }
+
+const std::vector<InstalledGame>& LauncherViewModel::installedGames() const {
+    return installedGames_;
+}
+
+const std::vector<Announcement>& LauncherViewModel::announcements() const { return announcements_; }
+
+const LauncherSettings& LauncherViewModel::settings() const { return settings_; }
+
+const std::vector<LauncherChangelogEntry>& LauncherViewModel::launcherChangelog() const {
+    return launcherChangelog_;
+}
+
+QString LauncherViewModel::saveDirectory(const QString& gameId) const {
+    const auto iterator = std::find_if(installedGames_.begin(), installedGames_.end(),
+                                       [&gameId](const auto& installed) {
+                                           return installed.gameId.value() == gameId.toStdString();
+                                       });
+    return iterator == installedGames_.end()
+               ? QString{}
+               : QString::fromStdString(
+                     LauncherService::resolveSaveDirectory(iterator->saveDirectoryName));
+}
+
+void LauncherViewModel::installOrUpdate(const QString& gameId) {
+    const auto id = gameId.toStdString();
+    runAsync(
+        [this, id] {
+            return service_.installOrUpdate(GameId(id), [this, id](const DownloadProgress& value) {
+                QMetaObject::invokeMethod(this, [this, id, value] {
+                    emit progressChanged(QString::fromStdString(id), value.receivedBytes,
+                                         value.totalBytes, value.bytesPerSecond,
+                                         static_cast<int>(value.completedFiles),
+                                         static_cast<int>(value.totalFiles));
+                });
+            });
+        },
+        true);
+}
+
+void LauncherViewModel::locateExisting(const QString& gameId, const QString& sourceDirectory) {
+    const auto id = gameId.toStdString();
+    const auto source = sourceDirectory.toStdString();
+    runAsync(
+        [this, id, source] {
+            return service_.locateExisting(
+                GameId(id), source, [this, id](const DownloadProgress& value) {
+                    QMetaObject::invokeMethod(this, [this, id, value] {
+                        emit progressChanged(QString::fromStdString(id), value.receivedBytes,
+                                             value.totalBytes, value.bytesPerSecond,
+                                             static_cast<int>(value.completedFiles),
+                                             static_cast<int>(value.totalFiles));
+                    });
+                });
+        },
+        true);
+}
+
+void LauncherViewModel::launch(const QString& gameId) {
+    const auto id = gameId.toStdString();
+    operationPool_.start([this, id] {
+        const auto prepared =
+            service_.prepareLaunch(GameId(id), [this, id](const DownloadProgress& value) {
+                QMetaObject::invokeMethod(this, [this, id, value] {
+                    emit progressChanged(QString::fromStdString(id), value.receivedBytes,
+                                         value.totalBytes, value.bytesPerSecond,
+                                         static_cast<int>(value.completedFiles),
+                                         static_cast<int>(value.totalFiles));
+                });
+            });
+        const auto launched =
+            prepared.ok ? service_.launch(GameId(id)) : OperationResult::success();
+        const auto catalog = service_.catalog();
+        const auto installed = service_.installedGames();
+        const auto announcements = service_.announcements();
+        const auto settings = service_.settings();
+        QMetaObject::invokeMethod(
+            this, [this, prepared, launched, catalog, installed, announcements, settings] {
+                if (!prepared.ok) {
+                    emit errorOccurred(localizedError(prepared.error, settings_.language),
+                                       prepared.error.retryable);
+                    return;
+                }
+                catalog_ = catalog;
+                installedGames_ = installed;
+                announcements_ = announcements;
+                settings_ = settings;
+                emit dataChanged();
+                if (!launched.ok) {
+                    emit errorOccurred(localizedError(launched.error, settings_.language),
+                                       launched.error.retryable);
+                }
+            });
+    });
+}
+
+void LauncherViewModel::verify(const QString& gameId) {
+    runAsync([this, id = gameId.toStdString()] { return service_.verify(GameId(id)); });
+}
+
+void LauncherViewModel::repair(const QString& gameId) {
+    const auto id = gameId.toStdString();
+    runAsync(
+        [this, id] {
+            return service_.repair(GameId(id), [this, id](const DownloadProgress& value) {
+                QMetaObject::invokeMethod(this, [this, id, value] {
+                    emit progressChanged(QString::fromStdString(id), value.receivedBytes,
+                                         value.totalBytes, value.bytesPerSecond,
+                                         static_cast<int>(value.completedFiles),
+                                         static_cast<int>(value.totalFiles));
+                });
+            });
+        },
+        true);
+}
+
+void LauncherViewModel::uninstall(const QString& gameId) {
+    runAsync([this, id = gameId.toStdString()] { return service_.uninstall(GameId(id)); }, true);
+}
+
+void LauncherViewModel::cleanupTemporary(const QString& gameId) {
+    runAsync([this, id = gameId.toStdString()] { return service_.cleanupTemporary(GameId(id)); });
+}
+
+void LauncherViewModel::saveSettings(LauncherSettings settings) {
+    runAsync([this, settings = std::move(settings)] { return service_.saveSettings(settings); },
+             true);
+}
+
+void LauncherViewModel::checkLauncherUpdate() {
+    operationPool_.start([this] {
+        const auto result = service_.checkLauncherUpdate();
+        const auto status = service_.launcherUpdateStatus();
+        const auto settings = service_.settings();
+        const auto changelog = service_.launcherChangelog();
+        QMetaObject::invokeMethod(this, [this, result, status, settings, changelog] {
+            if (!result.ok) {
+                emit errorOccurred(localizedError(result.error, settings_.language),
+                                   result.error.retryable);
+                return;
+            }
+            settings_ = settings;
+            launcherChangelog_ = changelog;
+            emit launcherUpdateChecked(QString::fromStdString(status.currentVersion.value()),
+                                       QString::fromStdString(status.latestVersion.value()),
+                                       QString::fromStdString(status.title),
+                                       QString::fromStdString(status.checkedAt),
+                                       status.updateAvailable, status.mandatory);
+        });
+    });
+}
+
+void LauncherViewModel::applyLauncherUpdate() {
+    operationPool_.start([this] {
+        const auto result = service_.applyLauncherUpdate();
+        QMetaObject::invokeMethod(this, [this, result] {
+            if (!result.ok) {
+                emit errorOccurred(localizedError(result.error, settings_.language),
+                                   result.error.retryable);
+                return;
+            }
+            emit launcherUpdateStarted();
+        });
+    });
+}
+
+void LauncherViewModel::cancel() { service_.cancel(); }
+
+void LauncherViewModel::pause(const QString& gameId) {
+    service_.pause(GameId(gameId.toStdString()));
+}
+
+void LauncherViewModel::resume(const QString& gameId) {
+    service_.resume(GameId(gameId.toStdString()));
+}
+
+void LauncherViewModel::runAsync(std::function<OperationResult()> operation, bool refreshOnSuccess,
+                                 bool notifyLoaded) {
+    operationPool_.start([this, operation = std::move(operation), refreshOnSuccess, notifyLoaded] {
+        OperationResult result;
+        try {
+            result = operation();
+        } catch (const std::exception& exception) {
+            result = OperationResult::failure({ErrorCode::ManifestInvalid,
+                                               "処理中に予期しないエラーが発生しました",
+                                               exception.what(), true});
+        }
+        const auto catalog = result.ok ? service_.catalog() : std::vector<GameCatalogEntry>{};
+        const auto installed = result.ok ? service_.installedGames() : std::vector<InstalledGame>{};
+        const auto announcements =
+            result.ok ? service_.announcements() : std::vector<Announcement>{};
+        const auto settings = result.ok ? service_.settings() : LauncherSettings{};
+        QMetaObject::invokeMethod(this, [this, result, refreshOnSuccess, notifyLoaded, catalog,
+                                         installed, announcements, settings] {
+            if (!result.ok) {
+                emit errorOccurred(localizedError(result.error, settings_.language),
+                                   result.error.retryable);
+                return;
+            }
+            catalog_ = catalog;
+            installedGames_ = installed;
+            announcements_ = announcements;
+            settings_ = settings;
+            if (refreshOnSuccess) {
+                emit dataChanged();
+            }
+            if (notifyLoaded) {
+                emit loaded();
+            }
+        });
+    });
+}
+
+} // namespace pandd

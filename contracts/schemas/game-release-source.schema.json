@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pandd.org/contracts/v1/game-release-source.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["gameId", "version", "minimumLauncherVersion", "publishedAt", "engine", "entrypoint", "workingDirectory", "saveDirectoryName", "display", "hero", "heroFocalPoint", "thumbnail"],
+  "properties": {
+    "gameId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$" },
+    "version": { "$ref": "#/$defs/version" },
+    "minimumLauncherVersion": { "$ref": "#/$defs/version" },
+    "publishedAt": { "type": "string", "format": "date-time" },
+    "engine": { "enum": ["unity", "godot", "siv3d"] },
+    "entrypoint": { "$ref": "#/$defs/relativePath" },
+    "workingDirectory": { "$ref": "#/$defs/relativePath" },
+    "saveDirectoryName": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$" },
+    "display": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ja-JP", "en-US"],
+      "properties": {
+        "ja-JP": { "$ref": "#/$defs/display" },
+        "en-US": { "$ref": "#/$defs/display" }
+      }
+    },
+    "hero": { "$ref": "#/$defs/relativePath" },
+    "thumbnail": { "$ref": "#/$defs/relativePath" },
+    "heroFocalPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$" },
+    "relativePath": { "type": "string", "minLength": 1, "maxLength": 240, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$" },
+    "display": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "summary"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    }
+  }
+}
