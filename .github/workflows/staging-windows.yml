@@ -61,10 +61,7 @@ jobs:
           python scripts/collect_licenses.py --output staging/licenses
       - name: Smoke test deployment
         shell: pwsh
-        run: |
-          $env:PANDD_SMOKE_TEST = '1'
-          & 'staging/bin/PandD Game Launcher.exe' --smoke-test
-          if ($LASTEXITCODE -ne 0) { throw 'Launcher smoke test failed' }
+        run: ./scripts/smoke_test_windows.ps1 -Executable 'staging/bin/PandD Game Launcher.exe'
       - name: Build unsigned online installer
         shell: pwsh
         run: >-
