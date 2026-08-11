@@ -1,4 +1,4 @@
-name: Release
+name: Publish Windows production
 
 on:
   push:
@@ -6,83 +6,63 @@ on:
 
 permissions:
   contents: write
-  id-token: write
+
+env:
+  PRODUCTION_BASE_URL: https://downloads.koto-thing.com
 
 jobs:
-  release-artifacts:
+  build:
+    runs-on: windows-latest
     environment: production
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            platform: windows
-            arch: x86_64
-            qt_arch: win64_msvc2022_64
-          - os: ubuntu-24.04
-            platform: linux
-            arch: x86_64
-            qt_arch: linux_gcc_64
-          - os: macos-15-intel
-            platform: macos
-            arch: x86_64
-            qt_arch: clang_64
-          - os: macos-15
-            platform: macos
-            arch: arm64
-            qt_arch: clang_64
-    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: jurplel/install-qt-action@v4
         with:
           version: '6.10.2'
-          arch: ${{ matrix.qt_arch }}
+          arch: win64_msvc2022_64
           tools: 'tools_ifw,qt.tools.ifw.47'
           cache: true
       - name: Initialize MSVC environment
-        if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
       - uses: lukka/run-vcpkg@v11
-      - name: Derive release version
-        run: python -c "import os; open(os.environ['GITHUB_ENV'], 'a').write('RELEASE_VERSION=' + os.environ['GITHUB_REF_NAME'].removeprefix('v') + '\n')"
-      - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DPANDD_DISTRIBUTION_ENV=production -DPANDD_BUILD_NUMBER=${{ github.run_number }} -DPANDD_MANIFEST_PUBLIC_KEY_BASE64=${{ secrets.MANIFEST_PUBLIC_KEY_BASE64 }} -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
-      - name: Build and deploy
-        run: cmake --build build --parallel && cmake --install build --prefix "${{ github.workspace }}/staging"
-      - name: Generate SBOM
-        run: python scripts/generate_sbom.py --output staging/docs/pandd-game-launcher.spdx.json --version "${{ env.RELEASE_VERSION }}" --build-metadata build/pandd-build-metadata.json --ifw-version 4.7.0
-      - name: Collect pinned license texts
-        run: python scripts/collect_licenses.py --output staging/licenses
-
-      - name: Import macOS identities and notarization profile
-        if: runner.os == 'macOS'
-        env:
-          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+      - name: Validate release version
+        shell: pwsh
+        run: python scripts/validate_release_version.py "${{ github.ref_name }}"
+      - name: Configure production launcher
+        shell: pwsh
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTING=OFF
+          -DPANDD_DISTRIBUTION_ENV=production
+          -DPANDD_DISTRIBUTION_BASE_URL=${{ env.PRODUCTION_BASE_URL }}/
+          -DPANDD_BUILD_NUMBER=${{ github.run_number }}
+          -DPANDD_MANIFEST_PUBLIC_KEY_BASE64=${{ secrets.MANIFEST_PUBLIC_KEY_BASE64 }}
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+      - name: Build and install
+        shell: pwsh
         run: |
-          test -n "$MACOS_CERTIFICATE_P12_BASE64"
-          printf '%s' "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/pandd-signing.p12"
-          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" pandd-build.keychain
-          security default-keychain -s pandd-build.keychain
-          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" pandd-build.keychain
-          security import "$RUNNER_TEMP/pandd-signing.p12" -k pandd-build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$MACOS_KEYCHAIN_PASSWORD" pandd-build.keychain
-          xcrun notarytool store-credentials pandd-notary --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
-          app=$(find staging -maxdepth 2 -name '*.app' -print -quit)
-          test -n "$app"
-          ./scripts/sign_macos.sh "$app" "$MACOS_SIGNING_IDENTITY" pandd-notary
-
-      - name: Build Qt IFW repository and online installer
-        run: python installer/build.py --install-tree staging --output ifw --version "${{ env.RELEASE_VERSION }}" --repository-url "https://downloads.koto-thing.com/v1/launcher/ifw/${{ matrix.platform }}/${{ matrix.arch }}"
-
-      - name: Package and checksum unsigned Windows artifacts
-        if: runner.os == 'Windows'
+          cmake --build build --parallel
+          cmake --install build --prefix "${{ github.workspace }}/staging"
+      - name: Generate SBOM and license bundle
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          python scripts/generate_sbom.py --output staging/docs/pandd-game-launcher.spdx.json --version $version --build-metadata build/pandd-build-metadata.json --ifw-version 4.7.0
+          python scripts/collect_licenses.py --output staging/licenses
+      - name: Smoke test deployment
+        shell: pwsh
+        run: ./scripts/smoke_test_windows.ps1 -Executable 'staging/bin/PandD Game Launcher.exe'
+      - name: Build unsigned online installer
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $version = $env:RELEASE_TAG.TrimStart('v')
+          python installer/build.py --install-tree staging --output ifw --version $version --repository-url "${{ env.PRODUCTION_BASE_URL }}/v1/launcher/ifw/windows/x86_64"
+      - name: Package and checksum unsigned artifacts
         shell: pwsh
         run: |
           $archive = 'ifw/PandD-Game-Launcher-windows-x86_64.zip'
@@ -93,46 +73,15 @@ jobs:
           python scripts/generate_checksums.py --check `
             'ifw/PandD-Game-Launcher-Online-Installer.exe.sha256' `
             "$archive.sha256"
-      - name: Sign and notarize macOS online installer
-        if: runner.os == 'macOS'
-        env:
-          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
-        run: |
-          installer=$(find ifw -maxdepth 2 -name '*.app' -print -quit)
-          test -n "$installer"
-          ./scripts/sign_macos.sh "$installer" "$MACOS_SIGNING_IDENTITY" pandd-notary
-      - name: Sign Linux online installer
-        if: runner.os == 'Linux'
-        env:
-          LINUX_GPG_PRIVATE_KEY: ${{ secrets.LINUX_GPG_PRIVATE_KEY }}
-          LINUX_GPG_KEY_ID: ${{ secrets.LINUX_GPG_KEY_ID }}
-        run: |
-          test -n "$LINUX_GPG_PRIVATE_KEY"
-          printf '%s' "$LINUX_GPG_PRIVATE_KEY" | gpg --batch --import
-          installer=$(find ifw -maxdepth 1 -type f -name 'PandD-Game-Launcher-Online-Installer*' ! -name '*.sha256' ! -name '*.asc' -print -quit)
-          test -n "$installer"
-          ./scripts/sign_linux.sh "$installer" "$LINUX_GPG_KEY_ID"
-
-      - name: Windows deployment smoke test
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/smoke_test_windows.ps1 -Executable 'staging/bin/PandD Game Launcher.exe'
-      - name: Unix deployment smoke test
-        if: runner.os != 'Windows'
-        run: |
-          executable=$(find staging -type f -perm -111 -name 'PandD Game Launcher' -print -quit)
-          test -n "$executable"
-          QT_QPA_PLATFORM=offscreen PANDD_SMOKE_TEST=1 "$executable" --smoke-test
-
       - uses: actions/upload-artifact@v4
         with:
-          name: launcher-${{ matrix.platform }}-${{ matrix.arch }}
+          name: windows-production-${{ github.ref_name }}
           path: |
             staging
             ifw
 
-  publish-static-content:
-    needs: release-artifacts
+  publish:
+    needs: build
     runs-on: ubuntu-24.04
     environment: production
     steps:
@@ -140,47 +89,46 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Install pinned Publisher dependencies
+      - name: Install Publisher dependencies
         run: python -m pip install --requirement publisher/requirements.txt
       - uses: actions/download-artifact@v4
         with:
-          pattern: launcher-*
-          path: artifacts
-      - name: Verify tag matches launcher release sources
+          name: windows-production-${{ github.ref_name }}
+          path: artifact
+      - name: Assemble public production tree
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          python - <<'PY'
-          import json, os, pathlib
-          version = os.environ['RELEASE_TAG'].removeprefix('v')
-          for path in pathlib.Path('backend/content/launcher').glob('release.*.json'):
-              assert json.loads(path.read_text(encoding='utf-8'))['version'] == version, path
-          PY
-      - name: Assemble platform-specific IFW repositories
-        run: |
-          mkdir -p public/v1/launcher/ifw
-          for target in windows-x86_64 linux-x86_64 macos-x86_64 macos-arm64; do
-            platform=${target%-*}
-            arch=${target#*-}
-            destination="public/v1/launcher/ifw/$platform/$arch"
-            mkdir -p "$destination"
-            cp -a "artifacts/launcher-$target/ifw/repository/." "$destination/"
-          done
-      - name: Generate localized public metadata
-        run: |
+          version=${RELEASE_TAG#v}
+          mkdir -p public/v1/launcher/ifw/windows/x86_64
+          cp -a artifact/ifw/repository/. public/v1/launcher/ifw/windows/x86_64/
+          destination="public/v1/launcher/installers/windows/x86_64/$version"
+          mkdir -p "$destination"
+          cp artifact/ifw/PandD-Game-Launcher-Online-Installer.exe* "$destination/"
+          cp artifact/ifw/PandD-Game-Launcher-windows-x86_64.zip* "$destination/"
           python publisher/publisher.py publish-announcements --source backend/content/announcements --output public
           for locale in ja-JP en-US; do
-            source="backend/content/launcher/release.$locale.json"
             python publisher/publisher.py publish-changelog --source "backend/content/launcher/changelog.$locale.json" --output public --locale "$locale"
-            python publisher/publisher.py publish-launcher --source "$source" --output public --base-url https://downloads.koto-thing.com --locale "$locale" --platform windows --arch x86_64
-            python publisher/publisher.py publish-launcher --source "$source" --output public --base-url https://downloads.koto-thing.com --locale "$locale" --platform linux --arch x86_64
-            python publisher/publisher.py publish-launcher --source "$source" --output public --base-url https://downloads.koto-thing.com --locale "$locale" --platform macos --arch x86_64
-            python publisher/publisher.py publish-launcher --source "$source" --output public --base-url https://downloads.koto-thing.com --locale "$locale" --platform macos --arch arm64
+            python publisher/publisher.py publish-launcher --source "backend/content/launcher/release.$locale.json" --output public --base-url "$PRODUCTION_BASE_URL" --locale "$locale" --platform windows --arch x86_64
           done
       - name: Upload immutable objects then mutable pointers
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
         run: |
-          python publisher/publisher.py upload --output public --endpoint "${{ secrets.R2_ENDPOINT }}" --bucket "${{ secrets.R2_BUCKET }}"
-          python publisher/publisher.py gc-remote --endpoint "${{ secrets.R2_ENDPOINT }}" --bucket "${{ secrets.R2_BUCKET }}" --grace-days 7
+          aws --version
+          python publisher/publisher.py upload --output public --endpoint "$R2_ENDPOINT" --bucket "$R2_BUCKET"
+          python publisher/publisher.py gc-remote --endpoint "$R2_ENDPOINT" --bucket "$R2_BUCKET" --grace-days 7
+      - name: Publish unsigned artifacts to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "Unsigned Windows release. Verify the attached SHA-256 files before running; Windows SmartScreen will report an unknown publisher."
+          gh release upload "$GITHUB_REF_NAME" \
+            artifact/ifw/PandD-Game-Launcher-Online-Installer.exe \
+            artifact/ifw/PandD-Game-Launcher-Online-Installer.exe.sha256 \
+            artifact/ifw/PandD-Game-Launcher-windows-x86_64.zip \
+            artifact/ifw/PandD-Game-Launcher-windows-x86_64.zip.sha256 \
+            --clobber
