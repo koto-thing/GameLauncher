@@ -30,29 +30,32 @@ offline and use it only when publishing game manifests.
 Prepare the game with the production URL and production private key into a clean output
 tree:
 
-```powershell
-$env:OPENSSL_EXECUTABLE = "C:\Program Files\OpenSSL-Win64\bin\openssl.exe"
-$env:AWS_ACCESS_KEY_ID = "<production R2 access key>"
-$env:AWS_SECRET_ACCESS_KEY = "<production R2 secret key>"
-$env:R2_ENDPOINT = "https://<ACCOUNT_ID>.r2.cloudflarestorage.com"
+For local publishing, copy `.env.production.example` to the Git-ignored
+`.env.production`, fill in the production values, and load it into the current
+PowerShell session:
 
+```powershell
+. .\scripts\Import-DotEnv.ps1 .env.production
+```
+
+```powershell
 python publisher\publisher.py publish-game `
   --metadata local-test\metadata\release.json `
   --build-dir local-test\game-build `
-  --output local-test\production-public `
-  --base-url https://downloads.koto-thing.com `
-  --private-key local-test\production-keys\manifest-private.pem `
+  --output $env:PANDD_PUBLIC_OUTPUT `
+  --base-url $env:PANDD_BASE_URL `
+  --private-key $env:PANDD_PRIVATE_KEY `
   --platform windows `
   --arch x86_64
 
 python publisher\publisher.py publish-announcements `
   --source backend\content\announcements `
-  --output local-test\production-public
+  --output $env:PANDD_PUBLIC_OUTPUT
 
 python publisher\publisher.py upload `
-  --output local-test\production-public `
+  --output $env:PANDD_PUBLIC_OUTPUT `
   --endpoint $env:R2_ENDPOINT `
-  --bucket pandd-launcher-production
+  --bucket $env:R2_BUCKET
 ```
 
 Verify the production catalog before releasing the launcher:

@@ -16,6 +16,16 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify release commit is on master
+        shell: pwsh
+        run: |
+          git merge-base --is-ancestor origin/master HEAD
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Release tags must point to a commit on master."
+            exit 1
+          }
       - uses: jurplel/install-qt-action@v4
         with:
           version: '6.10.2'

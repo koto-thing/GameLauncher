@@ -1,5 +1,10 @@
 # Development
 
+日本語の公開手順:
+
+- [ゲーム作品をランチャーへデプロイする手順](GAME_DEPLOYMENT_JA.md)
+- [PandD Game Launcherを更新する手順](LAUNCHER_UPDATE_JA.md)
+
 Install Qt 6.10, CMake, Ninja, Python 3.13 or newer, and vcpkg. Configure Qt through
 `CMAKE_PREFIX_PATH` or `Qt6_DIR`; no developer path is stored in the project.
 
