@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "mandatory": false,
-  "title": "Initial release",
+  "title": "Fix notification bug",
   "publishedAt": "2026-08-10T00:00:00Z"
 }

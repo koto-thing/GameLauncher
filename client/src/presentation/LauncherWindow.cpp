@@ -45,6 +45,22 @@
 #include <memory>
 
 namespace pandd {
+namespace {
+
+/** @brief 完了通知を出す準備処理からの遷移かを返す */
+bool completesGamePreparation(InstallState previous) {
+    switch (previous) {
+    case InstallState::Downloading:
+    case InstallState::Verifying:
+    case InstallState::Installing:
+    case InstallState::Repairing:
+        return true;
+    default:
+        return false;
+    }
+}
+
+} // namespace
 
 /** @brief hero画像をcover配置し可読性gradientを重ねる詳細page */
 class HeroPage final : public QWidget {
@@ -341,6 +357,7 @@ void LauncherWindow::connectViewModel() {
                 if (selectedGameId_ != gameId) {
                     return;
                 }
+                const auto previous = static_cast<InstallState>(selectedState_);
                 selectedState_ = state;
                 const auto value = static_cast<InstallState>(state);
                 if (value == InstallState::Downloading) {
@@ -359,7 +376,7 @@ void LauncherWindow::connectViewModel() {
                     primaryButton_->setText(selectedGameInstalled() ? tr("ゲーム開始")
                                                                     : tr("ダウンロード"));
                     locateButton_->setVisible(!selectedGameInstalled());
-                    if (value == InstallState::Ready &&
+                    if (value == InstallState::Ready && completesGamePreparation(previous) &&
                         viewModel_.settings().notifyInstallComplete && trayIcon_->isVisible()) {
                         trayIcon_->showMessage(tr("準備完了"), tr("ゲームを起動できます"));
                     }

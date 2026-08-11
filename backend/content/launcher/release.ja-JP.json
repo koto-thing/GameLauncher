@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "mandatory": false,
-  "title": "最初の公開版",
+  "title": "通知バグを修正",
   "publishedAt": "2026-08-10T00:00:00Z"
 }
