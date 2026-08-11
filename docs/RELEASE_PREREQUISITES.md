@@ -3,7 +3,7 @@
 The tag workflow intentionally fails closed until all production identities and
 infrastructure values below exist in the protected `production` GitHub environment.
 
-The repository currently pins Qt 6.10.2, Qt Installer Framework 4.11.0, and vcpkg
+The repository currently pins Qt 6.10.2, Qt Installer Framework 4.7.0, and vcpkg
 baseline `ea1a7396b05637a53bf23c078647ecc0edee4b80` (OpenSSL 3.6.3). Review and update
 these pins intentionally; production configuration rejects OpenSSL versions below 3.0.
 

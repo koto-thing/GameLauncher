@@ -36,7 +36,7 @@ jobs:
         with:
           version: '6.10.2'
           arch: ${{ matrix.qt_arch }}
-          tools: 'tools_ifw,qt.tools.ifw.411'
+          tools: 'tools_ifw,qt.tools.ifw.47'
           cache: true
       - uses: lukka/run-vcpkg@v11
       - name: Install Linux quality tools
@@ -59,7 +59,7 @@ jobs:
         run: cmake --install build --prefix "${{ github.workspace }}/staging"
       - name: Generate main-branch SBOM
         if: github.event_name == 'push'
-        run: python scripts/generate_sbom.py --output staging/docs/pandd-game-launcher.spdx.json --version 1.0.0 --build-metadata build/pandd-build-metadata.json --ifw-version 4.11.0
+        run: python scripts/generate_sbom.py --output staging/docs/pandd-game-launcher.spdx.json --version 1.0.0 --build-metadata build/pandd-build-metadata.json --ifw-version 4.7.0
       - name: Collect pinned license texts
         if: github.event_name == 'push'
         run: python scripts/collect_licenses.py --output staging/licenses

@@ -22,10 +22,10 @@ LICENSE_SOURCES = {
         "https://www.apache.org/licenses/LICENSE-2.0.txt",
         "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     ),
-    "Qt-GPL-exception-1.0.txt": (
-        "https://raw.githubusercontent.com/qtproject/installer-framework/4.11.0/"
-        "LICENSES/Qt-GPL-exception-1.0.txt",
-        "8d54a7a204e225c5cc7db07236f3bef4d9d4605fb5c90d2ffc92f6cbef93527e",
+    "Qt-IFW-GPL3-Exception.txt": (
+        "https://raw.githubusercontent.com/qtproject/installer-framework/4.7.0/"
+        "LICENSE.GPL3-EXCEPT",
+        "0dbe024961f6ab5c52689cbd036c977975d0d0f6a67ff97762d96cb819dd5652",
     ),
 }
 
