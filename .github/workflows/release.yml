@@ -40,6 +40,9 @@ jobs:
           arch: ${{ matrix.qt_arch }}
           tools: 'tools_ifw,qt.tools.ifw.47'
           cache: true
+      - name: Initialize MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
       - uses: lukka/run-vcpkg@v11
       - name: Derive release version
         run: python -c "import os; open(os.environ['GITHUB_ENV'], 'a').write('RELEASE_VERSION=' + os.environ['GITHUB_REF_NAME'].removeprefix('v') + '\n')"
