@@ -20,19 +20,21 @@ jobs:
     runs-on: windows-latest
     environment: staging
     steps:
-      - uses: actions/checkout@v4
-      - uses: jurplel/install-qt-action@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4
         with:
           version: '6.10.2'
           arch: win64_msvc2022_64
           tools: 'tools_ifw,qt.tools.ifw.47'
           cache: true
       - name: Initialize MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
-      - uses: lukka/run-vcpkg@v11
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+      - uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
       - name: Validate version
         shell: pwsh
-        run: python scripts/validate_release_version.py "${{ inputs.version }}"
+        env:
+          STAGING_VERSION: ${{ inputs.version }}
+        run: python scripts/validate_release_version.py "$env:STAGING_VERSION"
       - name: Configure staging launcher
         shell: pwsh
         run: >-
@@ -51,19 +53,23 @@ jobs:
           cmake --install build --prefix "${{ github.workspace }}/staging"
       - name: Generate release metadata
         shell: pwsh
+        env:
+          STAGING_VERSION: ${{ inputs.version }}
         run: |
-          python scripts/generate_sbom.py --output staging/docs/pandd-game-launcher.spdx.json --version "${{ inputs.version }}" --build-metadata build/pandd-build-metadata.json --ifw-version 4.7.0
+          python scripts/generate_sbom.py --output staging/docs/pandd-game-launcher.spdx.json --version "$env:STAGING_VERSION" --build-metadata build/pandd-build-metadata.json --ifw-version 4.7.0
           python scripts/collect_licenses.py --output staging/licenses
       - name: Smoke test deployment
         shell: pwsh
         run: ./scripts/smoke_test_windows.ps1 -Executable 'staging/bin/PandD Game Launcher.exe'
       - name: Build unsigned online installer
         shell: pwsh
+        env:
+          STAGING_VERSION: ${{ inputs.version }}
         run: >-
           python installer/build.py
           --install-tree staging
           --output ifw
-          --version "${{ inputs.version }}"
+          --version "$env:STAGING_VERSION"
           --repository-url "${{ env.STAGING_BASE_URL }}/v1/launcher/ifw/windows/x86_64"
       - name: Package and checksum unsigned artifacts
         shell: pwsh
@@ -76,7 +82,7 @@ jobs:
           python scripts/generate_checksums.py --check `
             'ifw/PandD-Game-Launcher-Online-Installer.exe.sha256' `
             "$archive.sha256"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-staging-${{ inputs.version }}
           path: |
@@ -88,13 +94,13 @@ jobs:
     runs-on: ubuntu-24.04
     environment: staging
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.13'
       - name: Install Publisher dependencies
         run: python -m pip install --requirement publisher/requirements.txt
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: windows-staging-${{ inputs.version }}
           path: artifact
