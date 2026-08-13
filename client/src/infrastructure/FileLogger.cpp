@@ -43,7 +43,7 @@ void FileLogger::messageHandler(QtMsgType type, const QMessageLogContext&, const
 }
 
 void FileLogger::rotateIfNeeded(const QString& path) {
-    constexpr qint64 maximumBytes = 5 * 1024 * 1024;
+    constexpr qint64 maximumBytes = qint64{5} * 1024 * 1024;
     if (QFileInfo(path).size() < maximumBytes) {
         return;
     }

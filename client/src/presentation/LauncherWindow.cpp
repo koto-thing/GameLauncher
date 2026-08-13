@@ -456,11 +456,11 @@ void LauncherWindow::showGame(const QString& gameId) {
                              QNetworkRequest::ManualRedirectPolicy);
         request.setTransferTimeout(10000);
         auto* reply = imageNetwork_->get(request);
-        constexpr qsizetype maximumHeroBytes = 16 * 1024 * 1024;
+        constexpr qsizetype maximumHeroBytes = qsizetype{16} * 1024 * 1024;
         reply->setReadBufferSize(maximumHeroBytes + 1);
         const auto data = std::make_shared<QByteArray>();
         connect(reply, &QNetworkReply::readyRead, this, [reply, data] {
-            constexpr qsizetype maximumHeroBytes = 16 * 1024 * 1024;
+            constexpr qsizetype maximumHeroBytes = qsizetype{16} * 1024 * 1024;
             if (reply->bytesAvailable() > maximumHeroBytes - data->size()) {
                 reply->abort();
                 return;
@@ -468,7 +468,7 @@ void LauncherWindow::showGame(const QString& gameId) {
             data->append(reply->readAll());
         });
         connect(reply, &QNetworkReply::finished, this, [this, reply, data, heroUrl, gameId] {
-            constexpr qsizetype maximumHeroBytes = 16 * 1024 * 1024;
+            constexpr qsizetype maximumHeroBytes = qsizetype{16} * 1024 * 1024;
             const auto remaining = reply->readAll();
             const auto succeeded = reply->error() == QNetworkReply::NoError &&
                                    remaining.size() <= maximumHeroBytes - data->size();
