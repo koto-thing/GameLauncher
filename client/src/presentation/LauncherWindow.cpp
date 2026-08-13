@@ -688,6 +688,8 @@ void LauncherWindow::showSettingsDialog() {
     });
     connect(applyUpdate, &QPushButton::clicked, &dialog,
             [this] { viewModel_.applyLauncherUpdate(); });
+    // Signal arguments have fixed semantic positions despite sharing QString.
+    // NOLINTBEGIN(bugprone-easily-swappable-parameters)
     connect(&viewModel_, &LauncherViewModel::launcherUpdateChecked, &dialog,
             [checkNow, applyUpdate, latestVersion, lastChecked,
              releaseTitle](const QString&, const QString& latest, const QString& title,
@@ -700,6 +702,7 @@ void LauncherWindow::showSettingsDialog() {
                 releaseTitle->setText(available ? (mandatory ? tr("必須: %1").arg(title) : title)
                                                 : tr("最新バージョンです"));
             });
+    // NOLINTEND(bugprone-easily-swappable-parameters)
     connect(licenses, &QPushButton::clicked, &dialog,
             [this] { showTextDocument(tr("ライセンス"), ":/legal/THIRD_PARTY_NOTICES.md"); });
     connect(qtReplacement, &QPushButton::clicked, &dialog, [this] {
@@ -797,6 +800,8 @@ void LauncherWindow::showToolsMenu() {
     }
 }
 
+// Title and resource path are distinct UI concepts despite sharing QString.
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 void LauncherWindow::showTextDocument(const QString& title, const QString& resourcePath) {
     QFile file(resourcePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
