@@ -201,7 +201,7 @@ if(BUILD_TESTING)
     )
     target_link_libraries(LauncherIntegrationTests PRIVATE launcher_core Qt6::Test Qt6::Network)
     add_executable(GameProcessFixture client/tests/GameProcessFixture.cpp)
-    add_dependencies(LauncherIntegrationTests GameProcessFixture)
+    add_dependencies(LauncherIntegrationTests GameProcessFixture GameLauncher)
     target_compile_definitions(LauncherIntegrationTests PRIVATE
         PANDD_PROCESS_FIXTURE_PATH="$<TARGET_FILE:GameProcessFixture>"
     )
