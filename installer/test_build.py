@@ -45,6 +45,22 @@ class InstallerBuildTests(unittest.TestCase):
         self.assertEqual(config_root.findtext("WizardShowPageList"), "false")
         self.assertTrue((root / "config" / config_root.findtext("StyleSheet")).is_file())
 
+    def test_installer_explains_and_validates_the_final_install_path(self) -> None:
+        """The target page must show the fixed child directory and detailed failures."""
+        root = Path(__file__).resolve().parent
+        config_root = ET.parse(root / "config/config.xml").getroot()
+        control_script = root / "config" / config_root.findtext("ControlScript")
+        script = control_script.read_text(encoding="utf-8")
+
+        self.assertTrue(control_script.is_file())
+        self.assertEqual(config_root.findtext("TargetDir"),
+                         "@ApplicationsDir@/PandDGameLauncher")
+        self.assertIn('var launcherDirectoryName = "PandDGameLauncher"', script)
+        self.assertIn("ランチャーは、", script)
+        self.assertIn("インストール先フォルダが空ではありません。", script)
+        self.assertIn("対象: ", script)
+        self.assertIn('"OverwriteTargetDirectory", QMessageBox.No', script)
+
     def test_e2e_paths_match_the_current_platform(self) -> None:
         """E2E must inspect actual installed binaries instead of a generic placeholder path."""
         root = Path("installation")

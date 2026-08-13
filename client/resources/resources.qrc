@@ -2,6 +2,8 @@
     <qresource prefix="/">
         <file>images/launcher_background_placeholder.png</file>
         <file>images/placeholder_100x100.png</file>
+        <file alias="images/PnadDLogo.png">../../assets/images/PnadDLogo.png</file>
+        <file alias="i18n/locales.json">../translations/locales.json</file>
         <file alias="legal/THIRD_PARTY_NOTICES.md">../../THIRD_PARTY_NOTICES.md</file>
         <file alias="legal/PRIVACY_POLICY.md">../../docs/PRIVACY_POLICY.md</file>
         <file alias="legal/TERMS_OF_USE.md">../../docs/TERMS_OF_USE.md</file>

@@ -1,4 +1,5 @@
 #include "application/LauncherService.h"
+#include "application/Localization.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -20,7 +21,7 @@ OperationResult loadFailure(const std::exception& exception) {
 
 /** @brief 永続化前後で共通の設定値制約を検証する */
 OperationResult validateSettings(const LauncherSettings& settings) {
-    if (settings.language != "ja-JP" && settings.language != "en-US") {
+    if (!isValidLocaleTag(settings.language)) {
         return OperationResult::failure({ErrorCode::ManifestInvalid,
                                          "対応していない言語が選択されています",
                                          "unsupported launcher language", false});

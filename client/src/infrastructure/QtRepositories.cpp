@@ -1,5 +1,6 @@
 #include "infrastructure/QtRepositories.h"
 
+#include "application/Localization.h"
 #include "infrastructure/JsonCodec.h"
 
 #include <QCoreApplication>
@@ -22,6 +23,11 @@
 
 namespace pandd {
 namespace {
+
+class ContentNotFound final : public std::runtime_error {
+  public:
+    using std::runtime_error::runtime_error;
+};
 
 /** @brief 永続化失敗結果を作成する */
 OperationResult storageFailure(const QString& detail) {
@@ -82,10 +88,23 @@ StaticContentRepository::StaticContentRepository(QUrl baseUrl, QByteArray manife
 }
 
 std::vector<GameCatalogEntry> StaticContentRepository::fetchCatalog(const std::string& language) {
-    const auto path =
-        QString("v1/catalog/%1/%2/%3.json")
-            .arg(QString::fromStdString(language), platformName(), architectureName());
-    auto result = JsonCodec::parseCatalog(get(baseUrl_.resolved(QUrl(path)), 8 * 1024 * 1024));
+    if (!isValidLocaleTag(language)) {
+        throw std::invalid_argument("invalid catalog locale");
+    }
+    const auto fetch = [this](const std::string& locale) {
+        const auto path =
+            QString("v1/catalog/%1/%2/%3.json")
+                .arg(QString::fromStdString(locale), platformName(), architectureName());
+        return JsonCodec::parseCatalog(get(baseUrl_.resolved(QUrl(path)), 8 * 1024 * 1024));
+    };
+    auto result = fetch("ja-JP");
+    if (language != "ja-JP") {
+        try {
+            result = mergeCatalogTranslations(std::move(result), fetch(language));
+        } catch (const ContentNotFound&) {
+            // Japanese is the complete per-game fallback catalog.
+        }
+    }
     for (const auto& entry : result) {
         if (!isAllowedUrl(QUrl(QString::fromStdString(entry.latestReleaseUrl))) ||
             !isAllowedUrl(QUrl(QString::fromStdString(entry.heroUrl))) ||
@@ -97,8 +116,22 @@ std::vector<GameCatalogEntry> StaticContentRepository::fetchCatalog(const std::s
 }
 
 std::vector<Announcement> StaticContentRepository::fetchAnnouncements(const std::string& language) {
-    const auto path = QString("v1/announcements/%1.json").arg(QString::fromStdString(language));
-    return JsonCodec::parseAnnouncements(get(baseUrl_.resolved(QUrl(path)), 4 * 1024 * 1024));
+    if (!isValidLocaleTag(language)) {
+        throw std::invalid_argument("invalid announcement locale");
+    }
+    const auto fetch = [this](const std::string& locale) {
+        const auto path = QString("v1/announcements/%1.json").arg(QString::fromStdString(locale));
+        return JsonCodec::parseAnnouncements(get(baseUrl_.resolved(QUrl(path)), 4 * 1024 * 1024));
+    };
+    auto result = fetch("ja-JP");
+    if (language != "ja-JP") {
+        try {
+            result = mergeAnnouncementTranslations(std::move(result), fetch(language));
+        } catch (const ContentNotFound&) {
+            // Japanese is the complete per-item fallback.
+        }
+    }
+    return result;
 }
 
 GameRelease StaticContentRepository::fetchLatestRelease(const std::string& releaseUrl) {
@@ -122,11 +155,24 @@ GameRelease StaticContentRepository::fetchLatestRelease(const std::string& relea
 }
 
 LauncherRelease StaticContentRepository::fetchLatestLauncherRelease(const std::string& language) {
-    const auto path =
-        QString("v1/launcher/releases/%1/%2/%3/latest.json")
-            .arg(QString::fromStdString(language), platformName(), architectureName());
-    const auto release =
-        JsonCodec::parseLauncherRelease(get(baseUrl_.resolved(QUrl(path)), 1024 * 1024));
+    if (!isValidLocaleTag(language)) {
+        throw std::invalid_argument("invalid launcher release locale");
+    }
+    const auto fetch = [this](const std::string& locale) {
+        const auto path =
+            QString("v1/launcher/releases/%1/%2/%3/latest.json")
+                .arg(QString::fromStdString(locale), platformName(), architectureName());
+        return JsonCodec::parseLauncherRelease(get(baseUrl_.resolved(QUrl(path)), 1024 * 1024));
+    };
+    LauncherRelease release;
+    try {
+        release = fetch(language);
+    } catch (const ContentNotFound&) {
+        if (language == "ja-JP") {
+            throw;
+        }
+        release = fetch("ja-JP");
+    }
     if (!isAllowedUrl(QUrl(QString::fromStdString(release.ifwRepositoryUrl)))) {
         throw std::runtime_error("launcher release contains an untrusted IFW URL");
     }
@@ -135,9 +181,24 @@ LauncherRelease StaticContentRepository::fetchLatestLauncherRelease(const std::s
 
 std::vector<LauncherChangelogEntry>
 StaticContentRepository::fetchLauncherChangelog(const std::string& language) {
-    const auto path =
-        QString("v1/launcher/changelog/%1.json").arg(QString::fromStdString(language));
-    return JsonCodec::parseLauncherChangelog(get(baseUrl_.resolved(QUrl(path)), 4 * 1024 * 1024));
+    if (!isValidLocaleTag(language)) {
+        throw std::invalid_argument("invalid launcher changelog locale");
+    }
+    const auto fetch = [this](const std::string& locale) {
+        const auto path =
+            QString("v1/launcher/changelog/%1.json").arg(QString::fromStdString(locale));
+        return JsonCodec::parseLauncherChangelog(
+            get(baseUrl_.resolved(QUrl(path)), 4 * 1024 * 1024));
+    };
+    auto result = fetch("ja-JP");
+    if (language != "ja-JP") {
+        try {
+            result = mergeChangelogTranslations(std::move(result), fetch(language));
+        } catch (const ContentNotFound&) {
+            // Japanese is the complete per-release fallback.
+        }
+    }
+    return result;
 }
 
 QByteArray StaticContentRepository::get(const QUrl& url, qsizetype maximumBytes) {
@@ -174,6 +235,9 @@ QByteArray StaticContentRepository::get(const QUrl& url, qsizetype maximumBytes)
         }
         if (error == QNetworkReply::NoError && status >= 200 && status < 300) {
             return data;
+        }
+        if (status == 404) {
+            throw ContentNotFound("static content was not found");
         }
         if (status >= 400 && status < 500) {
             break;
@@ -254,8 +318,8 @@ LauncherSettings JsonStateRepository::load() {
         QDir(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation))
             .filePath("PandD_org/Games")
             .toStdString();
-    const auto locale = QLocale::system().name();
-    defaults.language = locale.startsWith("en") ? "en-US" : "ja-JP";
+    const auto locale = QLocale::system().bcp47Name().toStdString();
+    defaults.language = isValidLocaleTag(locale) ? locale : "ja-JP";
     const auto path = QDir(dataDirectory_).filePath("settings.json");
     return QFileInfo::exists(path) ? JsonCodec::parseSettings(readJson(path), defaults) : defaults;
 }

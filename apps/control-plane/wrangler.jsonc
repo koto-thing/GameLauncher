@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pandd-deployment-control-plane",
+  "account_id": "1c34406f20cb851b272ae8d8a6d33780",
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "vinext/server/fetch-handler",
+  "vars": {
+    "STAGING_DISPATCH_ENABLED": "false",
+    "PRODUCTION_DISPATCH_ENABLED": "false",
+    "GITHUB_CLIENT_ID": "Iv23linf562liNP3UAZQ",
+    "GITHUB_APP_ID": "4572777",
+    "GITHUB_APP_INSTALLATION_ID": "153252357",
+    "GITHUB_REPOSITORY_ID": "1152962221"
+  },
+  "assets": {
+    "directory": "dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pandd-deployment-control-plane",
+      "database_id": "4441edb6-423b-4e48-8db9-c61967410b78",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "INTAKE",
+      "bucket_name": "pandd-launcher-intake"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

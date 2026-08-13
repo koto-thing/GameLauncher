@@ -37,7 +37,7 @@ elseif(PANDD_DISTRIBUTION_ENV STREQUAL "production" AND PANDD_MANIFEST_PUBLIC_KE
 endif()
 
 include(CTest)
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network Concurrent Svg)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network Concurrent Svg LinguistTools)
 if(BUILD_TESTING)
     find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 endif()
@@ -74,6 +74,8 @@ add_library(launcher_core STATIC
     client/src/domain/ManifestValidator.cpp
     client/src/domain/ManifestValidator.h
     client/src/application/Ports.h
+    client/src/application/Localization.cpp
+    client/src/application/Localization.h
     client/src/application/LauncherService.cpp
     client/src/application/LauncherService.h
     client/src/infrastructure/JsonCodec.cpp
@@ -108,13 +110,17 @@ qt_add_executable(GameLauncher WIN32 MACOSX_BUNDLE
     client/src/bootstrap/AppContainer.h
     client/src/presentation/LauncherViewModel.cpp
     client/src/presentation/LauncherViewModel.h
-    client/src/presentation/EnglishTranslator.cpp
-    client/src/presentation/EnglishTranslator.h
+    client/src/presentation/LocalizationManager.cpp
+    client/src/presentation/LocalizationManager.h
     client/src/presentation/LauncherWindow.cpp
     client/src/presentation/LauncherWindow.h
     client/resources/resources.qrc
 )
 target_link_libraries(GameLauncher PRIVATE launcher_core Qt6::Gui Qt6::Widgets Qt6::Concurrent)
+qt_add_translations(GameLauncher
+    TS_FILES client/translations/launcher_en-US.ts
+    RESOURCE_PREFIX "/i18n"
+)
 set_target_properties(GameLauncher PROPERTIES
     OUTPUT_NAME "PandD Game Launcher"
     MACOSX_BUNDLE_GUI_IDENTIFIER "org.pandd.launcher"
@@ -219,6 +225,7 @@ if(BUILD_TESTING)
         LauncherDomainTests LauncherIntegrationStateTests LauncherIntegrationDownloadTests
         LauncherIntegrationProcessTests PROPERTIES
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        TIMEOUT 30
     )
 
     # Ensure Windows can discover the Qt runtime before the test process starts.

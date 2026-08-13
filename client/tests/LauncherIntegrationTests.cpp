@@ -930,7 +930,7 @@ void LauncherIntegrationTests::checksAndAppliesLauncherUpdate() {
                             SemanticVersion("1.0.0"));
     QVERIFY(service.load().ok);
     auto invalidSettings = ports.settings;
-    invalidSettings.language = "fr-FR";
+    invalidSettings.language = "fr_FR";
     QVERIFY(!service.saveSettings(invalidSettings).ok);
     QVERIFY(service.checkLauncherUpdate().ok);
 

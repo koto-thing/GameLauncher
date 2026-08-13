@@ -1,6 +1,7 @@
 #include "presentation/LauncherViewModel.h"
 
 #include <QDir>
+#include <QCoreApplication>
 #include <QMetaObject>
 #include <QThreadPool>
 
@@ -11,39 +12,46 @@ namespace {
 
 /** @brief 安定Error Codeを現在言語の利用者メッセージへ変換する */
 QString localizedError(const OperationError& error, const std::string& language) {
-    if (language != "en-US") {
-        return QString::fromStdString(error.userMessage);
-    }
+    Q_UNUSED(language)
     switch (error.code) {
     case ErrorCode::NetworkOffline:
-        return "The distribution server is unavailable. Check your connection and retry.";
+        return QCoreApplication::translate(
+            "LauncherErrors", "配布サーバーへ接続できません。接続を確認して再試行してください");
     case ErrorCode::DownloadHttpError:
     case ErrorCode::DownloadRangeUnsupported:
-        return "The game files could not be downloaded. Please retry.";
+        return QCoreApplication::translate(
+            "LauncherErrors", "ゲームファイルを取得できませんでした。再試行してください");
     case ErrorCode::ManifestInvalid:
     case ErrorCode::ManifestSignatureInvalid:
-        return "The release information is invalid. The operation was stopped for safety.";
+        return QCoreApplication::translate(
+            "LauncherErrors", "リリース情報が不正なため、安全のため操作を停止しました");
     case ErrorCode::FileHashMismatch:
-        return "Game files are damaged. Run Repair.";
+        return QCoreApplication::translate(
+            "LauncherErrors", "ゲームファイルが破損しています。修復を実行してください");
     case ErrorCode::DiskSpaceInsufficient:
-        return "There is not enough free disk space.";
+        return QCoreApplication::translate("LauncherErrors", "空き容量が不足しています");
     case ErrorCode::InstallPermissionDenied:
         return QDir::isAbsolutePath(QString::fromStdString(error.detail))
-                   ? "The operation could not be completed. Remaining path: " +
-                         QString::fromStdString(error.detail)
-                   : "The selected location cannot be written to.";
+                   ? QCoreApplication::translate(
+                         "LauncherErrors", "操作を完了できませんでした。残っている場所: %1")
+                         .arg(QString::fromStdString(error.detail))
+                   : QCoreApplication::translate(
+                         "LauncherErrors", "選択した場所へ書き込めません");
     case ErrorCode::GameAlreadyRunning:
-        return "Close the game before continuing.";
+        return QCoreApplication::translate(
+            "LauncherErrors", "ゲームを終了してから操作を続けてください");
     case ErrorCode::LaunchExecutableMissing:
-        return "The game executable is missing. Run Repair.";
+        return QCoreApplication::translate(
+            "LauncherErrors", "ゲームの実行ファイルがありません。修復を実行してください");
     case ErrorCode::LauncherUpdateFailed:
-        return "The launcher update operation failed.";
+        return QCoreApplication::translate(
+            "LauncherErrors", "ランチャーの更新操作に失敗しました");
     case ErrorCode::OperationCancelled:
-        return "The operation was cancelled.";
+        return QCoreApplication::translate("LauncherErrors", "操作をキャンセルしました");
     case ErrorCode::None:
         return {};
     }
-    return "The operation failed.";
+    return QCoreApplication::translate("LauncherErrors", "操作に失敗しました");
 }
 
 } // namespace

@@ -7,6 +7,19 @@ QWizardPage {
     background-color: #ffffff;
 }
 
+QMessageBox {
+    background-color: #ffffff;
+    color: #202124;
+}
+
+QMessageBox QLabel {
+    color: #202124;
+}
+
+#WarningLabel {
+    color: #b3261e;
+}
+
 QLabel,
 QCheckBox,
 QRadioButton,

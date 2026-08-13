@@ -41,7 +41,7 @@ OperationResult ManifestValidator::validate(const GameRelease& release) const {
         return invalid("unsupported platform or architecture");
     }
     if (!release.arguments.empty() || !isSafeRelativePath(release.entrypoint) ||
-        !isSafeRelativePath(release.workingDirectory)) {
+        (release.workingDirectory != "." && !isSafeRelativePath(release.workingDirectory))) {
         return invalid("unsafe launch contract");
     }
     static const std::regex saveName("^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$");

@@ -17,18 +17,35 @@ and a production-only Ed25519 manifest key. Never reuse staging credentials or k
 Create the GitHub environment `production` and add these environment secrets:
 
 - `MANIFEST_PUBLIC_KEY_BASE64`: raw production Ed25519 public key in Base64
+- `MANIFEST_PRIVATE_KEY_PEM`: production Ed25519 private key used only by the approved game workflow
 - `R2_ACCESS_KEY_ID`: production bucket-scoped R2 access key
 - `R2_SECRET_ACCESS_KEY`: matching R2 secret key
 - `R2_ENDPOINT`: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
 - `R2_BUCKET`: `pandd-launcher-production`
 
-The release workflow intentionally contains no private manifest key. Store that key
-offline and use it only when publishing game manifests.
+The launcher release workflow does not read the private manifest key. The approved game
+workflow reads it only from the protected `production` Environment and writes it to the
+ephemeral runner with owner-only permissions.
+
+The private intake ZIP is downloaded directly from private R2 only after the protected
+Environment gate opens. It is never uploaded as a GitHub Actions artifact.
 
 ## Publish a production game
 
-Prepare the game with the production URL and production private key into a clean output
-tree:
+The normal operator path is the deployment control plane:
+
+1. Publish and verify the same artifact in Staging.
+2. Select `Production申請を作成` on the successful Staging request.
+3. Have a separately authenticated designated reviewer approve it.
+4. Select `PRODUCTIONへ実行`.
+5. Verify the production catalog and launch the game.
+
+The production request expires seven days after the source Staging deployment. The
+workflow revalidates the artifact and creates a new production URL manifest signed by
+the production-only key.
+
+The following local commands are for recovery and administrator diagnostics only.
+Prepare the game into a clean output tree:
 
 For local publishing, copy `.env.production.example` to the Git-ignored
 `.env.production`, fill in the production values, and load it into the current

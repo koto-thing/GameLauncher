@@ -13,10 +13,12 @@ import tempfile
 import unittest
 from unittest import mock
 
-from publisher import (build_game_release, canonical_json, clean_unreferenced_blobs, create_key,
-                       main, publication_content_type, publish_launcher_changelog,
+from publisher import (PublicationCancelled, build_game_release, canonical_json,
+                       clean_unreferenced_blobs, create_key, main, publication_content_type,
+                       publish_launcher_changelog,
                        publish_launcher_release, remote_gc, sha256_bytes, sha256_file,
-                       validate_relative_path)
+                       validate_contract, validate_locale_tag, validate_relative_path,
+                       validate_working_directory)
 from publisher import upload_tree
 
 
@@ -39,6 +41,36 @@ class PublisherTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_relative_path("C:\\escape.exe")
         self.assertEqual(str(validate_relative_path("bin/game.exe")), "bin/game.exe")
+        self.assertEqual(str(validate_working_directory(".")), ".")
+
+    def test_locale_tags_are_extensible_but_path_safe(self) -> None:
+        """Publisher paths accept common BCP 47 forms without accepting traversal."""
+        for locale in ("ja-JP", "en-US", "ko-KR", "zh-Hans", "pt-BR"):
+            with self.subTest(locale=locale):
+                self.assertEqual(validate_locale_tag(locale), locale)
+        for locale in ("", "j", "ja_JP", "../ja-JP", "ja/Japan"):
+            with self.subTest(locale=locale), self.assertRaises(ValueError):
+                validate_locale_tag(locale)
+
+    def test_game_source_accepts_arbitrary_locales_and_requires_japanese(self) -> None:
+        """Game metadata can grow beyond English while retaining the Japanese fallback."""
+        schema = {
+            "gameId": "sample-game", "version": "1.0.0",
+            "minimumLauncherVersion": "1.0.0", "publishedAt": "2026-08-10T00:00:00Z",
+            "engine": "unity", "entrypoint": "bin/game.exe", "workingDirectory": "bin",
+            "saveDirectoryName": "sample-game",
+            "display": {
+                "ja-JP": {"name": "サンプル", "summary": "説明"},
+                "ko-KR": {"name": "샘플", "summary": "설명"},
+                "zh-Hans": {"name": "示例", "summary": "说明"},
+            },
+            "hero": "hero.png", "heroFocalPoint": {"x": 0.5, "y": 0.5},
+            "thumbnail": "thumbnail.png",
+        }
+        validate_contract(schema, "game-release-source.schema.json")
+        del schema["display"]["ja-JP"]
+        with self.assertRaises(Exception):
+            validate_contract(schema, "game-release-source.schema.json")
 
     def test_publish_game_requires_complete_remote_target(self) -> None:
         """A one-command promotion cannot guess half of an R2 destination."""
@@ -201,7 +233,10 @@ class PublisherTests(unittest.TestCase):
                                    return_value="aws"), \
                  mock.patch.object(upload_tree.__globals__["subprocess"], "run",
                                    side_effect=run):
-                upload_tree(output, "https://r2.example", "bucket")
+                progress: list[tuple[int, int, str]] = []
+                upload_tree(output, "https://r2.example", "bucket",
+                            lambda completed, total, current: progress.append(
+                                (completed, total, current)))
 
             uploaded = [call[4].split("bucket/", 1)[1] for call in calls if call[1:3] == ["s3", "cp"]]
             self.assertEqual(uploaded[-1],
@@ -209,6 +244,10 @@ class PublisherTests(unittest.TestCase):
             uploads = [call for call in calls if call[1:3] == ["s3", "cp"]]
             self.assertTrue(all("--content-type" in call and "--metadata" in call
                                 for call in uploads))
+            self.assertEqual(progress[0][0], 0)
+            self.assertEqual(progress[-1][0], progress[-1][1])
+            self.assertEqual(progress[-1][2],
+                             "v1/launcher/releases/ja-JP/windows/x86_64/latest.json")
 
     def test_upload_refuses_remote_immutable_mismatch(self) -> None:
         """A versioned remote key must never be overwritten with different bytes."""
@@ -233,6 +272,69 @@ class PublisherTests(unittest.TestCase):
                                    side_effect=run):
                 with self.assertRaisesRegex(RuntimeError, "refusing to overwrite"):
                     upload_tree(output, "https://r2.example", "bucket")
+
+    def test_pointer_phase_requires_every_immutable_object(self) -> None:
+        """A separate pointer promotion cannot proceed if immutable verification fails."""
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            immutable = output / "v1/blobs/sha256/blob"
+            pointer = output / "v1/games/sample/releases/windows/x86_64/latest.json"
+            for path, content in ((immutable, b"blob"), (pointer, b"latest")):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+            calls: list[list[str]] = []
+
+            def run(arguments: list[str], **_: object) -> subprocess.CompletedProcess:
+                calls.append(arguments)
+                return subprocess.CompletedProcess(arguments, 255, stdout="")
+
+            with mock.patch.object(upload_tree.__globals__["shutil"], "which",
+                                   return_value="aws"), \
+                 mock.patch.object(upload_tree.__globals__["subprocess"], "run",
+                                   side_effect=run), \
+                 self.assertRaisesRegex(RuntimeError, "immutable object is missing"):
+                upload_tree(output, "https://r2.example", "bucket", phase="pointers")
+            self.assertFalse(any(call[1:3] == ["s3", "cp"] for call in calls))
+
+    def test_upload_cancellation_stops_before_mutable_pointer_promotion(self) -> None:
+        """Cancellation after immutable verification must leave catalogs and latest untouched."""
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            immutable = output / "v1/blobs/sha256/blob"
+            catalog = output / "v1/catalog/ja-JP/windows/x86_64.json"
+            latest = output / "v1/games/sample/releases/windows/x86_64/latest.json"
+            for path, content in ((immutable, b"blob"), (catalog, b"catalog"),
+                                  (latest, b"latest")):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+            cancel = False
+            calls: list[list[str]] = []
+
+            def run(arguments: list[str], **_: object) -> subprocess.CompletedProcess:
+                calls.append(arguments)
+                metadata = {
+                    "size": immutable.stat().st_size,
+                    "sha256": sha256_file(immutable),
+                    "contentType": publication_content_type(immutable),
+                }
+                return subprocess.CompletedProcess(arguments, 0, stdout=json.dumps(metadata))
+
+            def progress(_: int, __: int, current: str) -> None:
+                nonlocal cancel
+                if current == "v1/blobs/sha256/blob":
+                    cancel = True
+
+            with mock.patch.object(upload_tree.__globals__["shutil"], "which",
+                                   return_value="aws"), \
+                 mock.patch.object(upload_tree.__globals__["subprocess"], "run",
+                                   side_effect=run), \
+                 self.assertRaises(PublicationCancelled):
+                upload_tree(output, "https://r2.example", "bucket", progress,
+                            lambda: cancel)
+
+            touched = "\n".join(" ".join(call) for call in calls)
+            self.assertNotIn("v1/catalog", touched)
+            self.assertNotIn("latest.json", touched)
 
     @unittest.skipUnless(os.environ.get("OPENSSL_EXECUTABLE") or shutil.which("openssl"),
                          "OpenSSL is not available")
