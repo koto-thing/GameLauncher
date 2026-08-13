@@ -17,8 +17,7 @@ struct SupportedLocale {
 [[nodiscard]] QVector<SupportedLocale> supportedLocales();
 
 /** @brief 選択言語のQt翻訳を適用し、未同梱時は日本語へ戻す */
-[[nodiscard]] bool installApplicationTranslation(QApplication& application,
-                                                 QTranslator& translator,
+[[nodiscard]] bool installApplicationTranslation(QApplication& application, QTranslator& translator,
                                                  const QString& locale);
 
 } // namespace pandd

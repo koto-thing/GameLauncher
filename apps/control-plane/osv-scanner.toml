@@ -1,0 +1,17 @@
+# Temporary, narrowly scoped exceptions for vulnerabilities in build-only tools.
+# Reassess when updating drizzle-kit or vinext; neither currently has a compatible fixed release.
+
+[[IgnoredVulns]]
+id = "GHSA-67mh-4wv8-2f99"
+ignoreUntil = 2026-09-30
+reason = "Transitive esbuild dependency of drizzle-kit; only used by the local schema generator. The available npm remediation downgrades drizzle-kit incompatibly."
+
+[[IgnoredVulns]]
+id = "GHSA-w3rx-r6r6-pgpr"
+ignoreUntil = 2026-09-30
+reason = "Transitive image-size dependency of vinext; the control plane does not parse ICNS files and no fixed vinext release is currently available."
+
+[[IgnoredVulns]]
+id = "GHSA-5p2g-fcmc-qvqq"
+ignoreUntil = 2026-09-30
+reason = "Transitive image-size dependency of vinext; the control plane does not parse JXL or HEIF files and no fixed vinext release is currently available."

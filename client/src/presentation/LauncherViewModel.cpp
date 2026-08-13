@@ -1,7 +1,7 @@
 #include "presentation/LauncherViewModel.h"
 
-#include <QDir>
 #include <QCoreApplication>
+#include <QDir>
 #include <QMetaObject>
 #include <QThreadPool>
 
@@ -32,20 +32,18 @@ QString localizedError(const OperationError& error, const std::string& language)
         return QCoreApplication::translate("LauncherErrors", "空き容量が不足しています");
     case ErrorCode::InstallPermissionDenied:
         return QDir::isAbsolutePath(QString::fromStdString(error.detail))
-                   ? QCoreApplication::translate(
-                         "LauncherErrors", "操作を完了できませんでした。残っている場所: %1")
+                   ? QCoreApplication::translate("LauncherErrors",
+                                                 "操作を完了できませんでした。残っている場所: %1")
                          .arg(QString::fromStdString(error.detail))
-                   : QCoreApplication::translate(
-                         "LauncherErrors", "選択した場所へ書き込めません");
+                   : QCoreApplication::translate("LauncherErrors", "選択した場所へ書き込めません");
     case ErrorCode::GameAlreadyRunning:
-        return QCoreApplication::translate(
-            "LauncherErrors", "ゲームを終了してから操作を続けてください");
+        return QCoreApplication::translate("LauncherErrors",
+                                           "ゲームを終了してから操作を続けてください");
     case ErrorCode::LaunchExecutableMissing:
         return QCoreApplication::translate(
             "LauncherErrors", "ゲームの実行ファイルがありません。修復を実行してください");
     case ErrorCode::LauncherUpdateFailed:
-        return QCoreApplication::translate(
-            "LauncherErrors", "ランチャーの更新操作に失敗しました");
+        return QCoreApplication::translate("LauncherErrors", "ランチャーの更新操作に失敗しました");
     case ErrorCode::OperationCancelled:
         return QCoreApplication::translate("LauncherErrors", "操作をキャンセルしました");
     case ErrorCode::None:

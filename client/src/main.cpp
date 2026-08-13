@@ -1,9 +1,9 @@
 #include "bootstrap/AppContainer.h"
 #include "infrastructure/FileLogger.h"
 #include "infrastructure/QtRepositories.h"
-#include "presentation/LocalizationManager.h"
 #include "presentation/LauncherViewModel.h"
 #include "presentation/LauncherWindow.h"
+#include "presentation/LocalizationManager.h"
 
 #include <QApplication>
 #include <QImageReader>

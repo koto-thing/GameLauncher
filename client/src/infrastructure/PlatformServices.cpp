@@ -45,7 +45,7 @@ QtGameProcessService::~QtGameProcessService() {
         if (process->state() != QProcess::NotRunning) {
             // Launcher終了はgame終了を意味しないため終了callbackを切ってOS handleを残す
             process->disconnect();
-            process.release();
+            static_cast<void>(process.release());
         }
     }
 }
@@ -94,6 +94,9 @@ OperationResult QtGameProcessService::launch(const InstalledGame& installed,
             }
             QTimer::singleShot(0, [this, key] {
                 QMutexLocker lock(&processesMutex_);
+                // The queued callback runs after QProcess::finished returns, so erasing its
+                // owning pointer here cannot destroy the signal sender during emission.
+                // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
                 processes_.erase(key);
             });
         });

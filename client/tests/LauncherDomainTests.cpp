@@ -1,6 +1,6 @@
+#include "application/Localization.h"
 #include "domain/ManifestValidator.h"
 #include "domain/Models.h"
-#include "application/Localization.h"
 
 #include <QTest>
 

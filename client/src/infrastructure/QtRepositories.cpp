@@ -44,6 +44,8 @@ OpenSslEd25519Verifier::OpenSslEd25519Verifier(QByteArray publicKeyBase64)
     }
 }
 
+// Payload and signature are deliberately kept as separate byte arrays at this crypto boundary.
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 bool OpenSslEd25519Verifier::verify(const QByteArray& payload,
                                     const QByteArray& signatureBase64) const {
     const auto signature = QByteArray::fromBase64(signatureBase64);
@@ -95,13 +97,14 @@ std::vector<GameCatalogEntry> StaticContentRepository::fetchCatalog(const std::s
         const auto path =
             QString("v1/catalog/%1/%2/%3.json")
                 .arg(QString::fromStdString(locale), platformName(), architectureName());
-        return JsonCodec::parseCatalog(get(baseUrl_.resolved(QUrl(path)), 8 * 1024 * 1024));
+        return JsonCodec::parseCatalog(
+            get(baseUrl_.resolved(QUrl(path)), qsizetype{8} * 1024 * 1024));
     };
     auto result = fetch("ja-JP");
     if (language != "ja-JP") {
         try {
             result = mergeCatalogTranslations(std::move(result), fetch(language));
-        } catch (const ContentNotFound&) {
+        } catch (const ContentNotFound&) { // NOLINT(bugprone-empty-catch)
             // Japanese is the complete per-game fallback catalog.
         }
     }
@@ -121,13 +124,14 @@ std::vector<Announcement> StaticContentRepository::fetchAnnouncements(const std:
     }
     const auto fetch = [this](const std::string& locale) {
         const auto path = QString("v1/announcements/%1.json").arg(QString::fromStdString(locale));
-        return JsonCodec::parseAnnouncements(get(baseUrl_.resolved(QUrl(path)), 4 * 1024 * 1024));
+        return JsonCodec::parseAnnouncements(
+            get(baseUrl_.resolved(QUrl(path)), qsizetype{4} * 1024 * 1024));
     };
     auto result = fetch("ja-JP");
     if (language != "ja-JP") {
         try {
             result = mergeAnnouncementTranslations(std::move(result), fetch(language));
-        } catch (const ContentNotFound&) {
+        } catch (const ContentNotFound&) { // NOLINT(bugprone-empty-catch)
             // Japanese is the complete per-item fallback.
         }
     }
@@ -139,7 +143,7 @@ GameRelease StaticContentRepository::fetchLatestRelease(const std::string& relea
     if (!isAllowedUrl(url)) {
         throw std::runtime_error("release URL uses an untrusted host");
     }
-    const auto data = get(url, 16 * 1024 * 1024);
+    const auto data = get(url, qsizetype{16} * 1024 * 1024);
     const auto release = JsonCodec::parseRelease(data);
 
     // 署名検証後にのみ構造検証済みリリースを返す
@@ -162,7 +166,8 @@ LauncherRelease StaticContentRepository::fetchLatestLauncherRelease(const std::s
         const auto path =
             QString("v1/launcher/releases/%1/%2/%3/latest.json")
                 .arg(QString::fromStdString(locale), platformName(), architectureName());
-        return JsonCodec::parseLauncherRelease(get(baseUrl_.resolved(QUrl(path)), 1024 * 1024));
+        return JsonCodec::parseLauncherRelease(
+            get(baseUrl_.resolved(QUrl(path)), qsizetype{1024} * 1024));
     };
     LauncherRelease release;
     try {
@@ -188,13 +193,13 @@ StaticContentRepository::fetchLauncherChangelog(const std::string& language) {
         const auto path =
             QString("v1/launcher/changelog/%1.json").arg(QString::fromStdString(locale));
         return JsonCodec::parseLauncherChangelog(
-            get(baseUrl_.resolved(QUrl(path)), 4 * 1024 * 1024));
+            get(baseUrl_.resolved(QUrl(path)), qsizetype{4} * 1024 * 1024));
     };
     auto result = fetch("ja-JP");
     if (language != "ja-JP") {
         try {
             result = mergeChangelogTranslations(std::move(result), fetch(language));
-        } catch (const ContentNotFound&) {
+        } catch (const ContentNotFound&) { // NOLINT(bugprone-empty-catch)
             // Japanese is the complete per-release fallback.
         }
     }
@@ -242,7 +247,7 @@ QByteArray StaticContentRepository::get(const QUrl& url, qsizetype maximumBytes)
         if (status >= 400 && status < 500) {
             break;
         }
-        QThread::msleep(static_cast<unsigned long>(100 * (1 << attempt)));
+        QThread::msleep(100UL * (1UL << static_cast<unsigned int>(attempt)));
     }
     throw std::runtime_error("HTTP request failed: " + lastError.toStdString());
 }
