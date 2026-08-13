@@ -80,7 +80,11 @@ OperationResult ManifestValidator::validate(const GameRelease& release) const {
 }
 
 bool ManifestValidator::isSafeRelativePath(const std::string& path) {
-    if (path.empty() || path.size() > 240 || path.find('\\') != std::string::npos) {
+    const bool hasWindowsDrivePrefix = path.size() >= 2 &&
+                                       std::isalpha(static_cast<unsigned char>(path.front())) &&
+                                       path[1] == ':';
+    if (path.empty() || path.size() > 240 || path.find('\\') != std::string::npos ||
+        hasWindowsDrivePrefix) {
         return false;
     }
     const std::filesystem::path candidate(path);

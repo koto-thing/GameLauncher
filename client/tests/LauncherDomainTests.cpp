@@ -67,6 +67,7 @@ void LauncherDomainTests::comparesSemanticVersions() {
 void LauncherDomainTests::rejectsUnsafePaths() {
     QVERIFY(!ManifestValidator::isSafeRelativePath("../game.exe"));
     QVERIFY(!ManifestValidator::isSafeRelativePath("C:/game.exe"));
+    QVERIFY(!ManifestValidator::isSafeRelativePath("C:game.exe"));
     QVERIFY(!ManifestValidator::isSafeRelativePath("bin//game.exe"));
     QVERIFY(ManifestValidator::isSafeRelativePath("bin/game.exe"));
 }
