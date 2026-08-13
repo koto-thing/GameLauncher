@@ -11,9 +11,10 @@
     <WizardMinimumWidth>680</WizardMinimumWidth>
     <WizardMinimumHeight>460</WizardMinimumHeight>
     <StyleSheet>style.qss</StyleSheet>
+    <ControlScript>controlscript.qs</ControlScript>
     <TitleColor>#202124</TitleColor>
     <StartMenuDir>PandD</StartMenuDir>
-    <TargetDir>@ApplicationsDir@/PandD Game Launcher</TargetDir>
+    <TargetDir>@ApplicationsDir@/PandDGameLauncher</TargetDir>
     <MaintenanceToolName>maintenancetool</MaintenanceToolName>
     <RemoteRepositories>
         <Repository>

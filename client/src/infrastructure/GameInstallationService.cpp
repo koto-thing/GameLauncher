@@ -155,8 +155,8 @@ OperationResult GameInstallationService::install(const GameRelease& release,
                     std::uint64_t remaining = chunk.size;
                     bool copied = cached.open(QIODevice::WriteOnly);
                     while (copied && remaining > 0) {
-                        const auto block = source.read(
-                            static_cast<qint64>(std::min<std::uint64_t>(remaining, 1024 * 1024)));
+                        const auto block = source.read(static_cast<qint64>(
+                            std::min<std::uint64_t>(remaining, 1024ULL * 1024)));
                         copied = !block.isEmpty() && cached.write(block) == block.size();
                         if (copied) {
                             hash.addData(block);
@@ -169,7 +169,7 @@ OperationResult GameInstallationService::install(const GameRelease& release,
                     }
                 }
             }
-        } catch (const std::exception&) {
+        } catch (const std::exception&) { // NOLINT(bugprone-empty-catch)
             // 不正markerは再利用に使わず、通常の取得と後段整合性検証へ委ねる
         }
     }
@@ -271,7 +271,7 @@ OperationResult GameInstallationService::install(const GameRelease& release,
                                       input.errorString().toStdString());
             }
             while (!input.atEnd()) {
-                const auto block = input.read(1024 * 1024);
+                const auto block = input.read(qint64{1024} * 1024);
                 if (block.isEmpty() || output.write(block) != block.size()) {
                     return installFailure(ErrorCode::InstallPermissionDenied,
                                           "ゲームファイルを構成できません",
@@ -391,7 +391,7 @@ OperationResult GameInstallationService::importExisting(const GameRelease& relea
                                   "cannot open existing file or staging destination", true);
         }
         while (!input.atEnd()) {
-            const auto block = input.read(1024 * 1024);
+            const auto block = input.read(qint64{1024} * 1024);
             if (block.isEmpty() || output.write(block) != block.size()) {
                 QDir(stagingRoot).removeRecursively();
                 return installFailure(ErrorCode::InstallPermissionDenied,
@@ -518,6 +518,8 @@ OperationResult GameInstallationService::cleanupTemporary(const InstalledGame& i
 }
 
 OperationResult GameInstallationService::downloadChunk(
+    // These strings carry different identities: a filesystem target and an audit operation ID.
+    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
     const FileChunk& chunk, const QString& partPath, const QString& operationId,
     std::uint64_t speedLimit, std::atomic_uint64_t& aggregateReceived, std::uint64_t aggregateTotal,
     std::size_t completedFiles, std::size_t totalFiles, const ProgressCallback& progress,
@@ -546,7 +548,7 @@ OperationResult GameInstallationService::downloadChunk(
             request.setRawHeader("Range", "bytes=" + QByteArray::number(existing) + "-");
         }
         auto* reply = network.get(request);
-        reply->setReadBufferSize(1024 * 1024);
+        reply->setReadBufferSize(qint64{1024} * 1024);
         QEventLoop loop;
         std::uint64_t sessionBytes = 0;
         bool writeFailed = false;
@@ -643,7 +645,7 @@ OperationResult GameInstallationService::downloadChunk(
         qWarning().noquote() << "operation=" + operationId << "event=download-retry"
                              << "httpStatus=" + QString::number(status)
                              << "attempt=" + QString::number(attempt + 1);
-        QThread::msleep(static_cast<unsigned long>(200 * (1 << attempt)));
+        QThread::msleep(200UL * (1UL << static_cast<unsigned int>(attempt)));
     }
     return installFailure(ErrorCode::DownloadHttpError,
                           "通信が安定しません。しばらくして再試行してください",
@@ -657,7 +659,7 @@ QByteArray GameInstallationService::sha256(const QString& path) {
     }
     QCryptographicHash hash(QCryptographicHash::Sha256);
     while (!file.atEnd()) {
-        const auto block = file.read(1024 * 1024);
+        const auto block = file.read(qint64{1024} * 1024);
         if (block.isEmpty() && file.error() != QFile::NoError) {
             return {};
         }
@@ -666,6 +668,8 @@ QByteArray GameInstallationService::sha256(const QString& path) {
     return hash.result();
 }
 
+// Root and relative path are intentionally separate to preserve traversal boundaries.
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 bool GameInstallationService::hasUnsafeLink(const QString& root, const QString& relativePath) {
     QDir current(root);
     const auto components = relativePath.split('/', Qt::SkipEmptyParts);
@@ -695,9 +699,11 @@ OperationResult GameInstallationService::writeActiveVersion(const QString& gameR
     return OperationResult::success();
 }
 
-OperationResult GameInstallationService::activateRelease(const GameRelease& release,
-                                                         const QString& gameRoot,
-                                                         const QString& stagingRoot) {
+OperationResult
+GameInstallationService::activateRelease(const GameRelease& release,
+                                         // These paths represent different phases.
+                                         // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+                                         const QString& gameRoot, const QString& stagingRoot) {
     const QString launcherRoot = QDir(gameRoot).filePath(".launcher");
     const QString stagedRelease = QDir(stagingRoot).filePath("release");
     const QString finalRelease =
@@ -726,6 +732,8 @@ OperationResult GameInstallationService::activateRelease(const GameRelease& rele
     return OperationResult::success();
 }
 
+// Root and active version are intentionally separate domain values.
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 void GameInstallationService::cleanOldReleases(const QString& gameRoot,
                                                const QString& activeVersion) {
     QDir releases(QDir(gameRoot).filePath("releases"));

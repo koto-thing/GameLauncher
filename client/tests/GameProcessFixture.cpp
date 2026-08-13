@@ -1,4 +1,3 @@
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -12,7 +11,9 @@ int main(int argc, char* argv[]) {
     std::filesystem::create_directories(saveDirectory);
     std::ofstream(std::filesystem::path(saveDirectory) / "fixture-ran.txt") << "ok";
     if (argc > 0 && std::string(argv[0]).find("crash") != std::string::npos) {
-        std::abort();
+        // A non-zero exit exercises the launcher's crash-reporting contract without
+        // invoking Windows Error Reporting, which can keep CI processes alive.
+        return 42;
     }
     return 0;
 }

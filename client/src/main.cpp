@@ -1,9 +1,9 @@
 #include "bootstrap/AppContainer.h"
 #include "infrastructure/FileLogger.h"
 #include "infrastructure/QtRepositories.h"
-#include "presentation/EnglishTranslator.h"
 #include "presentation/LauncherViewModel.h"
 #include "presentation/LauncherWindow.h"
+#include "presentation/LocalizationManager.h"
 
 #include <QApplication>
 #include <QImageReader>
@@ -11,6 +11,7 @@
 #include <QLocalSocket>
 #include <QPixmap>
 #include <QStyleHints>
+#include <QTranslator>
 
 #include <exception>
 
@@ -26,10 +27,11 @@ int main(int argc, char* argv[]) {
 
     // 保存済み言語をwindow構築前に適用
     pandd::JsonStateRepository initialState;
-    pandd::EnglishTranslator englishTranslator;
+    QTranslator applicationTranslator;
     try {
-        if (initialState.load().language == "en-US") {
-            application.installTranslator(&englishTranslator);
+        const auto language = QString::fromStdString(initialState.load().language);
+        if (!pandd::installApplicationTranslation(application, applicationTranslator, language)) {
+            qWarning() << "Translation is not bundled; using Japanese:" << language;
         }
     } catch (const std::exception& error) {
         // 状態は上書きせず、通常loadで利用者向けの破損errorとして報告する

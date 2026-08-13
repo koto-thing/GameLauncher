@@ -16,6 +16,8 @@ Makefile
 build/
 bin/
 lib/
+!apps/control-plane/lib/
+!apps/control-plane/lib/**
 
 # ==========================
 # Qt Generated Files
@@ -56,9 +58,17 @@ ui_*.h
 # ==========================
 *.log
 __pycache__/
+*.egg-info/
 publisher/.publisher-state.json
 local-test/
 .venv/
+.venv-uploader-build/
+apps/intake-uploader/artifacts/
+apps/intake-uploader/build/
+apps/intake-uploader/src/pandd_intake_uploader/deployment/
+apps/intake-uploader/src/pandd_intake_uploader/pysidedeploy.spec
+apps/intake-uploader/src/pandd_intake_uploader/*.exe
+apps/control-plane/public/downloads/*.exe
 
 # ==========================
 # Secrets / Local credentials

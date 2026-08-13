@@ -19,18 +19,27 @@
 
 1. Unityで正常に起動できるWindowsビルド
 2. ゲーム用の `hero.png` と `thumbnail.png`
-3. Python仮想環境とPublisher依存関係
-4. OpenSSL
-5. ステージング用または本番用のR2認証情報
-6. 対象環境専用のEd25519秘密鍵
+3. Python仮想環境とdesktop uploader依存関係
 
 プロジェクトをPowerShellで開きます。
 
 ```powershell
 cd D:\Pandd\GameLauncher
 .\.venv\Scripts\Activate.ps1
-$env:OPENSSL_EXECUTABLE = "C:\Program Files\OpenSSL-Win64\bin\openssl.exe"
 ```
+
+## Desktop uploaderを使う
+
+Qt製desktop uploaderでメタデータとZIP64 artifactを生成します。このアプリは
+R2への公開、マニフェスト署名、GitHub Actions実行を行いません。初回セットアップと操作方法は
+`apps/intake-uploader/README_JA.md` を参照してください。
+
+```powershell
+.\scripts\Run-IntakeUploader.ps1
+```
+
+以下のPublisher手順は、今後GitHub Actions runnerへ接続する処理の技術資料です。
+運用者がローカルPCから直接公開する用途には使用しません。
 
 ## 1. Unityでゲームをビルドする
 
@@ -97,6 +106,10 @@ Unityビルド一式をコピーします。上書きだけでは、Unityビル�
     "en-US": {
       "name": "Sample Game",
       "summary": "Game description"
+    },
+    "ko-KR": {
+      "name": "샘플 게임",
+      "summary": "게임 설명"
     }
   },
   "hero": "hero.png",
@@ -116,6 +129,7 @@ Unityビルド一式をコピーします。上書きだけでは、Unityビル�
 - `entrypoint` は実際のexeへの相対パス
 - `workingDirectory` は通常 `bin`
 - `minimumLauncherVersion` はこのゲームを扱える最小ランチャーバージョン
+- `display` は日本語の `ja-JP` が必須。ほかのBCP 47言語タグは必要なだけ追加可能
 
 同じバージョン番号で異なる内容をR2へ上書きすることはできません。内容を変更したら
 必ずバージョンを増やしてください。

@@ -1,3 +1,4 @@
+#include "application/Localization.h"
 #include "domain/ManifestValidator.h"
 #include "domain/Models.h"
 
@@ -29,6 +30,9 @@ class LauncherDomainTests final : public QObject {
 
     /** @brief CDN上限方針を超える単一chunkを拒否する */
     void rejectsOversizedChunk();
+
+    /** @brief 言語tagとgame単位の日本語fallbackを検証する */
+    void mergesLocalizedCatalogWithJapaneseFallback();
 };
 
 /** @brief テスト用の正しいreleaseを作成する */
@@ -63,13 +67,36 @@ void LauncherDomainTests::comparesSemanticVersions() {
 void LauncherDomainTests::rejectsUnsafePaths() {
     QVERIFY(!ManifestValidator::isSafeRelativePath("../game.exe"));
     QVERIFY(!ManifestValidator::isSafeRelativePath("C:/game.exe"));
+    QVERIFY(!ManifestValidator::isSafeRelativePath("C:game.exe"));
     QVERIFY(!ManifestValidator::isSafeRelativePath("bin//game.exe"));
     QVERIFY(ManifestValidator::isSafeRelativePath("bin/game.exe"));
+}
+
+void LauncherDomainTests::mergesLocalizedCatalogWithJapaneseFallback() {
+    QVERIFY(isValidLocaleTag("ja-JP"));
+    QVERIFY(isValidLocaleTag("zh-Hans"));
+    QVERIFY(!isValidLocaleTag("../en-US"));
+    std::vector<GameCatalogEntry> japanese{
+        {GameId("alpha-game"), "アルファ", "日本語", "hero-a", "thumb-a", "release-a"},
+        {GameId("beta-game"), "ベータ", "日本語", "hero-b", "thumb-b", "release-b"},
+    };
+    const std::vector<GameCatalogEntry> english{
+        {GameId("alpha-game"), "Alpha", "English", "hero-a", "thumb-a", "release-a"},
+    };
+    const auto merged = mergeCatalogTranslations(std::move(japanese), english);
+    QCOMPARE(merged.size(), std::size_t(2));
+    QCOMPARE(merged[0].name, std::string("Alpha"));
+    QCOMPARE(merged[1].name, std::string("ベータ"));
 }
 
 void LauncherDomainTests::acceptsValidManifest() {
     const ManifestValidator validator({"downloads.koto-thing.com"});
     QVERIFY(validator.validate(validRelease()).ok);
+    auto rootExecutable = validRelease();
+    rootExecutable.entrypoint = "game.exe";
+    rootExecutable.workingDirectory = ".";
+    rootExecutable.files.front().path = "game.exe";
+    QVERIFY(validator.validate(rootExecutable).ok);
 }
 
 void LauncherDomainTests::rejectsChunkGap() {

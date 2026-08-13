@@ -1,6 +1,7 @@
 #include "presentation/LauncherWindow.h"
 
 #include "infrastructure/FileLogger.h"
+#include "presentation/LocalizationManager.h"
 
 #include <QApplication>
 #include <QBuffer>
@@ -127,6 +128,8 @@ void LauncherWindow::closeEvent(QCloseEvent* event) {
 
 void LauncherWindow::buildUi() {
     setWindowTitle(tr("PandD Game Launcher"));
+    const QIcon logoIcon(QStringLiteral(":/images/PnadDLogo.png"));
+    setWindowIcon(logoIcon);
     setMinimumSize(960, 600);
     resize(1280, 720);
     setStyleSheet(
@@ -153,9 +156,11 @@ void LauncherWindow::buildUi() {
     sidebar->setObjectName("sidebar");
     sidebar->setFixedWidth(110);
     auto* sidebarLayout = new QVBoxLayout(sidebar);
-    auto* brand = new QLabel("P&D", sidebar);
+    auto* brand = new QLabel(sidebar);
+    brand->setPixmap(QPixmap(QStringLiteral(":/images/PnadDLogo.png"))
+                         .scaled(82, 52, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     brand->setAlignment(Qt::AlignCenter);
-    brand->setStyleSheet("font-size:20px;font-weight:700;padding:14px;");
+    brand->setStyleSheet("padding:10px;");
     sidebarLayout->addWidget(brand);
     installedList_ = new QListWidget(sidebar);
     installedList_->setAccessibleName(tr("インストール済みゲーム"));
@@ -176,7 +181,7 @@ void LauncherWindow::buildUi() {
     setCentralWidget(central);
 
     // 通知領域から必ず復帰または終了できる導線を提供
-    trayIcon_ = new QSystemTrayIcon(QIcon(":/images/placeholder_100x100.png"), this);
+    trayIcon_ = new QSystemTrayIcon(logoIcon, this);
     imageNetwork_ = new QNetworkAccessManager(this);
     auto* trayMenu = new QMenu(this);
     trayMenu->addAction(tr("ランチャーを表示"), this, [this] {
@@ -417,7 +422,7 @@ void LauncherWindow::refreshData() {
     }
     catalogList_->clear();
     for (const auto& game : viewModel_.catalog()) {
-        auto* item = new QListWidgetItem(QIcon(":/images/placeholder_100x100.png"),
+        auto* item = new QListWidgetItem(QIcon(QStringLiteral(":/images/PnadDLogo.png")),
                                          QString::fromStdString(game.name));
         item->setData(Qt::UserRole, QString::fromStdString(game.gameId.value()));
         item->setToolTip(QString::fromStdString(game.summary));
@@ -451,11 +456,11 @@ void LauncherWindow::showGame(const QString& gameId) {
                              QNetworkRequest::ManualRedirectPolicy);
         request.setTransferTimeout(10000);
         auto* reply = imageNetwork_->get(request);
-        constexpr qsizetype maximumHeroBytes = 16 * 1024 * 1024;
+        constexpr qsizetype maximumHeroBytes = qsizetype{16} * 1024 * 1024;
         reply->setReadBufferSize(maximumHeroBytes + 1);
         const auto data = std::make_shared<QByteArray>();
         connect(reply, &QNetworkReply::readyRead, this, [reply, data] {
-            constexpr qsizetype maximumHeroBytes = 16 * 1024 * 1024;
+            constexpr qsizetype maximumHeroBytes = qsizetype{16} * 1024 * 1024;
             if (reply->bytesAvailable() > maximumHeroBytes - data->size()) {
                 reply->abort();
                 return;
@@ -463,7 +468,7 @@ void LauncherWindow::showGame(const QString& gameId) {
             data->append(reply->readAll());
         });
         connect(reply, &QNetworkReply::finished, this, [this, reply, data, heroUrl, gameId] {
-            constexpr qsizetype maximumHeroBytes = 16 * 1024 * 1024;
+            constexpr qsizetype maximumHeroBytes = qsizetype{16} * 1024 * 1024;
             const auto remaining = reply->readAll();
             const auto succeeded = reply->error() == QNetworkReply::NoError &&
                                    remaining.size() <= maximumHeroBytes - data->size();
@@ -548,8 +553,13 @@ void LauncherWindow::showSettingsDialog() {
     auto* general = new QWidget(tabs);
     auto* generalForm = new QFormLayout(general);
     auto* language = new QComboBox(general);
-    language->addItem("日本語", "ja-JP");
-    language->addItem("English", "en-US");
+    for (const auto& locale : supportedLocales()) {
+        language->addItem(locale.nativeName, locale.code);
+    }
+    if (language->findData(QString::fromStdString(settings.language)) < 0) {
+        const auto code = QString::fromStdString(settings.language);
+        language->addItem(code, code);
+    }
     language->setCurrentIndex(language->findData(QString::fromStdString(settings.language)));
     auto* installRoot = new QLineEdit(QString::fromStdString(settings.installRoot), general);
     auto* browse = new QPushButton(tr("参照"), general);
@@ -678,6 +688,8 @@ void LauncherWindow::showSettingsDialog() {
     });
     connect(applyUpdate, &QPushButton::clicked, &dialog,
             [this] { viewModel_.applyLauncherUpdate(); });
+    // Signal arguments have fixed semantic positions despite sharing QString.
+    // NOLINTBEGIN(bugprone-easily-swappable-parameters)
     connect(&viewModel_, &LauncherViewModel::launcherUpdateChecked, &dialog,
             [checkNow, applyUpdate, latestVersion, lastChecked,
              releaseTitle](const QString&, const QString& latest, const QString& title,
@@ -690,6 +702,7 @@ void LauncherWindow::showSettingsDialog() {
                 releaseTitle->setText(available ? (mandatory ? tr("必須: %1").arg(title) : title)
                                                 : tr("最新バージョンです"));
             });
+    // NOLINTEND(bugprone-easily-swappable-parameters)
     connect(licenses, &QPushButton::clicked, &dialog,
             [this] { showTextDocument(tr("ライセンス"), ":/legal/THIRD_PARTY_NOTICES.md"); });
     connect(qtReplacement, &QPushButton::clicked, &dialog, [this] {
@@ -787,6 +800,8 @@ void LauncherWindow::showToolsMenu() {
     }
 }
 
+// Title and resource path are distinct UI concepts despite sharing QString.
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 void LauncherWindow::showTextDocument(const QString& title, const QString& resourcePath) {
     QFile file(resourcePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {

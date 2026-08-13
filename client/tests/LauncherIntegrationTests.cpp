@@ -24,6 +24,8 @@ class FixtureHttpServer final : public QTcpServer {
 
   public:
     /** @brief 配信内容を保持してserverを構築する */
+    // Failure count and HTTP status are separate fixture controls despite sharing int.
+    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
     explicit FixtureHttpServer(QByteArray content, int transientFailures = 0,
                                int permanentStatus = 0, bool ignoreRange = false,
                                int firstDisconnectBytes = 0)
@@ -640,7 +642,7 @@ void LauncherIntegrationTests::importsVerifiedExistingGame() {
 }
 
 void LauncherIntegrationTests::retriesTransientServerFailure() {
-    const QByteArray content(128 * 1024, 'R');
+    const QByteArray content(qsizetype{128} * 1024, 'R');
     FixtureHttpServer server(content, 2);
     QVERIFY(server.start());
     QTemporaryDir directory;
@@ -663,7 +665,7 @@ void LauncherIntegrationTests::retriesTransientServerFailure() {
 }
 
 void LauncherIntegrationTests::resumesAfterMidstreamDisconnect() {
-    const QByteArray content(128 * 1024, 'D');
+    const QByteArray content(qsizetype{128} * 1024, 'D');
     FixtureHttpServer server(content, 0, 0, false, 16 * 1024);
     QVERIFY(server.start());
     QTemporaryDir directory;
@@ -768,7 +770,7 @@ void LauncherIntegrationTests::rejectsHashMismatch() {
 
 void LauncherIntegrationTests::rejectsOversizedServerResponse() {
     const QByteArray expected("bounded-content");
-    FixtureHttpServer server(expected + QByteArray(64 * 1024, 'X'));
+    FixtureHttpServer server(expected + QByteArray(qsizetype{64} * 1024, 'X'));
     QVERIFY(server.start());
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
@@ -791,7 +793,7 @@ void LauncherIntegrationTests::rejectsOversizedServerResponse() {
 }
 
 void LauncherIntegrationTests::cancelsDownloadWithoutActivation() {
-    const QByteArray content(64 * 1024, 'C');
+    const QByteArray content(qsizetype{64} * 1024, 'C');
     FixtureHttpServer server(content);
     QVERIFY(server.start());
     QTemporaryDir directory;
@@ -873,7 +875,7 @@ void LauncherIntegrationTests::rejectsLinkedManagementDirectory() {
 }
 
 void LauncherIntegrationTests::honorsDownloadSpeedLimit() {
-    const QByteArray content(192 * 1024, 'S');
+    const QByteArray content(qsizetype{192} * 1024, 'S');
     FixtureHttpServer server(content);
     QVERIFY(server.start());
     QTemporaryDir directory;
@@ -886,8 +888,8 @@ void LauncherIntegrationTests::honorsDownloadSpeedLimit() {
     QElapsedTimer timer;
     timer.start();
     auto future = QtConcurrent::run([&] {
-        return service.install(release, directory.filePath("sample-game").toStdString(), 128 * 1024,
-                               {}, cancelled);
+        return service.install(release, directory.filePath("sample-game").toStdString(),
+                               std::uint64_t{128} * 1024, {}, cancelled);
     });
     while (!future.isFinished()) {
         QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
@@ -930,7 +932,7 @@ void LauncherIntegrationTests::checksAndAppliesLauncherUpdate() {
                             SemanticVersion("1.0.0"));
     QVERIFY(service.load().ok);
     auto invalidSettings = ports.settings;
-    invalidSettings.language = "fr-FR";
+    invalidSettings.language = "fr_FR";
     QVERIFY(!service.saveSettings(invalidSettings).ok);
     QVERIFY(service.checkLauncherUpdate().ok);
 

@@ -1,0 +1,242 @@
+name: Deploy approved game to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Immutable production deployment request ID
+        required: true
+        type: string
+      attempt_id:
+        description: Immutable execution attempt ID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  DEPLOYMENT_CONTROL_PLANE_URL: ${{ vars.DEPLOYMENT_CONTROL_PLANE_URL }}
+  PRODUCTION_BASE_URL: https://downloads.koto-thing.com
+  PRODUCTION_BUCKET: pandd-launcher-production
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Authorize production request without exporting the private artifact
+        id: intake
+        continue-on-error: true
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          ATTEMPT_ID: ${{ inputs.attempt_id }}
+        run: |
+          python scripts/actions_control_plane.py authorize \
+            --request-id "$REQUEST_ID" \
+            --attempt-id "$ATTEMPT_ID"
+
+      - name: Report retryable intake failure
+        if: steps.intake.outcome == 'failure'
+        continue-on-error: true
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          ATTEMPT_ID: ${{ inputs.attempt_id }}
+        run: >-
+          python scripts/actions_control_plane.py status
+          --request-id "$REQUEST_ID"
+          --attempt-id "$ATTEMPT_ID"
+          --stage preflight
+          --result failed_retryable
+
+      - name: Stop after intake failure
+        if: always() && steps.intake.outcome == 'failure'
+        run: exit 1
+
+  publish:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: pandd-game-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.13'
+
+      - name: Download the private artifact directly from intake
+        id: intake
+        continue-on-error: true
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          ATTEMPT_ID: ${{ inputs.attempt_id }}
+        run: |
+          python scripts/actions_control_plane.py preflight \
+            --request-id "$REQUEST_ID" \
+            --attempt-id "$ATTEMPT_ID" \
+            --snapshot-output request-snapshot.json \
+            --artifact-output intake-artifact.zip
+
+      - name: Report retryable intake download failure
+        if: steps.intake.outcome == 'failure'
+        continue-on-error: true
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          ATTEMPT_ID: ${{ inputs.attempt_id }}
+        run: >-
+          python scripts/actions_control_plane.py status
+          --request-id "$REQUEST_ID"
+          --attempt-id "$ATTEMPT_ID"
+          --stage preflight
+          --result failed_retryable
+
+      - name: Stop after intake download failure
+        if: always() && steps.intake.outcome == 'failure'
+        run: exit 1
+
+      - name: Verify hash, limits, paths, and immutable metadata
+        id: validate
+        continue-on-error: true
+        run: >-
+          python scripts/validate_intake_artifact.py
+          --archive intake-artifact.zip
+          --snapshot request-snapshot.json
+          --output deployment
+
+      - name: Report terminal artifact failure
+        if: steps.validate.outcome == 'failure'
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          ATTEMPT_ID: ${{ inputs.attempt_id }}
+        run: >-
+          python scripts/actions_control_plane.py status
+          --request-id "$REQUEST_ID"
+          --attempt-id "$ATTEMPT_ID"
+          --stage preflight
+          --result failed_terminal
+
+      - name: Stop after artifact validation failure
+        if: always() && steps.validate.outcome == 'failure'
+        run: exit 1
+
+      - name: Install Publisher dependencies
+        run: python -m pip install --requirement publisher/requirements.txt
+
+      - name: Create production-signed publication tree
+        env:
+          MANIFEST_PRIVATE_KEY_PEM: ${{ secrets.MANIFEST_PRIVATE_KEY_PEM }}
+        run: |
+          umask 077
+          test -n "$MANIFEST_PRIVATE_KEY_PEM"
+          printf '%s' "$MANIFEST_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/production-manifest-private.pem"
+          python scripts/seed_game_catalogs.py \
+            --metadata deployment/metadata/release.json \
+            --output public \
+            --base-url "$PRODUCTION_BASE_URL"
+          python publisher/publisher.py publish-game \
+            --metadata deployment/metadata/release.json \
+            --build-dir deployment/build \
+            --output public \
+            --base-url "$PRODUCTION_BASE_URL" \
+            --private-key "$RUNNER_TEMP/production-manifest-private.pem" \
+            --platform windows \
+            --arch x86_64
+
+      - name: Record immutable upload stage
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          ATTEMPT_ID: ${{ inputs.attempt_id }}
+        run: >-
+          python scripts/actions_control_plane.py status
+          --request-id "$REQUEST_ID"
+          --attempt-id "$ATTEMPT_ID"
+          --stage uploading_immutable
+
+      - name: Upload and verify immutable production objects
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: >-
+          python publisher/publisher.py upload-immutable
+          --output public
+          --endpoint "$R2_ENDPOINT"
+          --bucket "$PRODUCTION_BUCKET"
+
+      - name: Begin non-cancellable production pointer promotion
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          ATTEMPT_ID: ${{ inputs.attempt_id }}
+        run: |
+          python scripts/actions_control_plane.py status \
+            --request-id "$REQUEST_ID" \
+            --attempt-id "$ATTEMPT_ID" \
+            --stage publishing_pointers
+          touch "$RUNNER_TEMP/pointer-promotion-started"
+
+      - name: Promote production catalogs and latest pointer
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: >-
+          python publisher/publisher.py promote-pointers
+          --output public
+          --endpoint "$R2_ENDPOINT"
+          --bucket "$PRODUCTION_BUCKET"
+
+      - name: Verify public production result
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          ATTEMPT_ID: ${{ inputs.attempt_id }}
+        run: |
+          python scripts/actions_control_plane.py status \
+            --request-id "$REQUEST_ID" \
+            --attempt-id "$ATTEMPT_ID" \
+            --stage verifying
+          python scripts/verify_game_publication.py \
+            --metadata deployment/metadata/release.json \
+            --public-tree public \
+            --base-url "$PRODUCTION_BASE_URL" \
+            --digest-output "$RUNNER_TEMP/manifest.sha256"
+
+      - name: Record successful production deployment
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          ATTEMPT_ID: ${{ inputs.attempt_id }}
+        run: |
+          object_count=$(find public -type f | wc -l)
+          manifest_sha=$(cat "$RUNNER_TEMP/manifest.sha256")
+          python scripts/actions_control_plane.py status \
+            --request-id "$REQUEST_ID" \
+            --attempt-id "$ATTEMPT_ID" \
+            --stage verifying \
+            --result succeeded \
+            --manifest-sha256 "$manifest_sha" \
+            --published-object-count "$object_count"
+
+      - name: Record failed production deployment
+        if: failure() && steps.intake.outcome != 'failure' && steps.validate.outcome != 'failure'
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          ATTEMPT_ID: ${{ inputs.attempt_id }}
+        run: |
+          result=failed_retryable
+          if [[ -f "$RUNNER_TEMP/pointer-promotion-started" ]]; then
+            result=recovery_required
+          fi
+          python scripts/actions_control_plane.py status \
+            --request-id "$REQUEST_ID" \
+            --attempt-id "$ATTEMPT_ID" \
+            --stage failed \
+            --result "$result"
