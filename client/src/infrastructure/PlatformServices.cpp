@@ -45,7 +45,7 @@ QtGameProcessService::~QtGameProcessService() {
         if (process->state() != QProcess::NotRunning) {
             // Launcher終了はgame終了を意味しないため終了callbackを切ってOS handleを残す
             process->disconnect();
-            static_cast<void>(process.release());
+            [[maybe_unused]] auto* detachedProcess = process.release();
         }
     }
 }
