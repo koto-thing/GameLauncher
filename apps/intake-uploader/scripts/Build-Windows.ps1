@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 $uploaderRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $projectRoot = (Resolve-Path (Join-Path $uploaderRoot "..\..")).Path
 $buildEnvironment = Join-Path $projectRoot ".venv-uploader-build"
-$pythonExecutable = Join-Path $buildEnvironment "Scripts\python.exe"
+$buildPythonExecutable = Join-Path $buildEnvironment "Scripts\python.exe"
 $deployExecutable = Join-Path $buildEnvironment "Scripts\pyside6-deploy.exe"
 $sourceRoot = Join-Path $uploaderRoot "src"
 $packageRoot = Join-Path $sourceRoot "pandd_intake_uploader"
@@ -20,7 +20,7 @@ $artifactRoot = Join-Path $uploaderRoot "artifacts"
 $artifactExecutable = Join-Path $artifactRoot "PandDIntakeUploader.exe"
 $schemaSource = (Join-Path $projectRoot "contracts\schemas").Replace("\", "/")
 
-if (-not (Test-Path -LiteralPath $pythonExecutable -PathType Leaf)) {
+if (-not (Test-Path -LiteralPath $buildPythonExecutable -PathType Leaf)) {
     if ($PythonExecutable) {
         & $PythonExecutable -m venv $buildEnvironment
     } else {
@@ -31,7 +31,7 @@ if (-not (Test-Path -LiteralPath $pythonExecutable -PathType Leaf)) {
         throw "Python 3.12 is required to create the Windows executable."
     }
 }
-& $pythonExecutable -m pip install --disable-pip-version-check -e $uploaderRoot
+& $buildPythonExecutable -m pip install --disable-pip-version-check -e $uploaderRoot
 if ($LASTEXITCODE -ne 0) {
     throw "Could not prepare the Qt deployment environment."
 }

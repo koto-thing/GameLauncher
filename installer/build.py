@@ -60,6 +60,8 @@ def build_installer(ifw_root: Path | None, install_tree: Path, output: Path,
         config = config_dir / "config.xml"
         shutil.copytree(root / "packages", packages)
         shutil.copytree(root / "config", config_dir)
+        shutil.copy2(root.parent / "assets/images/PnadDLogo.png",
+                     config_dir / "PnadDLogo.png")
         data = packages / "org.pandd.launcher" / "data"
         shutil.copytree(install_tree, data)
         configure_metadata(config, packages / "org.pandd.launcher/meta/package.xml",

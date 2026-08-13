@@ -44,6 +44,8 @@ class InstallerBuildTests(unittest.TestCase):
         self.assertEqual(config_root.findtext("WizardStyle"), "Classic")
         self.assertEqual(config_root.findtext("WizardShowPageList"), "false")
         self.assertTrue((root / "config" / config_root.findtext("StyleSheet")).is_file())
+        self.assertEqual(config_root.findtext("InstallerWindowIcon"), "PnadDLogo.png")
+        self.assertTrue((root.parent / "assets/images/PnadDLogo.png").is_file())
 
     def test_installer_explains_and_validates_the_final_install_path(self) -> None:
         """The target page must show the fixed child directory and detailed failures."""
