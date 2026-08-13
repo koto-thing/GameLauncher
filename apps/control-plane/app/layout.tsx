@@ -7,6 +7,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   title: "PandD Deploy Control",
+  icons: { icon: "/favicon.png" },
   description: "PandDゲーム公開の申請・指名承認・監査を管理するcontrol plane。",
 };
 

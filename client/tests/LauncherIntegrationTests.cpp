@@ -914,6 +914,7 @@ void LauncherIntegrationTests::resolvesMaintenanceToolFromInstalledLayout() {
     const auto applicationDirectory = QDir(directory.path()).filePath("bin");
     const auto expected = QDir(directory.path()).filePath("maintenancetool");
 #endif
+    QVERIFY(QDir().mkpath(applicationDirectory));
     QCOMPARE(MaintenanceToolService::executablePathForApplicationDirectory(applicationDirectory),
              expected);
 }

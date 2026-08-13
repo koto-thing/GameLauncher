@@ -68,7 +68,9 @@ def main() -> int:
     if os.name != "nt":
         environment["QT_QPA_PLATFORM"] = "offscreen"
 
-    with tempfile.TemporaryDirectory(prefix="pandd-ifw-e2e-") as temporary:
+    # Qt IFW rejects Windows 8.3 short paths such as C:\\Users\\RUNNER~1. The
+    # checked-out workspace has a stable long path on every CI runner.
+    with tempfile.TemporaryDirectory(prefix="pandd-ifw-e2e-", dir=Path.cwd()) as temporary:
         temporary_root = Path(temporary)
         target = temporary_root / "launcher"
         cache = temporary_root / "cache"
