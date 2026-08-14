@@ -48,16 +48,30 @@ https://pandd-deployment-control-plane.gotoukenta62.workers.dev/
 
 ## デプロイ方法
 
-日常のゲーム公開は[メンテナンスWebアプリ](https://pandd-deployment-control-plane.gotoukenta62.workers.dev/)だけで進めます。
+日常のゲーム公開は[メンテナンスWebアプリ](https://pandd-deployment-control-plane.gotoukenta62.workers.dev/)だけで進めます。Web版 Intake により、通常利用において `PandDIntakeUploader.exe` は不要です。
+
+### 推奨フロー（Web版 Intake）
+
+1. Control Planeへログインする
+2. Web版 Intake（`/intake`）を開く
+3. ゲーム情報を入力する（Game ID、Version、Engine、多言語表示情報など）
+4. Buildフォルダを選択する（ブラウザから一括選択）
+5. 起動EXE（Entrypoint）を選択する
+6. Hero / Thumbnail画像を選択する（Hero焦点位置の指定も可能）
+7. 「Artifactを作成してアップロード」を押す（ブラウザがrelease.json・ZIP64 artifact・descriptorを生成し、非公開Intakeへmultipartアップロードして自動seal）
+8. 完了後、Control PlaneからStaging申請を作成・実行する
+9. Staging版の起動・表示・更新・保存データを確認する
+10. 成功したStagingカードの「Production申請を作成」を押し、別アカウントで承認して「PRODUCTIONへ実行」を押す
+11. `https://downloads.koto-thing.com/` 配下のカタログとゲーム起動を確認する
+
+### デスクトップ版（Legacy / Fallback）
+
+従来のPySide6製デスクトップアプリ `apps/intake-uploader` も互換用途・フォールバックとして残されています。Web版のArtifact作成機能が十分に定着した段階で、将来的にDesktop版をdeprecated・削除可能です。
 
 1. Webアプリから `PandDIntakeUploader.exe` をダウンロードして起動する
 2. ゲームのフォルダー、起動exe、バージョン、画像を選び、intakeへのアップロードを完了する
 3. uploaderが保存した `*.pandd-artifact.json` をWebアプリの「新しい申請」で選ぶ
-4. Staging申請の承認者を指名し、別のGitHubアカウントで承認して「STAGINGへ実行」を押す
-5. Staging版の起動・表示・更新・保存データを確認する
-6. 成功したStagingカードの「Production申請を作成」を押す
-7. Production申請を別アカウントで承認し、「PRODUCTIONへ実行」を押す
-8. `https://downloads.koto-thing.com/` 配下のカタログとゲーム起動を確認する
+4. 以降はWeb版と同様にStaging / Production申請を進める
 
 Productionは成功したStagingと同じArtifact ID・SHA-256だけを、Staging成功から7日以内に進められます。秘密鍵やR2認証情報はWeb画面へ入力しません。
 非公開のゲームZIPはprivate intake R2から保護された実行jobへ直接渡し、GitHub ActionsのArtifactには保存しません。

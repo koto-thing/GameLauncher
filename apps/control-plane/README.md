@@ -21,16 +21,35 @@ StagingとProductionの申請、別アカウント承認、GitHub Actions起動�
 `LOCAL_DEV_AUTH=true`はlocalhostでだけ有効です。Admin、申請者、承認者を切り替えて、
 申請から指名承認までを確認できます。
 
-## Web版 Intake Uploader（推奨）
+## Web版 Intake（推奨フロー）
 
-ブラウザ上で `http://localhost:3000/intake` （または本番URLの `/intake`）を開くことで、Windows Defender等の誤検知を受けることなくIntakeへのアップロードとSealを行えます。
+ブラウザ上で `http://localhost:3000/intake` （または本番URLの `/intake`）を開くことで、ローカルにPython/PySide6環境を用意することなく、ブラウザ完結でArtifact作成とIntakeへのアップロード・Sealを行えます。通常利用において `PandDIntakeUploader.exe` は不要です。
 
-- **descriptor JSON** と **artifact ZIP** をドラッグ&ドロップまたは選択
-- スキーマ検証、ZIP名・容量の整合性チェック
-- チャンク分割によるメモリ消費を抑えたブラウザ側 SHA-256 検証
-- 64 MiB part の最大4並列アップロード、通信失敗時の自動指数リトライ
-- アップロードキャンセル、進捗表示、Seal処理
-- 既存のControl Planeセッション（HttpOnly cookie）とGitHub OAuthをそのまま再利用
+### 主な機能
+- **Artifact作成モード（推奨・デフォルト）**:
+  - ゲーム情報（Game ID、Version、Minimum Launcher Version、Engine、Save Directory Name）の入力・即時バリデーション
+  - 多言語表示情報（ja-JP必須、追加言語タグのバリデーション、Name 1..100文字、Summary 1..500文字）
+  - Hero画像・Thumbnail画像（PNG / JPEG / WebP）のプレビュー、Hero焦点位置（Focal Point）のインタラクティブ指定（画像クリックまたは数値入力）
+  - Buildフォルダ（`<input webkitdirectory>`）の一括選択、ファイル数・容量・パス安全性（Windows予約名、大文字小文字衝突、240文字制限、空ファイル拒否）の検証
+  - 起動EXE（Entrypoint）の自動検出と候補ソート
+  - release.json（`game-release-source.schema.json` 準拠）の自動生成
+  - 決定論的 ZIP64 アーカイブ生成（タイムスタンプ 1980-01-01 固定、Deflate圧縮。CompressionStream出力chunkを直ちにBlob-backed partへ移し、JSヒープ上の全bytes保持やProcessedEntryでの圧縮body保持を排除してメモリを最適化）
+  - インクリメンタル SHA-256 計算
+  - descriptor（`deployment-artifact-descriptor.schema.json` 準拠）の自動構築
+  - 非公開Intakeへの64 MiB part分割アップロード（最大4並列、自動リトライ、キャンセル、Seal）
+  - デバッグ用 Descriptor / Artifact ZIP のダウンロード保存機能
+  - ※ブラウザ制約: 現行ブラウザAPI上、生成した最終ZIPはSHA-256検証およびアップロード用に単一Blob/Fileとして保持されます。圧縮処理中のJSヒープ消費は最小化されますが、ブラウザ全体のメモリ/Blobストレージとして成果物ZIP容量（上限5 GiB）を保持します。
+- **既存Artifactアップロードモード（互換用途）**:
+  - 既存の `*.pandd-artifact.json` と `*.zip` をドラッグ&ドロップまたは選択してアップロード
+
+### 推奨作業手順
+1. Control Planeへログイン
+2. Web版 Intake（`/intake`）を開く
+3. STEP 1: ゲーム基本情報を入力
+4. STEP 2: 多言語表示情報とHero / Thumbnail画像を選択（焦点位置を指定）
+5. STEP 3: Buildフォルダを選択し、起動EXEを確認
+6. STEP 4: プレビュー内容を確認し、「Artifactを作成してアップロード」を実行
+7. 完了後、Control Planeの申請画面（`/`）で公開申請を作成・承認・実行
 
 ### R2 direct-r2 用 CORS 設定
 
@@ -130,6 +149,16 @@ R2_ENDPOINT
 
 `pandd-launcher-production` bucket、`https://downloads.koto-thing.com`、署名鍵、承認者を確認後、
 `PRODUCTION_DISPATCH_ENABLED=true`へ変更してWorkerを再公開します。Stagingの鍵やR2 tokenを再利用しません。
+
+## スキーマバリデーション
+
+contracts内のcanonical JSON Schema（`deployment-artifact-descriptor.schema.json`, `game-release-source.schema.json`）をsource of truthとして、Ajv Standalone Code Generationにより事前生成されたバリデーター（`lib/generated/schema-validators.js`）を使用します。Workers/RSC環境での実行時eval/new Functionを排除しています。
+
+スキーマ変更時は次でバリデーターを再生成します（`npm run dev`, `npm run build` 実行時にも自動実行されます）:
+
+```bash
+npm run schema:generate
+```
 
 ## データ
 
