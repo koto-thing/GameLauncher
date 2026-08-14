@@ -213,7 +213,12 @@ export function ControlPlane() {
           <span className="brand-mark">P</span>
           <span><strong>PandD</strong><small>DEPLOY CONTROL</small></span>
         </a>
-        <div className={`environment-lock ${anyDispatchConfigured ? "connected" : ""}`}><span /> {anyDispatchConfigured ? `ACTIONS: ${dashboard.system.dispatchConfigured.staging ? "S" : "-"}/${dashboard.system.dispatchConfigured.production ? "P" : "-"}` : "ACTIONS実行は無効"}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <a className="secondary-button" href="/intake" style={{ fontSize: "12px", padding: "6px 12px", textDecoration: "none" }}>
+            Web版 Intake Uploader
+          </a>
+          <div className={`environment-lock ${anyDispatchConfigured ? "connected" : ""}`}><span /> {anyDispatchConfigured ? `ACTIONS: ${dashboard.system.dispatchConfigured.staging ? "S" : "-"}/${dashboard.system.dispatchConfigured.production ? "P" : "-"}` : "ACTIONS実行は無効"}</div>
+        </div>
         <div className="account">
           <div className="avatar" aria-hidden="true">{dashboard.actor.login.slice(0, 1).toUpperCase()}</div>
           <div><strong>@{dashboard.actor.login}</strong><small>{dashboard.actor.isAdmin ? "Repository Admin" : "Authorized operator"}</small></div>
@@ -277,21 +282,28 @@ function BeginnerGuide() {
 
       <div className="uploader-download">
         <div>
-          <p className="eyebrow">WINDOWS APP / v0.1.0</p>
-          <h3>まず、uploaderをパソコンへ保存します。</h3>
-          <p>Windows 10 / 11（64-bit）用です。PythonやPowerShellの準備は不要で、ダウンロードしたexeをダブルクリックすると起動します。</p>
+          <p className="eyebrow">WEB & WINDOWS UPLOADER</p>
+          <h3>ゲーム成果物を非公開受付へアップロードします。</h3>
+          <p>Windows Defender誤検知を回避できるブラウザ版（推奨）と、従来のWindows exe版のどちらでもアップロードできます。</p>
         </div>
-        <a className="download-button" href={UPLOADER_DOWNLOAD_URL}>Windows版uploaderをダウンロード <span>28.3 MB</span></a>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <a className="download-button" href="/intake" style={{ background: "var(--blue)" }}>
+            Web版 Uploader を開く（推奨） <span>ブラウザ完結</span>
+          </a>
+          <a className="download-button" href={UPLOADER_DOWNLOAD_URL} style={{ background: "#475467" }}>
+            Windows版 exe をダウンロード <span>28.3 MB</span>
+          </a>
+        </div>
       </div>
 
       <ol className="guide-steps deploy-roadmap">
         <li>
           <span>01</span>
-          <div><strong>Uploaderを起動</strong><p><code>PandDIntakeUploader.exe</code> をダブルクリックします。配布元とファイル名を確認してください。</p></div>
+          <div><strong>Uploaderを起動</strong><p><a href="/intake" style={{ color: "var(--blue)", textDecoration: "underline" }}>Web版 Uploader</a> または <code>PandDIntakeUploader.exe</code> を開きます。</p></div>
         </li>
         <li>
           <span>02</span>
-          <div><strong>ゲームを受付へ送る</strong><p>ゲームフォルダー、起動exe、バージョン、画像を選び、完了まで画面を閉じずに待ちます。</p></div>
+          <div><strong>ゲームを受付へ送る</strong><p>descriptor JSON と ZIP を選択し、SHA-256検証と非公開intakeへのupload・sealを完了します。</p></div>
         </li>
         <li>
           <span>03</span>
@@ -436,7 +448,7 @@ function RequestForm({ busy, runAction, onDone }: {
   }
   return (
     <form className="request-form" onSubmit={submit}>
-      <div className="form-intro"><span>01</span><div><strong>Artifactを固定</strong><small>デスクトップuploaderが生成した受付票（descriptor）を読み込みます。</small></div></div>
+      <div className="form-intro"><span>01</span><div><strong>Artifactを固定</strong><small>Web版またはデスクトップ版のUploaderが生成した受付票（descriptor）を読み込みます。未アップロードの場合は先に <a href="/intake" style={{ color: "var(--blue)", textDecoration: "underline" }}>Web版 Intake Uploader</a> でZIPを送信してください。</small></div></div>
       <label className="wide">PandD artifact descriptor<input type="file" accept=".json,.pandd-artifact.json" onChange={(event) => loadDescriptor(event.target.files?.[0]).catch((error: unknown) => setDescriptorError(error instanceof Error ? error.message : "descriptorを読み込めませんでした"))} required /><small className="input-help">uploaderの完了画面で保存した <code>*.pandd-artifact.json</code> を選んでください。ゲーム本体を選ぶ場所ではありません。</small></label>
       {descriptorError && <p className="field-error wide" role="alert">{descriptorError}</p>}
       {descriptorName && <div className="descriptor-loaded wide"><strong>{descriptorName}</strong><span>artifact {artifactId.slice(0, 8)} を読み込みました</span></div>}

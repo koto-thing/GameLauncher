@@ -4,13 +4,22 @@ import { ensureSchema, getD1 } from "@/db/initialize";
 import type { SessionUser } from "@/lib/auth";
 import {
   auditRecord,
-  MAX_ARTIFACT_BYTES,
-  MAX_ARTIFACT_FILES,
   requireRequester,
 } from "@/lib/control-plane";
+import {
+  MAX_ARTIFACT_BYTES,
+  MAX_ARTIFACT_FILES,
+  INTAKE_PART_SIZE,
+  PRESIGNED_URL_SECONDS,
+  type ArtifactDescriptor,
+} from "@/lib/artifact-limits";
 
-export const INTAKE_PART_SIZE = 64 * 1024 * 1024;
-export const PRESIGNED_URL_SECONDS = 15 * 60;
+export {
+  INTAKE_PART_SIZE,
+  PRESIGNED_URL_SECONDS,
+  type ArtifactDescriptor,
+};
+
 const UPLOAD_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
 type IntakeEnv = {
@@ -22,20 +31,6 @@ type IntakeEnv = {
 };
 
 type Row = Record<string, unknown>;
-
-export type ArtifactDescriptor = {
-  schemaVersion: number;
-  artifactId: string;
-  artifactFile: string;
-  gameId: string;
-  version: string;
-  platform: string;
-  arch: string;
-  sizeBytes: number;
-  fileCount: number;
-  sha256: string;
-  createdAt: string;
-};
 
 function runtimeEnv(): IntakeEnv {
   return env as unknown as IntakeEnv;
@@ -246,18 +241,20 @@ export async function uploadLocalPart(
   artifactId: string,
   partNumber: number,
   body: ReadableStream | null,
-  contentLength: number,
+  contentLength?: number | null,
 ) {
   await ensureSchema();
   const row = await uploadRow(artifactId, actor);
   if (text(row.state) !== "uploading" || !body) throw new Error("upload中のartifactではありません");
   const expected = expectedPartSize(row, partNumber);
-  if (contentLength !== expected) throw new Error("part容量が期待値と一致しません");
+  if (contentLength !== null && contentLength !== undefined && !Number.isNaN(contentLength)) {
+    if (contentLength !== expected) throw new Error("part容量が期待値と一致しません");
+  }
   const multipart = bucket().resumeMultipartUpload(
     text(row.intake_object_key), text(row.multipart_upload_id),
   );
   const uploaded = await multipart.uploadPart(partNumber, body);
-  await recordPart(actor, artifactId, partNumber, uploaded.etag, contentLength);
+  await recordPart(actor, artifactId, partNumber, uploaded.etag, expected);
   return uploaded;
 }
 

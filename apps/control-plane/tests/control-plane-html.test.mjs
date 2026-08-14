@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertBrowserWrite } from "../lib/request-security.ts";
+import { assertBrowserWrite, assertSameOrigin } from "../lib/request-security.ts";
 
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
 const workerPromise = import(workerUrl.href);
@@ -28,6 +28,15 @@ test("server-renders the PandD deployment control plane", async () => {
   assert.match(html, /lang="ja"/i);
 });
 
+test("server-renders the PandD intake uploader page", async () => {
+  const response = await render("/intake");
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+  const html = await response.text();
+  assert.match(html, /PandD/);
+  assert.match(html, /INTAKE/);
+});
+
 test("rejects cross-origin and origin-less browser writes", async () => {
   const crossOrigin = new Request("http://localhost/api/control", {
     method: "POST",
@@ -51,4 +60,29 @@ test("accepts a same-origin browser write for subsequent authentication", () => 
     body: JSON.stringify({ action: "noop" }),
   });
   assert.doesNotThrow(() => assertBrowserWrite(request));
+});
+
+test("assertSameOrigin rejects cross-origin and cross-site requests with 403", () => {
+  const crossOrigin = new Request("http://localhost/api/intake/uploads", {
+    method: "POST",
+    headers: { origin: "https://evil.example", "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.throws(() => assertSameOrigin(crossOrigin), (error) => error.status === 403);
+
+  const crossSite = new Request("http://localhost/api/intake/uploads", {
+    method: "POST",
+    headers: { "sec-fetch-site": "cross-site", "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.throws(() => assertSameOrigin(crossSite), (error) => error.status === 403);
+});
+
+test("assertSameOrigin accepts same-origin requests", () => {
+  const request = new Request("http://localhost/api/intake/uploads", {
+    method: "POST",
+    headers: { origin: "http://localhost", "sec-fetch-site": "same-origin", "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.doesNotThrow(() => assertSameOrigin(request));
 });

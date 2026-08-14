@@ -177,20 +177,28 @@ export async function verifyGithubToken(accessToken: string): Promise<SessionUse
 
 export async function requireUploaderActor(request: Request): Promise<SessionUser> {
   const authorization = request.headers.get("authorization") ?? "";
-  if (!authorization.startsWith("Bearer ")) throw new Response("Authentication required", { status: 401 });
-  const token = authorization.slice("Bearer ".length).trim();
-  if (localDevAuthAvailable(request) && token.startsWith("local-development:")) {
-    const role = token.slice("local-development:".length);
-    const user = localUsers[role];
-    if (!user) throw new Response("Authentication required", { status: 401 });
-    await ensureLocalFixtures();
-    return { ...user, authenticatedAt: new Date().toISOString() };
+  if (authorization.startsWith("Bearer ")) {
+    const token = authorization.slice("Bearer ".length).trim();
+    if (localDevAuthAvailable(request) && token.startsWith("local-development:")) {
+      const role = token.slice("local-development:".length);
+      const user = localUsers[role];
+      if (!user) throw new Response("Authentication required", { status: 401 });
+      await ensureLocalFixtures();
+      return { ...user, authenticatedAt: new Date().toISOString() };
+    }
+    try {
+      return await verifyGithubToken(token);
+    } catch {
+      throw new Response("GitHub identity verification failed", { status: 403 });
+    }
   }
-  try {
-    return await verifyGithubToken(token);
-  } catch {
-    throw new Response("GitHub identity verification failed", { status: 403 });
+
+  const session = await readSession(request);
+  if (session) {
+    return session;
   }
+
+  throw new Response("Authentication required", { status: 401 });
 }
 
 export function createStateCookie(state: string, request: Request): string {

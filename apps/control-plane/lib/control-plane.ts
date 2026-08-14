@@ -6,8 +6,12 @@ import {
   type DeploymentEnvironment,
 } from "@/lib/github-app";
 
-export const MAX_ARTIFACT_BYTES = 5 * 1024 * 1024 * 1024;
-export const MAX_ARTIFACT_FILES = 50_000;
+import {
+  MAX_ARTIFACT_BYTES,
+  MAX_ARTIFACT_FILES,
+} from "@/lib/artifact-limits";
+
+export { MAX_ARTIFACT_BYTES, MAX_ARTIFACT_FILES };
 
 export type GrantType = "requester" | "approver" | "production_requester";
 

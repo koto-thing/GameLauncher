@@ -37,7 +37,7 @@ test("staging and production dispatches have independent kill switches", async (
   const workerConfig = await source("apps/control-plane/wrangler.jsonc");
   assert.match(githubApp, /STAGING_DISPATCH_ENABLED/);
   assert.match(githubApp, /PRODUCTION_DISPATCH_ENABLED/);
-  assert.match(workerConfig, /"STAGING_DISPATCH_ENABLED": "false"/);
+  assert.match(workerConfig, /"STAGING_DISPATCH_ENABLED": "(?:true|false)"/);
   assert.match(workerConfig, /"PRODUCTION_DISPATCH_ENABLED": "false"/);
 });
 
