@@ -57,6 +57,7 @@ ui_*.h
 # Generated diagnostics
 # ==========================
 *.log
+*.tsbuildinfo
 __pycache__/
 *.egg-info/
 publisher/.publisher-state.json

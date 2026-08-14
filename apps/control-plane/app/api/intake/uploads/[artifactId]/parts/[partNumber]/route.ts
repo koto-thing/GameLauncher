@@ -8,7 +8,10 @@ export async function PUT(
   try {
     const actor = await requireUploaderActor(request);
     const { artifactId, partNumber: partText } = await context.params;
-    const contentLength = Number(request.headers.get("content-length"));
+    const rawContentLength = request.headers.get("content-length");
+    const contentLength = rawContentLength !== null && !Number.isNaN(Number(rawContentLength))
+      ? Number(rawContentLength)
+      : null;
     const uploaded = await uploadLocalPart(
       actor,
       artifactId,

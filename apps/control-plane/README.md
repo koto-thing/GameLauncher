@@ -21,9 +21,34 @@ StagingとProductionの申請、別アカウント承認、GitHub Actions起動�
 `LOCAL_DEV_AUTH=true`はlocalhostでだけ有効です。Admin、申請者、承認者を切り替えて、
 申請から指名承認までを確認できます。
 
-## Intake artifact
+## Web版 Intake Uploader（推奨）
 
-デスクトップuploaderを次で起動します。
+ブラウザ上で `http://localhost:3000/intake` （または本番URLの `/intake`）を開くことで、Windows Defender等の誤検知を受けることなくIntakeへのアップロードとSealを行えます。
+
+- **descriptor JSON** と **artifact ZIP** をドラッグ&ドロップまたは選択
+- スキーマ検証、ZIP名・容量の整合性チェック
+- チャンク分割によるメモリ消費を抑えたブラウザ側 SHA-256 検証
+- 64 MiB part の最大4並列アップロード、通信失敗時の自動指数リトライ
+- アップロードキャンセル、進捗表示、Seal処理
+- 既存のControl Planeセッション（HttpOnly cookie）とGitHub OAuthをそのまま再利用
+
+### R2 direct-r2 用 CORS 設定
+
+ブラウザからR2へ直接PUT (`direct-r2` 転送) する場合、R2バケットにCORS設定が必要です。
+リポジトリ内の `r2-cors.json` を使用して設定します：
+
+```bash
+# Cloudflare CLIでIntakeバケットへCORSを適用
+npx wrangler r2 bucket cors set pandd-launcher-intake --file r2-cors.json
+```
+
+設定では `AllowedOrigins` をControl Planeの正規Originに限定し、`ExposeHeaders` に `ETag` を指定してブラウザ側でのmultipart part ETag取得を許可しています。
+
+なお、S3クレデンシャル未設定時の `worker-proxy` モードでは同一Origin経由で転送されるため、R2のCORS設定なしでも動作します。
+
+## デスクトップ版 Intake Uploader（互換性維持）
+
+従来のPySide6製デスクトップアプリも引き続き利用可能です：
 
 ```powershell
 .\scripts\Run-IntakeUploader.ps1
@@ -32,7 +57,6 @@ StagingとProductionの申請、別アカウント承認、GitHub Actions起動�
 uploaderはZIPの容量とSHA-256を再検証し、64 MiB partを最大4並列で非公開intakeへ送ります。
 中断後は同じdescriptorから完了済みpartを再利用して再開できます。seal完了後、生成された
 `.pandd-artifact.json` を「新しい申請」で選択するとartifact情報を読み込みます。
-Actions側のhash再検証は次の実装段階です。
 
 ローカル開発ではWorkersのローカルR2 bindingを経由します。Cloudflareへ配置するときは
 intake bucketだけへ書き込めるR2 API tokenを用意し、次の値をcontrol planeへ設定します。
