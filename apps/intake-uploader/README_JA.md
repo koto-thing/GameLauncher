@@ -1,5 +1,7 @@
 # PandD Intake Artifact Uploader
 
+> **注記**: 現在はWeb版 Intake（`/intake`）が推奨ワークフローです。ブラウザ上でビルドフォルダを選択して直接Artifact作成・アップロード・Sealを行えます。本デスクトップアプリは互換性維持およびフォールバック用途として提供されています。将来的にWeb版への移行完了後に廃止・削除される予定です。
+
 ゲームビルドをデプロイ申請用のZIP64 artifactへまとめ、非公開intake R2へ送るQt製ツールです。
 署名、staging/production R2への書き込み、GitHub Actions実行は行いません。
 

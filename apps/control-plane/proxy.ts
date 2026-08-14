@@ -1,21 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { buildContentSecurityPolicy } from "./lib/csp.ts";
 
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "connect-src 'self'",
-  "font-src 'self'",
-  "form-action 'self' https://github.com",
-  "frame-ancestors 'none'",
-  "img-src 'self' data: https://avatars.githubusercontent.com",
-  "object-src 'none'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-].join("; ");
+export { buildContentSecurityPolicy };
 
 export function proxy(request: NextRequest) {
   const response = NextResponse.next();
-  response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+  response.headers.set("Content-Security-Policy", buildContentSecurityPolicy());
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");

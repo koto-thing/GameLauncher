@@ -20,7 +20,10 @@ test("server-renders the PandD deployment control plane", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   assert.equal(response.headers.get("x-frame-options"), "DENY");
-  assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
+  const csp = response.headers.get("content-security-policy") ?? "";
+  assert.match(csp, /frame-ancestors 'none'/);
+  assert.match(csp, /script-src 'self' 'unsafe-inline'/);
+  assert.ok(!csp.includes("unsafe-eval"), "Production CSP must not include unsafe-eval");
   const html = await response.text();
   assert.match(html, /<title>PandD Deploy Control<\/title>/i);
   assert.match(html, /PandD/);
@@ -28,13 +31,21 @@ test("server-renders the PandD deployment control plane", async () => {
   assert.match(html, /lang="ja"/i);
 });
 
-test("server-renders the PandD intake uploader page", async () => {
+test("server-renders the PandD intake uploader page without eval or 500 errors", async () => {
   const response = await render("/intake");
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 200, "GET /intake must return HTTP 200 without runtime 500");
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  const csp = response.headers.get("content-security-policy") ?? "";
+  assert.match(csp, /frame-ancestors 'none'/);
+  assert.match(csp, /script-src 'self' 'unsafe-inline'/);
+  assert.ok(!csp.includes("unsafe-eval"), "Production CSP on /intake must not include unsafe-eval");
   const html = await response.text();
+  assert.match(html, /<title>PandD Intake Uploader<\/title>/i);
   assert.match(html, /PandD/);
   assert.match(html, /INTAKE/);
+  assert.doesNotMatch(html, /Error compiling schema|function code|Internal Server Error/i);
 });
 
 test("rejects cross-origin and origin-less browser writes", async () => {

@@ -69,8 +69,9 @@ test("validateDescriptorSchema validates gameId and version format", () => {
 test("validateDescriptorSchema validates sizeBytes and fileCount boundaries", () => {
   assert.equal(validateDescriptorSchema({ ...validSample, sizeBytes: 0 }).valid, false);
   assert.equal(validateDescriptorSchema({ ...validSample, sizeBytes: -100 }).valid, false);
-  assert.equal(validateDescriptorSchema({ ...validSample, sizeBytes: 6 * 1024 * 1024 * 1024 }).valid, false); // >5 GiB
+  assert.equal(validateDescriptorSchema({ ...validSample, sizeBytes: 5368709121 }).valid, false); // >5 GiB
   assert.equal(validateDescriptorSchema({ ...validSample, fileCount: 0 }).valid, false);
+  assert.equal(validateDescriptorSchema({ ...validSample, fileCount: 50001 }).valid, false); // >50,000 files
   assert.equal(validateDescriptorSchema({ ...validSample, fileCount: 60000 }).valid, false);
 });
 
@@ -78,4 +79,69 @@ test("validateDescriptorSchema validates sha256 hex string", () => {
   assert.equal(validateDescriptorSchema({ ...validSample, sha256: "not-a-hash" }).valid, false);
   assert.equal(validateDescriptorSchema({ ...validSample, sha256: "e3b0c442" }).valid, false); // too short
   assert.equal(validateDescriptorSchema({ ...validSample, sha256: "g".repeat(64) }).valid, false); // non-hex
+});
+
+test("validateDescriptorSchema rejects additionalProperties enforced by canonical schema", () => {
+  const withExtra = { ...validSample, unknownProperty: "unexpected" };
+  const result = validateDescriptorSchema(withExtra);
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join(";"), /未知のプロパティ/);
+});
+
+test("validateDescriptorSchema rejects omitted required properties from canonical schema", () => {
+  const requiredKeys = [
+    "schemaVersion",
+    "artifactId",
+    "artifactFile",
+    "gameId",
+    "version",
+    "platform",
+    "arch",
+    "sizeBytes",
+    "fileCount",
+    "sha256",
+    "createdAt",
+  ];
+  for (const key of requiredKeys) {
+    const copy = { ...validSample };
+    delete copy[key];
+    const result = validateDescriptorSchema(copy);
+    assert.equal(result.valid, false, `Omitting ${key} must fail validation`);
+    assert.match(result.errors.join(";"), new RegExp(`${key}は必須です`));
+  }
+});
+
+test("validateDescriptorSchema validates date-time format on createdAt", () => {
+  for (const badDate of ["2026-08-15 00:00:00", "not-a-date", "2026/08/15", "12345"]) {
+    const result = validateDescriptorSchema({ ...validSample, createdAt: badDate });
+    assert.equal(result.valid, false, `Invalid date ${badDate} must fail validation`);
+  }
+});
+
+test("validateDescriptorSchema enforces const platform and arch", () => {
+  assert.equal(validateDescriptorSchema({ ...validSample, platform: "linux" }).valid, false);
+  assert.equal(validateDescriptorSchema({ ...validSample, arch: "arm64" }).valid, false);
+});
+
+test("validateDescriptorSchema operates safely in eval/Function-restricted runtime", () => {
+  const originalFunction = globalThis.Function;
+  try {
+    let functionCalled = false;
+    const proxiedFunction = function () {
+      functionCalled = true;
+      throw new Error("Dynamic code generation (new Function) is disallowed");
+    };
+    proxiedFunction.prototype = originalFunction.prototype;
+    globalThis.Function = proxiedFunction;
+
+    const validResult = validateDescriptorSchema(validSample);
+    assert.equal(validResult.valid, true);
+    assert.equal(functionCalled, false);
+
+    const invalidResult = validateDescriptorSchema({ ...validSample, schemaVersion: 99 });
+    assert.equal(invalidResult.valid, false);
+    assert.equal(functionCalled, false);
+  } finally {
+    globalThis.Function = originalFunction;
+  }
 });
