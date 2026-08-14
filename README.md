@@ -2,6 +2,36 @@
 
 PandDゲームランチャー、ゲーム受入ツール、公開制御Webアプリを管理するモノレポです。
 
+## GameLauncherについて
+### Staging版GmaeLauncher
+
+これは、配布するゲームが正しくインストール・ダウンロードできるかどうかの最終確認するためのGameLauncherになります。
+そのため、これを使用するのは、運営メンバーのみになります。
+
+`Publish Windows staging` ワークフローを起動すると、ReleaseにStaging版のゲームランチャーが作成されます。
+
+### Production版GameLauncher
+
+これは、一般にゲームを公開するための最終確認用のGameLauncherになります。
+
+以下のようなコマンドを打つと、自動的にビルドが走ります。  
+バージョン名は適宜変更してください。
+```bash
+git tag -a v1.0.2 -m "Release v1.0.2"
+git push origin v1.0.2
+```
+
+## ゲームのアップロード方法
+
+ゲームは、
+
+https://pandd-deployment-control-plane.gotoukenta62.workers.dev/
+
+にてアップロードできます。
+
+このレポジトリの管理者と管理者が指定したユーザー（モデレーター）のみがアップロードできるようになっています。  
+モデレーターがアップロードする場合、確認のためほかのモデレータの１週間以内の承認が必要になります。
+
 ## ディレクトリ
 
 - `client/` — C++ / Qt製ゲームランチャー
