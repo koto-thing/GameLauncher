@@ -2,21 +2,23 @@
 <Installer>
     <Name>PandD Game Launcher</Name>
     <Version>1.0.0</Version>
-    <Title>PandD Game Launcher Installer</Title>
+    <Title>PandD Game Launcher</Title>
     <Publisher>PandD</Publisher>
     <InstallerWindowIcon>PnadDLogo.png</InstallerWindowIcon>
     <WizardStyle>Classic</WizardStyle>
     <WizardShowPageList>false</WizardShowPageList>
-    <WizardDefaultWidth>680</WizardDefaultWidth>
-    <WizardDefaultHeight>460</WizardDefaultHeight>
+    <WizardDefaultWidth>760</WizardDefaultWidth>
+    <WizardDefaultHeight>490</WizardDefaultHeight>
     <WizardMinimumWidth>680</WizardMinimumWidth>
     <WizardMinimumHeight>460</WizardMinimumHeight>
     <StyleSheet>style.qss</StyleSheet>
     <ControlScript>controlscript.qs</ControlScript>
-    <TitleColor>#202124</TitleColor>
+    <TitleColor>#ffffff</TitleColor>
     <StartMenuDir>PandD</StartMenuDir>
     <TargetDir>@ApplicationsDir@/PandDGameLauncher</TargetDir>
     <MaintenanceToolName>maintenancetool</MaintenanceToolName>
+    <RunProgram>@TargetDir@/bin/PandD Game Launcher</RunProgram>
+    <RunProgramDescription>PandD Game Launcher を起動する</RunProgramDescription>
     <RemoteRepositories>
         <Repository>
             <Url>https://downloads.koto-thing.com/v1/launcher/ifw</Url>

@@ -9,7 +9,7 @@ import tempfile
 import unittest
 import zipfile
 
-from scripts.validate_intake_artifact import validate_and_extract
+from scripts.deployment.validate_intake_artifact import validate_and_extract
 
 
 class ValidateIntakeArtifactTests(unittest.TestCase):

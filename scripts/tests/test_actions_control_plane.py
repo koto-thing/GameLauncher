@@ -4,7 +4,7 @@ import sys
 import unittest
 from unittest import mock
 
-from scripts import actions_control_plane
+from scripts.deployment import actions_control_plane
 
 
 class ActionsControlPlaneTests(unittest.TestCase):

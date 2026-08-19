@@ -8,7 +8,7 @@ import hashlib
 from pathlib import Path
 
 
-SOURCE_DIRECTORY = Path(__file__).resolve().parent.parent / "licenses"
+SOURCE_DIRECTORY = Path(__file__).resolve().parents[2] / "licenses"
 LICENSE_SOURCES = {
     "LGPL-3.0-only.txt":
         "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",

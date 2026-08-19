@@ -25,25 +25,31 @@ ManifestValidator::ManifestValidator(std::set<std::string> allowedHosts)
     : allowedHosts_(std::move(allowedHosts)) {}
 
 OperationResult ManifestValidator::validate(const GameRelease& release) const {
+    // 配布物全体に適用する資源上限を固定
     constexpr std::size_t maximumFiles = 10000;
     constexpr std::uint64_t maximumFileSize = 16ULL * 1024ULL * 1024ULL * 1024ULL;
     constexpr std::uint64_t maximumChunkSize = 256ULL * 1024ULL * 1024ULL;
+    // schemaとファイル数の基本条件を検証
     if (release.schemaVersion != 1 || release.files.empty() ||
         release.files.size() > maximumFiles) {
         return invalid("unsupported schema or file count");
     }
+    // 起動方法を把握しているengineだけを許可
     if (release.engine != "unity" && release.engine != "godot" && release.engine != "siv3d") {
         return invalid("unsupported engine");
     }
+    // 対応platformとarchitectureの組合せ以外を拒否
     if ((release.platform != "windows" && release.platform != "macos" &&
          release.platform != "linux") ||
         (release.architecture != "x86_64" && release.architecture != "arm64")) {
         return invalid("unsupported platform or architecture");
     }
+    // shell解釈やinstall root外参照につながる起動条件を拒否
     if (!release.arguments.empty() || !isSafeRelativePath(release.entrypoint) ||
         (release.workingDirectory != "." && !isSafeRelativePath(release.workingDirectory))) {
         return invalid("unsafe launch contract");
     }
+    // save directory名を単一path要素へ限定
     static const std::regex saveName("^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$");
     if (!std::regex_match(release.saveDirectoryName, saveName)) {
         return invalid("invalid saveDirectoryName");
@@ -58,6 +64,7 @@ OperationResult ManifestValidator::validate(const GameRelease& release) const {
             file.size > maximumFileSize || !isSha256(file.sha256) || file.chunks.empty()) {
             return invalid("invalid file entry: " + file.path);
         }
+        // chunkが隙間や重複なくfile全体を構成することを検証
         std::uint64_t nextOffset = 0;
         for (const auto& chunk : file.chunks) {
             if (chunk.offset != nextOffset || chunk.size == 0 || chunk.size > maximumChunkSize ||
@@ -73,6 +80,7 @@ OperationResult ManifestValidator::validate(const GameRelease& release) const {
         calculatedTotal += file.size;
         entrypointFound |= file.path == release.entrypoint;
     }
+    // file単位の検証結果をrelease全体の宣言値と照合
     if (!entrypointFound || calculatedTotal != release.totalSize || release.signature.empty()) {
         return invalid("manifest totals, entrypoint, or signature are invalid");
     }
@@ -80,6 +88,7 @@ OperationResult ManifestValidator::validate(const GameRelease& release) const {
 }
 
 bool ManifestValidator::isSafeRelativePath(const std::string& path) {
+    // Windows driveと区切り文字をplatform共通の段階で拒否
     const bool hasWindowsDrivePrefix = path.size() >= 2 &&
                                        std::isalpha(static_cast<unsigned char>(path.front())) &&
                                        path[1] == ':';
@@ -87,6 +96,7 @@ bool ManifestValidator::isSafeRelativePath(const std::string& path) {
         hasWindowsDrivePrefix) {
         return false;
     }
+    // rootを持つpathと親directory参照を拒否
     const std::filesystem::path candidate(path);
     if (candidate.is_absolute() || candidate.has_root_name() || candidate.has_root_directory()) {
         return false;
@@ -107,6 +117,7 @@ bool ManifestValidator::isSha256(const std::string& value) {
 }
 
 bool ManifestValidator::isAllowedUrl(const std::string& url) const {
+    // schemeとhostだけを抽出して許可配布元と照合
     static const std::regex urlPattern("^(https?)://([^/:?#]+)(?::[0-9]+)?(?:/|$)",
                                        std::regex::icase);
     std::smatch match;
@@ -117,6 +128,7 @@ bool ManifestValidator::isAllowedUrl(const std::string& url) const {
     std::string host = match[2].str();
     std::transform(host.begin(), host.end(), host.begin(),
                    [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+    // 本番はHTTPSに限定しlocal開発だけHTTPを許可
     const bool secure = scheme == "https" || scheme == "HTTPS";
     const bool localDevelopment =
         (host == "127.0.0.1" || host == "localhost") && (scheme == "http" || scheme == "HTTP");

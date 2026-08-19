@@ -26,7 +26,7 @@ python -m venv .venv
 ### ソースから起動
 
 ```powershell
-.\scripts\Run-IntakeUploader.ps1
+.\scripts\local\Run-IntakeUploader.ps1
 ```
 
 ### Windows exeを作成

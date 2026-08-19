@@ -6,7 +6,7 @@
 画面文字列を追加・変更した後は次を実行します。
 
 ```powershell
-.\scripts\Update-LauncherTranslations.ps1
+.\scripts\local\Update-LauncherTranslations.ps1
 ```
 
 Qt Linguistで `.ts` を開いて翻訳し、CMakeでビルドすると `.qm` が生成されて

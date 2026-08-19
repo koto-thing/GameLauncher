@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import unittest
 
-from scripts.validate_release_version import ROOT, validate_release_version
+from scripts.release.validate_release_version import ROOT, validate_release_version
 
 
 class ValidateReleaseVersionTests(unittest.TestCase):

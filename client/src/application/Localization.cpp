@@ -6,15 +6,17 @@
 namespace pandd {
 
 bool isValidLocaleTag(const std::string& locale) {
+    // 公開pathへ埋め込む前に許可文字と区切り形式を限定
     static const std::regex pattern(R"(^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$)");
     return std::regex_match(locale, pattern);
 }
 
 std::vector<GameCatalogEntry>
-// The two parameters have distinct source/fallback roles despite sharing a container type.
+// 同じcontainer型の引数を翻訳元とfallbackの異なる役割で受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 mergeCatalogTranslations(std::vector<GameCatalogEntry> japanese,
                          const std::vector<GameCatalogEntry>& localized) {
+    // game IDをキーに選択言語の項目を上書き
     for (const auto& translated : localized) {
         const auto existing =
             std::find_if(japanese.begin(), japanese.end(), [&translated](const auto& entry) {
@@ -26,6 +28,7 @@ mergeCatalogTranslations(std::vector<GameCatalogEntry> japanese,
             *existing = translated;
         }
     }
+    // 入力順に依存しない安定した表示順へ正規化
     std::sort(japanese.begin(), japanese.end(), [](const auto& left, const auto& right) {
         return left.gameId.value() < right.gameId.value();
     });
@@ -33,10 +36,11 @@ mergeCatalogTranslations(std::vector<GameCatalogEntry> japanese,
 }
 
 std::vector<Announcement>
-// The two parameters have distinct source/fallback roles despite sharing a container type.
+// 同じcontainer型の引数を翻訳元とfallbackの異なる役割で受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 mergeAnnouncementTranslations(std::vector<Announcement> japanese,
                               const std::vector<Announcement>& localized) {
+    // お知らせIDをキーに翻訳済み項目だけを上書き
     for (const auto& translated : localized) {
         const auto existing =
             std::find_if(japanese.begin(), japanese.end(),
@@ -51,10 +55,11 @@ mergeAnnouncementTranslations(std::vector<Announcement> japanese,
 }
 
 std::vector<LauncherChangelogEntry>
-// The two parameters have distinct source/fallback roles despite sharing a container type.
+// 同じcontainer型の引数を翻訳元とfallbackの異なる役割で受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 mergeChangelogTranslations(std::vector<LauncherChangelogEntry> japanese,
                            const std::vector<LauncherChangelogEntry>& localized) {
+    // versionをキーに翻訳済み履歴だけを上書き
     for (const auto& translated : localized) {
         const auto existing =
             std::find_if(japanese.begin(), japanese.end(), [&translated](const auto& item) {
@@ -66,6 +71,7 @@ mergeChangelogTranslations(std::vector<LauncherChangelogEntry> japanese,
             *existing = translated;
         }
     }
+    // 新しいversionから表示できる順序へ正規化
     std::sort(japanese.begin(), japanese.end(),
               [](const auto& left, const auto& right) { return left.version > right.version; });
     return japanese;

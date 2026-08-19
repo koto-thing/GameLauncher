@@ -35,7 +35,7 @@ R2への公開、マニフェスト署名、GitHub Actions実行を行いませ�
 `apps/intake-uploader/README_JA.md` を参照してください。
 
 ```powershell
-.\scripts\Run-IntakeUploader.ps1
+.\scripts\local\Run-IntakeUploader.ps1
 ```
 
 以下のPublisher手順は、今後GitHub Actions runnerへ接続する処理の技術資料です。
@@ -214,7 +214,7 @@ notepad .env.production
 1コマンドでそのセッションへ設定を読み込みます。
 
 ```powershell
-. .\scripts\Import-DotEnv.ps1 .env.production
+. .\scripts\local\Import-DotEnv.ps1 .env.production
 ```
 
 先頭のピリオドと、その後の空白が必要です。読み込んだ値は現在のPowerShellだけで

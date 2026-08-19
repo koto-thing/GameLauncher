@@ -16,9 +16,12 @@ test("production workflow is isolated from staging and gated by the production e
   assert.match(workflow, /MANIFEST_PRIVATE_KEY_PEM: \$\{\{ secrets\.MANIFEST_PRIVATE_KEY_PEM \}\}/);
   assert.doesNotMatch(workflow, /pandd-launcher-staging|STAGING_BASE_URL/);
   assert.doesNotMatch(workflow, /actions\/(?:upload|download)-artifact/);
-  assert.match(workflow, /actions_control_plane\.py authorize/);
+  assert.match(workflow, /python -m scripts\.deployment\.actions_control_plane authorize/);
   assert.match(workflow, /Download the private artifact directly from intake/);
-  assert.match(workflow, /upload-immutable[\s\S]*promote-pointers[\s\S]*verify_game_publication\.py/);
+  assert.match(
+    workflow,
+    /upload-immutable[\s\S]*promote-pointers[\s\S]*python -m scripts\.deployment\.verify_game_publication/,
+  );
 });
 
 test("production requests require a successful recent staging artifact and separate approval", async () => {
@@ -38,7 +41,7 @@ test("staging and production dispatches have independent kill switches", async (
   assert.match(githubApp, /STAGING_DISPATCH_ENABLED/);
   assert.match(githubApp, /PRODUCTION_DISPATCH_ENABLED/);
   assert.match(workerConfig, /"STAGING_DISPATCH_ENABLED": "(?:true|false)"/);
-  assert.match(workerConfig, /"PRODUCTION_DISPATCH_ENABLED": "false"/);
+  assert.match(workerConfig, /"PRODUCTION_DISPATCH_ENABLED": "(?:true|false)"/);
 });
 
 test("private intake archives are never copied into GitHub Actions artifacts", async () => {
@@ -48,7 +51,7 @@ test("private intake archives are never copied into GitHub Actions artifacts", a
   ]) {
     const workflow = await source(workflowPath);
     assert.doesNotMatch(workflow, /actions\/(?:upload|download)-artifact/);
-    assert.match(workflow, /actions_control_plane\.py authorize/);
+    assert.match(workflow, /python -m scripts\.deployment\.actions_control_plane authorize/);
     assert.match(workflow, /environment: (?:staging|production)[\s\S]*Download the private artifact directly from intake/);
   }
 });

@@ -36,7 +36,7 @@ jobs:
           REQUEST_ID: ${{ inputs.request_id }}
           ATTEMPT_ID: ${{ inputs.attempt_id }}
         run: |
-          python scripts/actions_control_plane.py authorize \
+          python -m scripts.deployment.actions_control_plane authorize \
             --request-id "$REQUEST_ID" \
             --attempt-id "$ATTEMPT_ID"
 
@@ -47,7 +47,7 @@ jobs:
           REQUEST_ID: ${{ inputs.request_id }}
           ATTEMPT_ID: ${{ inputs.attempt_id }}
         run: >-
-          python scripts/actions_control_plane.py status
+          python -m scripts.deployment.actions_control_plane status
           --request-id "$REQUEST_ID"
           --attempt-id "$ATTEMPT_ID"
           --stage preflight
@@ -81,7 +81,7 @@ jobs:
           REQUEST_ID: ${{ inputs.request_id }}
           ATTEMPT_ID: ${{ inputs.attempt_id }}
         run: |
-          python scripts/actions_control_plane.py preflight \
+          python -m scripts.deployment.actions_control_plane preflight \
             --request-id "$REQUEST_ID" \
             --attempt-id "$ATTEMPT_ID" \
             --snapshot-output request-snapshot.json \
@@ -94,7 +94,7 @@ jobs:
           REQUEST_ID: ${{ inputs.request_id }}
           ATTEMPT_ID: ${{ inputs.attempt_id }}
         run: >-
-          python scripts/actions_control_plane.py status
+          python -m scripts.deployment.actions_control_plane status
           --request-id "$REQUEST_ID"
           --attempt-id "$ATTEMPT_ID"
           --stage preflight
@@ -108,7 +108,7 @@ jobs:
         id: validate
         continue-on-error: true
         run: >-
-          python scripts/validate_intake_artifact.py
+          python -m scripts.deployment.validate_intake_artifact
           --archive intake-artifact.zip
           --snapshot request-snapshot.json
           --output deployment
@@ -119,7 +119,7 @@ jobs:
           REQUEST_ID: ${{ inputs.request_id }}
           ATTEMPT_ID: ${{ inputs.attempt_id }}
         run: >-
-          python scripts/actions_control_plane.py status
+          python -m scripts.deployment.actions_control_plane status
           --request-id "$REQUEST_ID"
           --attempt-id "$ATTEMPT_ID"
           --stage preflight
@@ -138,7 +138,7 @@ jobs:
         run: |
           umask 077
           printf '%s' "$MANIFEST_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/staging-manifest-private.pem"
-          python scripts/seed_game_catalogs.py \
+          python -m scripts.deployment.seed_game_catalogs \
             --metadata deployment/metadata/release.json \
             --output public \
             --base-url "$STAGING_BASE_URL"
@@ -156,7 +156,7 @@ jobs:
           REQUEST_ID: ${{ inputs.request_id }}
           ATTEMPT_ID: ${{ inputs.attempt_id }}
         run: >-
-          python scripts/actions_control_plane.py status
+          python -m scripts.deployment.actions_control_plane status
           --request-id "$REQUEST_ID"
           --attempt-id "$ATTEMPT_ID"
           --stage uploading_immutable
@@ -177,7 +177,7 @@ jobs:
           REQUEST_ID: ${{ inputs.request_id }}
           ATTEMPT_ID: ${{ inputs.attempt_id }}
         run: |
-          python scripts/actions_control_plane.py status \
+          python -m scripts.deployment.actions_control_plane status \
             --request-id "$REQUEST_ID" \
             --attempt-id "$ATTEMPT_ID" \
             --stage publishing_pointers
@@ -199,11 +199,11 @@ jobs:
           REQUEST_ID: ${{ inputs.request_id }}
           ATTEMPT_ID: ${{ inputs.attempt_id }}
         run: |
-          python scripts/actions_control_plane.py status \
+          python -m scripts.deployment.actions_control_plane status \
             --request-id "$REQUEST_ID" \
             --attempt-id "$ATTEMPT_ID" \
             --stage verifying
-          python scripts/verify_game_publication.py \
+          python -m scripts.deployment.verify_game_publication \
             --metadata deployment/metadata/release.json \
             --public-tree public \
             --base-url "$STAGING_BASE_URL" \
@@ -216,7 +216,7 @@ jobs:
         run: |
           object_count=$(find public -type f | wc -l)
           manifest_sha=$(cat "$RUNNER_TEMP/manifest.sha256")
-          python scripts/actions_control_plane.py status \
+          python -m scripts.deployment.actions_control_plane status \
             --request-id "$REQUEST_ID" \
             --attempt-id "$ATTEMPT_ID" \
             --stage verifying \
@@ -234,7 +234,7 @@ jobs:
           if [[ -f "$RUNNER_TEMP/pointer-promotion-started" ]]; then
             result=recovery_required
           fi
-          python scripts/actions_control_plane.py status \
+          python -m scripts.deployment.actions_control_plane status \
             --request-id "$REQUEST_ID" \
             --attempt-id "$ATTEMPT_ID" \
             --stage failed \

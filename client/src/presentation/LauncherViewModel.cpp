@@ -58,7 +58,10 @@ LauncherViewModel::LauncherViewModel(LauncherService& service, QObject* parent)
     : QObject(parent), service_(service), catalog_(service.catalog()),
       installedGames_(service.installedGames()), announcements_(service.announcements()),
       launcherChangelog_(service.launcherChangelog()), settings_(service.settings()) {
+    // 状態を直列更新するためbackground処理を一つに制限
     operationPool_.setMaxThreadCount(1);
+
+    // Application層の状態変更をUI thread上のsignalへ変換
     service_.setStateCallback(
         [this](const GameId& gameId, InstallState state, const OperationError&) {
             QMetaObject::invokeMethod(this, [this, id = gameId.value(), state] {
@@ -68,6 +71,7 @@ LauncherViewModel::LauncherViewModel(LauncherService& service, QObject* parent)
 }
 
 LauncherViewModel::~LauncherViewModel() {
+    // callback先の破棄より先に実行中taskを停止
     service_.cancel();
     operationPool_.clear();
     operationPool_.waitForDone();
@@ -93,6 +97,7 @@ const std::vector<LauncherChangelogEntry>& LauncherViewModel::launcherChangelog(
 }
 
 QString LauncherViewModel::saveDirectory(const QString& gameId) const {
+    // 導入記録から対象gameを検索してplatform別save pathへ変換
     const auto iterator = std::find_if(installedGames_.begin(), installedGames_.end(),
                                        [&gameId](const auto& installed) {
                                            return installed.gameId.value() == gameId.toStdString();
@@ -105,6 +110,7 @@ QString LauncherViewModel::saveDirectory(const QString& gameId) const {
 
 void LauncherViewModel::installOrUpdate(const QString& gameId) {
     const auto id = gameId.toStdString();
+    // 長時間処理と進捗通知をUI threadから分離
     runAsync(
         [this, id] {
             return service_.installOrUpdate(GameId(id), [this, id](const DownloadProgress& value) {
@@ -122,6 +128,7 @@ void LauncherViewModel::installOrUpdate(const QString& gameId) {
 void LauncherViewModel::locateExisting(const QString& gameId, const QString& sourceDirectory) {
     const auto id = gameId.toStdString();
     const auto source = sourceDirectory.toStdString();
+    // 検証と取込みをbackgroundで実行し進捗だけをUIへ転送
     runAsync(
         [this, id, source] {
             return service_.locateExisting(
@@ -139,6 +146,7 @@ void LauncherViewModel::locateExisting(const QString& gameId, const QString& sou
 
 void LauncherViewModel::launch(const QString& gameId) {
     const auto id = gameId.toStdString();
+    // 必要な更新を完了してからgame processを起動
     operationPool_.start([this, id] {
         const auto prepared =
             service_.prepareLaunch(GameId(id), [this, id](const DownloadProgress& value) {
@@ -151,10 +159,12 @@ void LauncherViewModel::launch(const QString& gameId) {
             });
         const auto launched =
             prepared.ok ? service_.launch(GameId(id)) : OperationResult::success();
+        // background側で最新snapshotを取得
         const auto catalog = service_.catalog();
         const auto installed = service_.installedGames();
         const auto announcements = service_.announcements();
         const auto settings = service_.settings();
+        // 結果とsnapshotをUI threadへまとめて反映
         QMetaObject::invokeMethod(
             this, [this, prepared, launched, catalog, installed, announcements, settings] {
                 if (!prepared.ok) {
@@ -209,11 +219,13 @@ void LauncherViewModel::saveSettings(LauncherSettings settings) {
 }
 
 void LauncherViewModel::checkLauncherUpdate() {
+    // 公開metadataと更新toolの確認をbackgroundで実行
     operationPool_.start([this] {
         const auto result = service_.checkLauncherUpdate();
         const auto status = service_.launcherUpdateStatus();
         const auto settings = service_.settings();
         const auto changelog = service_.launcherChangelog();
+        // 確認結果と更新履歴をUI threadへ反映
         QMetaObject::invokeMethod(this, [this, result, status, settings, changelog] {
             if (!result.ok) {
                 emit errorOccurred(localizedError(result.error, settings_.language),
@@ -232,6 +244,7 @@ void LauncherViewModel::checkLauncherUpdate() {
 }
 
 void LauncherViewModel::applyLauncherUpdate() {
+    // 更新toolの起動がUIを停止させないようbackgroundで実行
     operationPool_.start([this] {
         const auto result = service_.applyLauncherUpdate();
         QMetaObject::invokeMethod(this, [this, result] {
@@ -257,8 +270,10 @@ void LauncherViewModel::resume(const QString& gameId) {
 
 void LauncherViewModel::runAsync(std::function<OperationResult()> operation, bool refreshOnSuccess,
                                  bool notifyLoaded) {
+    // Application操作を単一workerへ投入
     operationPool_.start([this, operation = std::move(operation), refreshOnSuccess, notifyLoaded] {
         OperationResult result;
+        // UI境界へ例外を漏らさず安定した操作結果へ変換
         try {
             result = operation();
         } catch (const std::exception& exception) {
@@ -266,11 +281,13 @@ void LauncherViewModel::runAsync(std::function<OperationResult()> operation, boo
                                                "処理中に予期しないエラーが発生しました",
                                                exception.what(), true});
         }
+        // 成功時だけ一貫した最新snapshotを取得
         const auto catalog = result.ok ? service_.catalog() : std::vector<GameCatalogEntry>{};
         const auto installed = result.ok ? service_.installedGames() : std::vector<InstalledGame>{};
         const auto announcements =
             result.ok ? service_.announcements() : std::vector<Announcement>{};
         const auto settings = result.ok ? service_.settings() : LauncherSettings{};
+        // signal送出と画面状態更新をUI threadへ戻す
         QMetaObject::invokeMethod(this, [this, result, refreshOnSuccess, notifyLoaded, catalog,
                                          installed, announcements, settings] {
             if (!result.ok) {

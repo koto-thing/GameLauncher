@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$projectRoot = Split-Path -Parent $PSScriptRoot
+$projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $pythonExecutable = Join-Path $projectRoot ".venv\Scripts\python.exe"
 $uploaderRoot = Join-Path $projectRoot "apps\intake-uploader"
 

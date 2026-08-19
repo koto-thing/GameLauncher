@@ -2,6 +2,8 @@
 # CLion / JetBrains IDE
 # ==========================
 .idea/
+.run/
+CMakeUserPresets.json
 cmake-build-*/
 .clion.source.upload.marker
 
@@ -14,6 +16,7 @@ cmake_install.cmake
 Makefile
 *.ninja
 build/
+vcpkg_installed/
 bin/
 lib/
 !apps/control-plane/lib/
@@ -62,6 +65,8 @@ __pycache__/
 *.egg-info/
 publisher/.publisher-state.json
 local-test/
+.ifw-test/
+/PandD/
 .venv/
 .venv-uploader-build/
 apps/intake-uploader/artifacts/

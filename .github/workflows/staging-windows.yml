@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         env:
           STAGING_VERSION: ${{ inputs.version }}
-        run: python scripts/validate_release_version.py "$env:STAGING_VERSION"
+        run: python -m scripts.release.validate_release_version "$env:STAGING_VERSION"
       - name: Configure staging launcher
         shell: pwsh
         run: >-
@@ -56,11 +56,11 @@ jobs:
         env:
           STAGING_VERSION: ${{ inputs.version }}
         run: |
-          python scripts/generate_sbom.py --output staging/docs/pandd-game-launcher.spdx.json --version "$env:STAGING_VERSION" --build-metadata build/pandd-build-metadata.json --ifw-version 4.7.0
-          python scripts/collect_licenses.py --output staging/licenses
+          python -m scripts.release.generate_sbom --output staging/docs/pandd-game-launcher.spdx.json --version "$env:STAGING_VERSION" --build-metadata build/pandd-build-metadata.json --ifw-version 4.7.0
+          python -m scripts.release.collect_licenses --output staging/licenses
       - name: Smoke test deployment
         shell: pwsh
-        run: ./scripts/smoke_test_windows.ps1 -Executable 'staging/bin/PandD Game Launcher.exe'
+        run: ./scripts/verification/smoke_test_windows.ps1 -Executable 'staging/bin/PandD Game Launcher.exe'
       - name: Build unsigned online installer
         shell: pwsh
         env:
@@ -76,10 +76,10 @@ jobs:
         run: |
           $archive = 'ifw/PandD-Game-Launcher-windows-x86_64.zip'
           Compress-Archive -Path 'staging/*' -DestinationPath $archive -CompressionLevel Optimal
-          python scripts/generate_checksums.py `
+          python -m scripts.release.generate_checksums `
             'ifw/PandD-Game-Launcher-Online-Installer.exe' `
             $archive
-          python scripts/generate_checksums.py --check `
+          python -m scripts.release.generate_checksums --check `
             'ifw/PandD-Game-Launcher-Online-Installer.exe.sha256' `
             "$archive.sha256"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

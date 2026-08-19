@@ -24,6 +24,7 @@
 namespace pandd {
 namespace {
 
+/** @brief 翻訳fallbackを許可する404応答 */
 class ContentNotFound final : public std::runtime_error {
   public:
     using std::runtime_error::runtime_error;
@@ -39,15 +40,17 @@ OperationResult storageFailure(const QString& detail) {
 
 OpenSslEd25519Verifier::OpenSslEd25519Verifier(QByteArray publicKeyBase64)
     : publicKey_(QByteArray::fromBase64(publicKeyBase64)) {
+    // Ed25519 raw公開鍵の固定長を構築時に検証
     if (publicKey_.size() != 32) {
         throw std::invalid_argument("Ed25519 public key must contain 32 bytes");
     }
 }
 
-// Payload and signature are deliberately kept as separate byte arrays at this crypto boundary.
+// 暗号境界のpayloadと署名は意味の異なるbyte列として個別に受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 bool OpenSslEd25519Verifier::verify(const QByteArray& payload,
                                     const QByteArray& signatureBase64) const {
+    // base64署名を復号してEd25519の固定長を確認
     const auto signature = QByteArray::fromBase64(signatureBase64);
     if (signature.size() != 64) {
         return false;
@@ -81,6 +84,7 @@ StaticContentRepository::StaticContentRepository(QUrl baseUrl, QByteArray manife
       validator_({allowedHost_.toStdString()}),
       signatureVerifier_(std::move(manifestPublicKeyBase64)) {
     Q_UNUSED(networkParent)
+    // 本番配布元はHTTPSに限定しlocal開発だけHTTPを許可
     const auto scheme = baseUrl_.scheme().toLower();
     const auto host = baseUrl_.host().toLower();
     const bool localDevelopment = scheme == "http" && (host == "localhost" || host == "127.0.0.1");
@@ -90,6 +94,7 @@ StaticContentRepository::StaticContentRepository(QUrl baseUrl, QByteArray manife
 }
 
 std::vector<GameCatalogEntry> StaticContentRepository::fetchCatalog(const std::string& language) {
+    // path構築へ使う言語tagを先に検証
     if (!isValidLocaleTag(language)) {
         throw std::invalid_argument("invalid catalog locale");
     }
@@ -100,14 +105,16 @@ std::vector<GameCatalogEntry> StaticContentRepository::fetchCatalog(const std::s
         return JsonCodec::parseCatalog(
             get(baseUrl_.resolved(QUrl(path)), qsizetype{8} * 1024 * 1024));
     };
+    // 完全な日本語catalogへ選択言語の翻訳を重ねる
     auto result = fetch("ja-JP");
     if (language != "ja-JP") {
         try {
             result = mergeCatalogTranslations(std::move(result), fetch(language));
         } catch (const ContentNotFound&) { // NOLINT(bugprone-empty-catch)
-            // Japanese is the complete per-game fallback catalog.
+            // 未配信の翻訳は完全な日本語catalogで補完
         }
     }
+    // catalogから参照される全URLを固定配布元へ限定
     for (const auto& entry : result) {
         if (!isAllowedUrl(QUrl(QString::fromStdString(entry.latestReleaseUrl))) ||
             !isAllowedUrl(QUrl(QString::fromStdString(entry.heroUrl))) ||
@@ -119,6 +126,7 @@ std::vector<GameCatalogEntry> StaticContentRepository::fetchCatalog(const std::s
 }
 
 std::vector<Announcement> StaticContentRepository::fetchAnnouncements(const std::string& language) {
+    // 完全な日本語一覧へ存在する翻訳だけを重ねる
     if (!isValidLocaleTag(language)) {
         throw std::invalid_argument("invalid announcement locale");
     }
@@ -132,7 +140,7 @@ std::vector<Announcement> StaticContentRepository::fetchAnnouncements(const std:
         try {
             result = mergeAnnouncementTranslations(std::move(result), fetch(language));
         } catch (const ContentNotFound&) { // NOLINT(bugprone-empty-catch)
-            // Japanese is the complete per-item fallback.
+            // 未配信の翻訳は完全な日本語一覧で補完
         }
     }
     return result;
@@ -169,6 +177,7 @@ LauncherRelease StaticContentRepository::fetchLatestLauncherRelease(const std::s
         return JsonCodec::parseLauncherRelease(
             get(baseUrl_.resolved(QUrl(path)), qsizetype{1024} * 1024));
     };
+    // 選択言語が未配信の場合だけ日本語metadataへ戻す
     LauncherRelease release;
     try {
         release = fetch(language);
@@ -178,6 +187,7 @@ LauncherRelease StaticContentRepository::fetchLatestLauncherRelease(const std::s
         }
         release = fetch("ja-JP");
     }
+    // IFW repositoryも固定配布元だけを許可
     if (!isAllowedUrl(QUrl(QString::fromStdString(release.ifwRepositoryUrl)))) {
         throw std::runtime_error("launcher release contains an untrusted IFW URL");
     }
@@ -200,17 +210,19 @@ StaticContentRepository::fetchLauncherChangelog(const std::string& language) {
         try {
             result = mergeChangelogTranslations(std::move(result), fetch(language));
         } catch (const ContentNotFound&) { // NOLINT(bugprone-empty-catch)
-            // Japanese is the complete per-release fallback.
+            // 未配信の翻訳は完全な日本語履歴で補完
         }
     }
     return result;
 }
 
 QByteArray StaticContentRepository::get(const QUrl& url, qsizetype maximumBytes) {
+    // 一時障害に対する最大試行回数を固定
     constexpr int maximumAttempts = 3;
     QNetworkAccessManager network;
     QString lastError;
     for (int attempt = 0; attempt < maximumAttempts; ++attempt) {
+        // redirectを禁止し応答時間と読込量を制限
         QNetworkRequest request(url);
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                              QNetworkRequest::ManualRedirectPolicy);
@@ -220,6 +232,7 @@ QByteArray StaticContentRepository::get(const QUrl& url, qsizetype maximumBytes)
         QEventLoop loop;
         QByteArray data;
         bool responseTooLarge = false;
+        // 応答を逐次読込み上限超過時は直ちに中断
         QObject::connect(reply, &QNetworkReply::readyRead, &loop, [&] {
             data.append(reply->readAll());
             if (data.size() > maximumBytes) {
@@ -230,6 +243,7 @@ QByteArray StaticContentRepository::get(const QUrl& url, qsizetype maximumBytes)
         QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
         loop.exec();
 
+        // HTTP状態とQt network errorをまとめて評価
         const auto status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const auto error = reply->error();
         data.append(reply->readAll());
@@ -247,6 +261,7 @@ QByteArray StaticContentRepository::get(const QUrl& url, qsizetype maximumBytes)
         if (status >= 400 && status < 500) {
             break;
         }
+        // 一時障害は指数的に待機して再試行
         QThread::msleep(100UL * (1UL << static_cast<unsigned int>(attempt)));
     }
     throw std::runtime_error("HTTP request failed: " + lastError.toStdString());
@@ -295,6 +310,7 @@ std::vector<InstalledGame> JsonStateRepository::loadAll() {
 }
 
 OperationResult JsonStateRepository::save(const InstalledGame& game) {
+    // game IDをキーに導入記録を追加または置換
     auto games = loadAll();
     const auto iterator = std::find_if(games.begin(), games.end(), [&game](const auto& value) {
         return value.gameId == game.gameId;
@@ -318,6 +334,7 @@ OperationResult JsonStateRepository::remove(const GameId& gameId) {
 }
 
 LauncherSettings JsonStateRepository::load() {
+    // platform標準pathとOS localeから既定値を構築
     LauncherSettings defaults;
     defaults.installRoot =
         QDir(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation))
@@ -335,6 +352,7 @@ OperationResult JsonStateRepository::save(const LauncherSettings& settings) {
 }
 
 OperationResult JsonStateRepository::writeJson(const QString& path, const QJsonObject& object) {
+    // QSaveFileで書込み途中の状態を公開しない
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
         return storageFailure(file.errorString());
@@ -346,6 +364,7 @@ OperationResult JsonStateRepository::writeJson(const QString& path, const QJsonO
 }
 
 QJsonObject JsonStateRepository::readJson(const QString& path) const {
+    // 未作成fileは空objectとして扱う
     QFile file(path);
     if (!file.exists()) {
         return {};

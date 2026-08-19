@@ -20,7 +20,7 @@ python -m pip install --requirement publisher/requirements.txt
 python -m unittest discover -s publisher -p "test_*.py" -v
 python -m unittest discover -s contracts -p "test_*.py" -v
 python -m unittest discover -s installer -p "test_*.py" -v
-python -m unittest discover -s scripts -p "test_*.py" -v
+python -m unittest discover -s scripts/tests -p "test_*.py" -v
 python -m compileall -q publisher contracts installer scripts
 ```
 

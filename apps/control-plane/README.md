@@ -12,11 +12,19 @@ StagingとProductionの申請、別アカウント承認、GitHub Actions起動�
 リポジトリルートから次を実行し、`http://localhost:3000`を開きます。
 
 ```powershell
-.\scripts\Run-DeploymentControlPlane.ps1
+.\scripts\local\Run-DeploymentControlPlane.ps1
 ```
 
 初回だけ依存関係とGit管理外の`.dev.vars`を準備します。通常のNode.js環境では
 `apps/control-plane`ディレクトリで`npm run dev`を実行することもできます。
+
+## CLionからCloudflareへデプロイ
+
+共有実行構成 `Control Plane: Cloudflare deploy` を選び、実行してください。
+この構成は `apps/control-plane` の `npm run deploy:cloudflare` を呼び出します。
+初回は先にターミナルで `npx wrangler login` を実行し、Cloudflare認証を完了してください。
+デプロイ前の検証には `npm test` を使用します。秘密値は実行構成へ追加せず、
+本番用Worker secretは `npx wrangler secret put <NAME>` で設定してください。
 
 `LOCAL_DEV_AUTH=true`はlocalhostでだけ有効です。Admin、申請者、承認者を切り替えて、
 申請から指名承認までを確認できます。
@@ -70,7 +78,7 @@ npx wrangler r2 bucket cors set pandd-launcher-intake --file r2-cors.json
 従来のPySide6製デスクトップアプリも引き続き利用可能です：
 
 ```powershell
-.\scripts\Run-IntakeUploader.ps1
+.\scripts\local\Run-IntakeUploader.ps1
 ```
 
 uploaderはZIPの容量とSHA-256を再検証し、64 MiB partを最大4並列で非公開intakeへ送ります。
