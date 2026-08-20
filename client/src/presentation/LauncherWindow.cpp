@@ -688,7 +688,7 @@ void LauncherWindow::showSettingsDialog() {
     });
     connect(applyUpdate, &QPushButton::clicked, &dialog,
             [this] { viewModel_.applyLauncherUpdate(); });
-    // Signal arguments have fixed semantic positions despite sharing QString.
+    // 同じQString型のsignal引数を定義済みの意味順で受け取る
     // NOLINTBEGIN(bugprone-easily-swappable-parameters)
     connect(&viewModel_, &LauncherViewModel::launcherUpdateChecked, &dialog,
             [checkNow, applyUpdate, latestVersion, lastChecked,
@@ -800,7 +800,7 @@ void LauncherWindow::showToolsMenu() {
     }
 }
 
-// Title and resource path are distinct UI concepts despite sharing QString.
+// 同じQString型でもtitleとresource pathを別のUI概念として受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 void LauncherWindow::showTextDocument(const QString& title, const QString& resourcePath) {
     QFile file(resourcePath);

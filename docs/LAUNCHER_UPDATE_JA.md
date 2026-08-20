@@ -77,7 +77,7 @@ project(PandDGameLauncher VERSION 1.0.2 LANGUAGES CXX)
 ```powershell
 cd D:\Pandd\GameLauncher
 .\.venv\Scripts\Activate.ps1
-python scripts\validate_release_version.py v1.0.2
+python -m scripts.release.validate_release_version v1.0.2
 ```
 
 成功時は次だけが表示されます。
@@ -91,7 +91,7 @@ python scripts\validate_release_version.py v1.0.2
 ## 5. ローカルテストを実行する
 
 ```powershell
-python -m unittest discover -s scripts -p "test_*.py" -v
+python -m unittest discover -s scripts/tests -p "test_*.py" -v
 python -m unittest discover -s installer -p "test_*.py" -v
 python -m unittest discover -s contracts -p "test_*.py" -v
 ```
@@ -167,7 +167,7 @@ version: 1.0.2
 本番公開はタグpushで開始します。タグは一度公開したら同じ名前を使い回しません。
 
 ```powershell
-python scripts\validate_release_version.py v1.0.2
+python -m scripts.release.validate_release_version v1.0.2
 git tag v1.0.2
 git push origin v1.0.2
 ```

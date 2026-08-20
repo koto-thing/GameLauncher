@@ -7,6 +7,7 @@ namespace pandd {
 AppContainer::AppContainer() {
     // テスト配信先はbuild時に固定し利用者設定へ露出しない
     const auto baseUrl = QUrl(QStringLiteral(PANDD_DISTRIBUTION_BASE_URL));
+    // 外部I/Oを担当する具象Adapterを生成
     contentRepository_ = std::make_unique<StaticContentRepository>(
         baseUrl, QByteArray(PANDD_MANIFEST_PUBLIC_KEY_BASE64));
     stateRepository_ = std::make_unique<JsonStateRepository>();
@@ -15,6 +16,8 @@ AppContainer::AppContainer() {
     startupService_ = std::make_unique<PlatformStartupService>();
     updateService_ = std::make_unique<MaintenanceToolService>();
     clock_ = std::make_unique<SystemClock>();
+
+    // 全PortをApplication Facadeへ注入
     launcherService_ = std::make_unique<LauncherService>(
         *contentRepository_, *contentRepository_, *contentRepository_, *stateRepository_,
         *stateRepository_, *installationService_, *processService_, *startupService_,

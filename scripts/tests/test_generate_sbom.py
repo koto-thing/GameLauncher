@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from scripts.generate_sbom import generate_document
+from scripts.release.generate_sbom import generate_document
 
 
 class SbomTests(unittest.TestCase):

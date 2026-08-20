@@ -7,7 +7,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from scripts import collect_licenses
+from scripts.release import collect_licenses
 
 
 class LicenseCollectorTests(unittest.TestCase):

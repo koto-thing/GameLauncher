@@ -24,6 +24,7 @@ OperationResult platformFailure(ErrorCode code, QString message, QString detail)
 
 /** @brief 自動起動用command lineを組み立てる */
 QString startupCommand(bool minimized) {
+    // 空白を含む実行pathだけをquote
     QString command = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
     if (command.contains(' ')) {
         command = '"' + command + '"';
@@ -39,6 +40,7 @@ QString startupCommand(bool minimized) {
 QtGameProcessService::QtGameProcessService() : QObject(nullptr) {}
 
 QtGameProcessService::~QtGameProcessService() {
+    // 管理中processを保護しながらcallback接続だけを解除
     QMutexLocker lock(&processesMutex_);
     for (auto& [key, process] : processes_) {
         Q_UNUSED(key)
@@ -53,6 +55,7 @@ QtGameProcessService::~QtGameProcessService() {
 OperationResult QtGameProcessService::launch(const InstalledGame& installed,
                                              const std::string& saveDirectory,
                                              ExitCallback onExit) {
+    // QProcessを所有するthreadへ同期転送
     if (QThread::currentThread() != thread()) {
         OperationResult result;
         auto callback = std::move(onExit);
@@ -61,10 +64,12 @@ OperationResult QtGameProcessService::launch(const InstalledGame& installed,
             Qt::BlockingQueuedConnection);
         return result;
     }
+    // 同一gameの多重起動を拒否
     if (isRunning(installed.gameId)) {
         return platformFailure(ErrorCode::GameAlreadyRunning, "ゲームは既に実行中です",
                                "duplicate process launch");
     }
+    // 導入記録から有効releaseの実行pathを解決
     const QDir releaseRoot(
         QDir(QString::fromStdString(installed.gameRoot))
             .filePath("releases/" + QString::fromStdString(installed.version.value())));
@@ -86,6 +91,7 @@ OperationResult QtGameProcessService::launch(const InstalledGame& installed,
     environment.insert("PANDD_SAVE_DIR", QString::fromStdString(saveDirectory));
     process->setProcessEnvironment(environment);
     const auto key = installed.gameId.value();
+    // 終了結果を通知して次のevent loopで所有権を解放
     QObject::connect(
         process.get(), &QProcess::finished,
         [this, key, callback = std::move(onExit)](int exitCode, QProcess::ExitStatus status) {
@@ -94,12 +100,12 @@ OperationResult QtGameProcessService::launch(const InstalledGame& installed,
             }
             QTimer::singleShot(0, [this, key] {
                 QMutexLocker lock(&processesMutex_);
-                // The queued callback runs after QProcess::finished returns, so erasing its
-                // owning pointer here cannot destroy the signal sender during emission.
+                // finished signal完了後に送信元を破棄
                 // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
                 processes_.erase(key);
             });
         });
+    // 起動完了を確認してから管理mapへ登録
     process->start();
     if (!process->waitForStarted(5000)) {
         return platformFailure(ErrorCode::LaunchExecutableMissing, "ゲームを起動できませんでした",
@@ -119,6 +125,7 @@ bool QtGameProcessService::isRunning(const GameId& gameId) const {
 
 OperationResult PlatformStartupService::apply(bool enabled, bool minimized) {
 #if defined(Q_OS_WIN)
+    // Windowsの利用者単位Run keyへ設定を反映
     QSettings registry("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
                        QSettings::NativeFormat);
     if (enabled) {
@@ -133,12 +140,14 @@ OperationResult PlatformStartupService::apply(bool enabled, bool minimized) {
     }
     return OperationResult::success();
 #else
+    // macOSとLinuxは設定fileへ反映
     return applyFileBasedStartup(enabled, minimized);
 #endif
 }
 
 OperationResult PlatformStartupService::applyFileBasedStartup(bool enabled, bool minimized) {
 #if defined(Q_OS_MACOS)
+    // macOS LaunchAgentのplistを構築
     const auto directory = QDir::home().filePath("Library/LaunchAgents");
     const auto path = QDir(directory).filePath("org.pandd.launcher.plist");
     const auto arguments =
@@ -152,6 +161,7 @@ OperationResult PlatformStartupService::applyFileBasedStartup(bool enabled, bool
                                   "<key>RunAtLoad</key><true/></dict></plist>")
                               .arg(arguments);
 #else
+    // Linux desktopのautostart entryを構築
     const auto directory = QDir(QStandardPaths::writableLocation(QStandardPaths::ConfigLocation))
                                .filePath("autostart");
     const auto path = QDir(directory).filePath("pandd-game-launcher.desktop");
@@ -159,6 +169,7 @@ OperationResult PlatformStartupService::applyFileBasedStartup(bool enabled, bool
                                   "Exec=%1\nTerminal=false\nX-GNOME-Autostart-enabled=true\n")
                               .arg(startupCommand(minimized));
 #endif
+    // 無効化時は既存設定fileだけを削除
     if (!enabled) {
         if (QFileInfo::exists(path) && !QFile::remove(path)) {
             return platformFailure(ErrorCode::InstallPermissionDenied,
@@ -166,6 +177,7 @@ OperationResult PlatformStartupService::applyFileBasedStartup(bool enabled, bool
         }
         return OperationResult::success();
     }
+    // 有効化時は一時file経由で原子的に保存
     QDir().mkpath(directory);
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) || file.write(contents.toUtf8()) < 0 || !file.commit()) {
@@ -178,11 +190,13 @@ OperationResult PlatformStartupService::applyFileBasedStartup(bool enabled, bool
 MaintenanceToolService::MaintenanceToolService() = default;
 
 OperationResult MaintenanceToolService::check() {
+    // install配置から更新toolを解決
     const auto executable = executablePath();
     if (!QFileInfo::exists(executable)) {
         return platformFailure(ErrorCode::LauncherUpdateFailed,
                                "更新ツールはインストール版で利用できます", executable);
     }
+    // 更新確認commandの正常終了まで待機
     QProcess process;
     process.start(executable, {"check-updates"});
     if (!process.waitForStarted(5000) || !process.waitForFinished(120000) ||
@@ -194,6 +208,7 @@ OperationResult MaintenanceToolService::check() {
 }
 
 OperationResult MaintenanceToolService::apply() {
+    // Launcher終了後も継続できる独立processとしてupdaterを起動
     const auto executable = executablePath();
     if (!QFileInfo::exists(executable) ||
         !QProcess::startDetached(executable, {"--start-updater"},
@@ -212,17 +227,17 @@ QString
 MaintenanceToolService::executablePathForApplicationDirectory(const QString& applicationDirectory) {
     QDir directory(applicationDirectory);
 #if defined(Q_OS_WIN)
-    // IFW places the tool beside bin/, not beside the launcher executable.
+    // IFWがbinの隣へ配置する更新toolを解決
     directory.cdUp();
     return directory.filePath("maintenancetool.exe");
 #elif defined(Q_OS_MACOS)
-    // Walk from Launcher.app/Contents/MacOS to the IFW installation root.
+    // Application bundleからIFW install rootへ移動
     directory.cdUp();
     directory.cdUp();
     directory.cdUp();
     return directory.filePath("maintenancetool.app/Contents/MacOS/maintenancetool");
 #else
-    // Linux deployment also keeps the launcher in bin/ and IFW at the root.
+    // binの隣にあるIFW更新toolを解決
     directory.cdUp();
     return directory.filePath("maintenancetool");
 #endif

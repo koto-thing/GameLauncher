@@ -8,8 +8,12 @@ class QTranslator;
 
 namespace pandd {
 
+/** @brief UIで選択可能な言語情報 */
 struct SupportedLocale {
+    /** @brief BCP 47形式の言語tag */
     QString code;
+
+    /** @brief 言語選択欄へ表示する言語自身の名称 */
     QString nativeName;
 };
 

@@ -15,6 +15,7 @@ OperationResult OperationResult::failure(OperationError error) {
 }
 
 GameId::GameId(std::string value) : value_(std::move(value)) {
+    // pathや永続化keyとして安全な小文字ASCIIだけを許可
     static const std::regex pattern("^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$");
     if (!std::regex_match(value_, pattern)) {
         throw std::invalid_argument("gameId must be stable lowercase ASCII");
@@ -24,6 +25,7 @@ GameId::GameId(std::string value) : value_(std::move(value)) {
 const std::string& GameId::value() const noexcept { return value_; }
 
 SemanticVersion::SemanticVersion(std::string value) : value_(std::move(value)) {
+    // 比較可能な三要素のversionだけを受理
     static const std::regex pattern("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$");
     std::smatch match;
     if (!std::regex_match(value_, match, pattern)) {
@@ -39,6 +41,7 @@ SemanticVersion::SemanticVersion(std::string value) : value_(std::move(value)) {
 const std::string& SemanticVersion::value() const noexcept { return value_; }
 
 std::strong_ordering SemanticVersion::operator<=>(const SemanticVersion& other) const {
+    // majorから順に最初の差を比較結果として返す
     if (major_ != other.major_) {
         return major_ <=> other.major_;
     }

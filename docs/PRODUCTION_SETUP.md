@@ -52,7 +52,7 @@ For local publishing, copy `.env.production.example` to the Git-ignored
 PowerShell session:
 
 ```powershell
-. .\scripts\Import-DotEnv.ps1 .env.production
+. .\scripts\local\Import-DotEnv.ps1 .env.production
 ```
 
 ```powershell
@@ -87,7 +87,7 @@ Use one version in `CMakeLists.txt`, both localized launcher release files, both
 changelogs, and the Git tag. Commit and push the reviewed release, then create the tag:
 
 ```powershell
-python scripts\validate_release_version.py v1.0.1
+python -m scripts.release.validate_release_version v1.0.1
 git tag v1.0.1
 git push origin v1.0.1
 ```

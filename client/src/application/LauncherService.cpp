@@ -21,17 +21,20 @@ OperationResult loadFailure(const std::exception& exception) {
 
 /** @brief 永続化前後で共通の設定値制約を検証する */
 OperationResult validateSettings(const LauncherSettings& settings) {
+    // 公開pathへ使う言語tagを検証
     if (!isValidLocaleTag(settings.language)) {
         return OperationResult::failure({ErrorCode::ManifestInvalid,
                                          "対応していない言語が選択されています",
                                          "unsupported launcher language", false});
     }
+    // install rootを絶対pathに限定
     if (settings.installRoot.empty() ||
         !std::filesystem::path(settings.installRoot).is_absolute()) {
         return OperationResult::failure({ErrorCode::ManifestInvalid,
                                          "ゲーム保存先には絶対パスを指定してください",
                                          "install root must be an absolute path", false});
     }
+    // 不正値による実質的な無制限化を防止
     if (settings.downloadLimitBytesPerSecond > 1024ULL * 1024ULL * 1024ULL) {
         return OperationResult::failure({ErrorCode::ManifestInvalid,
                                          "速度上限は1 GB/s以下にしてください",
@@ -77,11 +80,13 @@ LauncherService::LauncherService(
 
 OperationResult LauncherService::load() {
     try {
+        // 設定を検証してから他の状態を読み込む
         settings_ = settingsRepository_.load();
         const auto validation = validateSettings(settings_);
         if (!validation.ok) {
             return validation;
         }
+        // 有効化markerと一致する導入記録だけを保持
         installed_ = installedRepository_.loadAll();
         for (auto iterator = installed_.begin(); iterator != installed_.end();) {
             if (installationService_.validateActivation(*iterator).ok) {
@@ -118,6 +123,7 @@ OperationResult LauncherService::refreshCatalog() {
 OperationResult LauncherService::installOrUpdate(const GameId& gameId,
                                                  const ProgressCallback& progress) {
     ActiveOperation operation(activeOperations_);
+    // catalog登録とprocess状態を操作開始前に検証
     const auto* entry = findCatalogEntry(gameId);
     if (entry == nullptr) {
         return OperationResult::failure({ErrorCode::ManifestInvalid,
@@ -137,6 +143,7 @@ OperationResult LauncherService::installOrUpdate(const GameId& gameId,
                                          "download while another game runs is disabled", true});
     }
 
+    // 取得から永続化までの状態遷移をUIへ通知
     try {
         cancelled_ = false;
         notifyState(gameId, InstallState::Resolving);
@@ -187,6 +194,7 @@ OperationResult LauncherService::locateExisting(const GameId& gameId,
                                                 const std::string& sourceDirectory,
                                                 const ProgressCallback& progress) {
     ActiveOperation operation(activeOperations_);
+    // catalogから照合対象の正規releaseを解決
     const auto* entry = findCatalogEntry(gameId);
     if (entry == nullptr) {
         return OperationResult::failure({ErrorCode::ManifestInvalid,
@@ -194,6 +202,7 @@ OperationResult LauncherService::locateExisting(const GameId& gameId,
                                          "game missing from catalog", true});
     }
     try {
+        // source directory全体を正規releaseと照合
         notifyState(gameId, InstallState::Verifying);
         const auto release = releaseRepository_.fetchLatestRelease(entry->latestReleaseUrl);
         const auto compatibility = ensureLauncherCompatible(release);
@@ -236,6 +245,7 @@ OperationResult LauncherService::locateExisting(const GameId& gameId,
 
 OperationResult LauncherService::verify(const GameId& gameId) {
     ActiveOperation operation(activeOperations_);
+    // 導入記録と最新release情報の両方を要求
     auto* installed = findInstalled(gameId);
     const auto* entry = findCatalogEntry(gameId);
     if (installed == nullptr || entry == nullptr) {
@@ -244,6 +254,7 @@ OperationResult LauncherService::verify(const GameId& gameId) {
                                          "verify target is unavailable", false});
     }
     try {
+        // 最新manifestを基準にactive releaseを検証
         notifyState(gameId, InstallState::Verifying);
         const auto release = releaseRepository_.fetchLatestRelease(entry->latestReleaseUrl);
         const auto compatibility = ensureLauncherCompatible(release);
@@ -263,10 +274,12 @@ OperationResult LauncherService::verify(const GameId& gameId) {
 
 OperationResult LauncherService::repair(const GameId& gameId, const ProgressCallback& progress) {
     ActiveOperation operation(activeOperations_);
+    // 正常な場合は再取得せず完了
     auto result = verify(gameId);
     if (result.ok) {
         return result;
     }
+    // 破損時だけ安全な再導入へ移行
     notifyState(gameId, InstallState::Repairing);
     return installOrUpdate(gameId, progress);
 }
@@ -313,12 +326,14 @@ OperationResult LauncherService::cleanupTemporary(const GameId& gameId) {
 }
 
 OperationResult LauncherService::launch(const GameId& gameId) {
+    // 永続化済みの導入情報を起動契約として使用
     auto* installed = findInstalled(gameId);
     if (installed == nullptr) {
         return OperationResult::failure({ErrorCode::LaunchExecutableMissing,
                                          "ゲームをインストールしてください",
                                          "missing installed state", false});
     }
+    // process終了callbackでReady状態へ戻す
     notifyState(gameId, InstallState::Running);
     auto result = processService_.launch(
         *installed, resolveSaveDirectory(installed->saveDirectoryName),
@@ -332,12 +347,14 @@ OperationResult LauncherService::launch(const GameId& gameId) {
 OperationResult LauncherService::prepareLaunch(const GameId& gameId,
                                                const ProgressCallback& progress) {
     ActiveOperation operation(activeOperations_);
+    // 設定で無効な場合や未導入の場合は更新確認を省略
     auto* installed = findInstalled(gameId);
     const auto* entry = findCatalogEntry(gameId);
     if (installed == nullptr || entry == nullptr || !settings_.checkGameUpdateBeforeLaunch) {
         return OperationResult::success();
     }
     try {
+        // 最新releaseが新しい場合だけ更新を適用
         notifyState(gameId, InstallState::CheckingUpdate);
         const auto latest = releaseRepository_.fetchLatestRelease(entry->latestReleaseUrl);
         const auto compatibility = ensureLauncherCompatible(latest);
@@ -389,11 +406,13 @@ OperationResult LauncherService::saveSettings(const LauncherSettings& settings) 
 
 OperationResult LauncherService::checkLauncherUpdate() {
     try {
+        // metadataと履歴を同じ言語で取得
         const auto release =
             launcherReleaseRepository_.fetchLatestLauncherRelease(settings_.language);
         auto changelog = launcherReleaseRepository_.fetchLauncherChangelog(settings_.language);
         latestLauncherRelease_ = release;
         launcherChangelog_ = std::move(changelog);
+        // 確認日時を結果判定より先に永続化
         settings_.lastLauncherUpdateCheck = clock_.nowUtc();
         auto result = settingsRepository_.save(settings_);
         if (!result.ok) {
@@ -413,14 +432,17 @@ OperationResult LauncherService::checkLauncherUpdate() {
 }
 
 OperationResult LauncherService::applyLauncherUpdate() {
+    // 適用対象がなければ何もせず成功
     if (!latestLauncherRelease_.has_value() || latestLauncherRelease_->version <= currentVersion_) {
         return OperationResult::success();
     }
+    // file操作中の自己更新を拒否
     if (activeOperations_.load() > 0) {
         return OperationResult::failure({ErrorCode::LauncherUpdateFailed,
                                          "ゲームの処理が完了してから更新してください",
                                          "launcher update blocked by an active operation", true});
     }
+    // game process実行中の自己更新を拒否
     for (const auto& game : installed_) {
         if (processService_.isRunning(game.gameId)) {
             return OperationResult::failure({ErrorCode::GameAlreadyRunning,
@@ -432,6 +454,7 @@ OperationResult LauncherService::applyLauncherUpdate() {
 }
 
 LauncherUpdateStatus LauncherService::launcherUpdateStatus() const {
+    // 未確認時は現在versionを最新versionとして返す
     LauncherUpdateStatus status;
     status.currentVersion = currentVersion_;
     status.latestVersion = currentVersion_;
@@ -458,6 +481,7 @@ const std::vector<InstalledGame>& LauncherService::installedGames() const { retu
 const LauncherSettings& LauncherService::settings() const { return settings_; }
 
 std::optional<std::string> LauncherService::saveDirectory(const GameId& gameId) const {
+    // game IDに対応する導入記録を検索
     const auto iterator =
         std::find_if(installed_.begin(), installed_.end(),
                      [&gameId](const auto& value) { return value.gameId == gameId; });
@@ -503,16 +527,19 @@ OperationResult LauncherService::ensureLauncherCompatible(const GameRelease& rel
 
 std::string LauncherService::resolveSaveDirectory(const std::string& saveDirectoryName) {
 #if defined(_WIN32)
+    // Unity標準のWindows save rootへ解決
     const auto* profile = std::getenv("USERPROFILE");
     return (std::filesystem::path(profile == nullptr ? "." : profile) / "AppData" / "LocalLow" /
             "PandD_org" / saveDirectoryName)
         .string();
 #elif defined(__APPLE__)
+    // macOSのApplication Support配下へ解決
     const auto* home = std::getenv("HOME");
     return (std::filesystem::path(home == nullptr ? "." : home) / "Library" /
             "Application Support" / "PandD_org" / saveDirectoryName)
         .string();
 #else
+    // XDG data rootを優先してLinux save pathを解決
     const auto* xdg = std::getenv("XDG_DATA_HOME");
     std::filesystem::path base;
     if (xdg != nullptr && *xdg != '\0') {

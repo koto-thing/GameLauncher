@@ -23,7 +23,8 @@ def generate_document(metadata: dict[str, Any], version: str,
         raise ValueError("OpenSSL version is not parseable") from error
     if openssl_major < 3:
         raise ValueError("release SBOM generation requires the production OpenSSL 3 line")
-    manifest = json.loads(Path("vcpkg.json").read_text(encoding="utf-8"))
+    project_root = Path(__file__).resolve().parents[2]
+    manifest = json.loads((project_root / "vcpkg.json").read_text(encoding="utf-8"))
     vcpkg_dependencies = {
         item if isinstance(item, str) else item["name"] for item in manifest["dependencies"]
     }
@@ -104,7 +105,7 @@ def generate_document(metadata: dict[str, Any], version: str,
         "creationInfo": {
             "created": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace(
                 "+00:00", "Z"),
-            "creators": ["Tool: scripts/generate_sbom.py"],
+            "creators": ["Tool: scripts/release/generate_sbom.py"],
             "comment": (f"Compiler {metadata['compilerId']} {metadata['compilerVersion']}; "
                         f"target {platform}"),
         },

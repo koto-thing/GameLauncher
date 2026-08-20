@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$projectRoot = Split-Path -Parent $PSScriptRoot
+$projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $lupdate = Get-Command lupdate.exe -ErrorAction SilentlyContinue
 if (-not $lupdate) {
     $configuredQt = Get-ChildItem "D:\ProgramFiles\Qt" -Recurse -Filter lupdate.exe `

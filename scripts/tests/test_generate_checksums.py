@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from scripts.generate_checksums import verify_checksum, write_checksum
+from scripts.release.generate_checksums import verify_checksum, write_checksum
 
 
 class GenerateChecksumsTests(unittest.TestCase):

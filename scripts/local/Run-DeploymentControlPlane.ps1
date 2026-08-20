@@ -2,7 +2,7 @@
 param()
 
 $ErrorActionPreference = "Stop"
-$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $controlPlaneRoot = Join-Path $projectRoot "apps\control-plane"
 $node = (Get-Command node.exe -ErrorAction Stop).Source
 $npmCli = Join-Path (Split-Path $node) "node_modules\npm\bin\npm-cli.js"

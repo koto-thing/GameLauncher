@@ -518,7 +518,7 @@ OperationResult GameInstallationService::cleanupTemporary(const InstalledGame& i
 }
 
 OperationResult GameInstallationService::downloadChunk(
-    // These strings carry different identities: a filesystem target and an audit operation ID.
+    // 同じ文字列型でもfilesystem対象と監査操作IDを区別
     // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
     const FileChunk& chunk, const QString& partPath, const QString& operationId,
     std::uint64_t speedLimit, std::atomic_uint64_t& aggregateReceived, std::uint64_t aggregateTotal,
@@ -668,7 +668,7 @@ QByteArray GameInstallationService::sha256(const QString& path) {
     return hash.result();
 }
 
-// Root and relative path are intentionally separate to preserve traversal boundaries.
+// traversal境界を維持するためrootと相対pathを分離
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 bool GameInstallationService::hasUnsafeLink(const QString& root, const QString& relativePath) {
     QDir current(root);
@@ -701,7 +701,7 @@ OperationResult GameInstallationService::writeActiveVersion(const QString& gameR
 
 OperationResult
 GameInstallationService::activateRelease(const GameRelease& release,
-                                         // These paths represent different phases.
+                                         // 各pathは異なる配置phaseを表現
                                          // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
                                          const QString& gameRoot, const QString& stagingRoot) {
     const QString launcherRoot = QDir(gameRoot).filePath(".launcher");
@@ -732,7 +732,7 @@ GameInstallationService::activateRelease(const GameRelease& release,
     return OperationResult::success();
 }
 
-// Root and active version are intentionally separate domain values.
+// rootとactive versionを異なるdomain値として受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 void GameInstallationService::cleanOldReleases(const QString& gameRoot,
                                                const QString& activeVersion) {
