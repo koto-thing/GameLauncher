@@ -48,7 +48,7 @@ export async function requireActionsIdentity(
   });
   const deploymentEnvironment = WORKFLOW_ENVIRONMENTS.get(text(payload.workflow_ref));
   if (payload.repository !== REPOSITORY || payload.repository_id !== repositoryId ||
-      payload.repository_visibility !== "public" || payload.event_name !== "workflow_dispatch" ||
+      payload.repository_visibility !== "private" || payload.event_name !== "workflow_dispatch" ||
       !deploymentEnvironment || payload.ref !== "refs/heads/master") {
     throw new Response("OIDC claims rejected", { status: 403 });
   }
@@ -117,22 +117,27 @@ export async function preflightRequest(
         Date.parse(text(source.production_eligible_until)) <= Date.now()) {
       throw new Error("有効なstaging成功記録を確認できません");
     }
-    if (number(row.requester_is_admin) !== 1) {
+    if (number(row.requester_is_admin) === 1) {
+      const bypass = await db.prepare(`SELECT 1 AS found FROM audit_events
+        WHERE request_id = ? AND event_type = 'admin_bypass' LIMIT 1`)
+        .bind(input.requestId).first<{ found: number }>();
+      if (!bypass) throw new Error("Admin bypass監査記録が見つかりません");
+    } else {
       const requesterGrant = await db.prepare(`SELECT 1 AS allowed FROM policy_grants
         WHERE github_user_id = ? AND grant_type = 'production_requester' AND revoked_at IS NULL`)
         .bind(text(row.requester_github_user_id)).first<{ allowed: number }>();
       if (!requesterGrant) throw new Error("production requester grantが現在有効ではありません");
+      const approval = await db.prepare(`SELECT 1 AS allowed
+        FROM approval_decisions d
+        JOIN request_approvers ra ON ra.request_id = d.request_id
+          AND ra.approver_github_user_id = d.approver_github_user_id
+        JOIN policy_grants g ON g.github_user_id = d.approver_github_user_id
+          AND g.grant_type = 'approver' AND g.revoked_at IS NULL
+        WHERE d.request_id = ? AND d.decision = 'approved'
+          AND d.approver_github_user_id != ? LIMIT 1`)
+        .bind(input.requestId, text(row.requester_github_user_id)).first<{ allowed: number }>();
+      if (!approval) throw new Error("Production用の有効な指名承認を確認できません");
     }
-    const approval = await db.prepare(`SELECT 1 AS allowed
-      FROM approval_decisions d
-      JOIN request_approvers ra ON ra.request_id = d.request_id
-        AND ra.approver_github_user_id = d.approver_github_user_id
-      JOIN policy_grants g ON g.github_user_id = d.approver_github_user_id
-        AND g.grant_type = 'approver' AND g.revoked_at IS NULL
-      WHERE d.request_id = ? AND d.decision = 'approved'
-        AND d.approver_github_user_id != ? LIMIT 1`)
-      .bind(input.requestId, text(row.requester_github_user_id)).first<{ allowed: number }>();
-    if (!approval) throw new Error("Production用の有効な指名承認を確認できません");
   } else if (number(row.requester_is_admin) === 1) {
     const bypass = await db.prepare(`SELECT 1 AS found FROM audit_events
       WHERE request_id = ? AND event_type = 'admin_bypass' LIMIT 1`)

@@ -24,9 +24,9 @@ const UPLOAD_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
 type IntakeEnv = {
   INTAKE?: R2Bucket;
+  INTAKE_R2_ACCESS_KEY_ID?: string;
   INTAKE_R2_ACCOUNT_ID?: string;
   INTAKE_R2_BUCKET?: string;
-  INTAKE_R2_ACCESS_KEY_ID?: string;
   INTAKE_R2_SECRET_ACCESS_KEY?: string;
 };
 
@@ -178,22 +178,6 @@ export async function createOrResumeUpload(actor: SessionUser, descriptorInput: 
   };
 }
 
-function s3Config(): { accountId: string; bucketName: string; client: AwsClient } | null {
-  const current = runtimeEnv();
-  if (!current.INTAKE_R2_ACCOUNT_ID || !current.INTAKE_R2_BUCKET ||
-      !current.INTAKE_R2_ACCESS_KEY_ID || !current.INTAKE_R2_SECRET_ACCESS_KEY) return null;
-  return {
-    accountId: current.INTAKE_R2_ACCOUNT_ID,
-    bucketName: current.INTAKE_R2_BUCKET,
-    client: new AwsClient({
-      service: "s3",
-      region: "auto",
-      accessKeyId: current.INTAKE_R2_ACCESS_KEY_ID,
-      secretAccessKey: current.INTAKE_R2_SECRET_ACCESS_KEY,
-    }),
-  };
-}
-
 export async function issuePartUrls(
   request: Request,
   actor: SessionUser,
@@ -210,30 +194,33 @@ export async function issuePartUrls(
       uniqueParts.some((part) => !Number.isSafeInteger(part) || part < 1 || part > count)) {
     throw new Error("一度に発行できるpart URLは1～4件です");
   }
-  const config = s3Config();
-  if (!config) {
-    const origin = new URL(request.url).origin;
-    return {
-      transport: "worker-proxy" as const,
-      expiresIn: PRESIGNED_URL_SECONDS,
-      parts: uniqueParts.map((partNumber) => ({
-        partNumber,
-        url: `${origin}/api/intake/uploads/${encodeURIComponent(artifactId)}/parts/${partNumber}`,
-      })),
-    };
+  const origin = new URL(request.url).origin;
+  return {
+    transport: "worker-proxy" as const,
+    expiresIn: PRESIGNED_URL_SECONDS,
+    parts: uniqueParts.map((partNumber) => ({
+      partNumber,
+      url: `${origin}/api/intake/uploads/${encodeURIComponent(artifactId)}/parts/${partNumber}`,
+    })),
+  };
+}
+
+function downloadConfig() {
+  const current = runtimeEnv();
+  if (!current.INTAKE_R2_ACCESS_KEY_ID || !current.INTAKE_R2_ACCOUNT_ID ||
+      !current.INTAKE_R2_BUCKET || !current.INTAKE_R2_SECRET_ACCESS_KEY) {
+    throw new Error("intake R2 download設定が不足しています");
   }
-  const key = text(row.intake_object_key).split("/").map(encodeURIComponent).join("/");
-  const uploadId = encodeURIComponent(text(row.multipart_upload_id));
-  const parts = await Promise.all(uniqueParts.map(async (partNumber) => {
-    const url = `https://${config.accountId}.r2.cloudflarestorage.com/` +
-      `${encodeURIComponent(config.bucketName)}/${key}?partNumber=${partNumber}` +
-      `&uploadId=${uploadId}&X-Amz-Expires=${PRESIGNED_URL_SECONDS}`;
-    const signed = await config.client.sign(new Request(url, { method: "PUT" }), {
-      aws: { signQuery: true },
-    });
-    return { partNumber, url: signed.url };
-  }));
-  return { transport: "direct-r2" as const, expiresIn: PRESIGNED_URL_SECONDS, parts };
+  return {
+    accountId: current.INTAKE_R2_ACCOUNT_ID,
+    bucketName: current.INTAKE_R2_BUCKET,
+    client: new AwsClient({
+      accessKeyId: current.INTAKE_R2_ACCESS_KEY_ID,
+      secretAccessKey: current.INTAKE_R2_SECRET_ACCESS_KEY,
+      service: "s3",
+      region: "auto",
+    }),
+  };
 }
 
 export async function uploadLocalPart(
@@ -371,8 +358,7 @@ export async function issueArtifactDownloadUrl(artifactId: string): Promise<stri
   const artifact = await getD1().prepare(`SELECT intake_object_key, status FROM artifacts
     WHERE artifact_id = ?`).bind(artifactId).first<Row>();
   if (!artifact || text(artifact.status) !== "sealed") throw new Error("sealed artifactが見つかりません");
-  const config = s3Config();
-  if (!config) throw new Error("intake R2 download設定が不足しています");
+  const config = downloadConfig();
   const key = text(artifact.intake_object_key).split("/").map(encodeURIComponent).join("/");
   const url = `https://${config.accountId}.r2.cloudflarestorage.com/` +
     `${encodeURIComponent(config.bucketName)}/${key}?X-Amz-Expires=${PRESIGNED_URL_SECONDS}`;

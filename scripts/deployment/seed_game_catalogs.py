@@ -19,7 +19,11 @@ def seed(metadata_path: Path, output: Path, base_url: str) -> None:
         relative = f"v1/catalog/{locale}/windows/x86_64.json"
         request = urllib.request.Request(
             f"{base_url.rstrip('/')}/{relative}",
-            headers={"Accept": "application/json", "Cache-Control": "no-cache"},
+            headers={
+                "Accept": "application/json",
+                "Cache-Control": "no-cache",
+                "User-Agent": "PandD-Game-Publisher",
+            },
         )
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
