@@ -7,6 +7,7 @@
 #include <QPixmap>
 
 class QLabel;
+class QLineEdit;
 class QListWidget;
 class QProgressBar;
 class QPushButton;
@@ -16,9 +17,10 @@ class QNetworkAccessManager;
 
 namespace pandd {
 
+class ElidedLabel;
 class HeroPage;
 
-/** @brief HoYoPlayの情報階層を参考にしたゲームランチャー画面 */
+/** @brief ストアと所持ゲームを明確に分けたゲームランチャー画面 */
 class LauncherWindow final : public QMainWindow {
     Q_OBJECT
 
@@ -35,8 +37,17 @@ class LauncherWindow final : public QMainWindow {
     /** @brief 左サイドバーと各ページを構築する */
     void buildUi();
 
-    /** @brief カタログページを構築する */
-    QWidget* createCatalogPage();
+    /** @brief 現在設定に応じたライトまたはダークテーマを適用する */
+    void applyTheme();
+
+    /** @brief 未所持ゲームを紹介するトップページを構築する */
+    QWidget* createHomePage();
+
+    /** @brief 未所持ゲームを検索するページを構築する */
+    QWidget* createDiscoverPage();
+
+    /** @brief 所持ゲームだけを表示する一覧ページを構築する */
+    QWidget* createLibraryPage();
 
     /** @brief ゲーム詳細ページを構築する */
     QWidget* createDetailPage();
@@ -46,6 +57,15 @@ class LauncherWindow final : public QMainWindow {
 
     /** @brief カタログと導入済み一覧を再描画する */
     void refreshData();
+
+    /** @brief 検索文字列を反映して未所持ゲーム一覧を再描画する */
+    void refreshDiscover();
+
+    /** @brief 指定ページへ移動しナビゲーション状態を更新する */
+    void navigateTo(int pageIndex);
+
+    /** @brief カタログ画像を取得し各ゲームカードへ反映する */
+    void requestCatalogImage(const QString& gameId, const QString& imageUrl);
 
     /** @brief 指定ゲームの詳細ページを表示する */
     void showGame(const QString& gameId);
@@ -79,9 +99,17 @@ class LauncherWindow final : public QMainWindow {
 
     LauncherViewModel& viewModel_;
     QStackedWidget* pages_{nullptr};
-    QListWidget* installedList_{nullptr};
-    QListWidget* catalogList_{nullptr};
-    QLabel* heroTitle_{nullptr};
+    QListWidget* homeList_{nullptr};
+    QListWidget* discoverList_{nullptr};
+    QListWidget* libraryList_{nullptr};
+    QLineEdit* searchInput_{nullptr};
+    QLabel* homeEmpty_{nullptr};
+    QLabel* discoverEmpty_{nullptr};
+    QLabel* libraryEmpty_{nullptr};
+    QPushButton* homeButton_{nullptr};
+    QPushButton* discoverButton_{nullptr};
+    QPushButton* libraryButton_{nullptr};
+    ElidedLabel* heroTitle_{nullptr};
     QLabel* summary_{nullptr};
     QLabel* stagingBadge_{nullptr};
     QListWidget* announcements_{nullptr};

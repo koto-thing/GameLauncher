@@ -16,6 +16,7 @@ enum class ErrorCode {
     DownloadRangeUnsupported,
     ManifestInvalid,
     ManifestSignatureInvalid,
+    SettingsInvalid,
     FileHashMismatch,
     DiskSpaceInsufficient,
     InstallPermissionDenied,
@@ -211,6 +212,7 @@ struct LauncherSettings {
     bool startMinimized{false};
     bool closeToTray{false};
     bool showAfterGameExit{true};
+    bool darkTheme{false};
     bool checkLauncherUpdateOnStart{true};
     bool autoApplyLauncherUpdate{false};
     std::uint64_t downloadLimitBytesPerSecond{0};

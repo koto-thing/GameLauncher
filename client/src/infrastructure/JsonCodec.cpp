@@ -269,13 +269,14 @@ std::vector<InstalledGame> JsonCodec::parseInstalledGames(const QJsonObject& doc
 QJsonObject JsonCodec::serializeSettings(const LauncherSettings& settings) {
     // 全設定値を現行schemaへ直列化
     return {
-        {"schemaVersion", 1},
+        {"schemaVersion", 2},
         {"language", QString::fromStdString(settings.language)},
         {"installRoot", QString::fromStdString(settings.installRoot)},
         {"startOnLogin", settings.startOnLogin},
         {"startMinimized", settings.startMinimized},
         {"closeToTray", settings.closeToTray},
         {"showAfterGameExit", settings.showAfterGameExit},
+        {"darkTheme", settings.darkTheme},
         {"checkLauncherUpdateOnStart", settings.checkLauncherUpdateOnStart},
         {"autoApplyLauncherUpdate", settings.autoApplyLauncherUpdate},
         {"downloadLimitBytesPerSecond", static_cast<double>(settings.downloadLimitBytesPerSecond)},
@@ -292,12 +293,12 @@ LauncherSettings JsonCodec::parseSettings(const QJsonObject& object, LauncherSet
     // 保存objectが現行schemaと完全一致することを検証
     requireExactKeys(object,
                      {"schemaVersion", "language", "installRoot", "startOnLogin", "startMinimized",
-                      "closeToTray", "showAfterGameExit", "checkLauncherUpdateOnStart",
+                      "closeToTray", "showAfterGameExit", "darkTheme", "checkLauncherUpdateOnStart",
                       "autoApplyLauncherUpdate", "downloadLimitBytesPerSecond",
                       "checkGameUpdateBeforeLaunch", "continueOtherDownloadsWhilePlaying",
                       "notifyDownloadComplete", "notifyInstallComplete", "notifyErrors",
                       "notifyLauncherUpdate", "lastLauncherUpdateCheck"});
-    if (object.value("schemaVersion").toInt(-1) != 1) {
+    if (object.value("schemaVersion").toInt(-1) != 2) {
         throw std::runtime_error("unsupported launcher settings schema");
     }
     settings.language = requiredString(object, "language");
@@ -306,6 +307,7 @@ LauncherSettings JsonCodec::parseSettings(const QJsonObject& object, LauncherSet
     settings.startMinimized = requiredBoolean(object, "startMinimized");
     settings.closeToTray = requiredBoolean(object, "closeToTray");
     settings.showAfterGameExit = requiredBoolean(object, "showAfterGameExit");
+    settings.darkTheme = requiredBoolean(object, "darkTheme");
     settings.checkLauncherUpdateOnStart = requiredBoolean(object, "checkLauncherUpdateOnStart");
     settings.autoApplyLauncherUpdate = requiredBoolean(object, "autoApplyLauncherUpdate");
     settings.downloadLimitBytesPerSecond = requiredSize(object, "downloadLimitBytesPerSecond");
