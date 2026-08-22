@@ -211,6 +211,17 @@ class InstallerBuildTests(unittest.TestCase):
         self.assertIn("install(TARGETS PandDUninstaller RUNTIME DESTINATION .)", cmake)
         self.assertIn('L"maintenancetool.exe"', source.read_text(encoding="utf-8"))
 
+    def test_windows_start_menu_shortcut_uses_the_explicit_user_programs_folder(self) -> None:
+        """Windows installs must register a pinnable Start menu shortcut."""
+        root = Path(__file__).resolve().parent
+        script = (root / "packages/org.pandd.launcher/meta/installscript.qs").read_text(encoding="utf-8")
+
+        self.assertIn('component.addOperation("Mkdir", "@UserStartMenuProgramsPath@/PandD")', script)
+        self.assertIn('"@UserStartMenuProgramsPath@/PandD/PandD Game Launcher.lnk"', script)
+        self.assertIn('"workingDirectory=@TargetDir@/bin"', script)
+        self.assertIn('"iconPath=@TargetDir@/bin/PandD Game Launcher.exe"', script)
+        self.assertNotIn('"@StartMenuDir@/PandD Game Launcher.lnk"', script)
+
 
 if __name__ == "__main__":
     unittest.main()

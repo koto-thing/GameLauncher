@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.0.5",
+      "title": "Windows and usability improvements",
+      "publishedAt": "2026-08-23T00:00:00Z",
+      "changes": [
+        "Improved the PandD logo display in Windows Explorer and the taskbar.",
+        "Improved Start menu registration so the launcher can be pinned.",
+        "Improved sidebar selection animation performance while game images load."
+      ]
+    },
+    {
       "version": "1.0.4",
       "title": "UI improvements",
       "publishedAt": "2026-08-23T00:00:00Z",

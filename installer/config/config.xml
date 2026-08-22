@@ -14,7 +14,6 @@
     <StyleSheet>style.qss</StyleSheet>
     <ControlScript>controlscript.qs</ControlScript>
     <TitleColor>#ffffff</TitleColor>
-    <StartMenuDir>PandD</StartMenuDir>
     <TargetDir>@ApplicationsDir@/PandDGameLauncher</TargetDir>
     <MaintenanceToolName>maintenancetool</MaintenanceToolName>
     <RunProgram>@TargetDir@/bin/PandD Game Launcher</RunProgram>

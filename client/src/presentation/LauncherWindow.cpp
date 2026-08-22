@@ -20,6 +20,7 @@
 #include <QFontMetrics>
 #include <QFormLayout>
 #include <QFrame>
+#include <QFutureWatcher>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QImageReader>
@@ -49,6 +50,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QtConcurrentRun>
 
 #include <algorithm>
 #include <memory>
@@ -69,6 +71,20 @@ bool completesGamePreparation(InstallState previous) {
     }
 }
 
+QImage decodeImage(const QByteArray& data, int maximumDimension) {
+    QBuffer buffer;
+    buffer.setData(data);
+    buffer.open(QIODevice::ReadOnly);
+    QImageReader reader(&buffer);
+    reader.setDecideFormatFromContent(true);
+    const auto dimensions = reader.size();
+    if (!dimensions.isValid() || dimensions.width() > maximumDimension ||
+        dimensions.height() > maximumDimension) {
+        return {};
+    }
+    return reader.read();
+}
+
 } // namespace
 
 /** @brief hero画像をcover配置し可読性gradientを重ねる詳細page */
@@ -80,6 +96,8 @@ class HeroPage final : public QWidget {
     /** @brief 次の画像を待つ間は以前の画像を表示しない */
     void clearHero() {
         hero_ = {};
+        scaledHero_ = {};
+        scaledHeroSize_ = {};
         update();
     }
 
@@ -87,6 +105,8 @@ class HeroPage final : public QWidget {
     void setHero(const QPixmap& hero) {
         if (!hero.isNull()) {
             hero_ = hero;
+            scaledHero_ = {};
+            scaledHeroSize_ = {};
             update();
         }
     }
@@ -105,11 +125,14 @@ class HeroPage final : public QWidget {
         QPainter painter(this);
         painter.fillRect(rect(), QColor(20, 22, 27));
         if (!hero_.isNull()) {
-            const auto scaled =
-                hero_.scaled(size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-            const QPoint origin(-static_cast<int>((scaled.width() - width()) * focalX_),
-                                -static_cast<int>((scaled.height() - height()) * focalY_));
-            painter.drawPixmap(origin, scaled);
+            if (scaledHeroSize_ != size()) {
+                scaledHero_ =
+                    hero_.scaled(size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+                scaledHeroSize_ = size();
+            }
+            const QPoint origin(-static_cast<int>((scaledHero_.width() - width()) * focalX_),
+                                -static_cast<int>((scaledHero_.height() - height()) * focalY_));
+            painter.drawPixmap(origin, scaledHero_);
         }
         QLinearGradient gradient(0, 0, 0, height());
         gradient.setColorAt(0.0, QColor(8, 12, 18, 80));
@@ -120,6 +143,8 @@ class HeroPage final : public QWidget {
 
   private:
     QPixmap hero_;
+    QPixmap scaledHero_;
+    QSize scaledHeroSize_;
     double focalX_{0.5};
     double focalY_{0.5};
 };
@@ -281,7 +306,7 @@ void LauncherWindow::applyTheme() {
                 "QLabel,QCheckBox,QRadioButton,QGroupBox,QTabWidget{color:%3;}"
                 "QPushButton{background:%2;color:%3;border:1px solid %5;border-radius:8px;"
                 "padding:10px 16px;font-weight:600;}"
-                "QPushButton:hover{border:2px solid #e60012;background:%6;}"
+                "QPushButton:hover{border:1px solid #e60012;background:%6;}"
                 "QPushButton#account,QPushButton#account:hover{background:transparent;border:0;"
                 "padding:0;}"
                 "QPushButton#settings{padding:0;}"
@@ -787,40 +812,40 @@ void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& i
         const auto succeeded =
             reply->error() == QNetworkReply::NoError && data.size() <= maximumImageBytes;
         reply->deleteLater();
-        QBuffer buffer;
-        buffer.setData(data);
-        buffer.open(QIODevice::ReadOnly);
-        QImageReader reader(&buffer);
-        reader.setDecideFormatFromContent(true);
-        const auto dimensions = reader.size();
-        const auto validDimensions =
-            dimensions.isValid() && dimensions.width() <= 4096 && dimensions.height() <= 4096;
-        const auto decoded = succeeded && validDimensions ? reader.read() : QImage{};
-        if (decoded.isNull()) {
-            const QPixmap placeholderPixmap(
-                QStringLiteral(":/images/launcher_background_placeholder.png"));
-            const QIcon placeholder(placeholderPixmap);
-            heroCache_.insert(imageUrl, placeholderPixmap);
-            for (auto* list : {homeList_, discoverList_, libraryList_}) {
-                for (int index = 0; index < list->count(); ++index) {
-                    auto* item = list->item(index);
-                    if (item->data(Qt::UserRole).toString() == gameId) {
-                        item->setIcon(placeholder);
+        auto* watcher = new QFutureWatcher<QImage>(this);
+        connect(watcher, &QFutureWatcher<QImage>::finished, this,
+                [this, watcher, gameId, imageUrl] {
+                    const auto decoded = watcher->result();
+                    watcher->deleteLater();
+                    if (decoded.isNull()) {
+                        const QPixmap placeholderPixmap(
+                            QStringLiteral(":/images/launcher_background_placeholder.png"));
+                        const QIcon placeholder(placeholderPixmap);
+                        heroCache_.insert(imageUrl, placeholderPixmap);
+                        for (auto* list : {homeList_, discoverList_, libraryList_}) {
+                            for (int index = 0; index < list->count(); ++index) {
+                                auto* item = list->item(index);
+                                if (item->data(Qt::UserRole).toString() == gameId) {
+                                    item->setIcon(placeholder);
+                                }
+                            }
+                        }
+                        return;
                     }
-                }
-            }
-            return;
-        }
-        const auto pixmap = QPixmap::fromImage(decoded);
-        heroCache_.insert(imageUrl, pixmap);
-        for (auto* list : {homeList_, discoverList_, libraryList_}) {
-            for (int index = 0; index < list->count(); ++index) {
-                auto* item = list->item(index);
-                if (item->data(Qt::UserRole).toString() == gameId) {
-                    item->setIcon(QIcon(pixmap));
-                }
-            }
-        }
+                    const auto pixmap = QPixmap::fromImage(decoded);
+                    heroCache_.insert(imageUrl, pixmap);
+                    for (auto* list : {homeList_, discoverList_, libraryList_}) {
+                        for (int index = 0; index < list->count(); ++index) {
+                            auto* item = list->item(index);
+                            if (item->data(Qt::UserRole).toString() == gameId) {
+                                item->setIcon(QIcon(pixmap));
+                            }
+                        }
+                    }
+                });
+        watcher->setFuture(QtConcurrent::run([data, succeeded] {
+            return succeeded ? decodeImage(data, 4096) : QImage{};
+        }));
     });
 }
 
@@ -868,25 +893,27 @@ void LauncherWindow::showGame(const QString& gameId) {
                                        remaining.size() <= maximumHeroBytes - data->size();
                 data->append(remaining);
                 reply->deleteLater();
-                QBuffer buffer(data.get());
-                buffer.open(QIODevice::ReadOnly);
-                QImageReader reader(&buffer);
-                reader.setDecideFormatFromContent(true);
-                const auto dimensions = reader.size();
-                const auto validDimensions = dimensions.isValid() && dimensions.width() <= 8192 &&
-                                             dimensions.height() <= 8192;
-                const auto decoded = succeeded && validDimensions ? reader.read() : QImage{};
-                if (!decoded.isNull()) {
-                    const auto image = QPixmap::fromImage(decoded);
-                    heroCache_.insert(heroUrl, image);
-                    if (selectedGameId_ == gameId) {
-                        detailPage_->setHero(image);
-                    }
-                } else if (selectedGameId_ == gameId) {
-                    const QPixmap placeholder(":/images/launcher_background_placeholder.png");
-                    heroCache_.insert(heroUrl, placeholder);
-                    detailPage_->setHero(placeholder);
-                }
+                auto* watcher = new QFutureWatcher<QImage>(this);
+                connect(watcher, &QFutureWatcher<QImage>::finished, this,
+                        [this, watcher, heroUrl, gameId] {
+                            const auto decoded = watcher->result();
+                            watcher->deleteLater();
+                            if (!decoded.isNull()) {
+                                const auto image = QPixmap::fromImage(decoded);
+                                heroCache_.insert(heroUrl, image);
+                                if (selectedGameId_ == gameId) {
+                                    detailPage_->setHero(image);
+                                }
+                            } else if (selectedGameId_ == gameId) {
+                                const QPixmap placeholder(
+                                    ":/images/launcher_background_placeholder.png");
+                                heroCache_.insert(heroUrl, placeholder);
+                                detailPage_->setHero(placeholder);
+                            }
+                        });
+                watcher->setFuture(QtConcurrent::run([data, succeeded] {
+                    return succeeded ? decodeImage(*data, 8192) : QImage{};
+                }));
             });
         }
     }
