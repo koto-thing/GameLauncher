@@ -48,7 +48,7 @@ export async function requireActionsIdentity(
   });
   const deploymentEnvironment = WORKFLOW_ENVIRONMENTS.get(text(payload.workflow_ref));
   if (payload.repository !== REPOSITORY || payload.repository_id !== repositoryId ||
-      payload.repository_visibility !== "public" || payload.event_name !== "workflow_dispatch" ||
+      payload.repository_visibility !== "private" || payload.event_name !== "workflow_dispatch" ||
       !deploymentEnvironment || payload.ref !== "refs/heads/master") {
     throw new Response("OIDC claims rejected", { status: 403 });
   }

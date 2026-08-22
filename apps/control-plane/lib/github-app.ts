@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { createPrivateKey } from "node:crypto";
 import { importPKCS8, SignJWT } from "jose";
 
 type GitHubAppEnv = {
@@ -48,7 +49,10 @@ export function githubAppDispatchConfigured(environment: DeploymentEnvironment):
 
 async function installationToken(environment: DeploymentEnvironment): Promise<string> {
   const current = config(environment);
-  const key = await importPKCS8(current.privateKey, "RS256");
+  const pkcs8 = createPrivateKey(current.privateKey)
+    .export({ format: "pem", type: "pkcs8" })
+    .toString();
+  const key = await importPKCS8(pkcs8, "RS256");
   const now = Math.floor(Date.now() / 1000);
   const jwt = await new SignJWT({})
     .setProtectedHeader({ alg: "RS256" })
@@ -104,8 +108,16 @@ export async function dispatchDeploymentWorkflow(
       }),
     },
   );
-  if (response.status !== 204) {
-    const result = await response.json().catch(() => ({})) as { message?: string };
-    throw new Error(result.message ?? `${environment} workflowを開始できませんでした`);
+  if (!response.ok) {
+    const responseText = await response.text();
+    let message = "";
+    try {
+      message = (JSON.parse(responseText) as { message?: string }).message ?? "";
+    } catch {
+      message = responseText.trim();
+    }
+    throw new Error(
+      `${environment} workflowを開始できませんでした (GitHub HTTP ${response.status}${message ? `: ${message}` : ""})`,
+    );
   }
 }

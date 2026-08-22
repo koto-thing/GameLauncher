@@ -549,17 +549,20 @@ export async function authorizeRecovery(
   await ensureSchema();
   await requireAdmin(actor);
   const request = await requestRow(input.requestId);
-  if (request.state !== "recovery_required") {
-    throw new Error("復旧確認が必要な申請ではありません");
+  if (!["recovery_required", "failed_terminal"].includes(asString(request.state))) {
+    throw new Error("Adminによる復旧が可能な申請ではありません");
   }
   const reason = input.reason.trim();
   if (reason.length < 10 || reason.length > 500) {
     throw new Error("R2確認内容を10～500文字で入力してください");
   }
-  const audit = await auditRecord(input.requestId, "recovery_retry_authorized", actor, { reason });
+  const audit = await auditRecord(input.requestId, "recovery_retry_authorized", actor, {
+    reason,
+    previousState: asString(request.state),
+  });
   await getD1().batch([
     getD1().prepare(`UPDATE deployment_requests SET state = 'failed_retryable'
-      WHERE request_id = ? AND state = 'recovery_required'`).bind(input.requestId),
+      WHERE request_id = ? AND state IN ('recovery_required', 'failed_terminal')`).bind(input.requestId),
     audit,
   ]);
 }
