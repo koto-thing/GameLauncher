@@ -200,6 +200,17 @@ class InstallerBuildTests(unittest.TestCase):
             self.assertEqual(installed_launcher(root).name, "PandD Game Launcher")
             self.assertEqual(maintenance_tool(root).name, "maintenancetool")
 
+    def test_windows_package_contains_dedicated_uninstaller(self) -> None:
+        """The installed Windows layout exposes a clear uninstaller entry point."""
+        root = Path(__file__).resolve().parent.parent
+        cmake = (root / "CMakeLists.txt").read_text(encoding="utf-8")
+        source = root / "client/src/uninstaller/UninstallerMain.cpp"
+
+        self.assertTrue(source.is_file())
+        self.assertIn('OUTPUT_NAME "Uninstall PandD Game Launcher"', cmake)
+        self.assertIn("install(TARGETS PandDUninstaller RUNTIME DESTINATION .)", cmake)
+        self.assertIn('L"maintenancetool.exe"', source.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

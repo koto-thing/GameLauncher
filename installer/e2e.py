@@ -41,6 +41,11 @@ def maintenance_tool(root: Path) -> Path:
     return root / "maintenancetool"
 
 
+def dedicated_uninstaller(root: Path) -> Path:
+    """Resolve the user-facing Windows uninstaller entry point."""
+    return root / "Uninstall PandD Game Launcher.exe"
+
+
 def run_checked(arguments: list[os.PathLike[str] | str], environment: dict[str, str]) -> None:
     """Run one bounded E2E process and preserve its output on failure."""
     subprocess.run([str(value) for value in arguments], check=True, env=environment,
@@ -93,7 +98,13 @@ def main() -> int:
         tool = maintenance_tool(target)
         if not tool.is_file():
             raise FileNotFoundError(f"maintenance tool is missing: {tool}")
-        run_checked([tool, "--default-answer", "--confirm-command", "purge"], environment)
+        uninstall_command = tool
+        if os.name == "nt":
+            uninstall_command = dedicated_uninstaller(target)
+            if not uninstall_command.is_file():
+                raise FileNotFoundError(f"dedicated uninstaller is missing: {uninstall_command}")
+        run_checked([uninstall_command, "--default-answer", "--confirm-command", "purge"],
+                    environment)
 
         # Windows may schedule maintenance-tool self-deletion after the command returns.
         for _ in range(100):

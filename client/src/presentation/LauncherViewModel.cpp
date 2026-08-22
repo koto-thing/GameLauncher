@@ -25,6 +25,9 @@ QString localizedError(const OperationError& error, const std::string& language)
     case ErrorCode::ManifestSignatureInvalid:
         return QCoreApplication::translate(
             "LauncherErrors", "リリース情報が不正なため、安全のため操作を停止しました");
+    case ErrorCode::SettingsInvalid:
+        return QCoreApplication::translate(
+            "LauncherErrors", "設定ファイルが不正です。設定を初期化して再起動してください");
     case ErrorCode::FileHashMismatch:
         return QCoreApplication::translate(
             "LauncherErrors", "ゲームファイルが破損しています。修復を実行してください");
@@ -214,6 +217,9 @@ void LauncherViewModel::cleanupTemporary(const QString& gameId) {
 }
 
 void LauncherViewModel::saveSettings(LauncherSettings settings) {
+    // 保存処理を待たず選択内容を画面へ反映し、失敗時はrunAsyncのsnapshotで元へ戻す
+    settings_ = settings;
+    emit dataChanged();
     runAsync([this, settings = std::move(settings)] { return service_.saveSettings(settings); },
              true);
 }
@@ -286,11 +292,16 @@ void LauncherViewModel::runAsync(std::function<OperationResult()> operation, boo
         const auto installed = result.ok ? service_.installedGames() : std::vector<InstalledGame>{};
         const auto announcements =
             result.ok ? service_.announcements() : std::vector<Announcement>{};
-        const auto settings = result.ok ? service_.settings() : LauncherSettings{};
+        // カタログ取得に失敗しても、先に読み込めたローカル設定はUIで利用可能にする
+        const auto settings = service_.settings();
         // signal送出と画面状態更新をUI threadへ戻す
         QMetaObject::invokeMethod(this, [this, result, refreshOnSuccess, notifyLoaded, catalog,
                                          installed, announcements, settings] {
             if (!result.ok) {
+                if (!settings.installRoot.empty()) {
+                    settings_ = settings;
+                    emit dataChanged();
+                }
                 emit errorOccurred(localizedError(result.error, settings_.language),
                                    result.error.retryable);
                 return;

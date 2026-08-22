@@ -10,7 +10,7 @@ set(CMAKE_AUTORCC ON)
 
 option(PANDD_ENABLE_CLANG_TIDY "Run clang-tidy while compiling" OFF)
 set(PANDD_DISTRIBUTION_ENV "staging" CACHE STRING "Static content environment")
-set(PANDD_DISTRIBUTION_BASE_URL "https://downloads.koto-thing.com/" CACHE STRING
+set(PANDD_DISTRIBUTION_BASE_URL "https://pub-1ada658d7c4f46b1bf109646a4a68bcb.r2.dev/" CACHE STRING
     "Static distribution base URL")
 set(PANDD_BUILD_NUMBER "local" CACHE STRING "Reproducible CI build identifier")
 set_property(CACHE PANDD_DISTRIBUTION_ENV PROPERTY STRINGS staging production)
@@ -30,8 +30,8 @@ if(PANDD_DISTRIBUTION_ENV STREQUAL "production" AND
 endif()
 
 if(PANDD_DISTRIBUTION_ENV STREQUAL "staging" AND PANDD_MANIFEST_PUBLIC_KEY_BASE64 STREQUAL "")
-    # RFC 8032 test key: safe for fixtures only and intentionally distinct from production.
-    set(PANDD_MANIFEST_PUBLIC_KEY_BASE64 "11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=")
+    # 公開中Staging manifestの署名鍵に対応する公開鍵。
+    set(PANDD_MANIFEST_PUBLIC_KEY_BASE64 "FUXer28uujGgqGMFSerw4rusZ6xa6X3wogspiYSwQs0=")
 elseif(PANDD_DISTRIBUTION_ENV STREQUAL "production" AND PANDD_MANIFEST_PUBLIC_KEY_BASE64 STREQUAL "")
     message(FATAL_ERROR "Production builds require PANDD_MANIFEST_PUBLIC_KEY_BASE64")
 endif()
@@ -138,6 +138,21 @@ install(FILES THIRD_PARTY_NOTICES.md docs/PRIVACY_POLICY.md docs/TERMS_OF_USE.md
 install(FILES "${PANDD_BUILD_METADATA_FILE}" DESTINATION docs)
 
 if(WIN32)
+    add_executable(PandDUninstaller WIN32
+        client/src/uninstaller/UninstallerMain.cpp
+    )
+    set_target_properties(PandDUninstaller PROPERTIES
+        AUTOMOC OFF
+        AUTORCC OFF
+        AUTOUIC OFF
+        OUTPUT_NAME "Uninstall PandD Game Launcher"
+    )
+    target_compile_definitions(PandDUninstaller PRIVATE UNICODE _UNICODE)
+    if(MINGW)
+        target_link_options(PandDUninstaller PRIVATE -municode)
+    endif()
+    install(TARGETS PandDUninstaller RUNTIME DESTINATION .)
+
     # windeployqt deploys Qt itself but intentionally does not copy non-Qt crypto runtimes.
     get_filename_component(OPENSSL_LIBRARY_DIRECTORY "${OPENSSL_CRYPTO_LIBRARY}" DIRECTORY)
     get_filename_component(OPENSSL_PREFIX_DIRECTORY "${OPENSSL_LIBRARY_DIRECTORY}" DIRECTORY)

@@ -102,8 +102,8 @@ OperationResult LauncherService::load() {
         }
         return refreshCatalog();
     } catch (const std::exception& exception) {
-        return OperationResult::failure({ErrorCode::InstallPermissionDenied,
-                                         "ランチャー情報を読み込めません", exception.what(), true});
+        return OperationResult::failure(
+            {ErrorCode::SettingsInvalid, "設定ファイルを読み込めません", exception.what(), false});
     }
 }
 
