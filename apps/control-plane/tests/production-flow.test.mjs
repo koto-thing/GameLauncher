@@ -24,13 +24,16 @@ test("production workflow is isolated from staging and gated by the production e
   );
 });
 
-test("production requests require a successful recent staging artifact and separate approval", async () => {
+test("production requests require recent staging and allow audited Admin bypass", async () => {
   const controlPlane = await source("apps/control-plane/lib/control-plane.ts");
   const actions = await source("apps/control-plane/lib/actions.ts");
   assert.match(controlPlane, /source\.environment !== "staging" \|\| source\.state !== "succeeded"/);
   assert.match(controlPlane, /Production申請期限を過ぎています/);
-  assert.match(controlPlane, /actor\.isAdmin && request\.environment === "staging"/);
+  assert.match(controlPlane, /if \(actor\.isAdmin\)/);
+  assert.match(controlPlane, /environment: asString\(request\.environment\)/);
   assert.match(actions, /identity\.deploymentEnvironment === "production"/);
+  assert.match(actions, /number\(row\.requester_is_admin\) === 1/);
+  assert.match(actions, /Admin bypass監査記録が見つかりません/);
   assert.match(actions, /Production用の有効な指名承認を確認できません/);
   assert.match(actions, /production_eligible_until = \?/);
 });

@@ -449,12 +449,15 @@ export async function submitRequest(
   if (request.state !== "ready") throw new Error("この申請は提出できません");
   const timestamp = now();
   const db = getD1();
-  if (actor.isAdmin && request.environment === "staging") {
+  if (actor.isAdmin) {
     const reason = input.reason.trim();
     if (reason.length < 3 || reason.length > 500) {
       throw new Error("Admin bypassの理由を3～500文字で入力してください");
     }
-    const audit = await auditRecord(input.requestId, "admin_bypass", actor, { reason });
+    const audit = await auditRecord(input.requestId, "admin_bypass", actor, {
+      reason,
+      environment: asString(request.environment),
+    });
     await db.batch([
       db.prepare(`UPDATE deployment_requests SET state = 'approved', submitted_at = ?
         WHERE request_id = ? AND state = 'ready'`).bind(timestamp, input.requestId),
