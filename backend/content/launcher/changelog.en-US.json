@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.0.3",
+      "title": "Fixed an issue where the distribution server could not be accessed",
+      "publishedAt": "2026-08-22T00:00:00Z",
+      "changes": [
+        "Fixed an issue where the distribution server could not be accessed"
+      ]
+    },
+    {
       "version": "1.0.2",
       "title": "Improve user interface",
       "publishedAt": "2026-08-22T00:00:00Z",
