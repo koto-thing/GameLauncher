@@ -169,7 +169,7 @@ void LauncherWindow::closeEvent(QCloseEvent* event) {
 
 void LauncherWindow::buildUi() {
     setWindowTitle(tr("PandD Game Launcher"));
-    const QIcon logoIcon(QStringLiteral(":/images/PnadDLogo.png"));
+    const QIcon logoIcon(QStringLiteral(":/images/PandDLogo.png"));
     setWindowIcon(logoIcon);
     setMinimumSize(960, 600);
     resize(1280, 720);
@@ -188,7 +188,7 @@ void LauncherWindow::buildUi() {
     sidebarLayout->setContentsMargins(8, 4, 8, 16);
     sidebarLayout->setSpacing(8);
     auto* brand = new QLabel(sidebar);
-    const QPixmap sourceLogo(QStringLiteral(":/images/PnadDLogo.png"));
+    const QPixmap sourceLogo(QStringLiteral(":/images/PandDLogo.png"));
     const auto visibleLogoBounds = QRegion(sourceLogo.mask()).boundingRect();
     const auto visibleLogo =
         visibleLogoBounds.isValid() ? sourceLogo.copy(visibleLogoBounds) : sourceLogo;

@@ -4,7 +4,7 @@
     <Version>1.0.0</Version>
     <Title>PandD Game Launcher</Title>
     <Publisher>PandD</Publisher>
-    <InstallerWindowIcon>PnadDLogo.png</InstallerWindowIcon>
+    <InstallerWindowIcon>PandDLogo.png</InstallerWindowIcon>
     <WizardStyle>Classic</WizardStyle>
     <WizardShowPageList>false</WizardShowPageList>
     <WizardDefaultWidth>760</WizardDefaultWidth>

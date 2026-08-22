@@ -47,12 +47,12 @@ class InstallerBuildTests(unittest.TestCase):
         self.assertTrue((root / "config" / config_root.findtext("StyleSheet")).is_file())
 
         icon = config_root.findtext("InstallerWindowIcon")
-        self.assertEqual(icon, "PnadDLogo.png")
+        self.assertEqual(icon, "PandDLogo.png")
         self.assertIsNone(config_root.find("Logo"))
-        self.assertTrue((root.parent / "assets/images/PnadDLogo.png").is_file())
+        self.assertTrue((root.parent / "assets/images/PandDLogo.png").is_file())
 
         build_script = (root / "build.py").read_text(encoding="utf-8")
-        self.assertIn("PnadDLogo.png", build_script)
+        self.assertIn("PandDLogo.png", build_script)
         self.assertNotIn("PandDInstallerLogo.png", build_script)
 
         self.assertEqual(config_root.findtext("TitleColor"), "#ffffff")
