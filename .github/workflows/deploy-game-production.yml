@@ -74,6 +74,9 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Install Publisher dependencies
+        run: python -m pip install --requirement publisher/requirements.txt
+
       - name: Download the private artifact directly from intake
         id: intake
         continue-on-error: true
@@ -128,9 +131,6 @@ jobs:
       - name: Stop after artifact validation failure
         if: always() && steps.validate.outcome == 'failure'
         run: exit 1
-
-      - name: Install Publisher dependencies
-        run: python -m pip install --requirement publisher/requirements.txt
 
       - name: Create production-signed publication tree
         env:
