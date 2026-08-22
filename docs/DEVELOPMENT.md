@@ -25,8 +25,9 @@ python -m compileall -q publisher contracts installer scripts
 ```
 
 Staging builds show a permanent `STAGING` badge and trust only the staging host and
-staging public key. Production configure fails unless
-`PANDD_MANIFEST_PUBLIC_KEY_BASE64` is explicitly supplied.
+staging public key. The `release` preset targets `https://downloads.koto-thing.com/`,
+but production configure still fails unless `PANDD_MANIFEST_PUBLIC_KEY_BASE64` is
+explicitly supplied.
 
 For a local static distribution server, configure a staging build with a trailing-slash
 localhost URL and the public key matching the local Publisher signing key:

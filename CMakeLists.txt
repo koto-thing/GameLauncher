@@ -29,6 +29,11 @@ if(PANDD_DISTRIBUTION_ENV STREQUAL "production" AND
     message(FATAL_ERROR "Production distribution URL must use HTTPS")
 endif()
 
+if(PANDD_DISTRIBUTION_ENV STREQUAL "production" AND
+   PANDD_DISTRIBUTION_BASE_URL STREQUAL "https://pub-1ada658d7c4f46b1bf109646a4a68bcb.r2.dev/")
+    message(FATAL_ERROR "Production builds must specify the production distribution URL")
+endif()
+
 if(PANDD_DISTRIBUTION_ENV STREQUAL "staging" AND PANDD_MANIFEST_PUBLIC_KEY_BASE64 STREQUAL "")
     # 公開中Staging manifestの署名鍵に対応する公開鍵。
     set(PANDD_MANIFEST_PUBLIC_KEY_BASE64 "FUXer28uujGgqGMFSerw4rusZ6xa6X3wogspiYSwQs0=")
