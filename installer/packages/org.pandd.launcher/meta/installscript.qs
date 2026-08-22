@@ -5,9 +5,13 @@ function Component() {
 Component.prototype.createOperations = function() {
     component.createOperations();
     if (systemInfo.productType === "windows") {
+        component.addOperation("Mkdir", "@UserStartMenuProgramsPath@/PandD");
         component.addOperation("CreateShortcut",
                                "@TargetDir@/bin/PandD Game Launcher.exe",
-                               "@StartMenuDir@/PandD Game Launcher.lnk");
+                               "@UserStartMenuProgramsPath@/PandD/PandD Game Launcher.lnk",
+                               "workingDirectory=@TargetDir@/bin",
+                               "iconPath=@TargetDir@/bin/PandD Game Launcher.exe",
+                               "description=PandD Game Launcher");
     } else if (systemInfo.productType === "linux") {
         component.addOperation("CreateShortcut",
                                "@TargetDir@/bin/PandD Game Launcher",

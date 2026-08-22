@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(PandDGameLauncher VERSION 1.0.4 LANGUAGES CXX)
+project(PandDGameLauncher VERSION 1.0.5 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -120,6 +120,7 @@ qt_add_executable(GameLauncher WIN32 MACOSX_BUNDLE
     client/src/presentation/LauncherWindow.cpp
     client/src/presentation/LauncherWindow.h
     client/resources/resources.qrc
+    client/resources/windows/GameLauncher.rc
 )
 target_link_libraries(GameLauncher PRIVATE launcher_core Qt6::Gui Qt6::Widgets Qt6::Concurrent)
 qt_add_translations(GameLauncher
@@ -145,6 +146,7 @@ install(FILES "${PANDD_BUILD_METADATA_FILE}" DESTINATION docs)
 if(WIN32)
     add_executable(PandDUninstaller WIN32
         client/src/uninstaller/UninstallerMain.cpp
+        client/resources/windows/PandDUninstaller.rc
     )
     set_target_properties(PandDUninstaller PROPERTIES
         AUTOMOC OFF
