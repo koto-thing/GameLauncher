@@ -843,9 +843,8 @@ void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& i
                         }
                     }
                 });
-        watcher->setFuture(QtConcurrent::run([data, succeeded] {
-            return succeeded ? decodeImage(data, 4096) : QImage{};
-        }));
+        watcher->setFuture(QtConcurrent::run(
+            [data, succeeded] { return succeeded ? decodeImage(data, 4096) : QImage{}; }));
     });
 }
 
@@ -911,9 +910,8 @@ void LauncherWindow::showGame(const QString& gameId) {
                                 detailPage_->setHero(placeholder);
                             }
                         });
-                watcher->setFuture(QtConcurrent::run([data, succeeded] {
-                    return succeeded ? decodeImage(*data, 8192) : QImage{};
-                }));
+                watcher->setFuture(QtConcurrent::run(
+                    [data, succeeded] { return succeeded ? decodeImage(*data, 8192) : QImage{}; }));
             });
         }
     }
