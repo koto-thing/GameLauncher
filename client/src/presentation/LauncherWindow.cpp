@@ -14,12 +14,14 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QEasingCurve>
 #include <QFile>
 #include <QFileDialog>
 #include <QFontMetrics>
 #include <QFormLayout>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QImageReader>
 #include <QLabel>
 #include <QLineEdit>
@@ -32,6 +34,7 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QProgressBar>
+#include <QPropertyAnimation>
 #include <QPushButton>
 #include <QRegion>
 #include <QResizeEvent>
@@ -43,6 +46,7 @@
 #include <QSystemTrayIcon>
 #include <QTabWidget>
 #include <QTextBrowser>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -210,6 +214,13 @@ void LauncherWindow::buildUi() {
     libraryButton_->setCheckable(true);
     libraryButton_->setAccessibleName(tr("所持ゲーム一覧を開く"));
     sidebarLayout->addWidget(libraryButton_);
+    navigationIndicator_ = new QFrame(sidebar);
+    navigationIndicator_->setObjectName("navigationIndicator");
+    navigationIndicator_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    navigationIndicator_->hide();
+    navigationIndicatorAnimation_ = new QPropertyAnimation(navigationIndicator_, "geometry", this);
+    navigationIndicatorAnimation_->setDuration(180);
+    navigationIndicatorAnimation_->setEasingCurve(QEasingCurve::OutCubic);
     layout->addWidget(sidebar);
 
     pages_ = new QStackedWidget(central);
@@ -252,6 +263,7 @@ void LauncherWindow::buildUi() {
         libraryList_->setCurrentItem(nullptr);
     });
     navigateTo(0);
+    QTimer::singleShot(0, this, [this] { updateNavigationIndicator(false); });
 }
 
 void LauncherWindow::applyTheme() {
@@ -272,11 +284,12 @@ void LauncherWindow::applyTheme() {
                 "QPushButton:hover{border:2px solid #e60012;background:%6;}"
                 "QPushButton#account,QPushButton#account:hover{background:transparent;border:0;"
                 "padding:0;}"
+                "QPushButton#settings{padding:0;}"
                 "QPushButton#nav{border:0;border-radius:8px;text-align:left;padding:12px;}"
                 "QPushButton#libraryNav{text-align:left;min-height:38px;}"
                 "QPushButton#nav:checked,QPushButton#libraryNav:checked{background:transparent;"
-                "color:%3;"
-                "border:0;border-left:5px solid #e60012;border-radius:2px;padding-left:11px;}"
+                "color:%3;border:0;}"
+                "QFrame#navigationIndicator{background:#e60012;border-radius:2px;}"
                 "QPushButton#primary{background:#e60012;color:white;border:0;font-size:18px;"
                 "min-width:260px;min-height:38px;}"
                 "QPushButton#primary:hover{background:#c90010;}"
@@ -320,7 +333,10 @@ QWidget* LauncherWindow::createHomePage() {
     account->setAccessibleName(tr("アカウント（準備中）"));
     account->setFixedSize(44, 44);
     headerRow->addWidget(account);
-    auto* settings = new QPushButton(tr("⚙"), page);
+    auto* settings = new QPushButton(page);
+    settings->setObjectName("settings");
+    settings->setIcon(QIcon(QStringLiteral(":/images/settings.svg")));
+    settings->setIconSize(QSize(20, 20));
     settings->setToolTip(tr("設定"));
     settings->setAccessibleName(tr("設定を開く"));
     settings->setFixedSize(44, 44);
@@ -363,7 +379,10 @@ QWidget* LauncherWindow::createDiscoverPage() {
     account->setAccessibleName(tr("アカウント（準備中）"));
     account->setFixedSize(44, 44);
     headerRow->addWidget(account);
-    auto* settings = new QPushButton(tr("⚙"), page);
+    auto* settings = new QPushButton(page);
+    settings->setObjectName("settings");
+    settings->setIcon(QIcon(QStringLiteral(":/images/settings.svg")));
+    settings->setIconSize(QSize(20, 20));
     settings->setToolTip(tr("設定"));
     settings->setAccessibleName(tr("設定を開く"));
     settings->setFixedSize(44, 44);
@@ -412,7 +431,10 @@ QWidget* LauncherWindow::createLibraryPage() {
     account->setAccessibleName(tr("アカウント（準備中）"));
     account->setFixedSize(44, 44);
     headerRow->addWidget(account);
-    auto* settings = new QPushButton(tr("⚙"), page);
+    auto* settings = new QPushButton(page);
+    settings->setObjectName("settings");
+    settings->setIcon(QIcon(QStringLiteral(":/images/settings.svg")));
+    settings->setIconSize(QSize(20, 20));
     settings->setToolTip(tr("設定"));
     settings->setAccessibleName(tr("設定を開く"));
     settings->setFixedSize(44, 44);
@@ -461,7 +483,10 @@ QWidget* LauncherWindow::createDetailPage() {
     account->setAccessibleName(tr("アカウント（準備中）"));
     account->setFixedSize(44, 44);
     top->addWidget(account);
-    auto* settings = new QPushButton(tr("⚙"), page);
+    auto* settings = new QPushButton(page);
+    settings->setObjectName("settings");
+    settings->setIcon(QIcon(QStringLiteral(":/images/settings.svg")));
+    settings->setIconSize(QSize(20, 20));
     settings->setToolTip(tr("設定"));
     settings->setAccessibleName(tr("設定を開く"));
     settings->setFixedSize(44, 44);
@@ -714,6 +739,39 @@ void LauncherWindow::navigateTo(int pageIndex) {
     homeButton_->setChecked(pageIndex == 0);
     discoverButton_->setChecked(pageIndex == 1);
     libraryButton_->setChecked(pageIndex == 2);
+    updateNavigationIndicator(isVisible());
+}
+
+void LauncherWindow::updateNavigationIndicator(bool animated) {
+    if (!navigationIndicator_ || !navigationIndicator_->parentWidget()->isVisible()) {
+        return;
+    }
+
+    QPushButton* selectedButton = nullptr;
+    if (homeButton_->isChecked()) {
+        selectedButton = homeButton_;
+    } else if (discoverButton_->isChecked()) {
+        selectedButton = discoverButton_;
+    } else if (libraryButton_->isChecked()) {
+        selectedButton = libraryButton_;
+    }
+
+    if (!selectedButton) {
+        navigationIndicatorAnimation_->stop();
+        navigationIndicator_->hide();
+        return;
+    }
+
+    const QRect target(selectedButton->x(), selectedButton->y(), 5, selectedButton->height());
+    navigationIndicator_->show();
+    navigationIndicator_->raise();
+    navigationIndicatorAnimation_->stop();
+    if (!animated) {
+        navigationIndicator_->setGeometry(target);
+        return;
+    }
+    navigationIndicatorAnimation_->setEndValue(target);
+    navigationIndicatorAnimation_->start();
 }
 
 void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& imageUrl) {

@@ -9,6 +9,8 @@
 class QLabel;
 class QLineEdit;
 class QListWidget;
+class QFrame;
+class QPropertyAnimation;
 class QProgressBar;
 class QPushButton;
 class QStackedWidget;
@@ -64,6 +66,9 @@ class LauncherWindow final : public QMainWindow {
     /** @brief 指定ページへ移動しナビゲーション状態を更新する */
     void navigateTo(int pageIndex);
 
+    /** @brief 選択中のナビゲーション項目へインジケーターを移動する */
+    void updateNavigationIndicator(bool animated);
+
     /** @brief カタログ画像を取得し各ゲームカードへ反映する */
     void requestCatalogImage(const QString& gameId, const QString& imageUrl);
 
@@ -109,6 +114,8 @@ class LauncherWindow final : public QMainWindow {
     QPushButton* homeButton_{nullptr};
     QPushButton* discoverButton_{nullptr};
     QPushButton* libraryButton_{nullptr};
+    QFrame* navigationIndicator_{nullptr};
+    QPropertyAnimation* navigationIndicatorAnimation_{nullptr};
     ElidedLabel* heroTitle_{nullptr};
     QLabel* summary_{nullptr};
     QLabel* stagingBadge_{nullptr};
