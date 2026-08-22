@@ -1,16 +1,16 @@
 #include <windows.h>
 
 #include <filesystem>
-#include <system_error>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace {
 
 std::filesystem::path executableDirectory() {
     std::vector<wchar_t> buffer(32768);
-    const DWORD length = GetModuleFileNameW(nullptr, buffer.data(),
-                                            static_cast<DWORD>(buffer.size()));
+    const DWORD length =
+        GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
     if (length == 0 || length == buffer.size()) {
         return {};
     }
@@ -22,7 +22,7 @@ void showLaunchError(const std::wstring& message) {
                 MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
 }
 
-}  // namespace
+} // namespace
 
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR arguments, int) {
     const auto directory = executableDirectory();
@@ -50,9 +50,9 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR arguments, int) {
     STARTUPINFOW startupInfo{};
     startupInfo.cb = sizeof(startupInfo);
     PROCESS_INFORMATION processInfo{};
-    const BOOL launched = CreateProcessW(
-        maintenanceTool.c_str(), mutableCommand.data(), nullptr, nullptr, FALSE, 0, nullptr,
-        directory.c_str(), &startupInfo, &processInfo);
+    const BOOL launched =
+        CreateProcessW(maintenanceTool.c_str(), mutableCommand.data(), nullptr, nullptr, FALSE, 0,
+                       nullptr, directory.c_str(), &startupInfo, &processInfo);
     if (!launched) {
         showLaunchError(L"アンインストール画面を起動できませんでした。\n"
                         L"maintenancetool.exe を直接起動してください。");
