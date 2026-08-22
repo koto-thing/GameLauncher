@@ -16,7 +16,11 @@ def read_json(url: str) -> tuple[dict, bytes]:
     separator = "&" if "?" in url else "?"
     request = urllib.request.Request(
         url + separator + urllib.parse.urlencode({"verify": "1"}),
-        headers={"Accept": "application/json", "Cache-Control": "no-cache"},
+        headers={
+            "Accept": "application/json",
+            "Cache-Control": "no-cache",
+            "User-Agent": "PandD-Game-Publisher",
+        },
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         content = response.read()
