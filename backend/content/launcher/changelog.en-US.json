@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.0.4",
+      "title": "UI improvements",
+      "publishedAt": "2026-08-23T00:00:00Z",
+      "changes": [
+        "Added an animated selection indicator to the sidebar navigation.",
+        "Centered the settings icon for improved visibility.",
+        "Unified the Windows application icon with the PandD logo."
+      ]
+    },
+    {
       "version": "1.0.3",
       "title": "Fixed an issue where the distribution server could not be accessed",
       "publishedAt": "2026-08-22T00:00:00Z",
