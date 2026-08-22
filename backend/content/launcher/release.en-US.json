@@ -1,6 +1,6 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "mandatory": false,
-  "title": "Improve user interface",
+  "title": "Fixed an issue where the distribution server could not be accessed.",
   "publishedAt": "2026-08-22T00:00:00Z"
 }
