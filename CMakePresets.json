@@ -10,7 +10,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "BUILD_TESTING": "ON",
-        "PANDD_DISTRIBUTION_ENV": "staging"
+        "PANDD_DISTRIBUTION_ENV": "staging",
+        "PANDD_DISTRIBUTION_BASE_URL": "https://pub-1ada658d7c4f46b1bf109646a4a68bcb.r2.dev/"
       }
     },
     {
@@ -21,7 +22,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "BUILD_TESTING": "OFF",
-        "PANDD_DISTRIBUTION_ENV": "production"
+        "PANDD_DISTRIBUTION_ENV": "production",
+        "PANDD_DISTRIBUTION_BASE_URL": "https://downloads.koto-thing.com/"
       }
     }
   ],
