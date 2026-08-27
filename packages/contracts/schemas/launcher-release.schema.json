@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pandd.org/packages/contracts/v1/launcher-release.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "version", "mandatory", "title", "publishedAt", "ifwRepositoryUrl"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$" },
+    "mandatory": { "type": "boolean" },
+    "title": { "type": "string", "minLength": 1 },
+    "publishedAt": { "type": "string", "format": "date-time" },
+    "ifwRepositoryUrl": { "type": "string", "format": "uri", "pattern": "^(?:https://|http://(?:127\\.0\\.0\\.1|localhost)(?::[0-9]{1,5})?/)" }
+  }
+}

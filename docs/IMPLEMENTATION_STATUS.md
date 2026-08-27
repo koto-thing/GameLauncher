@@ -7,7 +7,7 @@ hardware-backed identities, or clean machines remains a release gate.
 
 ## Implemented
 
-- `client/` clean architecture with one composition root and no legacy `src/` route
+- `apps/launcher/` clean architecture with one composition root and no legacy `src/` route
 - Portable CMake/CTest, presets, warnings, formatting, clang-tidy, Doxygen, Qt
   Deployment API, a valid pinned vcpkg baseline, production OpenSSL 3 enforcement,
   and Windows OpenSSL runtime deployment

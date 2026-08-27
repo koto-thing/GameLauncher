@@ -1,0 +1,13 @@
+<RCC>
+    <qresource prefix="/">
+        <file>images/launcher_background_placeholder.png</file>
+        <file>images/placeholder_100x100.png</file>
+        <file>images/settings.svg</file>
+        <file alias="images/PandDLogo.png">../../../assets/images/PandDLogo.png</file>
+        <file alias="i18n/locales.json">../translations/locales.json</file>
+        <file alias="legal/THIRD_PARTY_NOTICES.md">../../../THIRD_PARTY_NOTICES.md</file>
+        <file alias="legal/PRIVACY_POLICY.md">../../../docs/PRIVACY_POLICY.md</file>
+        <file alias="legal/TERMS_OF_USE.md">../../../docs/TERMS_OF_USE.md</file>
+        <file alias="legal/QT_LGPL_COMPLIANCE.md">../../../docs/QT_LGPL_COMPLIANCE.md</file>
+    </qresource>
+</RCC>

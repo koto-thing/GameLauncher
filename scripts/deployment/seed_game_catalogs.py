@@ -8,7 +8,7 @@ from pathlib import Path
 import urllib.error
 import urllib.request
 
-from publisher.publisher import validate_contract, validate_locale_tag
+from services.deployment_publisher.publisher import validate_contract, validate_locale_tag
 
 
 def seed(metadata_path: Path, output: Path, base_url: str) -> None:

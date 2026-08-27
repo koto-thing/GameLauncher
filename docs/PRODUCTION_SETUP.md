@@ -56,7 +56,7 @@ PowerShell session:
 ```
 
 ```powershell
-python publisher\publisher.py publish-game `
+python services\deployment_publisher\publisher.py publish-game `
   --metadata local-test\metadata\release.json `
   --build-dir local-test\game-build `
   --output $env:PANDD_PUBLIC_OUTPUT `
@@ -65,11 +65,11 @@ python publisher\publisher.py publish-game `
   --platform windows `
   --arch x86_64
 
-python publisher\publisher.py publish-announcements `
-  --source backend\content\announcements `
+python services\deployment_publisher\publisher.py publish-announcements `
+  --source services\distribution-content\content\announcements `
   --output $env:PANDD_PUBLIC_OUTPUT
 
-python publisher\publisher.py upload `
+python services\deployment_publisher\publisher.py upload `
   --output $env:PANDD_PUBLIC_OUTPUT `
   --endpoint $env:R2_ENDPOINT `
   --bucket $env:R2_BUCKET

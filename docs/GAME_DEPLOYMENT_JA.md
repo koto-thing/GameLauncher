@@ -137,7 +137,7 @@ Unityビルド一式をコピーします。上書きだけでは、Unityビル�
 ## 4. ステージング用配布ツリーを生成する
 
 ```powershell
-python publisher\publisher.py publish-game `
+python services\deployment_publisher\publisher.py publish-game `
   --metadata local-test\metadata\release.json `
   --build-dir local-test\game-build `
   --output local-test\r2-public `
@@ -150,8 +150,8 @@ python publisher\publisher.py publish-game `
 お知らせも生成します。
 
 ```powershell
-python publisher\publisher.py publish-announcements `
-  --source backend\content\announcements `
+python services\deployment_publisher\publisher.py publish-announcements `
+  --source services\distribution-content\content\announcements `
   --output local-test\r2-public
 ```
 
@@ -172,7 +172,7 @@ Amazon AWSのキーではありません。R2がS3互換APIを使うため環境
 なっています。値をソースコード、Git、チャットへ貼らないでください。
 
 ```powershell
-python publisher\publisher.py upload `
+python services\deployment_publisher\publisher.py upload `
   --output local-test\r2-public `
   --endpoint $env:R2_ENDPOINT `
   --bucket pandd-launcher-staging
@@ -222,7 +222,7 @@ notepad .env.production
 保存する必要はありません。
 
 ```powershell
-python publisher\publisher.py publish-game `
+python services\deployment_publisher\publisher.py publish-game `
   --metadata local-test\metadata\release.json `
   --build-dir local-test\game-build `
   --output $env:PANDD_PUBLIC_OUTPUT `
@@ -231,11 +231,11 @@ python publisher\publisher.py publish-game `
   --platform windows `
   --arch x86_64
 
-python publisher\publisher.py publish-announcements `
-  --source backend\content\announcements `
+python services\deployment_publisher\publisher.py publish-announcements `
+  --source services\distribution-content\content\announcements `
   --output $env:PANDD_PUBLIC_OUTPUT
 
-python publisher\publisher.py upload `
+python services\deployment_publisher\publisher.py upload `
   --output $env:PANDD_PUBLIC_OUTPUT `
   --endpoint $env:R2_ENDPOINT `
   --bucket $env:R2_BUCKET

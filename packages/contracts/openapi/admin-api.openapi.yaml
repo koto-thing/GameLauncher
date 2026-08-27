@@ -1,0 +1,528 @@
+openapi: 3.1.0
+info:
+  title: PandD Admin Web HTTP API
+  version: 1.0.0
+  description: |
+    運営環境のAdmin Webが実装しているHTTP API。Route Handler、認証判定、
+    validator、テストを根拠とする。一般利用者向けAPIではない。
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://pandd-deployment-control-plane.gotoukenta62.workers.dev
+    description: Operations environment
+tags:
+  - name: Authentication
+  - name: Dashboard
+  - name: Control plane
+  - name: Intake
+  - name: GitHub Actions
+paths:
+  /api/auth/dev:
+    get:
+      tags: [Authentication]
+      operationId: startLocalDevelopmentSession
+      summary: ローカル開発用sessionを作成する
+      description: LOCAL_DEV_AUTHが有効なlocalhost/127.0.0.1でだけ存在する。Productionでは404。
+      security: []
+      parameters:
+        - name: as
+          in: query
+          schema: { type: string, enum: [admin, maintainer, reviewer], default: admin }
+      responses:
+        "302":
+          description: Session cookieを設定してrootへredirectする。
+          headers:
+            Location: { schema: { type: string, const: / } }
+            Set-Cookie: { schema: { type: string } }
+        "400": { $ref: "#/components/responses/TextBadRequest" }
+        "404": { description: ローカル開発認証が無効。 }
+  /api/auth/github/start:
+    get:
+      tags: [Authentication]
+      operationId: startGithubAuthentication
+      summary: GitHub OAuth認証を開始する
+      security: []
+      responses:
+        "302":
+          description: 10分有効なHttpOnly state cookieを設定してGitHubへredirectする。
+          headers:
+            Location: { schema: { type: string, format: uri } }
+            Set-Cookie: { schema: { type: string } }
+        "503": { $ref: "#/components/responses/JsonServiceUnavailable" }
+  /api/auth/github/callback:
+    get:
+      tags: [Authentication]
+      operationId: finishGithubAuthentication
+      summary: GitHub OAuth callbackを処理する
+      security: []
+      parameters:
+        - { name: code, in: query, required: true, schema: { type: string } }
+        - { name: state, in: query, required: true, schema: { type: string } }
+      responses:
+        "302":
+          description: Repository ownerまたはwrite/admin/maintain collaboratorを検証し、8時間のsession cookieを設定する。
+          headers:
+            Location: { schema: { type: string, const: / } }
+            Set-Cookie: { schema: { type: string } }
+        "400": { $ref: "#/components/responses/JsonBadRequest" }
+        "502": { $ref: "#/components/responses/JsonBadGateway" }
+  /api/auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      summary: Sessionを破棄する
+      description: Origin headerとSec-Fetch-Siteを使いsame-origin browser writeを要求する。再試行可能。
+      security: [{ cookieAuth: [] }]
+      responses:
+        "204": { description: Session cookieを失効した。 }
+        "400": { $ref: "#/components/responses/TextBadRequest" }
+        "403": { $ref: "#/components/responses/TextForbidden" }
+  /api/dashboard:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboard
+      summary: Session状態と操作画面データを取得する
+      description: 未認証時も認証方式の利用可否を返す。認証済みの場合だけ権限、申請、監査情報を返す。
+      security: [{}, { cookieAuth: [] }]
+      responses:
+        "200":
+          description: Dashboard snapshot。
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardResponse" }
+        "500": { $ref: "#/components/responses/JsonServerError" }
+  /api/control:
+    post:
+      tags: [Control plane]
+      operationId: mutateControlPlane
+      summary: 申請・承認・dispatchを実行する
+      description: |
+        15分以内に再認証したsessionとsame-origin browser writeが必要。
+        actionごとの権限はrequester、production_requester、approver、Adminに分離される。
+        create_request/create_production_requestは201、それ以外は200。dispatchの再試行は
+        failed_retryable、またはAdminが復旧を許可したrequestだけで行う。
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ControlAction" }
+      responses:
+        "200":
+          description: 操作完了。dispatch時はattemptIdを含む。
+          content: { application/json: { schema: { $ref: "#/components/schemas/OkResponse" } } }
+        "201":
+          description: StagingまたはProduction申請を作成した。
+          content: { application/json: { schema: { $ref: "#/components/schemas/RequestCreated" } } }
+        "400": { $ref: "#/components/responses/JsonBadRequest" }
+        "401": { $ref: "#/components/responses/JsonUnauthorized" }
+        "403": { $ref: "#/components/responses/JsonForbidden" }
+  /api/intake/config:
+    get:
+      tags: [Intake]
+      operationId: getIntakeConfiguration
+      summary: 公開可能なIntake client設定を取得する
+      security: []
+      responses:
+        "200":
+          description: Part sizeは64 MiB、upload URL lifetimeは900秒。
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [githubClientId, localDevelopment, partSize, uploadUrlLifetimeSeconds]
+                properties:
+                  githubClientId: { type: [string, "null"] }
+                  localDevelopment: { type: boolean }
+                  partSize: { type: integer, const: 67108864 }
+                  uploadUrlLifetimeSeconds: { type: integer, const: 900 }
+  /api/intake/uploads:
+    post:
+      tags: [Intake]
+      operationId: createOrResumeIntakeUpload
+      summary: Multipart uploadを作成または再開する
+      description: |
+        same-origin条件とrequester権限が必要。Cookie sessionまたはGitHub bearer tokenを受け付ける。
+        同じartifactId、申請者、descriptorでuploading状態なら冪等に再開し、既存part番号を返す。
+        Artifactは最大5 GiB、50,000 files、Windows x86_64、upload sessionは7日有効。
+      security: [{ cookieAuth: [] }, { githubBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ArtifactDescriptor" }
+      responses:
+        "201":
+          description: 作成または再開されたupload session。
+          content: { application/json: { schema: { $ref: "#/components/schemas/UploadSession" } } }
+        "400": { $ref: "#/components/responses/JsonBadRequest" }
+        "401": { $ref: "#/components/responses/TextUnauthorized" }
+        "403": { $ref: "#/components/responses/TextForbidden" }
+  /api/intake/uploads/{artifactId}:
+    delete:
+      tags: [Intake]
+      operationId: cancelIntakeUpload
+      summary: Multipart uploadをキャンセルする
+      description: 所有するuploadだけを中止する。完了後の同じDELETEは成功を保証しない。
+      security: [{ cookieAuth: [] }, { githubBearer: [] }]
+      parameters: [{ $ref: "#/components/parameters/ArtifactId" }]
+      responses:
+        "200": { description: キャンセル完了。, content: { application/json: { schema: { $ref: "#/components/schemas/OkResponse" } } } }
+        "400": { $ref: "#/components/responses/JsonBadRequest" }
+        "401": { $ref: "#/components/responses/TextUnauthorized" }
+        "403": { $ref: "#/components/responses/TextForbidden" }
+  /api/intake/uploads/{artifactId}/parts:
+    post:
+      tags: [Intake]
+      operationId: manageIntakeParts
+      summary: Part upload URLを発行、または完了partを記録する
+      description: |
+        same-origin条件とupload所有者を検証する。partNumbersは1以上partCount以下で、1回最大4件。
+        Worker proxy URLは15分のclient側更新単位で発行する。completedの同一part再送は最新ETag/sizeで上書きする。
+      security: [{ cookieAuth: [] }, { githubBearer: [] }]
+      parameters: [{ $ref: "#/components/parameters/ArtifactId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [partNumbers]
+                  properties:
+                    partNumbers:
+                      type: array
+                      minItems: 1
+                      maxItems: 4
+                      uniqueItems: true
+                      items: { type: integer, minimum: 1 }
+                - type: object
+                  required: [completed]
+                  properties:
+                    completed:
+                      type: object
+                      required: [partNumber, etag, sizeBytes]
+                      properties:
+                        partNumber: { type: integer, minimum: 1 }
+                        etag: { type: string, minLength: 1 }
+                        sizeBytes: { type: integer, minimum: 1, maximum: 67108864 }
+      responses:
+        "200":
+          description: URL batchまたは完了記録。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: "#/components/schemas/PartUrlBatch" }
+                  - { $ref: "#/components/schemas/OkResponse" }
+        "400": { $ref: "#/components/responses/JsonBadRequest" }
+        "401": { $ref: "#/components/responses/TextUnauthorized" }
+        "403": { $ref: "#/components/responses/TextForbidden" }
+  /api/intake/uploads/{artifactId}/parts/{partNumber}:
+    put:
+      tags: [Intake]
+      operationId: uploadIntakePartThroughWorker
+      summary: PartをWorker proxy経由でuploadする
+      description: ローカルまたはproxy transport用。Partは通常64 MiB以下、最終partだけ小さくできる。成功レスポンスを受け取れない場合は同じpartを再送できる。
+      security: [{ cookieAuth: [] }, { githubBearer: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ArtifactId" }
+        - name: partNumber
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 80 }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary, maxLength: 67108864 }
+      responses:
+        "200":
+          description: 保存したpart番号とETag。
+          content: { application/json: { schema: { $ref: "#/components/schemas/CompletedPart" } } }
+        "400": { $ref: "#/components/responses/JsonBadRequest" }
+        "401": { $ref: "#/components/responses/TextUnauthorized" }
+        "403": { $ref: "#/components/responses/TextForbidden" }
+  /api/intake/uploads/{artifactId}/seal:
+    post:
+      tags: [Intake]
+      operationId: sealIntakeUpload
+      summary: 全partを検証してArtifactをsealする
+      description: |
+        same-origin条件、所有者、全part、object size、descriptorを検証する。
+        失敗時はuploadingへ戻すため原因解消後に再試行できる。成功後の再sealは受け付けない。
+      security: [{ cookieAuth: [] }, { githubBearer: [] }]
+      parameters: [{ $ref: "#/components/parameters/ArtifactId" }]
+      responses:
+        "200":
+          description: sealed Artifact metadata。
+          content: { application/json: { schema: { $ref: "#/components/schemas/SealedArtifact" } } }
+        "400": { $ref: "#/components/responses/JsonBadRequest" }
+        "401": { $ref: "#/components/responses/TextUnauthorized" }
+        "403": { $ref: "#/components/responses/TextForbidden" }
+  /api/actions/preflight:
+    post:
+      tags: [GitHub Actions]
+      operationId: preflightDeployment
+      summary: Publisher実行前の不変条件を検証する
+      description: |
+        GitHub Actions OIDC bearer tokenを検証する。repository、workflow_ref、master ref、run claims、
+        Staging/Production環境をrequestに一致させる。Productionはproduction_requesterとapprover grantを再確認する。
+      security: [{ actionsOidc: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ActionsAttempt" } } }
+      responses:
+        "200":
+          description: Publisherへ渡す検証済みrequest metadata。
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        "400": { $ref: "#/components/responses/JsonBadRequest" }
+        "401": { $ref: "#/components/responses/TextUnauthorized" }
+        "403": { $ref: "#/components/responses/TextForbidden" }
+  /api/actions/status:
+    post:
+      tags: [GitHub Actions]
+      operationId: recordDeploymentStatus
+      summary: Publisherのstageと結果を記録する
+      description: |
+        attemptへ結び付いたOIDC run ID/run attempt/workflow commit SHAを要求する。
+        同じattemptのterminal結果後は更新できない。Staging成功時はProduction昇格期限を7日後に設定する。
+      security: [{ actionsOidc: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ActionsStatus" } } }
+      responses:
+        "200": { description: 記録完了。, content: { application/json: { schema: { $ref: "#/components/schemas/OkResponse" } } } }
+        "400": { $ref: "#/components/responses/JsonBadRequest" }
+        "401": { $ref: "#/components/responses/TextUnauthorized" }
+        "403": { $ref: "#/components/responses/TextForbidden" }
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: pandd_deploy_session
+      description: HMAC署名済みHttpOnly SameSite=Lax session。通常8時間、重要操作は認証後15分以内。
+    githubBearer:
+      type: http
+      scheme: bearer
+      description: GitHub OAuth access token。Repository collaborator権限をリクエストごとに検証する。
+    actionsOidc:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: GitHub Actions OIDC token。固定audienceとrepository/workflow/environment/run claimsを検証する。
+  parameters:
+    ArtifactId:
+      name: artifactId
+      in: path
+      required: true
+      schema: { type: string, format: uuid, pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" }
+  schemas:
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean, const: true }
+        attemptId: { type: string, format: uuid }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: string } }
+    RequestCreated:
+      type: object
+      required: [ok, requestId]
+      properties:
+        ok: { type: boolean, const: true }
+        requestId: { type: string, format: uuid }
+    ArtifactDescriptor:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, artifactId, artifactFile, gameId, version, platform, arch, sizeBytes, fileCount, sha256, createdAt]
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        artifactId: { type: string, format: uuid }
+        artifactFile: { type: string, pattern: "^[^/\\\\]+\\.zip$", maxLength: 180 }
+        gameId: { type: string, pattern: "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$" }
+        version: { type: string, pattern: "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$" }
+        platform: { type: string, const: windows }
+        arch: { type: string, const: x86_64 }
+        sizeBytes: { type: integer, minimum: 1, maximum: 5368709120 }
+        fileCount: { type: integer, minimum: 1, maximum: 50000 }
+        sha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+        createdAt: { type: string, format: date-time }
+    UploadSession:
+      type: object
+      required: [artifactId, partSize, partCount, state, expiresAt, uploadedParts]
+      properties:
+        artifactId: { type: string, format: uuid }
+        partSize: { type: integer, const: 67108864 }
+        partCount: { type: integer, minimum: 1, maximum: 80 }
+        state: { type: string, const: uploading }
+        expiresAt: { type: string, format: date-time }
+        uploadedParts: { type: array, items: { type: integer, minimum: 1 } }
+    PartUrlBatch:
+      type: object
+      required: [transport, parts, expiresIn]
+      properties:
+        transport: { type: string, const: worker-proxy }
+        parts:
+          type: array
+          maxItems: 4
+          items:
+            type: object
+            required: [partNumber, url]
+            properties:
+              partNumber: { type: integer, minimum: 1 }
+              url: { type: string, format: uri, writeOnly: true }
+        expiresIn: { type: integer, const: 900 }
+    CompletedPart:
+      type: object
+      required: [partNumber, etag]
+      properties:
+        partNumber: { type: integer, minimum: 1 }
+        etag: { type: string }
+    SealedArtifact:
+      type: object
+      required: [artifactId, state]
+      properties:
+        artifactId: { type: string, format: uuid }
+        state: { type: string, const: sealed }
+    DashboardResponse:
+      oneOf:
+        - type: object
+          required: [authenticated, githubAuthConfigured, localDevAuthAvailable]
+          properties:
+            authenticated: { type: boolean, const: false }
+            githubAuthConfigured: { type: boolean }
+            localDevAuthAvailable: { type: boolean }
+        - type: object
+          required: [authenticated, githubAuthConfigured, localDevAuthAvailable, dashboard]
+          properties:
+            authenticated: { type: boolean, const: true }
+            githubAuthConfigured: { type: boolean }
+            localDevAuthAvailable: { type: boolean }
+            dashboard: { type: object, additionalProperties: true }
+    ControlAction:
+      oneOf:
+        - $ref: "#/components/schemas/SetGrantAction"
+        - $ref: "#/components/schemas/CreateRequestAction"
+        - $ref: "#/components/schemas/CreateProductionRequestAction"
+        - $ref: "#/components/schemas/DesignateApproverAction"
+        - $ref: "#/components/schemas/SubmitRequestAction"
+        - $ref: "#/components/schemas/DecideRequestAction"
+        - $ref: "#/components/schemas/CancelRequestAction"
+        - $ref: "#/components/schemas/AuthorizeRecoveryAction"
+        - $ref: "#/components/schemas/DispatchRequestAction"
+      discriminator: { propertyName: action }
+    SetGrantAction:
+      type: object
+      required: [action, githubUserId, login, grantType, enabled]
+      properties:
+        action: { const: set_grant }
+        githubUserId: { type: string, pattern: "^[0-9]+$" }
+        login: { type: string, maxLength: 39 }
+        grantType: { type: string, enum: [requester, approver, production_requester] }
+        enabled: { type: boolean }
+    CreateRequestAction:
+      allOf:
+        - $ref: "#/components/schemas/ArtifactIdentity"
+        - type: object
+          required: [action]
+          properties: { action: { const: create_request } }
+    CreateProductionRequestAction:
+      type: object
+      required: [action, sourceStagingRequestId]
+      properties:
+        action: { const: create_production_request }
+        sourceStagingRequestId: { type: string, format: uuid }
+    DesignateApproverAction:
+      type: object
+      required: [action, requestId, approverGithubUserId]
+      properties:
+        action: { const: designate_approver }
+        requestId: { type: string, format: uuid }
+        approverGithubUserId: { type: string, pattern: "^[0-9]+$" }
+    SubmitRequestAction:
+      type: object
+      required: [action, requestId, reason]
+      properties:
+        action: { const: submit_request }
+        requestId: { type: string, format: uuid }
+        reason: { type: string, maxLength: 500 }
+    DecideRequestAction:
+      type: object
+      required: [action, requestId, decision, reason]
+      properties:
+        action: { const: decide_request }
+        requestId: { type: string, format: uuid }
+        decision: { type: string, enum: [approved, rejected] }
+        reason: { type: string, maxLength: 500 }
+    CancelRequestAction:
+      type: object
+      required: [action, requestId, reason]
+      properties:
+        action: { const: cancel_request }
+        requestId: { type: string, format: uuid }
+        reason: { type: string, minLength: 3, maxLength: 500 }
+    AuthorizeRecoveryAction:
+      type: object
+      required: [action, requestId, reason]
+      properties:
+        action: { const: authorize_recovery }
+        requestId: { type: string, format: uuid }
+        reason: { type: string, minLength: 10, maxLength: 500 }
+    DispatchRequestAction:
+      type: object
+      required: [action, requestId]
+      properties:
+        action: { const: dispatch_request }
+        requestId: { type: string, format: uuid }
+    ArtifactIdentity:
+      type: object
+      required: [artifactId, gameId, version, artifactSha256, sizeBytes, fileCount]
+      properties:
+        artifactId: { type: string, format: uuid }
+        gameId: { type: string, pattern: "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$" }
+        version: { type: string, pattern: "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$" }
+        artifactSha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+        sizeBytes: { type: integer, minimum: 1, maximum: 5368709120 }
+        fileCount: { type: integer, minimum: 1, maximum: 50000 }
+    ActionsAttempt:
+      type: object
+      required: [requestId, attemptId]
+      properties:
+        requestId: { type: string, format: uuid }
+        attemptId: { type: string, format: uuid }
+    ActionsStatus:
+      allOf:
+        - $ref: "#/components/schemas/ActionsAttempt"
+        - type: object
+          required: [stage]
+          properties:
+            stage: { type: string, enum: [preflight, building, uploading_immutable, publishing_pointers, verifying] }
+            result: { type: string, enum: [running, succeeded, failed_retryable, failed_terminal, recovery_required] }
+            manifestSha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+            publishedObjectCount: { type: integer, minimum: 0 }
+  responses:
+    JsonBadRequest:
+      description: 入力または状態遷移が不正。
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+    JsonUnauthorized:
+      description: Sessionがない。
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+    JsonForbidden:
+      description: Origin、再認証、または権限条件を満たさない。
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+    JsonServerError:
+      description: Dashboard生成に失敗。
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+    JsonBadGateway:
+      description: GitHub OAuthまたはidentity検証に失敗。
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+    JsonServiceUnavailable:
+      description: GitHub OAuthが構成されていない。
+      content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+    TextBadRequest: { description: 不正なrequest。, content: { text/plain: { schema: { type: string } } } }
+    TextUnauthorized: { description: 認証が必要。, content: { text/plain: { schema: { type: string } } } }
+    TextForbidden: { description: Originまたはidentity検証に失敗。, content: { text/plain: { schema: { type: string } } } }

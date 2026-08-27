@@ -11,7 +11,7 @@ never promoted from staging automatically.
 One protected Publisher invocation can prepare, verify, and promote a game release:
 
 ```text
-python publisher/publisher.py publish-game \
+python services/deployment_publisher/publisher.py publish-game \
   --metadata <reviewed-release.json> --build-dir <game-build> --output <public-tree> \
   --base-url https://downloads.koto-thing.com --private-key <ed25519-private.pem> \
   --platform windows --arch x86_64 --endpoint <r2-s3-endpoint> --bucket <bucket>

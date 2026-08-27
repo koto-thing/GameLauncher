@@ -262,7 +262,7 @@ QtはCommunity EditionのLGPLv3条件で利用し、法的判断が必要な箇�
 
 ```text
 GameLauncher/
-  client/
+  apps/launcher/
     src/
       domain/
       application/
@@ -270,19 +270,19 @@ GameLauncher/
       presentation/
       bootstrap/
     tests/
-  backend/
+  services/distribution-content/
     content/
       catalog/
       announcements/
       releases/
-  publisher/
-    cmd/publisher/
+  services/deployment_publisher/
+    cmd/services/deployment_publisher/
     internal/package/
     internal/signing/
-  contracts/
+  packages/contracts/
     schemas/
     examples/
-  installer/
+  apps/launcher/installer/
     config/
     packages/
     scripts/
@@ -292,7 +292,7 @@ GameLauncher/
   docs/
 ```
 
-現在の `src` はPhase 0で `client/src` へ移動する。旧パスを残す互換設定は作らない
+現在の `src` はPhase 0で `apps/launcher/src` へ移動する。旧パスを残す互換設定は作らない
 
 ### 6.1 依存方向
 
@@ -744,7 +744,7 @@ Qt Installer Frameworkでプラットフォーム別オンラインインスト�
 
 並行作業時は次のように分ける
 
-- UI担当は `client/src/presentation/views`、`client/resources/styles`、`client/resources/images`
+- UI担当は `apps/launcher/src/presentation/views`、`apps/launcher/resources/styles`、`apps/launcher/resources/images`
 - 機能担当は `domain`、`application`、`infrastructure`、`server`、`publisher`、`installer`、`contracts`
 - `presentation/viewmodels` と画面状態DTOは先に合意してから編集する
 - UI担当はRepositoryやネットワーク具象クラスを直接参照しない
@@ -809,7 +809,7 @@ activateRelease(release);
 - 現在の5テストを意味のある成功または明示的失敗にする
 - Windows、macOS、LinuxのCI build matrixを作る
 - `clang-format`、Doxygen、基本静的解析を追加する
-- `src` を `client/src` へ一度で移動し、古いパスを削除する
+- `src` を `apps/launcher/src` へ一度で移動し、古いパスを削除する
 
 完了条件
 

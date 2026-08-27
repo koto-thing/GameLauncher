@@ -27,7 +27,7 @@ project(PandDGameLauncher VERSION 1.0.2 LANGUAGES CXX)
 
 ## 2. 日英リリース情報を更新する
 
-`backend/content/launcher/release.ja-JP.json`:
+`services/distribution-content/content/launcher/release.ja-JP.json`:
 
 ```json
 {
@@ -38,7 +38,7 @@ project(PandDGameLauncher VERSION 1.0.2 LANGUAGES CXX)
 }
 ```
 
-`backend/content/launcher/release.en-US.json`:
+`services/distribution-content/content/launcher/release.en-US.json`:
 
 ```json
 {
@@ -54,7 +54,7 @@ project(PandDGameLauncher VERSION 1.0.2 LANGUAGES CXX)
 
 ## 3. 日英更新履歴を更新する
 
-`backend/content/launcher/changelog.ja-JP.json` の `releases` 配列へ新しい項目を
+`services/distribution-content/content/launcher/changelog.ja-JP.json` の `releases` 配列へ新しい項目を
 先頭に追加します。
 
 ```json
@@ -69,7 +69,7 @@ project(PandDGameLauncher VERSION 1.0.2 LANGUAGES CXX)
 }
 ```
 
-`backend/content/launcher/changelog.en-US.json` にも同じバージョンの英語項目を
+`services/distribution-content/content/launcher/changelog.en-US.json` にも同じバージョンの英語項目を
 追加します。
 
 ## 4. バージョン整合性を確認する
@@ -92,8 +92,8 @@ python -m scripts.release.validate_release_version v1.0.2
 
 ```powershell
 python -m unittest discover -s scripts/tests -p "test_*.py" -v
-python -m unittest discover -s installer -p "test_*.py" -v
-python -m unittest discover -s contracts -p "test_*.py" -v
+python -m unittest discover -s apps/launcher/installer -p "test_*.py" -v
+python -m unittest discover -s packages/contracts -p "test_*.py" -v
 ```
 
 C++側もビルド・テストします。
@@ -109,7 +109,7 @@ ctest --test-dir cmake-build-debug --output-on-failure
 変更をコミットしてGitHubへpushします。
 
 ```powershell
-git add CMakeLists.txt backend/content/launcher scripts docs
+git add CMakeLists.txt services/distribution-content/content/launcher scripts docs
 git commit -m "Prepare launcher 1.0.2"
 git push
 ```

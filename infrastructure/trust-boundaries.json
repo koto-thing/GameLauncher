@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "boundaries": {
+    "platform": {
+      "components": [
+        "apps/store-web",
+        "apps/community-web",
+        "services/platform-api"
+      ],
+      "data": ["platform-db", "community-db", "ugc-r2"],
+      "deniedCapabilities": ["intake-r2", "distribution-r2-write", "manifest-signing-key"]
+    },
+    "distribution": {
+      "components": [
+        "apps/docs",
+        "apps/launcher",
+        "services/distribution-content"
+      ],
+      "data": ["signed-manifests", "public-downloads"],
+      "deniedCapabilities": ["database-write", "payment-provider-secret", "manifest-signing-key"]
+    },
+    "operations": {
+      "components": [
+        "apps/admin-web",
+        "apps/intake-uploader",
+        "services/deployment_publisher"
+      ],
+      "data": ["deployment-db", "intake-r2"],
+      "deniedCapabilities": ["platform-session-secret", "platform-db-direct-access"]
+    }
+  }
+}

@@ -6,7 +6,7 @@ Checks: >
   portability-*,
   readability-identifier-naming
 WarningsAsErrors: 'bugprone-*,clang-analyzer-*'
-HeaderFilterRegex: 'client/src/.*'
+HeaderFilterRegex: 'apps/launcher/src/.*'
 CheckOptions:
   readability-identifier-naming.ClassCase: CamelCase
   readability-identifier-naming.FunctionCase: camelBack

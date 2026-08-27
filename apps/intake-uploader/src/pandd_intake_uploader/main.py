@@ -10,7 +10,7 @@ def main() -> int:
     if "--self-test" in sys.argv:
         result_path = os.environ.get("PANDD_SELF_TEST_RESULT")
         try:
-            from publisher.publisher import validate_contract
+            from services.deployment_publisher.publisher import validate_contract
 
             validate_contract({
                 "schemaVersion": 1,

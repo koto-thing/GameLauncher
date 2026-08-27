@@ -24,7 +24,7 @@ def validate_release_version(value: str) -> str:
     if match is None or match.group(1) != version:
         raise ValueError(f"CMake project version does not match {version}")
 
-    content = ROOT / "backend" / "content" / "launcher"
+    content = ROOT / "services" / "distribution-content" / "content" / "launcher"
     for locale in ("ja-JP", "en-US"):
         release_path = content / f"release.{locale}.json"
         release = json.loads(release_path.read_text(encoding="utf-8"))

@@ -1,0 +1,89 @@
+name: Documentation Pages
+
+on:
+  pull_request:
+    paths:
+      - apps/docs/**
+      - apps/launcher/src/**
+      - docs/**
+      - packages/contracts/**
+      - CMakeLists.txt
+      - .github/workflows/docs-pages.yml
+  push:
+    branches: [master]
+    paths:
+      - apps/docs/**
+      - apps/launcher/src/**
+      - docs/**
+      - packages/contracts/**
+      - CMakeLists.txt
+      - .github/workflows/docs-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      DOCS_BASE_PATH: /${{ github.event.repository.name }}/
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22.13.0"
+          cache: npm
+          cache-dependency-path: apps/docs/package-lock.json
+      - name: Install Doxygen
+        run: sudo apt-get update && sudo apt-get install -y doxygen
+      - name: Install documentation dependencies
+        working-directory: apps/docs
+        run: npm ci
+      - name: Validate OpenAPI and documentation sources
+        working-directory: apps/docs
+        run: npm run lint
+      - name: Run documentation tests
+        working-directory: apps/docs
+        run: npm test
+      - name: Build VitePress site
+        working-directory: apps/docs
+        run: npm run build
+      - name: Generate Launcher C++ reference
+        run: |
+          cmake -S . -B build/docs-api -DPANDD_DOCS_ONLY=ON
+          cmake --build build/docs-api --target docs-check
+          mkdir -p apps/docs/dist/reference/cpp
+          cp -R build/docs-api/docs/doxygen/html/. apps/docs/dist/reference/cpp/
+      - name: Check generated links and public artifact
+        working-directory: apps/docs
+        run: node scripts/check-built-site.mjs
+      - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Upload GitHub Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: apps/docs/dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

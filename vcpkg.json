@@ -3,6 +3,7 @@
   "version-semver": "1.0.0",
   "builtin-baseline": "ea1a7396b05637a53bf23c078647ecc0edee4b80",
   "dependencies": [
+    "glew",
     "openssl"
   ]
 }
