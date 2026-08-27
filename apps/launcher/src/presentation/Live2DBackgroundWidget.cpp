@@ -109,6 +109,8 @@ void Live2DBackgroundWidget::releaseGraphics() {
     graphicsReady_ = false;
 }
 
+// QObject parent ownership and the finished callback jointly manage each watcher lifetime.
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks)
 void Live2DBackgroundWidget::startModelLoad() {
     if (!asset_ || prepared_ || loading_ || model_) {
         return;
@@ -137,6 +139,7 @@ void Live2DBackgroundWidget::startModelLoad() {
     watcher->setFuture(QtConcurrent::run(
         [asset = *asset_, canceled = canceled_] { return prepareLive2DModel(asset, *canceled); }));
 }
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void Live2DBackgroundWidget::loadPendingModel() {
     if (!prepared_ || !asset_) {
