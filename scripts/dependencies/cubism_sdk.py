@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import ntpath
 import os
 from pathlib import Path, PurePosixPath
 import shutil
@@ -34,6 +33,9 @@ MAX_ARCHIVE_BYTES = OFFICIAL_CUBISM_ARCHIVE_SIZE
 MAX_EXTRACTED_BYTES = 256 * 1024 * 1024
 MAX_LICENSE_BYTES = 256 * 1024
 MAX_ARCHIVE_MEMBERS = 10_000
+
+WINDOWS_DEVICE_NAMES = frozenset({"CON", "PRN", "AUX", "NUL", "CLOCK$"})
+WINDOWS_DEVICE_SUFFIXES = frozenset("123456789¹²³")
 
 ALLOWED_ARCHIVE_HOSTS = frozenset({"cubism.live2d.com"})
 ALLOWED_LICENSE_HOSTS = frozenset({"www.live2d.com"})
@@ -161,6 +163,23 @@ def validate_extracted_sdk_layout(sdk_root: Path) -> None:
         )
 
 
+def _is_windows_reserved_part(part: str) -> bool:
+    """Reject names Windows cannot safely create, independent of the host Python version."""
+    if part.endswith((" ", ".")) or any(ord(character) < 32 for character in part):
+        return True
+    if any(character in '"*?<>|' for character in part):
+        return True
+    stem = part.split(".", 1)[0].upper()
+    return (
+        stem in WINDOWS_DEVICE_NAMES
+        or (
+            len(stem) == 4
+            and stem[:3] in {"COM", "LPT"}
+            and stem[3] in WINDOWS_DEVICE_SUFFIXES
+        )
+    )
+
+
 def _validated_members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
     members = archive.infolist()
     if not members or len(members) > MAX_ARCHIVE_MEMBERS:
@@ -173,7 +192,10 @@ def _validated_members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
         parts = member.filename.removesuffix("/").split("/")
         if (member.orig_filename != member.filename
                 or "\\" in member.filename or ":" in member.filename
-                or any(part in ("", ".", "..") or ntpath.isreserved(part) for part in parts)
+                or any(
+                    part in ("", ".", "..") or _is_windows_reserved_part(part)
+                    for part in parts
+                )
                 or (not member.is_dir() and len(parts) < 2)):
             raise ValueError(f"unsafe archive entry: {member.filename}")
         key = "/".join(parts).casefold()
