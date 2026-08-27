@@ -10,7 +10,7 @@ import shutil
 import stat
 import tempfile
 from urllib.parse import urlparse
-from urllib.request import HTTPRedirectHandler, build_opener
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 import zipfile
 
 
@@ -29,6 +29,7 @@ LICENSE_CONSENT_ENV = "PANDD_CUBISM_LICENSE_ACCEPTED"
 CONSENT_VALUE = "accept"
 
 NETWORK_TIMEOUT_SECONDS = 120
+DOWNLOAD_USER_AGENT = "PandD-GameLauncher/1.0 (+https://github.com/koto-thing/GameLauncher)"
 MAX_ARCHIVE_BYTES = OFFICIAL_CUBISM_ARCHIVE_SIZE
 MAX_EXTRACTED_BYTES = 256 * 1024 * 1024
 MAX_LICENSE_BYTES = 256 * 1024
@@ -101,7 +102,11 @@ def _download_with_sha256(url: str, destination: Path, expected_sha256: str,
     opener = build_opener(_OfficialRedirectHandler(allowed_hosts))
     with tempfile.TemporaryDirectory(prefix="download-", dir=destination.parent) as temporary:
         pending = Path(temporary) / "payload"
-        with opener.open(url, timeout=NETWORK_TIMEOUT_SECONDS) as response, pending.open("wb") as handle:
+        request = Request(url, headers={
+            "Accept": "application/octet-stream",
+            "User-Agent": DOWNLOAD_USER_AGENT,
+        })
+        with opener.open(request, timeout=NETWORK_TIMEOUT_SECONDS) as response, pending.open("wb") as handle:
             _validate_https_url(response.geturl(), allowed_hosts)
             while True:
                 chunk = response.read(min(1024 * 1024, max_bytes - total + 1))

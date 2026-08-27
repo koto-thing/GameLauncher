@@ -112,8 +112,13 @@ class CubismSdkTests(unittest.TestCase):
                 cubism_sdk.OFFICIAL_CUBISM_ARCHIVE_URL, destination,
                 hashlib.sha256(payload).hexdigest(), cubism_sdk.ALLOWED_ARCHIVE_HOSTS, len(payload),
             )
-            factory.return_value.open.assert_called_once_with(
-                cubism_sdk.OFFICIAL_CUBISM_ARCHIVE_URL, timeout=cubism_sdk.NETWORK_TIMEOUT_SECONDS
+            request = factory.return_value.open.call_args.args[0]
+            self.assertEqual(request.full_url, cubism_sdk.OFFICIAL_CUBISM_ARCHIVE_URL)
+            self.assertEqual(request.get_header("Accept"), "application/octet-stream")
+            self.assertEqual(request.get_header("User-agent"), cubism_sdk.DOWNLOAD_USER_AGENT)
+            self.assertEqual(
+                factory.return_value.open.call_args.kwargs,
+                {"timeout": cubism_sdk.NETWORK_TIMEOUT_SECONDS},
             )
         self.assertEqual(destination.read_bytes(), payload)
         self.assertEqual(list(self.root.iterdir()), [destination])
