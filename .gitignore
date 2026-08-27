@@ -19,8 +19,8 @@ build/
 vcpkg_installed/
 bin/
 lib/
-!apps/control-plane/lib/
-!apps/control-plane/lib/**
+!apps/admin-web/lib/
+!apps/admin-web/lib/**
 
 # ==========================
 # Qt Generated Files
@@ -63,18 +63,21 @@ ui_*.h
 *.tsbuildinfo
 __pycache__/
 *.egg-info/
-publisher/.publisher-state.json
+services/deployment_publisher/.publisher-state.json
 local-test/
 .ifw-test/
 /PandD/
 .venv/
 .venv-uploader-build/
+.pnpm-store/
 apps/intake-uploader/artifacts/
 apps/intake-uploader/build/
 apps/intake-uploader/src/pandd_intake_uploader/deployment/
 apps/intake-uploader/src/pandd_intake_uploader/pysidedeploy.spec
 apps/intake-uploader/src/pandd_intake_uploader/*.exe
-apps/control-plane/public/downloads/*.exe
+apps/admin-web/public/downloads/*.exe
+apps/docs/dist/
+apps/docs/.vitepress/
 
 # ==========================
 # Secrets / Local credentials
@@ -110,3 +113,6 @@ service-account*.json
 # ==========================
 .DS_Store
 Thumbs.db
+
+# VitePress output (source and theme remain under docs/.vitepress)
+docs/.vitepress/dist/

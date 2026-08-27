@@ -1,0 +1,20 @@
+{
+  "name": "pandd-docs",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "vitepress dev ../../docs",
+    "build": "vitepress build ../../docs && redocly build-docs ../../packages/contracts/openapi/admin-api.openapi.yaml --output dist/reference/admin/index.html --disableGoogleFont && node scripts/finalize-api-docs.mjs",
+    "preview": "vitepress preview ../../docs",
+    "lint": "redocly lint ../../packages/contracts/openapi/admin-api.openapi.yaml && node scripts/check-docs.mjs --source",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.49.0",
+    "vitepress": "2.0.0-alpha.19"
+  }
+}

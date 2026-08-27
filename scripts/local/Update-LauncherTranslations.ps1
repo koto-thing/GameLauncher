@@ -15,7 +15,7 @@ if (-not $lupdate) {
 
 Push-Location $projectRoot
 try {
-    & $lupdatePath client\src -ts client\translations\launcher_en-US.ts
+    & $lupdatePath apps\launcher\src -ts apps\launcher\translations\launcher_en-US.ts
     exit $LASTEXITCODE
 } finally {
     Pop-Location

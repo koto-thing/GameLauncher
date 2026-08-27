@@ -1,11 +1,20 @@
-# PandD GameLauncher
+# PandD Platform
 
-PandDゲームランチャー、ゲーム受入ツール、公開制御Webアプリを管理するモノレポです。
+PandDのランチャー、配信、運営機能と、今後のストア・コミュニティを管理するモノレポです。
+
+開発・テスト・デプロイ・APIリファレンスは [PandD Platform Docs](https://koto-thing.github.io/GameLauncher/) で閲覧できます。
+
+システムは「一般利用者」「配信」「運営」の3つの信頼環境に分離し、Identity、Catalog、
+Commerce、Entitlements、Community、Moderation、Notificationsの業務モジュールを境界として
+開発します。詳細は[プラットフォーム構成](docs/PLATFORM_ARCHITECTURE_JA.md)を参照してください。
+
+セキュリティ上の問題は公開 Issue ではなく [セキュリティポリシー](SECURITY.md) の非公開窓口へ報告してください。コード署名の運用と SignPath Foundation への申請準備は [Code signing policy](docs/CODE_SIGNING_POLICY.md) に記載しています。
 
 ## GameLauncherについて
 ### Staging版GmaeLauncher
 
 これは、配布するゲームが正しくインストール・ダウンロードできるかどうかの最終確認するためのGameLauncherになります。
+
 そのため、これを使用するのは、運営メンバーのみになります。
 
 `Publish Windows staging` ワークフローを起動すると、ReleaseにStaging版のゲームランチャーが作成されます。
@@ -32,15 +41,41 @@ https://pandd-deployment-control-plane.gotoukenta62.workers.dev/
 このレポジトリの管理者と管理者が指定したユーザー（モデレーター）のみがアップロードできるようになっています。  
 モデレーターがアップロードする場合、確認のためほかのモデレータの１週間以内の承認が必要になります。
 
+## Live2Dモデルについて
+
+Live2Dモデルを個別のゲーム画面でうごかすことができます。
+`apps/launcher/resources/live2d/<モデル名>/`にモデル一式を配置してください。
+ただし、`.model3.json`から参照されるテクスチャなどはその相対位置を維持するようにしてください。
+
+model.jsonにゲームとの対応を入力してください
+```json
+{
+  "games": {
+    "対象のgameId": {
+      "model": "モデル名/character.model3.json",
+      "idleGroup": "Idle",
+      "centerX": 0.65,
+      "centerY": 0.5,
+      "scale": 1.0
+    }
+  }
+}
+```
+
 ## ディレクトリ
 
-- `client/` — C++ / Qt製ゲームランチャー
+- `apps/launcher/` — C++ / Qt製ゲームランチャー
 - `apps/intake-uploader/` — Qt for Python製のゲーム受入uploader
-- `apps/control-plane/` — Cloudflare上の申請・承認Webアプリ
-- `contracts/` — 各アプリで共有するJSON Schema
-- `publisher/` — 検証済みartifactの公開処理
-- `installer/` — ゲームランチャーのインストーラー
-- `backend/` — ランチャーが読む公開コンテンツ
+- `apps/admin-web/` — Cloudflare上の申請・承認Webアプリ
+- `apps/store-web/` — 一般利用者向けストア（実装予定）
+- `apps/community-web/` — 一般利用者向けコミュニティ（実装予定）
+- `services/platform-api/` — 一般利用者向けAPI（実装予定）
+- `modules/` — 業務モジュールの責務と依存規則
+- `packages/contracts/` — 各アプリで共有するJSON Schema
+- `services/deployment_publisher/` — 検証済みartifactの公開処理
+- `apps/launcher/installer/` — ゲームランチャーのインストーラー
+- `services/distribution-content/` — ランチャーが読む公開コンテンツ
+- `infrastructure/` — 信頼環境とCloudflareリソースの所有境界
 - `scripts/` — CI・運用・ローカル起動スクリプト
 - `docs/` — 設計と運用手順
 
@@ -100,7 +135,7 @@ MANIFEST_PUBLIC_KEY_BASE64
 R2_BUCKET=pandd-launcher-production
 ```
 
-Cloudflareには`pandd-launcher-staging`と`pandd-launcher-production`を別々に用意し、Productionの`downloads.koto-thing.com`を有効にします。設定とStaging実行試験が終わるまで、[wrangler.jsonc](apps/control-plane/wrangler.jsonc)の次の値は`false`のままにします。
+Cloudflareには`pandd-launcher-staging`と`pandd-launcher-production`を別々に用意し、Productionの`downloads.koto-thing.com`を有効にします。設定とStaging実行試験が終わるまで、[wrangler.jsonc](apps/admin-web/wrangler.jsonc)の次の値は`false`のままにします。
 
 ```json
 "STAGING_DISPATCH_ENABLED": "false",
@@ -112,7 +147,7 @@ Stagingの設定確認後に`STAGING_DISPATCH_ENABLED`だけを`true`にしてWe
 Webアプリ自体の再公開は次で行います。
 
 ```powershell
-Set-Location apps\control-plane
+Set-Location apps\admin-web
 npm ci
 npm test
 npm run deploy:cloudflare

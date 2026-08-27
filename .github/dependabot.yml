@@ -1,0 +1,61 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /apps/admin-web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    groups:
+      control-plane:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /apps/docs
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    groups:
+      docs:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /apps/intake-uploader
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    groups:
+      intake-uploader:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /services/deployment_publisher
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Tokyo
+    groups:
+      publisher:
+        patterns:
+          - "*"

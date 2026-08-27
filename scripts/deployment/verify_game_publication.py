@@ -9,7 +9,7 @@ from pathlib import Path
 import urllib.parse
 import urllib.request
 
-from publisher.publisher import canonical_json, validate_contract, validate_locale_tag
+from services.deployment_publisher.publisher import canonical_json, validate_contract, validate_locale_tag
 
 
 def read_json(url: str) -> tuple[dict, bytes]:

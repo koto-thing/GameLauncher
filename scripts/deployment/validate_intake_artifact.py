@@ -10,7 +10,7 @@ import shutil
 import stat
 import zipfile
 
-from publisher.publisher import validate_contract, validate_relative_path
+from services.deployment_publisher.publisher import validate_contract, validate_relative_path
 
 
 MAX_BYTES = 5 * 1024 * 1024 * 1024

@@ -17,7 +17,7 @@ from typing import Callable
 import uuid
 import zipfile
 
-from publisher.publisher import validate_contract, validate_locale_tag
+from services.deployment_publisher.publisher import validate_contract, validate_locale_tag
 
 
 VERSION_PATTERN = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")

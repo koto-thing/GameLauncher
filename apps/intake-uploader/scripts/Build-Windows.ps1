@@ -18,7 +18,7 @@ $entryPoint = Join-Path $packageRoot "main.py"
 $deploySpec = Join-Path $packageRoot "pysidedeploy.spec"
 $artifactRoot = Join-Path $uploaderRoot "artifacts"
 $artifactExecutable = Join-Path $artifactRoot "PandDIntakeUploader.exe"
-$schemaSource = (Join-Path $projectRoot "contracts\schemas").Replace("\", "/")
+$schemaSource = (Join-Path $projectRoot "packages\contracts\schemas").Replace("\", "/")
 
 if (-not (Test-Path -LiteralPath $buildPythonExecutable -PathType Leaf)) {
     if ($PythonExecutable) {
@@ -55,7 +55,7 @@ $configuration = $configuration -replace '(?m)^input_file = .*$', "input_file = 
 $configuration = $configuration -replace '(?m)^exec_directory = .*$', "exec_directory = $artifactRoot"
 $configuration = $configuration.Replace(
     "extra_args = --quiet --noinclude-qt-translations",
-    "extra_args = --quiet --noinclude-qt-translations --assume-yes-for-downloads --windows-console-mode=$ConsoleMode --include-data-dir=$schemaSource=contracts/schemas"
+    "extra_args = --quiet --noinclude-qt-translations --assume-yes-for-downloads --windows-console-mode=$ConsoleMode --include-data-dir=$schemaSource=packages/contracts/schemas"
 )
 Set-Content -LiteralPath $deploySpec -Value $configuration -Encoding utf8
 

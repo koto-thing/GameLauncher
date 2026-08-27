@@ -9,14 +9,21 @@ import json
 from pathlib import Path
 from typing import Any
 
+from scripts.release import collect_licenses
+
 
 def generate_document(metadata: dict[str, Any], version: str,
                       ifw_version: str) -> dict[str, Any]:
     """Create an SPDX document from dependencies resolved by the actual CMake configure."""
     required = {"qtVersion", "qtModules", "opensslVersion", "compilerId",
-                "compilerVersion", "systemName", "systemProcessor"}
+                "compilerVersion", "systemName", "systemProcessor",
+                "cubismVersion", "glewVersion"}
     if set(metadata) != required or not isinstance(metadata["qtModules"], list):
         raise ValueError("build metadata does not match the SBOM contract")
+    required_qt_modules = {"Core", "Gui", "Widgets", "Network", "Concurrent",
+                           "Svg", "OpenGL", "OpenGLWidgets"}
+    if set(metadata["qtModules"]) != required_qt_modules:
+        raise ValueError("build metadata must record the full Qt module set")
     try:
         openssl_major = int(str(metadata["opensslVersion"]).split(".", 1)[0])
     except ValueError as error:
@@ -28,7 +35,7 @@ def generate_document(metadata: dict[str, Any], version: str,
     vcpkg_dependencies = {
         item if isinstance(item, str) else item["name"] for item in manifest["dependencies"]
     }
-    if vcpkg_dependencies != {"openssl"}:
+    if vcpkg_dependencies != {"glew", "openssl"}:
         raise ValueError("SBOM generator must be updated for the resolved vcpkg dependencies")
 
     packages: list[dict[str, Any]] = [{
@@ -87,8 +94,34 @@ def generate_document(metadata: dict[str, Any], version: str,
         "filesAnalyzed": False,
         "licenseConcluded": "NOASSERTION",
         "licenseDeclared": "GPL-3.0-only WITH Qt-GPL-exception-1.0",
+    }, {
+        "SPDXID": "SPDXRef-Package-CubismCore",
+        "name": "Live2D Cubism Core",
+        "versionInfo": metadata["cubismVersion"],
+        "downloadLocation": "https://www.live2d.com/en/sdk/download/native/",
+        "filesAnalyzed": False,
+        "licenseConcluded": "NOASSERTION",
+        "licenseDeclared": "NOASSERTION",
+    }, {
+        "SPDXID": "SPDXRef-Package-CubismFramework",
+        "name": "Live2D Cubism Framework",
+        "versionInfo": metadata["cubismVersion"],
+        "downloadLocation": "https://www.live2d.com/en/sdk/download/native/",
+        "filesAnalyzed": False,
+        "licenseConcluded": "NOASSERTION",
+        "licenseDeclared": "NOASSERTION",
+    }, {
+        "SPDXID": "SPDXRef-Package-GLEW",
+        "name": "GLEW",
+        "versionInfo": metadata["glewVersion"],
+        "downloadLocation": "https://github.com/nigels-com/glew/releases",
+        "filesAnalyzed": False,
+        "licenseConcluded": "NOASSERTION",
+        "licenseDeclared": "LicenseRef-GLEW",
     }])
-    for dependency in ("SPDXRef-Package-OpenSSL", "SPDXRef-Package-QtIFW"):
+    for dependency in ("SPDXRef-Package-OpenSSL", "SPDXRef-Package-QtIFW",
+                       "SPDXRef-Package-CubismCore", "SPDXRef-Package-CubismFramework",
+                       "SPDXRef-Package-GLEW"):
         relationships.append({
             "spdxElementId": "SPDXRef-Package-Launcher",
             "relationshipType": "DEPENDS_ON",
@@ -111,6 +144,14 @@ def generate_document(metadata: dict[str, Any], version: str,
         },
         "packages": packages,
         "relationships": relationships,
+        "hasExtractedLicensingInfos": [{
+            "licenseId": "LicenseRef-GLEW",
+            "name": "GLEW, Mesa and Khronos license notices",
+            "extractedText": collect_licenses.read_verified(
+                collect_licenses.SOURCE_DIRECTORY / "GLEW-LICENSE.txt",
+                collect_licenses.LICENSE_SOURCES["GLEW-LICENSE.txt"],
+            ).decode("utf-8"),
+        }],
     }
 
 

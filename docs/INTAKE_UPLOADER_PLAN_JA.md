@@ -7,7 +7,7 @@ PandD Game Launcher全体を追加可能な多言語構成へ移行する。あ�
 ステージング環境へ公開できるWindowsデスクトップアプリを作る。
 
 このアプリは新しい公開処理を実装するものではない。既存の
-`publisher/publisher.py` が持つ検証、チャンク分割、ハッシュ計算、署名、
+`services/deployment_publisher/publisher.py` が持つ検証、チャンク分割、ハッシュ計算、署名、
 アップロード、リモート検証、`latest.json` の最終昇格を利用し、その前面に
 初心者向けの入力画面と確認手順を提供する。
 
@@ -219,10 +219,10 @@ GUIからシェルコマンド文字列は組み立てない。PublisherのPytho
 現在のランチャーは日本語文字列と、C++コードに英訳を列挙する
 `EnglishTranslator` に固定されている。この実装を削除し、Qt標準の翻訳工程へ置き換える。
 
-- `client/translations/launcher_<locale>.ts` を翻訳元として管理する
+- `apps/launcher/translations/launcher_<locale>.ts` を翻訳元として管理する
 - CMakeのQt Linguist連携で `.qm` を生成し、ランチャーへ同梱する
 - `QTranslator` で選択言語の `.qm` を読み込む
-- 対応言語一覧は `client/translations/locales.json` で管理する
+- 対応言語一覧は `apps/launcher/translations/locales.json` で管理する
 - 言語選択画面は一覧を読み取り、コードに言語を列挙しない
 - 対応言語を追加するときは、言語定義と翻訳ファイルを追加する
 - 翻訳ファイルまたは翻訳項目がない場合は日本語へフォールバックする

@@ -1,3 +1,0 @@
-#define IDI_APP_ICON 101
-
-IDI_APP_ICON ICON "../../../assets/images/PandDLogo.ico"

@@ -21,9 +21,9 @@ key, and GitHub environment.
 
 ## Tag preparation
 
-1. Update both localized `backend/content/launcher/release.*.json` files to the tag
+1. Update both localized `services/distribution-content/content/launcher/release.*.json` files to the tag
    version and reviewed release notes
-2. Confirm `installer/packages/org.pandd.launcher/meta/package.xml` contains the
+2. Confirm `apps/launcher/installer/packages/org.pandd.launcher/meta/package.xml` contains the
    intended component policy; version, date, and repository URL are generated in CI
 3. Run the release checklist on staging with a distinct staging key and bucket
 4. Create `v<major>.<minor>.<patch>` only after the protected environment approver

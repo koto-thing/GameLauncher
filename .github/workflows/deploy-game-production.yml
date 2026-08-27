@@ -27,7 +27,9 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Authorize production request without exporting the private artifact
         id: intake
@@ -69,13 +71,15 @@ jobs:
       group: pandd-game-production
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.13'
 
       - name: Install Publisher dependencies
-        run: python -m pip install --requirement publisher/requirements.txt
+        run: python -m pip install --requirement services/deployment_publisher/requirements.txt
 
       - name: Download the private artifact directly from intake
         id: intake
@@ -143,7 +147,7 @@ jobs:
             --metadata deployment/metadata/release.json \
             --output public \
             --base-url "$PRODUCTION_BASE_URL"
-          python publisher/publisher.py publish-game \
+          python services/deployment_publisher/publisher.py publish-game \
             --metadata deployment/metadata/release.json \
             --build-dir deployment/build \
             --output public \
@@ -168,7 +172,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: >-
-          python publisher/publisher.py upload-immutable
+          python services/deployment_publisher/publisher.py upload-immutable
           --output public
           --endpoint "$R2_ENDPOINT"
           --bucket "$PRODUCTION_BUCKET"
@@ -190,7 +194,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: >-
-          python publisher/publisher.py promote-pointers
+          python services/deployment_publisher/publisher.py promote-pointers
           --output public
           --endpoint "$R2_ENDPOINT"
           --bucket "$PRODUCTION_BUCKET"
