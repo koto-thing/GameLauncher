@@ -98,10 +98,14 @@ class Live2DTests final : public QObject {
         QString error;
         QVERIFY2(catalog.parse(registry(), ":/live2d", error), qPrintable(error));
         const auto asset = catalog.find("test-game");
-        QVERIFY(asset.has_value());
-        QCOMPARE(asset->modelPath, ":/live2d/character/Haru.model3.json");
-        QCOMPARE(asset->idleGroup, "Idle");
-        QCOMPARE(asset->centerX, 0.65F);
+        if (!asset) {
+            QFAIL("Registered Live2D asset was not found");
+            return;
+        }
+        const auto& resolved = asset.value();
+        QCOMPARE(resolved.modelPath, ":/live2d/character/Haru.model3.json");
+        QCOMPARE(resolved.idleGroup, "Idle");
+        QCOMPARE(resolved.centerX, 0.65F);
         QVERIFY(!catalog.find("other-game"));
     }
 
