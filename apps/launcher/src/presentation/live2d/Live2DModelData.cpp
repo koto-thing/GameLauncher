@@ -10,10 +10,10 @@
 
 namespace pandd {
 namespace {
-constexpr qint64 maxJsonBytes = 4 * 1024 * 1024;
-constexpr qint64 maxFileBytes = 64 * 1024 * 1024;
-constexpr qint64 maxTextureBytes = 128 * 1024 * 1024;
-constexpr qint64 maxTotalBytes = 256 * 1024 * 1024;
+constexpr qint64 maxJsonBytes = qint64{4} * 1024 * 1024;
+constexpr qint64 maxFileBytes = qint64{64} * 1024 * 1024;
+constexpr qint64 maxTextureBytes = qint64{128} * 1024 * 1024;
+constexpr qint64 maxTotalBytes = qint64{256} * 1024 * 1024;
 
 bool readBytes(const QString& path, qint64 limit, QByteArray& bytes, QString& error) {
     QFile file(path);

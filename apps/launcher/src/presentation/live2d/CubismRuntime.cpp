@@ -24,7 +24,7 @@ namespace {
 
 using namespace Live2D::Cubism::Framework;
 
-constexpr qint64 kMaxFrameworkShaderBytes = 256 * 1024;
+constexpr qint64 kMaxFrameworkShaderBytes = qint64{256} * 1024;
 constexpr int kMaxDiagnosticsChars = 16 * 1024;
 constexpr const char* kFrameworkShaderPrefix = "FrameworkShaders/";
 constexpr const char* kFrameworkShaderResourcePrefix = ":/live2d/FrameworkShaders/";

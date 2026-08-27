@@ -49,6 +49,19 @@ using namespace Live2D::Cubism::Framework::Rendering;
 
 constexpr int kPriorityIdle = 1;
 
+struct DrawParameters {
+    int pixelWidth;
+    int pixelHeight;
+    float centerX;
+    float centerY;
+    float scale;
+};
+
+struct MotionSelection {
+    csmInt32 index;
+    csmInt32 priority;
+};
+
 bool isGuiThread() {
     if (const auto* app = QCoreApplication::instance()) {
         return QThread::currentThread() == app->thread();
@@ -169,7 +182,8 @@ class CubismSceneModel final : public CubismUserModel {
         GetModel()->Update();
     }
 
-    void drawModel(int pixelWidth, int pixelHeight, float centerX, float centerY, float scale) {
+    void drawModel(const DrawParameters& parameters) {
+        const auto [pixelWidth, pixelHeight, centerX, centerY, scale] = parameters;
         if (!GetModel()) {
             return;
         }
@@ -439,10 +453,11 @@ class CubismSceneModel final : public CubismUserModel {
         // 登録済みgroupから均等に一件選んで予約済みpriorityで開始する
         const csmInt32 index =
             static_cast<csmInt32>(QRandomGenerator::global()->bounded(motionCount));
-        return startMotion(group, index, priority);
+        return startMotion(group, {index, priority});
     }
 
-    bool startMotion(const csmChar* group, csmInt32 index, csmInt32 priority) {
+    bool startMotion(const csmChar* group, const MotionSelection& selection) {
+        const auto [index, priority] = selection;
         if (!modelSetting_ || !_motionManager || !group || index < 0) {
             return false;
         }
@@ -586,7 +601,7 @@ void Live2DModel::draw(int pixelWidth, int pixelHeight, float centerX, float cen
         return;
     }
 
-    impl_->model->drawModel(pixelWidth, pixelHeight, centerX, centerY, scale);
+    impl_->model->drawModel({pixelWidth, pixelHeight, centerX, centerY, scale});
 }
 
 bool Live2DModel::isLoaded() const noexcept { return impl_->model != nullptr; }
