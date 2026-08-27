@@ -32,7 +32,7 @@ bool Live2DAssetCatalog::parse(const QByteArray& json, const QString& root, QStr
     // 以前の登録を残さず入力全体を一時領域で検証する
     assets_.clear();
     error.clear();
-    if (json.size() > 1024 * 1024) {
+    if (json.size() > qsizetype{1024} * 1024) {
         error = QStringLiteral("Live2D registry exceeds the size limit");
         return false;
     }
