@@ -373,6 +373,19 @@ if(BUILD_TESTING)
     set_target_properties(LauncherDomainTests LauncherIntegrationTests Live2DTests Live2DPreview
         PROPERTIES WIN32_EXECUTABLE OFF MACOSX_BUNDLE OFF)
 
+    if(WIN32)
+        foreach(_runtime_target
+                LauncherDomainTests
+                LauncherIntegrationTests
+                GameProcessFixture
+                Live2DPreview
+                Live2DTests)
+            set_target_properties("${_runtime_target}" PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/runtime/${_runtime_target}"
+            )
+        endforeach()
+    endif()
+
     set_tests_properties(
         LauncherDomainTests LauncherIntegrationStateTests LauncherIntegrationDownloadTests
         LauncherIntegrationProcessTests Live2DTests PROPERTIES
