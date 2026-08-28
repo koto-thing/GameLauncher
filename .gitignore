@@ -101,6 +101,8 @@ apps/docs/.vitepress/
 private*.pem
 *-private.pem
 *_private.pem
+*[Pp]rivate[-_][Kk]ey*.asc
+secring.gpg
 
 # Local service credentials (commit only redacted examples)
 credentials*.json

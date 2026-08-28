@@ -6,8 +6,9 @@
 
 ## 脆弱性の報告
 
-脆弱性、認証情報の露出、署名・更新経路の問題は公開 Issue に投稿せず、GitHub の [Private vulnerability reporting](https://github.com/koto-thing/GameLauncher/security/advisories/new) から報告してください。
+脆弱性、認証情報の露出、署名・更新経路の問題は公開 Issue に投稿せず、GitHub の [Private vulnerability reporting](https://github.com/koto-thing/GameLauncher/security/advisories/new) から連絡お願いします。  
 
-報告には、影響を受けるバージョン、再現手順、想定される影響、既知の回避策を含めてください。受領後 7 日以内に一次回答し、修正公開までは内容を非公開にしてください。
+報告には、影響を受けるバージョン、再現手順、想定される影響、既知の回避策を含めてください。  
+受領後 7 日以内に一次回答し、修正公開までは内容を非公開にしてください。
 
 ゲームや第三者サービス自体の問題は、それぞれの提供者へ報告してください。
