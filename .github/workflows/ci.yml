@@ -140,7 +140,7 @@ jobs:
         run: python -m scripts.release.collect_licenses --output staging/licenses
       - name: Run local Qt IFW installer E2E
         if: github.event_name == 'push'
-        run: python -m installer.e2e --install-tree staging --output ifw-e2e --version 1.0.0
+        run: python -m apps.launcher.installer.e2e --install-tree staging --output ifw-e2e --version 1.0.0
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: github.event_name == 'push'
         with:
