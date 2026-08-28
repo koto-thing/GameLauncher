@@ -5,6 +5,7 @@
 - The test R2 bucket is connected to the `downloads.koto-thing.com` custom domain
 - R2 write credentials belong only to the protected release environment
 - Production Ed25519 private key is stored in the CI secret store; only its raw public key is compiled into the launcher
+- Linux release OpenPGP private key and full fingerprint are stored in the protected production environment
 - Windows code-signing identity and macOS Developer ID identities are active
 - Qt, Qt IFW, OpenSSL, and all module licenses have been reviewed for the exact resolved versions
 

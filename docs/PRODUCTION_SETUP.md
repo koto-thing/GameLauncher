@@ -92,10 +92,12 @@ git tag v1.0.1
 git push origin v1.0.1
 ```
 
-The `Publish Windows production` workflow builds and smoke-tests the launcher, creates
-the unsigned IFW installer and ZIP, verifies SHA-256 sidecars, publishes the IFW
-repository and metadata to R2, and attaches all four downloadable files to the GitHub
-Release.
+The `Publish desktop production` workflow builds and smoke-tests Windows and Linux
+x86_64 launchers. It creates the unsigned Windows IFW installer and ZIP plus the
+OpenPGP-signed Linux IFW installer and `tar.gz`, verifies their SHA-256 sidecars,
+publishes platform-specific IFW repositories and metadata to R2, and attaches the
+downloadable files to one GitHub Release.
 
 Complete `docs/WINDOWS_RELEASE_ACCEPTANCE.md` on a clean Windows system before sharing
-the installer URL publicly.
+the Windows installer URL publicly. Verify the Linux installer, update, and uninstall
+flow on a clean supported Linux system before sharing its URL.
