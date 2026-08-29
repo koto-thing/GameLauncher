@@ -14,6 +14,10 @@ if [[ ! -d "$app_path" || "$app_path" != *.app ]]; then
   exit 2
 fi
 
+notary_directory="$(mktemp -d "${TMPDIR:-/tmp}/pandd-notary.XXXXXX")"
+notary_archive="$notary_directory/submission.zip"
+trap 'rm -rf "$notary_directory"' EXIT
+
 # Sign nested code before the containing bundle
 while IFS= read -r nested; do
   codesign --force --options runtime --timestamp --sign "$identity" "$nested"
@@ -21,9 +25,8 @@ done < <(find "$app_path/Contents" -type f \( -name '*.dylib' -o -perm -111 \) -
 codesign --force --deep --options runtime --timestamp --sign "$identity" "$app_path"
 codesign --verify --deep --strict --verbose=2 "$app_path"
 
-archive="${app_path%.app}.zip"
-ditto -c -k --keepParent "$app_path" "$archive"
-xcrun notarytool submit "$archive" --keychain-profile "$notary_profile" --wait
+ditto -c -k --sequesterRsrc --keepParent "$app_path" "$notary_archive"
+xcrun notarytool submit "$notary_archive" --keychain-profile "$notary_profile" --wait
 xcrun stapler staple "$app_path"
 xcrun stapler validate "$app_path"
 spctl --assess --type execute --verbose=2 "$app_path"
