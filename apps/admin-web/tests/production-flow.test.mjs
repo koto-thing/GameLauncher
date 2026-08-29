@@ -66,6 +66,11 @@ test("private intake archives are never copied into GitHub Actions artifacts", a
   }
 });
 
+test("staging deployment preflight accepts only master branch dispatches", async () => {
+  const workflow = await source(".github/workflows/deploy-game-staging.yml");
+  assert.match(workflow, /preflight:\s*\n\s*if: github\.ref == 'refs\/heads\/master'/);
+});
+
 test("a successful external dispatch cannot be rolled back by a cosmetic database update", async () => {
   const controlPlane = await source("apps/admin-web/lib/control-plane.ts");
   assert.match(
