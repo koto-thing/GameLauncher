@@ -6,7 +6,7 @@
 - R2 write credentials belong only to the protected release environment
 - Production Ed25519 private key is stored in the CI secret store; only its raw public key is compiled into the launcher
 - Linux release OpenPGP private key and full fingerprint are stored in the protected production environment
-- Windows code-signing identity and macOS Developer ID identities are active
+- macOS Developer ID Application and notarization credentials are stored in the protected production environment
 - Qt, Qt IFW, OpenSSL, and all module licenses have been reviewed for the exact resolved versions
 
 ## Automated gates
@@ -24,7 +24,7 @@
 
 ## Manual clean-machine matrix
 
-For Windows x86_64, Linux x86_64, macOS Intel, and macOS Apple Silicon:
+For Windows x86_64, Linux x86_64, and macOS Apple Silicon:
 
 1. Install as a standard user
 2. Fetch catalog, install a game, launch it, and confirm `PANDD_SAVE_DIR`
@@ -37,3 +37,7 @@ For Windows x86_64, Linux x86_64, macOS Intel, and macOS Apple Silicon:
    notarization/staple, or verify the Linux detached checksum/signature
 
 Do not promote a release with a Critical or High open defect.
+
+The macOS CI smoke test, signature verification, notarization, and Staple validation do
+not replace a clean-machine test. Record macOS as unverified until
+`MACOS_RELEASE_ACCEPTANCE.md` has been completed on Apple Silicon hardware.

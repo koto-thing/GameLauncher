@@ -47,6 +47,13 @@ test("staging and production dispatches have independent kill switches", async (
   assert.match(workerConfig, /"PRODUCTION_DISPATCH_ENABLED": "(?:true|false)"/);
 });
 
+test("Actions OIDC accepts only public or private repository visibility", async () => {
+  const actions = await source("apps/admin-web/lib/actions.ts");
+  assert.match(actions, /new Set\(\["private", "public"\]\)/);
+  assert.match(actions, /ALLOWED_REPOSITORY_VISIBILITIES\.has\(text\(payload\.repository_visibility\)\)/);
+  assert.doesNotMatch(actions, /payload\.repository_visibility !== "private"/);
+});
+
 test("private intake archives are never copied into GitHub Actions artifacts", async () => {
   for (const workflowPath of [
     ".github/workflows/deploy-game-staging.yml",

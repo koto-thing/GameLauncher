@@ -123,6 +123,8 @@ GITHUB_REPOSITORY_ID
 
 GitHub Appには対象repositoryの`Actions: write`と`Contents: read`だけを許可します。
 Repository Variable `DEPLOYMENT_CONTROL_PLANE_URL`にはHTTPSのcontrol plane URLを設定します。
+Actions OIDCはrepository ID、owner/name、workflow、branchを固定し、repository visibilityは
+`private`と`public`のどちらでも受け入れます。それ以外のvisibility claimは拒否します。
 さらに、staging Environmentとworkflowを準備して検証し終えるまでは
 `STAGING_DISPATCH_ENABLED=false`を維持します。Stagingの外部設定と受入確認が終わったときだけ`true`へ変更します。
 
