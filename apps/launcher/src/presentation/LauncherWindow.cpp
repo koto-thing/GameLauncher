@@ -38,6 +38,7 @@
 #include <QProgressBar>
 #include <QPropertyAnimation>
 #include <QPushButton>
+#include <QRandomGenerator>
 #include <QRegion>
 #include <QResizeEvent>
 #include <QSpinBox>
@@ -55,6 +56,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <random>
 
 namespace pandd {
 namespace {
@@ -275,6 +277,10 @@ void LauncherWindow::applyTheme() {
                 "QLabel#empty{color:%4;font-size:17px;background:%2;"
                 "border:1px dashed %5;border-radius:12px;padding:28px;}"
                 "QLabel#heroTitle{font-size:36px;font-weight:700;color:white;}"
+                "QFrame#homePreview{background:%2;border:1px solid %5;border-radius:12px;}"
+                "QLabel#homePreviewImage{background:%2;border:1px solid %5;border-radius:12px;}"
+                "QLabel#homePreviewTitle{font-size:28px;font-weight:700;color:%3;}"
+                "QLabel#homePreviewSummary{font-size:15px;color:%4;}"
                 "QProgressBar{border:0;border-radius:5px;background:%5;color:%3;"
                 "text-align:center;}"
                 "QProgressBar::chunk{background:#e60012;border-radius:5px;}")
@@ -309,18 +315,55 @@ QWidget* LauncherWindow::createHomePage() {
     auto* hint = new QLabel(tr("まだ持っていないゲームから、新しいお気に入りを見つけよう"), page);
     hint->setObjectName("muted");
     layout->addWidget(hint);
+
+    auto* previewRow = new QHBoxLayout();
+    previewRow->setSpacing(24);
+    homePreviewImage_ = new QLabel(page);
+    homePreviewImage_->setObjectName("homePreviewImage");
+    homePreviewImage_->setAlignment(Qt::AlignCenter);
+    homePreviewImage_->setScaledContents(true);
+    homePreviewImage_->setMinimumSize(400, 225);
+    homePreviewImage_->setAccessibleName(tr("選択中ゲームのサムネイル"));
+    previewRow->addWidget(homePreviewImage_, 2);
+
+    auto* information = new QFrame(page);
+    information->setObjectName("homePreview");
+    auto* informationLayout = new QVBoxLayout(information);
+    informationLayout->setContentsMargins(28, 28, 28, 28);
+    informationLayout->setSpacing(16);
+    homePreviewTitle_ = new QLabel(information);
+    homePreviewTitle_->setObjectName("homePreviewTitle");
+    homePreviewTitle_->setWordWrap(true);
+    homePreviewSummary_ = new QLabel(information);
+    homePreviewSummary_->setObjectName("homePreviewSummary");
+    homePreviewSummary_->setWordWrap(true);
+    homePreviewSummary_->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    informationLayout->addWidget(homePreviewTitle_);
+    informationLayout->addWidget(homePreviewSummary_, 1);
+    previewRow->addWidget(information, 1);
+    layout->addLayout(previewRow, 3);
+
     homeList_ = new QListWidget(page);
     homeList_->setViewMode(QListView::IconMode);
-    homeList_->setIconSize(QSize(250, 140));
-    homeList_->setGridSize(QSize(290, 210));
+    homeList_->setIconSize(QSize(170, 96));
+    homeList_->setGridSize(QSize(200, 150));
     homeList_->setMovement(QListView::Static);
     homeList_->setResizeMode(QListView::Adjust);
+    homeList_->setFlow(QListView::LeftToRight);
+    homeList_->setWrapping(false);
+    homeList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     homeList_->setAccessibleName(tr("おすすめゲーム"));
     layout->addWidget(homeList_, 1);
     homeEmpty_ = new QLabel(tr("現在おすすめできる未所持ゲームはありません"), page);
     homeEmpty_->setObjectName("empty");
     homeEmpty_->setAlignment(Qt::AlignCenter);
     layout->addWidget(homeEmpty_);
+    connect(homeList_, &QListWidget::currentItemChanged, this,
+            [this](QListWidgetItem* current) {
+                if (current) {
+                    updateHomeSelection(current->data(Qt::UserRole).toString());
+                }
+            });
     connect(homeList_, &QListWidget::itemActivated, this,
             [this](QListWidgetItem* item) { showGame(item->data(Qt::UserRole).toString()); });
     connect(settings, &QPushButton::clicked, this, &LauncherWindow::showSettingsDialog);
@@ -637,8 +680,8 @@ void LauncherWindow::refreshData() {
     applyTheme();
     homeList_->clear();
     libraryList_->clear();
-    int recommendationCount = 0;
     const QIcon placeholder(QStringLiteral(":/images/launcher_background_placeholder.png"));
+    std::vector<const GameCatalogEntry*> recommendations;
     for (const auto& game : viewModel_.catalog()) {
         const auto gameId = QString::fromStdString(game.gameId.value());
         const auto name = QString::fromStdString(game.name);
@@ -659,16 +702,38 @@ void LauncherWindow::refreshData() {
         };
         if (installed) {
             addCard(libraryList_);
-        } else if (recommendationCount < 6) {
-            addCard(homeList_);
-            ++recommendationCount;
+        } else {
+            recommendations.push_back(&game);
         }
         if (!imageUrl.isEmpty() && !heroCache_.contains(imageUrl)) {
             requestCatalogImage(gameId, imageUrl);
         }
     }
+
+    std::mt19937 randomEngine(QRandomGenerator::global()->generate());
+    std::shuffle(recommendations.begin(), recommendations.end(), randomEngine);
+    recommendations.resize(std::min<std::size_t>(5, recommendations.size()));
+    for (const auto* game : recommendations) {
+        const auto gameId = QString::fromStdString(game->gameId.value());
+        const auto imageUrl = QString::fromStdString(game->thumbnailUrl);
+        const QIcon icon = heroCache_.contains(imageUrl)
+                               ? QIcon(heroCache_.value(imageUrl))
+                               : (imageUrl.isEmpty() ? placeholder : QIcon{});
+        auto* item = new QListWidgetItem(icon, QString::fromStdString(game->name));
+        item->setData(Qt::UserRole, gameId);
+        item->setToolTip(QString::fromStdString(game->summary));
+        item->setTextAlignment(Qt::AlignHCenter | Qt::AlignBottom);
+        homeList_->addItem(item);
+    }
     homeEmpty_->setVisible(homeList_->count() == 0);
     homeList_->setVisible(homeList_->count() != 0);
+    if (homeList_->count() != 0) {
+        homeList_->setCurrentRow(0);
+    } else {
+        homePreviewImage_->clear();
+        homePreviewTitle_->clear();
+        homePreviewSummary_->clear();
+    }
     libraryEmpty_->setVisible(libraryList_->count() == 0);
     libraryList_->setVisible(libraryList_->count() != 0);
     refreshDiscover();
@@ -679,6 +744,23 @@ void LauncherWindow::refreshData() {
             navigateTo(currentPage);
         }
     }
+}
+
+void LauncherWindow::updateHomeSelection(const QString& gameId) {
+    const auto iterator = std::find_if(
+        viewModel_.catalog().begin(), viewModel_.catalog().end(),
+        [&gameId](const auto& entry) { return entry.gameId.value() == gameId.toStdString(); });
+    if (iterator == viewModel_.catalog().end()) {
+        return;
+    }
+
+    homePreviewTitle_->setText(QString::fromStdString(iterator->name));
+    homePreviewSummary_->setText(QString::fromStdString(iterator->summary));
+    const auto imageUrl = QString::fromStdString(iterator->thumbnailUrl);
+    const QPixmap image = heroCache_.contains(imageUrl)
+                              ? heroCache_.value(imageUrl)
+                              : QPixmap(QStringLiteral(":/images/launcher_background_placeholder.png"));
+    homePreviewImage_->setPixmap(image);
 }
 
 void LauncherWindow::refreshDiscover() {
@@ -786,6 +868,10 @@ void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& i
                                 }
                             }
                         }
+                        if (homeList_->currentItem() &&
+                            homeList_->currentItem()->data(Qt::UserRole).toString() == gameId) {
+                            updateHomeSelection(gameId);
+                        }
                         return;
                     }
                     const auto pixmap = QPixmap::fromImage(decoded);
@@ -797,6 +883,10 @@ void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& i
                                 item->setIcon(QIcon(pixmap));
                             }
                         }
+                    }
+                    if (homeList_->currentItem() &&
+                        homeList_->currentItem()->data(Qt::UserRole).toString() == gameId) {
+                        updateHomeSelection(gameId);
                     }
                 });
         watcher->setFuture(QtConcurrent::run(

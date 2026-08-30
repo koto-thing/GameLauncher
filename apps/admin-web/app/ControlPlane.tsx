@@ -68,6 +68,8 @@ type DashboardResponse = {
 };
 
 const UPLOADER_DOWNLOAD_URL = "https://github.com/koto-thing/GameLauncher/releases/download/uploader-v0.1.0/PandDIntakeUploader.exe";
+const ACTIVE_EXECUTION_STATES = new Set(["dispatched", "running", "publishing_pointers", "verifying"]);
+const EXECUTION_REFRESH_INTERVAL_MS = 4_000;
 
 const statusText: Record<string, string> = {
   ready: "提出準備完了",
@@ -176,6 +178,25 @@ export function ControlPlane() {
     return () => { active = false; };
   }, []);
 
+  const executionInProgress = response?.dashboard?.requests.some((request) =>
+    ACTIVE_EXECUTION_STATES.has(request.state)
+  ) ?? false;
+
+  useEffect(() => {
+    if (!executionInProgress) return;
+
+    const refreshWhileVisible = () => {
+      if (document.visibilityState === "visible") void refresh().catch(() => undefined);
+    };
+    const intervalId = window.setInterval(refreshWhileVisible, EXECUTION_REFRESH_INTERVAL_MS);
+    document.addEventListener("visibilitychange", refreshWhileVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", refreshWhileVisible);
+    };
+  }, [executionInProgress, refresh]);
+
   async function runAction(payload: Record<string, unknown>, success: string) {
     setBusy(true);
     setNotice(null);
@@ -223,7 +244,7 @@ export function ControlPlane() {
     <main className="app-shell">
       <header className="topbar">
         <a className="brand" href="#top" aria-label="PandD Deploy Control ホーム">
-          <span className="brand-mark">P</span>
+          <span className="brand-mark brand-logo" aria-hidden="true" />
           <span><strong>PandD</strong><small>DEPLOY CONTROL</small></span>
         </a>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -354,7 +375,7 @@ function SignIn({ response }: { response: DashboardResponse }) {
   return (
     <main className="signin-shell">
       <section className="signin-card">
-        <div className="brand signin-brand"><span className="brand-mark">P</span><span><strong>PandD</strong><small>DEPLOY CONTROL</small></span></div>
+        <div className="brand signin-brand"><span className="brand-mark brand-logo" aria-hidden="true" /><span><strong>PandD</strong><small>DEPLOY CONTROL</small></span></div>
         <p className="eyebrow">IDENTITY REQUIRED</p>
         <h1>GitHubアカウントで<br />公開責任を確認します。</h1>
         <p>個人リポジトリのOwnerと、Adminが許可したCollaboratorだけが操作できます。</p>
