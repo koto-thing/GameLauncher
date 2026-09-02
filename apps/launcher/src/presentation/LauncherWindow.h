@@ -62,6 +62,9 @@ class LauncherWindow final : public QMainWindow {
     /** @brief カタログと導入済み一覧を再描画する */
     void refreshData();
 
+    /** @brief トップ画面の選択中ゲームを上段のプレビューへ反映する */
+    void updateHomeSelection(const QString& gameId);
+
     /** @brief 検索文字列を反映して未所持ゲーム一覧を再描画する */
     void refreshDiscover();
 
@@ -111,6 +114,9 @@ class LauncherWindow final : public QMainWindow {
     QListWidget* libraryList_{nullptr};
     QLineEdit* searchInput_{nullptr};
     QLabel* homeEmpty_{nullptr};
+    QLabel* homePreviewImage_{nullptr};
+    QLabel* homePreviewTitle_{nullptr};
+    QLabel* homePreviewSummary_{nullptr};
     QLabel* discoverEmpty_{nullptr};
     QLabel* libraryEmpty_{nullptr};
     QPushButton* homeButton_{nullptr};

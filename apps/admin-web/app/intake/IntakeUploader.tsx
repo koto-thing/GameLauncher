@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type DragEvent, type ChangeEvent } from "react";
 import Link from "next/link";
 import type { ArtifactDescriptor } from "@/lib/artifact-limits";
+import { DEFAULT_PROFILE_LOCALES } from "@/lib/profile-locales";
 import { validateDescriptorSchema } from "@/lib/descriptor-validator";
 import {
   uploadArtifact,
@@ -52,6 +53,22 @@ type SessionResponse = {
       canAdminister: boolean;
     };
   };
+};
+
+type PublishedGameOption = {
+  gameId: string;
+  name: string;
+  environment: "production" | "staging";
+};
+
+type PublishedGameProfile = {
+  gameId: string;
+  environment: "production" | "staging";
+  translations: Record<string, { name: string; summary: string }>;
+  heroUrl: string;
+  thumbnailUrl: string;
+  heroFocalPoint: { x: number; y: number };
+  error?: string;
 };
 
 type IntakeMode = "create" | "existing";
@@ -128,6 +145,10 @@ export function IntakeUploader() {
   const [minimumLauncherVersion, setMinimumLauncherVersion] = useState("1.0.1");
   const [engine, setEngine] = useState("unity");
   const [saveDirectoryName, setSaveDirectoryName] = useState("");
+  const [publishedGames, setPublishedGames] = useState<PublishedGameOption[]>([]);
+  const [selectedPublishedGame, setSelectedPublishedGame] = useState("");
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileNotice, setProfileNotice] = useState<string | null>(null);
 
   const [translations, setTranslations] = useState<Record<string, { name: string; summary: string }>>({
     "ja-JP": { name: "", summary: "" },
@@ -189,6 +210,19 @@ export function IntakeUploader() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!authResponse?.authenticated) return;
+    let active = true;
+    fetch("/api/intake/profiles", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("公開済みゲーム一覧を取得できませんでした");
+        return response.json() as Promise<{ games: PublishedGameOption[] }>;
+      })
+      .then(({ games }) => { if (active) setPublishedGames(games); })
+      .catch(() => { if (active) setPublishedGames([]); });
+    return () => { active = false; };
+  }, [authResponse?.authenticated]);
 
   // Cleanup object URLs on unmount
   useEffect(() => {
@@ -368,6 +402,52 @@ export function IntakeUploader() {
         [field]: val,
       },
     }));
+  }
+
+  async function reusePublishedProfile() {
+    if (!selectedPublishedGame) return;
+    setProfileLoading(true);
+    setProfileNotice(null);
+    setErrorMessage(null);
+    try {
+      const locales = [...new Set([...DEFAULT_PROFILE_LOCALES, ...Object.keys(translations)])].join(",");
+      const response = await fetch(
+        `/api/intake/profiles?gameId=${encodeURIComponent(selectedPublishedGame)}&locales=${encodeURIComponent(locales)}`,
+        { cache: "no-store" },
+      );
+      const profile = await response.json() as PublishedGameProfile;
+      if (!response.ok) throw new Error(profile.error ?? "前回の公開情報を取得できませんでした");
+
+      const loadImage = async (sourceUrl: string, prefix: string) => {
+        const imageResponse = await fetch(`/api/intake/profiles/image?url=${encodeURIComponent(sourceUrl)}`);
+        if (!imageResponse.ok) throw new Error("前回の公開画像を取得できませんでした");
+        const blob = await imageResponse.blob();
+        const extension = new URL(sourceUrl).pathname.match(/\.(png|jpe?g|webp)$/i)?.[0] ?? ".png";
+        return new File([blob], `${prefix}${extension.toLowerCase()}`, { type: blob.type });
+      };
+      const [hero, thumbnail] = await Promise.all([
+        loadImage(profile.heroUrl, "hero"),
+        loadImage(profile.thumbnailUrl, "thumbnail"),
+      ]);
+
+      setGameId(profile.gameId);
+      setTranslations((current) => ({ ...current, ...profile.translations }));
+      handleHeroSelected(hero);
+      handleThumbnailSelected(thumbnail);
+      setFocalPoint(profile.heroFocalPoint);
+      setFieldErrors((current) => {
+        const next = { ...current };
+        delete next.gameId;
+        return next;
+      });
+      setProfileNotice(
+        `${profile.environment === "production" ? "Production" : "Staging"} の前回情報を読み込みました。必要な箇所だけ編集してください。`,
+      );
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "前回の公開情報を取得できませんでした");
+    } finally {
+      setProfileLoading(false);
+    }
   }
 
   // --- Preview Computation ---
@@ -769,7 +849,7 @@ export function IntakeUploader() {
     <main className="app-shell">
       <header className="topbar">
         <Link className="brand" href="/" aria-label="PandD Deploy Control ホーム">
-          <span className="brand-mark">P</span>
+          <span className="brand-mark brand-logo" aria-hidden="true" />
           <span>
             <strong>PandD</strong>
             <small>DEPLOY CONTROL</small>
@@ -902,6 +982,37 @@ export function IntakeUploader() {
                   <p>公開するゲームの一意なID、バージョン、エンジン、セーブフォルダ名を入力します。</p>
                 </div>
               </div>
+
+              {publishedGames.length > 0 && (
+                <div className="published-profile-loader">
+                  <div>
+                    <strong>公開済みゲームの情報を再利用</strong>
+                    <small>タイトル、説明文、Hero画像、Thumbnail画像、焦点位置を前回の公開内容から復元します。</small>
+                  </div>
+                  <select
+                    aria-label="公開済みゲーム"
+                    value={selectedPublishedGame}
+                    disabled={isProcessing || profileLoading}
+                    onChange={(event) => setSelectedPublishedGame(event.target.value)}
+                  >
+                    <option value="">ゲームを選択</option>
+                    {publishedGames.map((game) => (
+                      <option key={game.gameId} value={game.gameId}>
+                        {game.name} ({game.gameId}) — {game.environment === "production" ? "Production" : "Staging"}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={isProcessing || profileLoading || !selectedPublishedGame}
+                    onClick={reusePublishedProfile}
+                  >
+                    {profileLoading ? "読み込み中…" : "前回の情報を使用"}
+                  </button>
+                  {profileNotice && <p role="status">{profileNotice}</p>}
+                </div>
+              )}
 
               <div className="builder-form-grid">
                 <div className="form-field-group">

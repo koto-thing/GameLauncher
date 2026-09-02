@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.1.0",
+      "title": "Redesigned home recommendations",
+      "publishedAt": "2026-08-31T00:00:00Z",
+      "changes": [
+        "Added a large thumbnail preview for the selected game on the home screen.",
+        "Added the selected game's title and description to the home screen.",
+        "The recommendations section now displays five randomly selected unowned games."
+      ]
+    },
+    {
       "version": "1.0.5",
       "title": "Windows and usability improvements",
       "publishedAt": "2026-08-23T00:00:00Z",
