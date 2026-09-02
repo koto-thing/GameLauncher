@@ -358,12 +358,11 @@ QWidget* LauncherWindow::createHomePage() {
     homeEmpty_->setObjectName("empty");
     homeEmpty_->setAlignment(Qt::AlignCenter);
     layout->addWidget(homeEmpty_);
-    connect(homeList_, &QListWidget::currentItemChanged, this,
-            [this](QListWidgetItem* current) {
-                if (current) {
-                    updateHomeSelection(current->data(Qt::UserRole).toString());
-                }
-            });
+    connect(homeList_, &QListWidget::currentItemChanged, this, [this](QListWidgetItem* current) {
+        if (current) {
+            updateHomeSelection(current->data(Qt::UserRole).toString());
+        }
+    });
     connect(homeList_, &QListWidget::itemActivated, this,
             [this](QListWidgetItem* item) { showGame(item->data(Qt::UserRole).toString()); });
     connect(settings, &QPushButton::clicked, this, &LauncherWindow::showSettingsDialog);
@@ -757,9 +756,10 @@ void LauncherWindow::updateHomeSelection(const QString& gameId) {
     homePreviewTitle_->setText(QString::fromStdString(iterator->name));
     homePreviewSummary_->setText(QString::fromStdString(iterator->summary));
     const auto imageUrl = QString::fromStdString(iterator->thumbnailUrl);
-    const QPixmap image = heroCache_.contains(imageUrl)
-                              ? heroCache_.value(imageUrl)
-                              : QPixmap(QStringLiteral(":/images/launcher_background_placeholder.png"));
+    const QPixmap image =
+        heroCache_.contains(imageUrl)
+            ? heroCache_.value(imageUrl)
+            : QPixmap(QStringLiteral(":/images/launcher_background_placeholder.png"));
     homePreviewImage_->setPixmap(image);
 }
 
