@@ -34,18 +34,23 @@ export async function callback(request, env) {
   const stateHash = await hash(state);
   const attempt = await env.DOCS_DB.prepare('DELETE FROM oauth_attempts WHERE state_hash=? AND browser_hash=? AND expires_at>? RETURNING *').bind(stateHash, await hash(browser), Date.now()).first();
   ensure(attempt, 401, 'ログイン試行が失効したか、既に使用されています。');
+  const verifier = await decrypt(attempt.verifier, env.DOCS_TOKEN_KEY, stateHash);
   let response;
   const exchangeStartedAt = Date.now();
-  try { response = await fetch('https://github.com/login/oauth/access_token', { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET, code, redirect_uri: `${env.DOCS_ORIGIN}/api/docs/auth/callback`, code_verifier: await decrypt(attempt.verifier, env.DOCS_TOKEN_KEY, stateHash), repository_id: String(REPOSITORY_ID) }), signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS), redirect: 'error' }); } catch (error) {
+  // workerd rejects redirect: 'error'; manual + response.ok rejects redirects without forwarding secrets.
+  try { response = await fetch('https://github.com/login/oauth/access_token', { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET, code, redirect_uri: `${env.DOCS_ORIGIN}/api/docs/auth/callback`, code_verifier: verifier, repository_id: String(REPOSITORY_ID) }), signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS), redirect: 'manual' }); } catch (error) {
     console.log(JSON.stringify({ event: 'github_oauth_exchange_failed', error: error instanceof Error ? error.name : 'UnknownError', elapsedMs: Date.now() - exchangeStartedAt }));
     throw new ApiError(502, 'GitHub認証に接続できません。');
   }
-  ensure(response.ok, 502, 'GitHub認証で障害が発生しています。');
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new ApiError(502, 'GitHub認証で障害が発生しています。');
+  }
   const result = await boundedJson(response, 16384);
   ensure(result.access_token?.startsWith('ghu_') && Number.isInteger(result.expires_in) && result.expires_in > 0, 401, '有効期限付きGitHub App認証が必要です。');
   const user = await authorize(github(result.access_token));
   const session = random(), idHash = await hash(session), csrf = random();
-  const seconds = Math.min(28800, result.expires_in);
+  const seconds = Math.min(6 * 60 * 60, result.expires_in);
   const old = cookie(request, cookieName(env, 'session'));
   await env.DOCS_DB.batch([
     env.DOCS_DB.prepare('DELETE FROM sessions WHERE id_hash=?').bind(await hash(old)),

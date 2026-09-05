@@ -105,13 +105,15 @@ test('PKCE start binds one-time state, cookie and fixed callback; rejects extern
   await f.db.prepare('UPDATE oauth_attempts SET expires_at=0').run();
   await assert.rejects(callback(f.request('/auth/callback?code=test&state=' + url.searchParams.get('state'), 'GET', undefined, {Cookie: rawCookie}), f.env), { status: 401 });
 });
-test('OAuth callback uses fixed repository, verifier, consumes state, and never retains refresh token', async t => {
+for (const tokenSeconds of [28800, 3600]) test(`OAuth callback binds state and limits session lifetime to six hours or token expiry (${tokenSeconds}s)`, async t => {
+  const now = Date.now();
+  t.mock.method(Date, 'now', () => now);
   const f = await fixture(), begun = await start(f.request('/auth/start'), f.env), url = new URL(begun.headers.get('Location'));
   const headers = { Cookie: begun.headers.get('Set-Cookie').split(';')[0] }, state = url.searchParams.get('state');
   t.mock.method(globalThis, 'fetch', async (target, options) => {
     if (String(target).includes('/login/oauth/access_token')) {
       assert.equal(options.body.get('repository_id'), String(REPOSITORY_ID)); assert.equal(await hash(options.body.get('code_verifier')), url.searchParams.get('code_challenge'));
-      return Response.json({access_token:'ghu_fixture',expires_in:28800,refresh_token:'never-store-this'});
+      return Response.json({access_token:'ghu_fixture',expires_in:tokenSeconds,refresh_token:'never-store-this'});
     }
     return Response.json(await f.gh.api(new URL(target).pathname));
   });
@@ -119,6 +121,15 @@ test('OAuth callback uses fixed repository, verifier, consumes state, and never 
   const result = await callback(request, f.env); assert.equal(result.status, 302); assert.match(result.headers.get('set-cookie'), /HttpOnly; Secure; SameSite=Lax/);
   await assert.rejects(callback(request, f.env), { status: 401 });
   assert.ok(!JSON.stringify(f.db.sqlite.prepare('SELECT * FROM sessions').all()).includes('never-store-this'));
+  const seconds = Math.min(21600, tokenSeconds);
+  const sessionCookie = result.headers.getSetCookie()[0];
+  assert.ok(sessionCookie.endsWith(`Max-Age=${seconds}`));
+  const sessionRequest = f.request('/session', 'GET', undefined, { Cookie: sessionCookie.split(';')[0] });
+  assert.equal((await session(sessionRequest, f.env)).expires_at, now + seconds * 1000);
+  t.mock.method(Date, 'now', () => now + seconds * 1000 - 1);
+  assert.equal((await session(sessionRequest, f.env)).user_id, 42);
+  t.mock.method(Date, 'now', () => now + seconds * 1000);
+  await assert.rejects(session(sessionRequest, f.env), { status: 401 });
 });
 test('static and unknown paths never touch D1 or GitHub; API is no-store JSON', async () => {
   const f = await fixture(); f.env.DOCS_DB = { prepare() { throw new Error('database unavailable'); } };
