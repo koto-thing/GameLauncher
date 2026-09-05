@@ -4,7 +4,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { fixture } from '../tests/fixtures.mjs';
 const f = await fixture();
-await f.db.prepare('UPDATE sessions SET expires_at = ?').bind(Date.now() + 8 * 60 * 60 * 1000).run();
+await f.db.prepare('UPDATE sessions SET expires_at = ?').bind(Date.now() + 6 * 60 * 60 * 1000).run();
 const root = resolve(import.meta.dirname, '../../docs/dist');
 globalThis.fetch = async (url, options = {}) => {
   if (new URL(url).origin !== 'https://api.github.com') throw new Error('External network is disabled in the UI fixture');

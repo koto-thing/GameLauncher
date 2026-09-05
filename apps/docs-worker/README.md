@@ -33,7 +33,7 @@ AppのContents権限はリポジトリ全体の権限です。`docs/` フォル�
 
 プレビューはMarkdown-it、DOMPurify、権限を与えないsandbox iframeを使用し、Vue compileを行いません。静的配信は `_headers` のCSP・frame-ancestors・nosniff・Referrer-Policy、認証APIはno-storeと専用CSPを設定します。Doxygenの実行可能なinline scriptは再現可能な後処理で外部JSへ抽出し、非実行のJSON設定を保持します。
 
-OAuth stateは10分・一回のみ、ブラウザーのHttpOnly CookieとD1試行レコードを結び、PKCE S256を使用します。固定originのcallbackと固定repository_idで交換します。本番Cookieは `__Host-pandd_docs_session`、HttpOnly/Secure/SameSite=Lax/Path=/・Domainなしです。D1はCookieのハッシュ、数値user ID、期限、CSRF、AES-256-GCMで暗号化したtokenのみを保持します。nonceは毎回ランダムで、暗号の追加認証データにセッションとユーザーIDを結びます。セッションはtoken期限以内・最大8時間、refresh tokenは保存しません。
+OAuth stateは10分・一回のみ、ブラウザーのHttpOnly CookieとD1試行レコードを結び、PKCE S256を使用します。固定originのcallbackと固定repository_idで交換します。本番Cookieは `__Host-pandd_docs_session`、HttpOnly/Secure/SameSite=Lax/Path=/・Domainなしです。D1はCookieのハッシュ、数値user ID、期限、CSRF、AES-256-GCMで暗号化したtokenのみを保持します。nonceは毎回ランダムで、暗号の追加認証データにセッションとユーザーIDを結びます。セッションはtoken期限以内・最大6時間、refresh tokenは保存しません。
 
 変更APIはJSON・同一Origin・セッション固有CSRFを要求します。変更と公開はGETでは動きません。監査は数値ユーザーID、操作ID、時刻、操作、commitのみ、90日保持です。操作状態は30日、OAuth/セッションは期限で無効です。毎時のcronが各表最大200行ずつ期限切れを削除します。生token、原稿、OAuth queryはログに記録せず、Wranglerのinvocation logsも無効にします。追加のアカウントログ・Logpush等でもcallback queryを保存しない設定にしてください。
 
