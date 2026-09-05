@@ -131,6 +131,35 @@ for (const tokenSeconds of [28800, 3600]) test(`OAuth callback binds state and l
   t.mock.method(Date, 'now', () => now + seconds * 1000);
   await assert.rejects(session(sessionRequest, f.env), { status: 401 });
 });
+for (const [response, status, message] of [
+  [{ error: 'bad_verification_code' }, 401, /認証コード/],
+  [{ error: 'incorrect_client_credentials' }, 503, /Client IDまたはClient secret/],
+  [{ error: 'redirect_uri_mismatch' }, 503, /Callback URL/],
+  [{ error: 'unknown-provider-error', error_description: 'secret-value' }, 502, /認証を拒否/],
+  [{ access_token: 'ghu_fixture' }, 503, /User-to-server token expiration/],
+  [{ access_token: 'gho_fixture', expires_in: 28800 }, 502, /ユーザートークン/],
+  [{ access_token: 123, expires_in: 28800 }, 502, /ユーザートークン/],
+  [{ access_token: 'ghu_fixture', expires_in: 0 }, 502, /有効期限が不正/],
+  [{ access_token: 'ghu_fixture', expires_in: '28800' }, 502, /有効期限が不正/],
+  [null, 502, /応答が不正/]
+]) test(`OAuth rejection distinguishes provider errors and token configuration: ${JSON.stringify(response)}`, async t => {
+  const f = await fixture();
+  const before = f.db.sqlite.prepare('SELECT * FROM sessions').all();
+  const begun = await start(f.request('/auth/start'), f.env);
+  const state = new URL(begun.headers.get('Location')).searchParams.get('state');
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () => Response.json(response));
+  const result = await f.worker.fetch(f.request(`/auth/callback?code=test&state=${state}`, 'GET', undefined, {
+    Cookie: begun.headers.get('Set-Cookie').split(';')[0]
+  }), f.env);
+  assert.equal(result.status, status);
+  const body = await result.json();
+  assert.match(body.error, message);
+  assert.ok(body.requestId);
+  assert.ok(!JSON.stringify(body).includes('secret-value'));
+  assert.equal(fetchMock.mock.callCount(), 1);
+  assert.deepEqual(f.db.sqlite.prepare('SELECT * FROM sessions').all(), before);
+});
+
 test('static and unknown paths never touch D1 or GitHub; API is no-store JSON', async () => {
   const f = await fixture(); f.env.DOCS_DB = { prepare() { throw new Error('database unavailable'); } };
   const staticResponse = await f.worker.fetch(new Request(f.env.DOCS_ORIGIN + '/missing'), f.env); assert.equal(staticResponse.status, 404);
