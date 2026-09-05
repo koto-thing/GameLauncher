@@ -13,7 +13,7 @@
     "html_handling": "auto-trailing-slash"
   },
   "vars": { "DOCS_ORIGIN": "http://localhost:8787", "GITHUB_CLIENT_ID": "", "DOCS_EDITING_ENABLED": "false" },
-  "d1_databases": [{ "binding": "DOCS_DB", "database_name": "pandd-docs", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],
+  "d1_databases": [{ "binding": "DOCS_DB", "database_name": "pandd-docs", "database_id": "ae42bf7b-a4ba-4256-897a-02355181ecf1", "migrations_dir": "migrations" }],
   "triggers": { "crons": ["17 * * * *"] },
   "observability": { "enabled": true, "head_sampling_rate": 0.1, "logs": { "enabled": true, "invocation_logs": false } }
 }
