@@ -52,10 +52,16 @@ export async function callback(request, env) {
     const errors = new Map([
       ['bad_verification_code', [401, 'GitHubの認証コードが無効または失効しています。サイトからログインを最初からやり直してください。']],
       ['incorrect_client_credentials', [503, 'GitHub AppのClient IDまたはClient secretが一致しません。管理者が認証設定を確認してください。']],
-      ['redirect_uri_mismatch', [503, 'GitHub AppのCallback URLが一致しません。管理者が認証設定を確認してください。']]
+      ['redirect_uri_mismatch', [503, 'GitHub AppのCallback URLが一致しません。管理者が認証設定を確認してください。']],
+      ['unverified_user_email', [403, 'GitHubのプライマリーメールアドレスが未認証です。GitHubのSettings → Emailsでメール認証を完了してから、再ログインしてください。']],
+      ['access_denied', [403, 'GitHubで認証が拒否されました。サイトからログインをやり直し、Appを承認してください。']]
     ]);
     const [status, message] = errors.get(result.error) || [502, 'GitHubが認証を拒否しました。サイトからログインをやり直してください。'];
-    throw new ApiError(status, message);
+    // Return only a bounded machine-readable code, never the provider response,
+    // error_description, token, client secret, or authorization code.
+    const githubError = typeof result.error === 'string' && /^[a-z][a-z_]{1,63}$/.test(result.error)
+      && !/^(?:ghu|ghr|gho|ghp|github_pat)_/.test(result.error) ? result.error : 'unknown_error';
+    throw new ApiError(status, message, { githubError });
   }
   ensure(typeof result.access_token === 'string' && result.access_token.startsWith('ghu_'), 502, 'GitHub Appのユーザートークンを取得できませんでした。管理者が認証設定を確認してください。');
   ensure(result.expires_in !== undefined, 503, 'GitHub Appのトークン有効期限が無効です。管理者がOptional featuresのUser-to-server token expirationを有効にしてから、再ログインしてください。');
