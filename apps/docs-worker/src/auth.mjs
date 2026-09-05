@@ -54,6 +54,7 @@ export async function callback(request, env) {
       ['incorrect_client_credentials', [503, 'GitHub AppのClient IDまたはClient secretが一致しません。管理者が認証設定を確認してください。']],
       ['redirect_uri_mismatch', [503, 'GitHub AppのCallback URLが一致しません。管理者が認証設定を確認してください。']],
       ['unverified_user_email', [403, 'GitHubのプライマリーメールアドレスが未認証です。GitHubのSettings → Emailsでメール認証を完了してから、再ログインしてください。']],
+      ['installation_missing_access', [403, 'GitHub Appのインストール先とアクセス権を確認してください。管理者がkoto-thingの対象AppでGameLauncherをアクセス対象に追加し、ログインするユーザーにもリポジトリへのアクセス権があることを確認してください。']],
       ['access_denied', [403, 'GitHubで認証が拒否されました。サイトからログインをやり直し、Appを承認してください。']]
     ]);
     const [status, message] = errors.get(result.error) || [502, 'GitHubが認証を拒否しました。サイトからログインをやり直してください。'];
