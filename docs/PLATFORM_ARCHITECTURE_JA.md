@@ -26,8 +26,8 @@ PandDは1つのモノレポで管理する。ソースコードの配置と実�
 
 ### 3. 運営環境（operations）
 
-- 対象: `apps/admin-web`、`apps/intake-uploader`、`services/deployment_publisher`
-- 保持可能: 運営者セッション、Deployment DB、非公開Intake R2への限定Binding
+- 対象: `apps/admin-web`、`apps/docs-worker`、`apps/intake-uploader`、`services/deployment_publisher`
+- 保持可能: 運営者セッション、Deployment DB、Docs専用D1、非公開Intake R2への限定Binding
 - 署名鍵と公開先R2書き込み資格情報はGitHub Environment内のPublisherだけが使用する
 - 一般ユーザー向けのCookieやPlatform DB資格情報を保持しない
 

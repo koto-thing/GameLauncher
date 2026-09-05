@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://koto-thing.github.io/GameLauncher/sitemap.xml
+# Sitemap is generated from DOCS_ORIGIN and DOCS_BASE_PATH during build.

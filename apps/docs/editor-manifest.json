@@ -1,0 +1,135 @@
+{
+  "CODE_SIGNING_POLICY": {
+    "path": "docs/CODE_SIGNING_POLICY.md",
+    "route": "/CODE_SIGNING_POLICY"
+  },
+  "DEVELOPMENT": {
+    "path": "docs/DEVELOPMENT.md",
+    "route": "/DEVELOPMENT"
+  },
+  "GAME_DEPLOYMENT_JA": {
+    "path": "docs/GAME_DEPLOYMENT_JA.md",
+    "route": "/GAME_DEPLOYMENT_JA"
+  },
+  "IMPLEMENTATION_STATUS": {
+    "path": "docs/IMPLEMENTATION_STATUS.md",
+    "route": "/IMPLEMENTATION_STATUS"
+  },
+  "index": {
+    "path": "docs/index.md",
+    "route": "/"
+  },
+  "LAUNCHER_UPDATE_JA": {
+    "path": "docs/LAUNCHER_UPDATE_JA.md",
+    "route": "/LAUNCHER_UPDATE_JA"
+  },
+  "licenses": {
+    "path": "docs/licenses.md",
+    "route": "/licenses"
+  },
+  "LIVE2D_BACKGROUNDS_JA": {
+    "path": "docs/LIVE2D_BACKGROUNDS_JA.md",
+    "route": "/LIVE2D_BACKGROUNDS_JA"
+  },
+  "MACOS_RELEASE_ACCEPTANCE": {
+    "path": "docs/MACOS_RELEASE_ACCEPTANCE.md",
+    "route": "/MACOS_RELEASE_ACCEPTANCE"
+  },
+  "OPERATIONS": {
+    "path": "docs/OPERATIONS.md",
+    "route": "/OPERATIONS"
+  },
+  "PRIVACY_POLICY": {
+    "path": "docs/PRIVACY_POLICY.md",
+    "route": "/PRIVACY_POLICY"
+  },
+  "PRODUCTION_SETUP": {
+    "path": "docs/PRODUCTION_SETUP.md",
+    "route": "/PRODUCTION_SETUP"
+  },
+  "QT_LGPL_COMPLIANCE": {
+    "path": "docs/QT_LGPL_COMPLIANCE.md",
+    "route": "/QT_LGPL_COMPLIANCE"
+  },
+  "RELEASE_CHECKLIST": {
+    "path": "docs/RELEASE_CHECKLIST.md",
+    "route": "/RELEASE_CHECKLIST"
+  },
+  "RELEASE_PREREQUISITES": {
+    "path": "docs/RELEASE_PREREQUISITES.md",
+    "route": "/RELEASE_PREREQUISITES"
+  },
+  "security": {
+    "path": "docs/security.md",
+    "route": "/security"
+  },
+  "TERMS_OF_USE": {
+    "path": "docs/TERMS_OF_USE.md",
+    "route": "/TERMS_OF_USE"
+  },
+  "WINDOWS_RELEASE_ACCEPTANCE": {
+    "path": "docs/WINDOWS_RELEASE_ACCEPTANCE.md",
+    "route": "/WINDOWS_RELEASE_ACCEPTANCE"
+  },
+  "ランチャー本体の更新方法": {
+    "path": "docs/ランチャー本体の更新方法.md",
+    "route": "/ランチャー本体の更新方法"
+  },
+  "architecture/platform": {
+    "path": "docs/architecture/platform.md",
+    "route": "/architecture/platform"
+  },
+  "architecture/trust-boundaries": {
+    "path": "docs/architecture/trust-boundaries.md",
+    "route": "/architecture/trust-boundaries"
+  },
+  "guide/admin-web-deployment": {
+    "path": "docs/guide/admin-web-deployment.md",
+    "route": "/guide/admin-web-deployment"
+  },
+  "guide/admin-web-development": {
+    "path": "docs/guide/admin-web-development.md",
+    "route": "/guide/admin-web-development"
+  },
+  "guide/game-deployment": {
+    "path": "docs/guide/game-deployment.md",
+    "route": "/guide/game-deployment"
+  },
+  "guide/index": {
+    "path": "docs/guide/index.md",
+    "route": "/guide/"
+  },
+  "guide/launcher-development": {
+    "path": "docs/guide/launcher-development.md",
+    "route": "/guide/launcher-development"
+  },
+  "guide/launcher-release": {
+    "path": "docs/guide/launcher-release.md",
+    "route": "/guide/launcher-release"
+  },
+  "guide/operations": {
+    "path": "docs/guide/operations.md",
+    "route": "/guide/operations"
+  },
+  "reference/admin-api": {
+    "path": "docs/reference/admin-api.md",
+    "route": "/reference/admin-api"
+  },
+  "reference/index": {
+    "path": "docs/reference/index.md",
+    "route": "/reference/"
+  },
+  "reference/launcher-api": {
+    "path": "docs/reference/launcher-api.md",
+    "route": "/reference/launcher-api"
+  },
+  "reference/schemas": {
+    "path": "docs/reference/schemas.md",
+    "route": "/reference/schemas"
+  },
+  "$images": {
+    "paths": [
+      "/images/pandd-logo.png"
+    ]
+  }
+}

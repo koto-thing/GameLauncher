@@ -7,3 +7,7 @@ Launcherおよび同梱依存関係の通知は [THIRD_PARTY_NOTICES.md](https:/
 - [プライバシーポリシー](./PRIVACY_POLICY.md)
 
 Live2D Cubism SDKとモデル素材は、それぞれのライセンス・配布条件に従います。SDK本体や再配布権のない素材を公開サイトやリポジトリへ含めません。
+
+## ドキュメントサイトのフォント
+
+欧文の見出しには、Cody Boisclairによる **Press Start 2P** を使用しています。SIL Open Font License 1.1に基づき、フォントと [ライセンス全文](/fonts/PressStart2P-OFL.txt) をこのサイトから配信しています。

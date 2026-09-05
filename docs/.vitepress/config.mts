@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import navigation from "../navigation.json" with { type: 'json' };
+import manifest from '../../apps/docs/editor-manifest.json' with { type: 'json' };
 
 const rawBase = process.env.DOCS_BASE_PATH?.trim() || "/";
 const base = rawBase === "/" ? "/" : `/${rawBase.replace(/^\/+|\/+$/g, "")}/`;
@@ -13,8 +15,19 @@ export default {
   outDir: "../apps/docs/dist",
   cacheDir: "../apps/docs/.vitepress/cache",
   cleanUrls: true,
+  appearance: 'dark',
+  // These two references are generated after VitePress; check-built-site verifies them.
+  ignoreDeadLinks: [/^\.\/(?:admin|cpp)\/index(?:\.html)?$/],
   lastUpdated: true,
-  sitemap: { hostname: "https://koto-thing.github.io/GameLauncher/" },
+  transformPageData(pageData) {
+    if (pageData.relativePath === 'index.md') Object.assign(pageData.frontmatter, { aside: false, prev: false, next: false });
+    if (pageData.relativePath === 'editor.md') delete pageData.lastUpdated;
+  },
+  transformHead({ pageData }) {
+    const route = pageData.relativePath.replace(/index\.md$/, '').replace(/\.md$/, '');
+    return [['link', { rel: 'canonical', href: `${process.env.DOCS_ORIGIN || 'https://koto-thing.github.io'}${base}${route}` }]];
+  },
+  sitemap: { hostname: (process.env.DOCS_ORIGIN || "https://koto-thing.github.io") + base },
   vite: {
     resolve: {
       alias: [
@@ -31,56 +44,20 @@ export default {
   },
   head: [
     ["link", { rel: "icon", type: "image/png", href: `data:image/png;base64,${logo}` }],
-    ["meta", { name: "theme-color", content: "#7257d9" }],
+    ["meta", { name: "theme-color", content: "#242426" }],
   ],
   themeConfig: {
-    siteTitle: "PandD Docs",
-    search: { provider: "local" },
-    nav: [
-      { text: "ガイド", link: "/guide/" },
-      { text: "アーキテクチャ", link: "/architecture/platform" },
-      { text: "API", link: "/reference/" },
-      { text: "運用", link: "/OPERATIONS" },
-    ],
-    sidebar: {
-      "/guide/": [
-        { text: "はじめに", items: [
-          { text: "ローカル開発", link: "/guide/" },
-          { text: "Launcher開発", link: "/guide/launcher-development" },
-          { text: "Admin Web開発", link: "/guide/admin-web-development" },
-        ] },
-        { text: "リリース", items: [
-          { text: "Launcher公開", link: "/guide/launcher-release" },
-          { text: "ゲーム配信", link: "/guide/game-deployment" },
-          { text: "Admin Web公開", link: "/guide/admin-web-deployment" },
-          { text: "運用と障害対応", link: "/guide/operations" },
-        ] },
-      ],
-      "/architecture/": [
-        { text: "アーキテクチャ", items: [
-          { text: "プラットフォーム", link: "/architecture/platform" },
-          { text: "信頼境界", link: "/architecture/trust-boundaries" },
-        ] },
-      ],
-      "/reference/": [
-        { text: "リファレンス", items: [
-          { text: "概要", link: "/reference/" },
-          { text: "Launcher C++ API", link: "/reference/launcher-api" },
-          { text: "Admin HTTP API", link: "/reference/admin-api" },
-          { text: "JSON Schema", link: "/reference/schemas" },
-        ] },
-      ],
-      "/": [
-        { text: "プロジェクト", items: [
-          { text: "概要", link: "/" },
-          { text: "開発状況", link: "/IMPLEMENTATION_STATUS" },
-          { text: "セキュリティ", link: "/security" },
-          { text: "利用規約", link: "/TERMS_OF_USE" },
-          { text: "プライバシー", link: "/PRIVACY_POLICY" },
-          { text: "ライセンス", link: "/licenses" },
-        ] },
-      ],
-    },
+    publicVersion: (process.env.DOCS_COMMIT_SHA || process.env.GITHUB_SHA || 'local').slice(0, 8),
+    siteTitle: "PANDD_DOCS",
+    search: { provider: "local", options: {
+      async _render(src, env, md) {
+        const path = env.relativePath?.replace(/\\/g, '/');
+        if (!Object.values(manifest).some(doc => doc.path === `docs/${path}`) && !/^guide\/[a-z0-9-]+\.md$/.test(path || '')) return '';
+        return md.renderAsync(src, env);
+      },
+    } },
+    nav: navigation.nav,
+    sidebar: navigation.sidebar,
     socialLinks: [{ icon: "github", link: "https://github.com/koto-thing/GameLauncher" }],
     footer: { message: "PandD Platform Documentation", copyright: "Copyright © PandD" },
     outline: { level: [2, 3], label: "このページ" },

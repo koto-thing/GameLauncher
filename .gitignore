@@ -78,6 +78,12 @@ apps/intake-uploader/src/pandd_intake_uploader/*.exe
 apps/admin-web/public/downloads/*.exe
 apps/docs/dist/
 apps/docs/.vitepress/
+apps/docs-worker/node_modules/
+apps/docs/node_modules/
+apps/docs-worker/.wrangler/
+apps/docs-worker/.dev.vars
+apps/docs-worker/deploy/
+apps/docs-worker/worker-configuration.d.ts
 
 # ==========================
 # Secrets / Local credentials

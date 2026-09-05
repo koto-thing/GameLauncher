@@ -8,13 +8,19 @@
   },
   "scripts": {
     "dev": "vitepress dev ../../docs",
-    "build": "vitepress build ../../docs && redocly build-docs ../../packages/contracts/openapi/admin-api.openapi.yaml --output dist/reference/admin/index.html --disableGoogleFont && node scripts/finalize-api-docs.mjs",
+    "build": "node scripts/check-editor-sources.mjs && vitepress build ../../docs && redocly build-docs ../../packages/contracts/openapi/admin-api.openapi.yaml --output dist/reference/admin/index.html --disableGoogleFont && node scripts/finalize-api-docs.mjs && node scripts/finalize-site.mjs",
     "preview": "vitepress preview ../../docs",
-    "lint": "redocly lint ../../packages/contracts/openapi/admin-api.openapi.yaml && node scripts/check-docs.mjs --source",
+    "lint": "redocly lint ../../packages/contracts/openapi/admin-api.openapi.yaml && node scripts/check-docs.mjs --source && node scripts/check-editor-sources.mjs",
     "test": "node --test"
   },
   "devDependencies": {
     "@redocly/cli": "2.49.0",
     "vitepress": "2.0.0-alpha.19"
+  },
+  "dependencies": {
+    "diff": "8.0.4",
+    "dompurify": "3.4.14",
+    "markdown-it": "14.3.1",
+    "yaml": "2.9.0"
   }
 }

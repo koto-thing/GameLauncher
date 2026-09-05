@@ -22,6 +22,7 @@
     "operations": {
       "components": [
         "apps/admin-web",
+        "apps/docs-worker",
         "apps/intake-uploader",
         "services/deployment_publisher"
       ],

@@ -1,0 +1,156 @@
+{
+  "nav": [
+    {
+      "text": "ガイド",
+      "link": "/guide/"
+    },
+    {
+      "text": "アーキテクチャ",
+      "link": "/architecture/platform"
+    },
+    {
+      "text": "API",
+      "link": "/reference/"
+    },
+    {
+      "text": "運用",
+      "link": "/OPERATIONS"
+    }
+  ],
+  "sidebar": {
+    "/guide/": [
+      {
+        "text": "はじめに",
+        "items": [
+          {
+            "text": "ローカル開発",
+            "link": "/guide/"
+          },
+          {
+            "text": "Launcher開発",
+            "link": "/guide/launcher-development"
+          },
+          {
+            "text": "Admin Web開発",
+            "link": "/guide/admin-web-development"
+          }
+        ]
+      },
+      {
+        "text": "リリース",
+        "items": [
+          {
+            "text": "Launcher公開",
+            "link": "/guide/launcher-release"
+          },
+          {
+            "text": "ゲーム配信",
+            "link": "/guide/game-deployment"
+          },
+          {
+            "text": "Admin Web公開",
+            "link": "/guide/admin-web-deployment"
+          },
+          {
+            "text": "運用と障害対応",
+            "link": "/guide/operations"
+          }
+        ]
+      }
+    ],
+    "/architecture/": [
+      {
+        "text": "アーキテクチャ",
+        "items": [
+          {
+            "text": "プラットフォーム",
+            "link": "/architecture/platform"
+          },
+          {
+            "text": "信頼境界",
+            "link": "/architecture/trust-boundaries"
+          }
+        ]
+      }
+    ],
+    "/reference/": [
+      {
+        "text": "リファレンス",
+        "items": [
+          {
+            "text": "概要",
+            "link": "/reference/"
+          },
+          {
+            "text": "Launcher C++ API",
+            "link": "/reference/launcher-api"
+          },
+          {
+            "text": "Admin HTTP API",
+            "link": "/reference/admin-api"
+          },
+          {
+            "text": "JSON Schema",
+            "link": "/reference/schemas"
+          }
+        ]
+      }
+    ],
+    "/": [
+      {
+        "text": "資料を開く",
+        "items": [
+          {
+            "text": "はじめに",
+            "link": "/guide/"
+          },
+          {
+            "text": "Launcher",
+            "link": "/guide/launcher-development"
+          },
+          {
+            "text": "Admin Web",
+            "link": "/guide/admin-web-development"
+          },
+          {
+            "text": "配信・運用",
+            "link": "/guide/game-deployment"
+          },
+          {
+            "text": "APIとSchema",
+            "link": "/reference/"
+          }
+        ]
+      },
+      {
+        "text": "プロジェクト",
+        "items": [
+          {
+            "text": "概要",
+            "link": "/"
+          },
+          {
+            "text": "開発状況",
+            "link": "/IMPLEMENTATION_STATUS"
+          },
+          {
+            "text": "セキュリティ",
+            "link": "/security"
+          },
+          {
+            "text": "利用規約",
+            "link": "/TERMS_OF_USE"
+          },
+          {
+            "text": "プライバシー",
+            "link": "/PRIVACY_POLICY"
+          },
+          {
+            "text": "ライセンス",
+            "link": "/licenses"
+          }
+        ]
+      }
+    ]
+  }
+}

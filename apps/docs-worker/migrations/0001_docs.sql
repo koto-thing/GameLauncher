@@ -1,0 +1,13 @@
+CREATE TABLE oauth_attempts (state_hash TEXT PRIMARY KEY, browser_hash TEXT NOT NULL, verifier TEXT NOT NULL, return_to TEXT NOT NULL, expires_at INTEGER NOT NULL);
+CREATE INDEX oauth_expiry ON oauth_attempts(expires_at);
+CREATE TABLE sessions (id_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, token TEXT NOT NULL, csrf TEXT NOT NULL, expires_at INTEGER NOT NULL);
+CREATE INDEX session_expiry ON sessions(expires_at);
+CREATE TABLE changes (id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, branch TEXT NOT NULL UNIQUE, base_sha TEXT NOT NULL, head_sha TEXT NOT NULL, pr INTEGER, merge_sha TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, lock_id TEXT, lock_until INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX changes_user ON changes(user_id, created_at);
+CREATE INDEX changes_expiry ON changes(updated_at);
+CREATE TABLE operations (id TEXT NOT NULL, user_id INTEGER NOT NULL, change_id TEXT NOT NULL, digest TEXT NOT NULL, expected_head TEXT NOT NULL, commit_sha TEXT, completed INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, PRIMARY KEY(user_id,id));
+CREATE INDEX operations_expiry ON operations(created_at);
+CREATE TABLE audit (id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, change_id TEXT NOT NULL, operation TEXT NOT NULL, commit_sha TEXT, created_at INTEGER NOT NULL);
+CREATE INDEX audit_expiry ON audit(created_at);
+CREATE TABLE rate_limits (key TEXT PRIMARY KEY, window INTEGER NOT NULL, count INTEGER NOT NULL);
+CREATE INDEX rate_expiry ON rate_limits(window);
