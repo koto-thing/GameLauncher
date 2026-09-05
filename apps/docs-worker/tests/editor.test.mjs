@@ -135,6 +135,9 @@ for (const [response, status, message] of [
   [{ error: 'bad_verification_code' }, 401, /認証コード/],
   [{ error: 'incorrect_client_credentials' }, 503, /Client IDまたはClient secret/],
   [{ error: 'redirect_uri_mismatch' }, 503, /Callback URL/],
+  [{ error: 'unverified_user_email' }, 403, /プライマリーメールアドレスが未認証/],
+  [{ error: 'access_denied' }, 403, /Appを承認/],
+  [{ error: 'invalid_grant', error_description: 'secret-value' }, 502, /認証を拒否/],
   [{ error: 'unknown-provider-error', error_description: 'secret-value' }, 502, /認証を拒否/],
   [{ access_token: 'ghu_fixture' }, 503, /User-to-server token expiration/],
   [{ access_token: 'gho_fixture', expires_in: 28800 }, 502, /ユーザートークン/],
@@ -156,8 +159,23 @@ for (const [response, status, message] of [
   assert.match(body.error, message);
   assert.ok(body.requestId);
   assert.ok(!JSON.stringify(body).includes('secret-value'));
+  if (response?.error) assert.equal(body.details.githubError,
+    response.error === 'unknown-provider-error' ? 'unknown_error' : response.error);
   assert.equal(fetchMock.mock.callCount(), 1);
   assert.deepEqual(f.db.sqlite.prepare('SELECT * FROM sessions').all(), before);
+});
+
+for (const error of ['ghu_secret', 'ghr_secret', 'github_pat_secret', 'x'.repeat(65), { secret: 'value' }, 'invalid_grant\nsecret']) test(`OAuth diagnostic redacts unsafe error code ${JSON.stringify(error)}`, async t => {
+  const f = await fixture(), begun = await start(f.request('/auth/start'), f.env);
+  const state = new URL(begun.headers.get('Location')).searchParams.get('state');
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ error, error_description: 'private', access_token: 'ghu_private' }));
+  const result = await f.worker.fetch(f.request(`/auth/callback?code=test&state=${state}`, 'GET', undefined, {
+    Cookie: begun.headers.get('Set-Cookie').split(';')[0]
+  }), f.env);
+  assert.equal(result.status, 502);
+  const body = await result.json();
+  assert.deepEqual(body.details, { githubError: 'unknown_error' });
+  assert.ok(!JSON.stringify(body).includes('private'));
 });
 
 test('static and unknown paths never touch D1 or GitHub; API is no-store JSON', async () => {
