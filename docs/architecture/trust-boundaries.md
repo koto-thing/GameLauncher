@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | platform | Store、Community、Platform API（将来領域） | Platform DB、Community DB、UGC R2 | Intake、配信先書き込み、署名鍵 |
 | distribution | Docs Portal、Launcher、静的配信コンテンツ | 公開ドキュメント、署名済みManifest、公開downloads | DB書き込み、決済secret、署名鍵 |
-| operations | Admin Web、Intake Uploader、Publisher | Deployment DB、非公開Intake | Platform session secret、Platform DB直接操作 |
+| operations | Admin Web、Docs Editor Worker、Intake Uploader、Publisher | Deployment DB、Docs専用D1、非公開Intake | Platform session secret、Platform DB直接操作 |
 
 ## Intake / Staging / Production
 
