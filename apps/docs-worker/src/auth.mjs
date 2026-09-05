@@ -1,6 +1,6 @@
 import { ensure, ApiError, rateLimit, boundedJson } from './http.mjs';
 import { random, hash, encrypt, decrypt, equal } from './crypto.mjs';
-import { github, authorize, REPOSITORY_ID } from './github.mjs';
+import { github, authorize, GITHUB_TIMEOUT_MS, REPOSITORY_ID } from './github.mjs';
 import { documents } from '../../docs/editor-policy.mjs';
 export function cookieName(env, purpose) { return `${env.DOCS_ORIGIN.startsWith('https:') ? '__Host-' : ''}pandd_docs_${purpose}`; }
 export function cookie(request, name) { return request.headers.get('cookie')?.split(';').map(part => part.trim()).find(part => part.startsWith(`${name}=`))?.slice(name.length + 1) || ''; }
@@ -35,7 +35,7 @@ export async function callback(request, env) {
   const attempt = await env.DOCS_DB.prepare('DELETE FROM oauth_attempts WHERE state_hash=? AND browser_hash=? AND expires_at>? RETURNING *').bind(stateHash, await hash(browser), Date.now()).first();
   ensure(attempt, 401, 'ログイン試行が失効したか、既に使用されています。');
   let response;
-  try { response = await fetch('https://github.com/login/oauth/access_token', { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET, code, redirect_uri: `${env.DOCS_ORIGIN}/api/docs/auth/callback`, code_verifier: await decrypt(attempt.verifier, env.DOCS_TOKEN_KEY, stateHash), repository_id: String(REPOSITORY_ID) }), signal: AbortSignal.timeout(10000), redirect: 'error' }); } catch { throw new ApiError(502, 'GitHub認証に接続できません。'); }
+  try { response = await fetch('https://github.com/login/oauth/access_token', { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET, code, redirect_uri: `${env.DOCS_ORIGIN}/api/docs/auth/callback`, code_verifier: await decrypt(attempt.verifier, env.DOCS_TOKEN_KEY, stateHash), repository_id: String(REPOSITORY_ID) }), signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS), redirect: 'error' }); } catch { throw new ApiError(502, 'GitHub認証に接続できません。'); }
   ensure(response.ok, 502, 'GitHub認証で障害が発生しています。');
   const result = await boundedJson(response, 16384);
   ensure(result.access_token?.startsWith('ghu_') && Number.isInteger(result.expires_in) && result.expires_in > 0, 401, '有効期限付きGitHub App認証が必要です。');
