@@ -1,0 +1,879 @@
+/* 共通の読みやすさとタッチ領域。小さな画面では余白を縮め、文字を省略しすぎない。 */
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button,
+.button {
+  min-height: var(--tap-size);
+  min-width: var(--tap-size);
+  padding: 10px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+button:hover,
+a.button:hover {
+  border-color: var(--ink);
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+button[aria-pressed="true"] {
+  background: var(--accent);
+}
+:focus-visible {
+  outline: 3px solid #698b26;
+  outline-offset: 4px;
+}
+.primary {
+  background: var(--dark);
+  color: #fff;
+  border-color: var(--dark);
+}
+.danger {
+  color: var(--error);
+}
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+h1 {
+  font-size: clamp(1.85rem, 4vw, 3.2rem);
+  line-height: 1.4;
+  letter-spacing: -0.045em;
+  overflow-wrap: anywhere;
+}
+h2 {
+  font-size: 1.5rem;
+  letter-spacing: -0.035em;
+}
+p {
+  line-height: 1.9;
+}
+small {
+  font-size: 0.76rem;
+}
+main {
+  max-width: var(--max-width);
+  padding: 0 36px 70px;
+  margin: auto;
+  min-height: 65vh;
+}
+section {
+  margin-bottom: 56px;
+}
+.eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+.hint {
+  font-size: 0.83rem;
+  color: var(--muted);
+}
+.error {
+  color: var(--error);
+}
+.empty {
+  padding: 48px 20px;
+  background: #eaece3;
+  text-align: center;
+  border-radius: var(--radius);
+}
+.notice {
+  padding: 16px;
+  background: #ececda;
+  border-radius: var(--radius);
+}
+.notice.error {
+  background: #f8e9e2;
+}
+.success {
+  background: #e2edcf;
+}
+.back-link {
+  display: inline-block;
+  padding: 22px 0;
+  font-size: 0.85rem;
+}
+.text-link {
+  display: inline-flex;
+  gap: 34px;
+  align-items: center;
+  min-height: 44px;
+  border-bottom: 1px solid currentColor;
+  font-size: 0.85rem;
+}
+/* ヘッダーとフッターはページ遷移でも安定した位置を保つ。 */
+.site-header {
+  max-width: var(--max-width);
+  margin: auto;
+  padding: 30px 36px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  font-size: 1.6rem;
+  font-weight: 750;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+}
+.brand span {
+  font-weight: 350;
+}
+.brand small {
+  display: block;
+  font-size: 0.5rem;
+  letter-spacing: 0.23em;
+  margin-top: 5px;
+}
+nav {
+  display: flex;
+  gap: 24px;
+  font-size: 0.78rem;
+}
+nav a {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+nav a.active {
+  text-decoration: underline;
+  text-underline-offset: 6px;
+}
+.local-label {
+  text-align: center;
+  padding: 9px 18px;
+  background: #e5ecd8;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+}
+footer {
+  max-width: var(--max-width);
+  margin: auto;
+  padding: 32px 36px calc(135px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 20px;
+  border-top: 1px solid var(--line);
+  font-size: 0.75rem;
+}
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: 16px;
+  z-index: 20;
+  background: var(--accent);
+  padding: 16px;
+}
+.skip-link:focus {
+  top: 8px;
+}
+/* ホームは作品の実データを中心に、少数作品でも余白が成立する構成。 */
+.hero {
+  position: relative;
+  padding: 66px 0 54px;
+  border-bottom: 1px solid var(--line);
+}
+.hero h1 {
+  font-size: clamp(2.8rem, 6vw, 5rem);
+  font-weight: 500;
+  line-height: 1.37;
+  margin-bottom: 22px;
+  letter-spacing: -0.055em;
+}
+.hero h1 em {
+  font-style: normal;
+  color: #65803b;
+}
+.hero p:not(.eyebrow) {
+  color: var(--muted);
+  font-size: 0.87rem;
+}
+.hero-note {
+  position: absolute;
+  right: 0;
+  bottom: 65px;
+  writing-mode: vertical-rl;
+  font-size: 0.7rem;
+  letter-spacing: 0.28em;
+  line-height: 2;
+  color: var(--muted);
+}
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 24px 0;
+}
+.section-heading h2 {
+  margin: 0;
+}
+.section-heading .eyebrow {
+  margin-bottom: 9px;
+}
+.section-heading > span {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px;
+}
+.cover {
+  position: relative;
+}
+.cover-index {
+  position: absolute;
+  bottom: 12px;
+  left: 14px;
+  padding: 4px 8px;
+  color: white;
+  background: #142b2a;
+  font-size: 0.7rem;
+}
+.artwork {
+  width: 100%;
+  height: auto;
+  max-height: 65vh;
+  object-fit: contain;
+  display: block;
+  background: #e4e8dc;
+  border-radius: 3px;
+}
+.placeholder {
+  aspect-ratio: 16/10;
+  background: #dae3c9;
+  color: #344e38;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid #c5cfb3;
+}
+.placeholder > span {
+  font-size: clamp(2rem, 6vw, 5rem);
+  font-family: Georgia, serif;
+  letter-spacing: -0.1em;
+}
+.placeholder .amp {
+  font-style: italic;
+  font-size: 0.7em;
+}
+.placeholder small {
+  font-size: 0.55rem;
+  letter-spacing: 0.25em;
+}
+.game-card:nth-child(even) .placeholder {
+  background: #cfdfe1;
+  color: #325565;
+  border-color: #b5cacf;
+}
+.card-meta {
+  padding: 22px 0;
+}
+.card-meta small {
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-size: 0.6rem;
+}
+.card-meta h3 {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 10px 0;
+  font-size: 1.3rem;
+}
+.card-meta p {
+  font-size: 0.82rem;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+.listening-note {
+  border-top: 1px solid var(--line);
+  padding: 36px 0 0;
+  display: flex;
+  gap: 32px;
+  align-items: center;
+}
+.listening-note > span {
+  font-size: 3.5rem;
+  font-weight: 200;
+}
+.listening-note h2 {
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+}
+.listening-note p {
+  font-size: 0.8rem;
+  margin: 0;
+  color: var(--muted);
+}
+/* 曲画像を縦横比のまま表示し、横幅が狭い時には上下に並べる。 */
+.game-intro,
+.now-playing {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: start;
+  margin-top: 18px;
+}
+.game-intro {
+  align-items: center;
+}
+.game-intro .text-link {
+  margin: 18px;
+}
+.description,
+.track-comment p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.track-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.track-list li {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+.track-list a {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0;
+}
+.track-list strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 0.96rem;
+}
+.track-list small {
+  display: block;
+  color: var(--muted);
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  margin-top: 4px;
+}
+.track-number,
+.duration {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+.loop-badge {
+  color: #637d3a;
+}
+.listening-image > .eyebrow {
+  text-align: center;
+  margin-top: 18px;
+  font-size: 0.55rem;
+}
+.now-playing h1 {
+  font-size: 2.15rem;
+}
+.listening-details > p:not(.eyebrow) {
+  font-size: 0.83rem;
+  color: var(--muted);
+}
+.player-controls {
+  margin-top: 25px;
+}
+.seek-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--ink);
+  min-height: 44px;
+  cursor: pointer;
+  padding: 0;
+}
+.time-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 25px;
+  margin: 22px 0;
+}
+.transport .play-button {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  font-size: 1.6rem;
+}
+.mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+}
+.mode-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mode-row select {
+  max-width: 165px;
+}
+.player-controls > .hint {
+  margin-top: 22px;
+}
+.track-comment {
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+  margin-top: 32px;
+  font-size: 0.83rem;
+}
+.track-comment h2 {
+  font-size: 1rem;
+}
+.share-url {
+  display: block;
+  font-size: 0.75rem;
+  margin-top: 24px;
+}
+.share-url input {
+  font-size: 0.7rem;
+}
+/* ミニプレーヤーの高さとセーフエリアを本文・フッターの余白に確保する。 */
+.mini-player {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 12px max(24px, calc((100vw - 1108px) / 2))
+    calc(12px + env(safe-area-inset-bottom));
+  background: var(--dark);
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  box-shadow: 0 -5px 20px #172f2d12;
+}
+.mini-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-width: 0;
+  flex: 1;
+}
+.mini-info > span {
+  min-width: 0;
+}
+.mini-info strong {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.86rem;
+}
+.mini-info small {
+  display: block;
+  color: #b3c3b9;
+  margin-top: 4px;
+  font-size: 0.68rem;
+}
+.mini-info .compact {
+  width: 60px;
+  height: 48px;
+  flex-shrink: 0;
+}
+.mini-info .placeholder > span {
+  font-size: 1.5rem;
+}
+.mini-info .placeholder small {
+  display: none;
+}
+.mini-player button {
+  background: var(--accent);
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.mini-error {
+  font-size: 0.65rem;
+}
+/* 管理画面も44pxの操作と項目別エラーを維持する。 */
+.editor-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 42px;
+}
+.editor-form {
+  margin-bottom: 32px;
+}
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-bottom: 21px;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+input:not([type="checkbox"]):not([type="range"]),
+textarea,
+select {
+  border: 1px solid #b9c4b3;
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 11px 12px;
+  min-height: 44px;
+  min-width: 0;
+  width: 100%;
+}
+textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+input[type="file"] {
+  max-width: 100%;
+  font-size: 0.75rem;
+}
+input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--ink);
+}
+.check {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 0.8rem;
+  line-height: 1.8;
+  margin: 20px 0;
+  min-height: 44px;
+}
+.credit-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 44px;
+  gap: 8px;
+}
+.credit-row button {
+  padding: 0;
+}
+.two-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.button-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.button-row button {
+  font-size: 0.75rem;
+}
+.loop-editor,
+.publication,
+.admin-panel,
+.local-login {
+  background: #e9ede2;
+  padding: 24px;
+  border-radius: var(--radius);
+  margin: 28px 0;
+}
+.publication button,
+.publication a {
+  width: 100%;
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+}
+.publication p {
+  font-size: 0.8rem;
+}
+.publication a {
+  display: block;
+  padding: 12px 0;
+  text-decoration: underline;
+}
+.loop-editor h2,
+.preview-panel h2,
+.publication h2 {
+  font-size: 1.1rem;
+}
+.loop-editor .button-row {
+  margin-bottom: 16px;
+}
+.asset-id {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 10px 0;
+}
+.inline-form {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  margin: 24px 0;
+}
+.inline-form .field {
+  flex: 1;
+  margin: 0;
+}
+.manage-list {
+  border-top: 1px solid var(--line);
+}
+.manage-list a {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 4px;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.manage-list span {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.status-line {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.account-list {
+  padding: 0;
+  list-style: none;
+}
+.account-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+}
+.account-list small {
+  display: block;
+}
+.audit-list {
+  max-height: 320px;
+  overflow: auto;
+  font-size: 0.75rem;
+}
+.audit-list p {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+.audit-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.prose {
+  max-width: 720px;
+  padding: 50px 0;
+}
+.prose h2 {
+  margin-top: 36px;
+  font-size: 1.2rem;
+}
+.ad-slot {
+  max-width: 760px;
+  margin: 36px auto;
+}
+.ad-slot > small {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.ad-slot img {
+  display: block;
+  width: 100%;
+  max-height: 150px;
+  object-fit: contain;
+}
+@media (max-width: 700px) {
+  main {
+    padding: 0 20px 50px;
+  }
+  .site-header {
+    padding: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .brand {
+    font-size: 1.45rem;
+  }
+  nav {
+    gap: 18px;
+    width: 100%;
+    font-size: 0.73rem;
+  }
+  nav a {
+    min-height: 36px;
+  }
+  .hero {
+    padding: 40px 0;
+    margin-bottom: 36px;
+  }
+  .hero-note {
+    bottom: 48px;
+    font-size: 0.52rem;
+  }
+  .hero .text-link {
+    margin-top: 8px;
+  }
+  .game-grid {
+    gap: 26px;
+    grid-template-columns: 1fr;
+  }
+  .card-meta {
+    padding: 17px 0 5px;
+  }
+  .game-intro,
+  .now-playing,
+  .editor-columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .game-intro h1 {
+    font-size: 1.9rem;
+  }
+  .now-playing h1 {
+    font-size: 1.75rem;
+  }
+  .listening-image .artwork {
+    max-height: 48vh;
+  }
+  .track-list li {
+    gap: 12px;
+  }
+  .track-list strong {
+    font-size: 0.88rem;
+  }
+  .track-list .duration {
+    display: none;
+  }
+  .track-list .loop-badge {
+    font-size: 0.85rem;
+  }
+  .mini-player {
+    padding-left: 16px;
+    padding-right: 16px;
+    gap: 12px;
+  }
+  .mini-info {
+    gap: 10px;
+  }
+  .mini-info .compact {
+    width: 46px;
+    height: 42px;
+  }
+  .mini-error {
+    display: none;
+  }
+  .mini-info strong {
+    font-size: 0.8rem;
+  }
+  .listening-note {
+    gap: 18px;
+  }
+  .listening-note p {
+    font-size: 0.76rem;
+  }
+  .loop-editor,
+  .publication,
+  .admin-panel,
+  .local-login {
+    padding: 18px;
+  }
+  .inline-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .account-list li {
+    flex-wrap: wrap;
+  }
+  .manage-list a {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .credit-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
+  }
+  .section-heading {
+    align-items: start;
+  }
+  footer {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .two-fields {
+    gap: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+/* 保存完了はリビジョン更新後も利用者が確認できる。 */
+.toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  max-width: calc(100vw - 32px);
+  z-index: 30;
+  background: #e2edcf;
+  border: 1px solid #adbf99;
+  padding: 12px 12px 12px 18px;
+  box-shadow: 0 4px 20px #142b2a20;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 0.8rem;
+  border-radius: 8px;
+}

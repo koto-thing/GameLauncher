@@ -1,0 +1,34 @@
+name: Music validation
+on:
+  pull_request:
+    paths: ['apps/music/**', '.github/workflows/music-check.yml']
+  push:
+    paths: ['apps/music/**', '.github/workflows/music-check.yml']
+permissions:
+  contents: read
+jobs:
+  music:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/music
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/music/package-lock.json
+      - run: npm ci
+      - run: npm run types
+      - run: npm run check
+      - run: npm run browsers:install -- --with-deps
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: music-test-results
+          path: |
+            apps/music/build/e2e-results.json
+            apps/music/build/home-*.png
+            apps/music/test-results/
