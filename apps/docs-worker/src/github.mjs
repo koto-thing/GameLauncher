@@ -4,12 +4,13 @@ export const REPOSITORY = 'koto-thing/GameLauncher';
 export const REPOSITORY_ID = 1152962221;
 export const REPO = `/repos/${REPOSITORY}`;
 export const WORKFLOW = 'docs-cloudflare.yml';
+export const GITHUB_TIMEOUT_MS = 30000;
 export function github(token) {
   return async (path, method = 'GET', body) => {
     ensure(path.startsWith('/') && !path.startsWith('//'), 422, 'APIパスが不正です。');
     let response;
     try {
-      response = await fetch(`https://api.github.com${path}`, { method, headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', 'User-Agent': 'PandD-Docs', 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(10000), redirect: 'error' });
+      response = await fetch(`https://api.github.com${path}`, { method, headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', 'User-Agent': 'PandD-Docs', 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS), redirect: 'error' });
     } catch { throw new ApiError(502, 'GitHubに接続できません。時間をおいて再試行してください。'); }
     if (!response.ok) {
       await response.body?.cancel();
