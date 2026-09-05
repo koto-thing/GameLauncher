@@ -9,6 +9,8 @@ PandDのランチャー、配信、運営機能と、今後のストア・コミ
 
 で確認できます。
 
+DocsのWeb編集機能・Cloudflare移行の設定と運用は [Docs Web Editor](apps/docs-worker/README.md) を参照してください。本番App・Secrets・DNSの設定は所有者による作業です。
+
 システムは「一般利用者」「配信」「運営」の3つの信頼環境に分離し、
 
 * Identity

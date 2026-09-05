@@ -1,0 +1,3 @@
+# Copy to .dev.vars for a separate DEVELOPMENT GitHub App only.
+GITHUB_CLIENT_SECRET=
+DOCS_TOKEN_KEY=

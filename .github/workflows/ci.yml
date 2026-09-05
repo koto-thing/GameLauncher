@@ -2,8 +2,10 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore: ['docs/**', 'apps/docs/**', 'apps/docs-worker/**', '.github/workflows/docs-pages.yml', '.github/workflows/docs-cloudflare.yml']
   push:
     branches: [master]
+    paths-ignore: ['docs/**', 'apps/docs/**', 'apps/docs-worker/**', '.github/workflows/docs-pages.yml', '.github/workflows/docs-cloudflare.yml']
 
 permissions:
   contents: read

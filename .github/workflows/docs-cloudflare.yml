@@ -1,0 +1,119 @@
+name: Documentation Cloudflare
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+    paths: ['docs/**', 'apps/docs/**', 'apps/docs-worker/**', 'apps/launcher/src/**', 'packages/contracts/**', 'CMakeLists.txt', '.github/workflows/docs-cloudflare.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-cloudflare-${{ github.event.pull_request.number || 'master' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Docs validation
+    runs-on: ubuntu-24.04
+    env:
+      DOCS_BASE_PATH: /
+      DOCS_ORIGIN: ${{ vars.DOCS_ORIGIN || 'https://docs.invalid' }}
+      DOCS_COMMIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.13.0'
+          cache: npm
+          cache-dependency-path: |
+            apps/docs/package-lock.json
+            apps/docs-worker/package-lock.json
+      - name: Install the verified Doxygen generator
+        run: |
+          curl --proto '=https' --fail --location https://www.doxygen.nl/files/doxygen-1.18.0.linux.bin.tar.gz -o "$RUNNER_TEMP/doxygen.tar.gz"
+          echo "14fa81bdc34171edb5f1f02b1d60e74802f0439b77fa44e592565d517d72df90  $RUNNER_TEMP/doxygen.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/doxygen.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/doxygen-1.18.0/bin" >> "$GITHUB_PATH"
+      - run: npm ci
+        working-directory: apps/docs
+      - run: npm ci
+        working-directory: apps/docs-worker
+      - run: npm run lint && npm test && npm run build
+        working-directory: apps/docs
+      - run: npm test && npm run check
+        working-directory: apps/docs-worker
+      - name: Generate and verify C++ reference
+        run: |
+          cmake -S . -B build/docs-api -DPANDD_DOCS_ONLY=ON
+          cmake --build build/docs-api --target docs-check
+          mkdir -p apps/docs/dist/reference/cpp
+          cp -R build/docs-api/docs/doxygen/html/. apps/docs/dist/reference/cpp/
+          node apps/docs/scripts/finalize-site.mjs
+          node apps/docs/scripts/check-built-site.mjs
+      - name: Prepare verified Worker bundle without deployment credentials
+        working-directory: apps/docs-worker
+        run: |
+          npx wrangler deploy --dry-run --outdir deploy
+          node scripts/package-deploy.mjs
+        env:
+          DOCS_D1_ID: ${{ vars.DOCS_D1_ID }}
+          DOCS_GITHUB_CLIENT_ID: ${{ vars.DOCS_GITHUB_CLIENT_ID }}
+          DOCS_EDITING_ENABLED: ${{ vars.DOCS_EDITING_ENABLED || 'false' }}
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: verified-docs-${{ github.sha }}
+          path: apps/docs-worker/deploy
+          retention-days: 7
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && vars.DOCS_CLOUDFLARE_ENABLED == 'true'
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: docs-production
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.13.0'
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-docs-${{ github.sha }}
+          path: verified-docs
+      - name: Install the pinned deployment CLI without application lifecycle scripts
+        run: npm install --prefix "$RUNNER_TEMP/docs-cli" --ignore-scripts wrangler@4.127.0
+      - name: Verify trusted commit and prevent overwriting a newer published version
+        id: order
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOCS_ORIGIN: ${{ vars.DOCS_ORIGIN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          relation=$(gh api "repos/$GITHUB_REPOSITORY/compare/$GITHUB_SHA...master" --jq .status)
+          [[ "$relation" == "ahead" || "$relation" == "identical" ]]
+          test -n "$DOCS_ORIGIN"
+          code=$(curl --proto '=https' --max-time 20 -sS -o "$RUNNER_TEMP/docs-version.json" -w '%{http_code}' "$DOCS_ORIGIN/version.json")
+          if [[ "$code" == 200 ]]; then
+            published=$(jq -er '.commit | select(test("^[0-9a-f]{40}$"))' "$RUNNER_TEMP/docs-version.json")
+            relation=$(gh api "repos/$GITHUB_REPOSITORY/compare/$GITHUB_SHA...$published" --jq .status)
+            if [[ "$relation" == "ahead" ]]; then
+              echo 'deploy=false' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            [[ "$relation" == "behind" || "$relation" == "identical" ]]
+          else
+            [[ "$code" == 404 ]]
+          fi
+          echo 'deploy=true' >> "$GITHUB_OUTPUT"
+      - name: Deploy the complete verified version
+        if: steps.order.outputs.deploy == 'true'
+        working-directory: verified-docs
+        run: node "$RUNNER_TEMP/docs-cli/node_modules/wrangler/bin/wrangler.js" deploy --config wrangler.json --no-bundle
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.DOCS_CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.DOCS_CLOUDFLARE_ACCOUNT_ID }}

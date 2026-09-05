@@ -29,13 +29,18 @@ for (const file of files) {
   if (!display.includes("PLAN") && !display.includes("HANDOFF")) {
     for (const match of content.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
       const target = match[1].split("#", 1)[0];
+      if ((display === 'docs\\reference\\admin-api.md' || display === 'docs/reference/admin-api.md') && target === './admin/index.html') continue;
+      if ((display === 'docs\\reference\\launcher-api.md' || display === 'docs/reference/launcher-api.md') && target === './cpp/index.html') continue;
       if (!target || /^(?:https?:|mailto:|#)/.test(target)) continue;
       const decoded = decodeURIComponent(target);
       if (forbiddenPath.test(decoded)) failures.push(`${display}: obsolete path ${decoded}`);
-      const resolved = resolve(dirname(file), decoded);
+      const resolved = decoded.startsWith('/') ? resolve(docsRoot, '.' + decoded) : resolve(dirname(file), decoded);
       if (!extname(resolved) && !decoded.endsWith("/")) continue;
       try {
-        await readFile(resolved);
+        await readFile(resolved).catch(error => {
+          if (!decoded.startsWith('/')) throw error;
+          return readFile(resolve(docsRoot, 'public', '.' + decoded));
+        });
       } catch {
         failures.push(`${display}: missing link target ${decoded}`);
       }

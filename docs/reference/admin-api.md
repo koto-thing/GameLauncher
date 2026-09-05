@@ -4,6 +4,6 @@
 
 APIは運営環境専用です。ブラウザーやCIへ必要以上の資格情報を渡さず、presigned URLをログ・文書へ保存しないでください。
 
-<a href="./admin/index.html" class="VPButton medium brand">Redoc APIリファレンスを開く</a>
+[Redoc APIリファレンスを開く](./admin/index.html)
 
 OpenAPIの原本は `packages/contracts/openapi/admin-api.openapi.yaml` です。Docs build時にRedocの自己完結型HTMLへ変換し、GitHub Pages成果物へ配置します。

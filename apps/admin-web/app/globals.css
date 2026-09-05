@@ -172,6 +172,8 @@ input::placeholder { color: #98a2b3; }input[readonly] { color: #344054; backgrou
 
 .image-picker-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .image-picker-card { padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #fcfcfb; display: grid; gap: 12px; }
+.image-picker-card--drop-target { border-style: dashed; transition: background-color .2s, border-color .2s; }
+.image-picker-card--drop-target.dragover { background: #eef4ff; border-color: var(--blue); }
 .image-preview-box { width: 100%; height: 160px; background: #eaecf0; border-radius: 6px; overflow: hidden; position: relative; display: grid; place-items: center; cursor: crosshair; }
 .image-preview-img { width: 100%; height: 100%; object-fit: contain; background: #101828; }
 .focal-crosshair { position: absolute; width: 24px; height: 24px; transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.4); pointer-events: none; }

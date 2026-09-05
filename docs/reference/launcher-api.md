@@ -2,7 +2,7 @@
 
 公開リファレンスはソース内Doxygenコメントから生成されます。手書きのクラス一覧は管理しません。
 
-<a href="./cpp/index.html" class="VPButton medium brand">生成済みC++ APIを開く</a>
+[生成済みC++ APIを開く](./cpp/index.html)
 
 ## ローカル生成
 

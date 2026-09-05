@@ -28,6 +28,10 @@ for (const required of ["index.html", "reference/admin-api.html", "reference/adm
 
 const allFiles = await files(dist);
 for (const file of allFiles) {
+  if (/\.(?:js|json|css|map)$/.test(file)) {
+    const content = await readFile(file, 'utf8');
+    if (/(?:BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY|\bgh[upsr]_[A-Za-z0-9]{30,}|X-Amz-(?:Credential|Signature)=)/i.test(content)) failures.push(`${relative(dist, file)}: secret-like value in public bundle`);
+  }
   if (file.endsWith(".html")) {
     const content = await readFile(file, "utf8");
     if (/(?:BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY|X-Amz-(?:Credential|Signature)=|[A-Z]:\\Users\\|\/home\/[^/]+\/)/i.test(content)) {

@@ -166,6 +166,8 @@ export function IntakeUploader() {
   const [sealedArtifactId, setSealedArtifactId] = useState<string | null>(null);
 
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isHeroDragOver, setIsHeroDragOver] = useState(false);
+  const [isThumbnailDragOver, setIsThumbnailDragOver] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const heroImageRef = useRef<HTMLImageElement | null>(null);
 
@@ -274,6 +276,29 @@ export function IntakeUploader() {
     if (thumbnailPreviewUrl) URL.revokeObjectURL(thumbnailPreviewUrl);
     setThumbnailFile(file);
     setThumbnailPreviewUrl(URL.createObjectURL(file));
+  }
+
+  function handleImageDragOver(event: DragEvent<HTMLDivElement>, setDragOver: (value: boolean) => void) {
+    event.preventDefault();
+    if (!isProcessing) setDragOver(true);
+  }
+
+  function handleImageDragLeave(event: DragEvent<HTMLDivElement>, setDragOver: (value: boolean) => void) {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+    setDragOver(false);
+  }
+
+  function handleImageDrop(
+    event: DragEvent<HTMLDivElement>,
+    setDragOver: (value: boolean) => void,
+    onSelected: (file: File) => void,
+  ) {
+    event.preventDefault();
+    setDragOver(false);
+    if (isProcessing) return;
+
+    const file = event.dataTransfer.files.item(0);
+    if (file) onSelected(file);
   }
 
   function handleHeroImageClick(e: React.MouseEvent<HTMLDivElement>) {
@@ -1104,7 +1129,13 @@ export function IntakeUploader() {
               {/* Images & Focal Point */}
               <div className="image-picker-row">
                 {/* Hero Image Card */}
-                <div className="image-picker-card">
+                <div
+                  className={`image-picker-card image-picker-card--drop-target ${isHeroDragOver ? "dragover" : ""}`}
+                  title="ランチャーでゲームを選択したとき、ゲーム詳細画面の背景に表示されます。"
+                  onDragOver={(event) => handleImageDragOver(event, setIsHeroDragOver)}
+                  onDragLeave={(event) => handleImageDragLeave(event, setIsHeroDragOver)}
+                  onDrop={(event) => handleImageDrop(event, setIsHeroDragOver, handleHeroSelected)}
+                >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: "12px", fontWeight: 680, color: "#344054" }}>Hero画像 *</span>
                     <span className="field-tip">PNG / JPEG / WebP</span>
@@ -1141,7 +1172,7 @@ export function IntakeUploader() {
                       </>
                     ) : (
                       <span style={{ color: "var(--muted)", fontSize: "12px" }}>
-                        Hero画像を選択してください (クリックで焦点設定)
+                        Hero画像をここへドラッグ＆ドロップ、または選択してください (クリックで焦点設定)
                       </span>
                     )}
                   </div>
@@ -1198,7 +1229,13 @@ export function IntakeUploader() {
                 </div>
 
                 {/* Thumbnail Image Card */}
-                <div className="image-picker-card">
+                <div
+                  className={`image-picker-card image-picker-card--drop-target ${isThumbnailDragOver ? "dragover" : ""}`}
+                  title="ランチャーのゲーム一覧に表示されるゲームカードのサムネイルです。"
+                  onDragOver={(event) => handleImageDragOver(event, setIsThumbnailDragOver)}
+                  onDragLeave={(event) => handleImageDragLeave(event, setIsThumbnailDragOver)}
+                  onDrop={(event) => handleImageDrop(event, setIsThumbnailDragOver, handleThumbnailSelected)}
+                >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: "12px", fontWeight: 680, color: "#344054" }}>Thumbnail画像 *</span>
                     <span className="field-tip">PNG / JPEG / WebP</span>
@@ -1214,7 +1251,7 @@ export function IntakeUploader() {
                       />
                     ) : (
                       <span style={{ color: "var(--muted)", fontSize: "12px" }}>
-                        Thumbnail画像を選択してください
+                        Thumbnail画像をここへドラッグ＆ドロップ、または選択してください
                       </span>
                     )}
                   </div>
