@@ -4,7 +4,7 @@ export const REPOSITORY = 'koto-thing/GameLauncher';
 export const REPOSITORY_ID = 1152962221;
 export const REPO = `/repos/${REPOSITORY}`;
 export const WORKFLOW = 'docs-cloudflare.yml';
-export const GITHUB_TIMEOUT_MS = 30000;
+export const GITHUB_TIMEOUT_MS = 60000;
 export function github(token) {
   return async (path, method = 'GET', body) => {
     ensure(path.startsWith('/') && !path.startsWith('//'), 422, 'APIパスが不正です。');
