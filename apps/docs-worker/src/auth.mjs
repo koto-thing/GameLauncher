@@ -47,7 +47,19 @@ export async function callback(request, env) {
     throw new ApiError(502, 'GitHub認証で障害が発生しています。');
   }
   const result = await boundedJson(response, 16384);
-  ensure(result.access_token?.startsWith('ghu_') && Number.isInteger(result.expires_in) && result.expires_in > 0, 401, '有効期限付きGitHub App認証が必要です。');
+  ensure(result && typeof result === 'object' && !Array.isArray(result), 502, 'GitHub認証の応答が不正です。');
+  if (result.error) {
+    const errors = new Map([
+      ['bad_verification_code', [401, 'GitHubの認証コードが無効または失効しています。サイトからログインを最初からやり直してください。']],
+      ['incorrect_client_credentials', [503, 'GitHub AppのClient IDまたはClient secretが一致しません。管理者が認証設定を確認してください。']],
+      ['redirect_uri_mismatch', [503, 'GitHub AppのCallback URLが一致しません。管理者が認証設定を確認してください。']]
+    ]);
+    const [status, message] = errors.get(result.error) || [502, 'GitHubが認証を拒否しました。サイトからログインをやり直してください。'];
+    throw new ApiError(status, message);
+  }
+  ensure(typeof result.access_token === 'string' && result.access_token.startsWith('ghu_'), 502, 'GitHub Appのユーザートークンを取得できませんでした。管理者が認証設定を確認してください。');
+  ensure(result.expires_in !== undefined, 503, 'GitHub Appのトークン有効期限が無効です。管理者がOptional featuresのUser-to-server token expirationを有効にしてから、再ログインしてください。');
+  ensure(Number.isInteger(result.expires_in) && result.expires_in > 0, 502, 'GitHub認証の有効期限が不正です。');
   const user = await authorize(github(result.access_token));
   const session = random(), idHash = await hash(session), csrf = random();
   const seconds = Math.min(6 * 60 * 60, result.expires_in);
