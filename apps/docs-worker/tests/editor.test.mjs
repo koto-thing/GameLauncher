@@ -136,6 +136,7 @@ for (const [response, status, message] of [
   [{ error: 'incorrect_client_credentials' }, 503, /Client IDまたはClient secret/],
   [{ error: 'redirect_uri_mismatch' }, 503, /Callback URL/],
   [{ error: 'unverified_user_email' }, 403, /プライマリーメールアドレスが未認証/],
+  [{ error: 'installation_missing_access' }, 403, /GameLauncherをアクセス対象に追加/],
   [{ error: 'access_denied' }, 403, /Appを承認/],
   [{ error: 'invalid_grant', error_description: 'secret-value' }, 502, /認証を拒否/],
   [{ error: 'unknown-provider-error', error_description: 'secret-value' }, 502, /認証を拒否/],
