@@ -177,7 +177,7 @@ onBeforeUnmount(() => { clearTimeout(draftTimer); clearTimeout(pollTimer); remem
     <p v-if="error" role="alert" class="notice error">{{ error }}</p>
     <div v-if="!session?.authenticated" class="panel">
       <p>{{ session?.message || '公開資料はログインなしで閲覧できます。編集するにはGitHubでログインしてください。' }}</p>
-      <a v-if="session?.configured" class="button primary" :href="loginUrl">GitHubでログイン</a>
+      <a v-if="session?.configured" class="button primary" :href="loginUrl" target="_self">GitHubでログイン</a>
       <a class="button" :href="withBase('/')">マニュアルへ戻る</a>
     </div>
     <template v-else>

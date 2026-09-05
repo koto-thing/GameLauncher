@@ -86,7 +86,7 @@ Wrangler 4.127.0付属workerdが受け付けるcompatibility dateは2026-09-02�
 
 2026-09-05に確認した公式資料では、Workerコードを実行しないStatic Assetsは無料・無制限。Workers Freeは動的100,000 requests/day、CPU 10ms/request、D1 Freeは5,000,000 rows read/day、100,000 rows written/day、総ストレージ5GBです。無料枠は既存Admin Web等と共有されます。既存Paid契約がFreeへ変わるわけではありません。
 
-この実装の上限は原稿16KiB、1変更3ファイル、HTTP本文210KB、GitHub応答4MB、1ユーザー未完了10変更、変更10回/分、認証済み操作60回/分、OAuth開始10回/分/IPです。Markdownは600行・開き角括弧512個までです。既存の最大編集原稿は10,260 bytesでした。目次は120項目・3階層以内、frontmatterは8,192文字以内です。GitHub処理は10秒timeout、完全なtree/PR差分を取得できなければ停止します。
+この実装の上限は原稿16KiB、1変更3ファイル、HTTP本文210KB、GitHub応答4MB、1ユーザー未完了10変更、変更10回/分、認証済み操作60回/分、OAuth開始10回/分/IPです。Markdownは600行・開き角括弧512個までです。既存の最大編集原稿は10,260 bytesでした。目次は120項目・3階層以内、frontmatterは8,192文字以内です。GitHub処理は60秒timeout、完全なtree/PR差分を取得できなければ停止します。
 
 `node scripts/benchmark.mjs` でNode上の参考CPU値を再測定できます。これはFree Workerの課金CPU計測ではありません。初期64KiBの角括弧連続入力はNode CPU p95約93msだったため16KiBと構文量制限へ変更しました。変更後の検証関数の100回平均はこのWindows端末で概ね0〜0.2ms/回ですが、Windows CPU計測粒度やJITの影響があります。GitHub/暗号/SQLを含む全APIの本番最大CPUは**未測定**です。Freeに必ず収まるとの保証はしていません。検証用Workerで最大の取得・新規2ファイル・更新3ファイル・公開・状態確認・OAuthを計測し、超えるなら入力や処理を削減します。安全検査を削除したり、承認なくPaidへ移行しません。
 
