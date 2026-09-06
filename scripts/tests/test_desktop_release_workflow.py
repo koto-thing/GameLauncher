@@ -52,6 +52,13 @@ class DesktopReleaseWorkflowTests(unittest.TestCase):
         self.assertIn('artifacts/macos/ifw/PandD-Game-Launcher-macos-arm64.zip', publish)
         self.assertIn('--platform "$platform" --arch "$arch"', publish)
 
+    def test_pointer_is_promoted_last_and_publications_are_serialized(self):
+        publish = self.workflow.split("\n  publish:", 1)[1]
+        self.assertIn("group: launcher-production-publication", publish)
+        self.assertIn("cancel-in-progress: false", publish)
+        self.assertLess(publish.index("--check-only"), publish.index("Upload immutable objects"))
+        self.assertLess(publish.index("gh release upload"), publish.index("Promote verified Windows installer"))
+
 
 if __name__ == "__main__":
     unittest.main()

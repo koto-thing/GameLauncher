@@ -80,6 +80,7 @@ function actionsActor(identity: ActionsIdentity): SessionUser {
     login: text(identity.claims.actor),
     avatarUrl: "",
     isAdmin: false,
+    gameAccess: true,
     authenticatedAt: new Date().toISOString(),
     authSource: "github",
   };

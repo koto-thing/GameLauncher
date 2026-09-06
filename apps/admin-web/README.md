@@ -9,6 +9,8 @@ StagingとProductionの申請、別アカウント承認、GitHub Actions起動�
 
 ## ローカル起動
 
+`npm ci` で依存関係を導入し、`npm run lint` でESLint 10とOxlintの両方を実行します。ReactとJSXアクセシビリティの検査は[Oxlintの組み込みルール](https://oxc.rs/docs/guide/usage/linter/plugins.html)で行い、Next・Hooks・TypeScriptの検査はESLintで行います。TypeScriptはtypescript-eslintが対応する6.0系を固定しています。React 19では不要なPropTypesとJSX変数補助ルールは使用せず、非推奨ライフサイクルは`react/no-unsafe`等で検査します。生成済みのMusic管理バンドルはLint対象に含めません。
+
 リポジトリルートから次を実行し、`http://localhost:3000`を開きます。
 
 ```powershell
@@ -57,7 +59,9 @@ StagingとProductionの申請、別アカウント承認、GitHub Actions起動�
 4. STEP 2: 多言語表示情報とHero / Thumbnail画像を選択（焦点位置を指定）
 5. STEP 3: Buildフォルダを選択し、起動EXEを確認
 6. STEP 4: プレビュー内容を確認し、「Artifactを作成してアップロード」を実行
-7. 完了後、Control Planeの申請画面（`/`）で公開申請を作成・承認・実行
+7. 完了後、Control Planeの申請画面（`/game`）で公開申請を作成・承認・実行
+
+ルート（`/`）はサービス選択画面です。GameLauncherのWeb Uploader / Intaker（`/intake`）、公開申請・設定（`/game`）、Music Uploader（`/music`）へ移動できます。
 
 ### R2 direct-r2 用 CORS 設定
 

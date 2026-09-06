@@ -29,6 +29,20 @@ test("server-renders the PandD deployment control plane", async () => {
   assert.match(html, /PandD/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
   assert.match(html, /lang="ja"/i);
+  assert.match(html, /href="\/intake"/);
+  assert.match(html, /href="\/music"/);
+  assert.match(html, /href="\/game"/);
+  assert.match(html, /Web Uploader \/ Intaker/);
+  assert.match(html, /Music Uploader/);
+});
+
+test("server-renders game management at its dedicated route", async () => {
+  const response = await render("/game");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /GameLauncher 公開申請・設定/);
+  assert.match(html, /href="\/"/);
+  assert.match(html, /href="\/intake"/);
 });
 
 test("server-renders the PandD intake uploader page without eval or 500 errors", async () => {

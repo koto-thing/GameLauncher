@@ -8,14 +8,15 @@
   "scripts": {
     "schema:generate": "node scripts/generate-validators.js",
     "predev": "npm run schema:generate",
-    "prebuild": "npm run schema:generate",
+    "prebuild": "npm run schema:generate && npm run music:build",
     "dev": "vinext dev",
     "build": "vinext build",
     "deploy:cloudflare": "vinext-cloudflare deploy",
     "start": "vinext start",
     "test": "npm run build && node --test",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern lib/generated",
-    "db:generate": "drizzle-kit generate"
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern lib/generated && oxlint",
+    "db:generate": "drizzle-kit generate",
+    "music:build": "npm --prefix ../music run build:manager"
   },
   "dependencies": {
     "ajv": "^8.20.0",
@@ -39,17 +40,16 @@
     "@vitejs/plugin-rsc": "0.5.34",
     "drizzle-kit": "0.31.10",
     "eslint": "10.9.1",
-    "eslint-plugin-jsx-a11y": "6.10.2",
-    "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.11.0",
     "react-server-dom-webpack": "19.2.8",
     "tailwindcss": "4.3.3",
-    "typescript": "7.0.2",
+    "typescript": "6.0.3",
     "typescript-eslint": "8.68.0",
     "vinext": "1.0.0-beta.8",
     "vite": "8.2.2",
-    "wrangler": "4.127.0"
+    "wrangler": "4.127.0",
+    "oxlint": "1.81.0"
   },
   "overrides": {
     "@esbuild-kit/core-utils": {

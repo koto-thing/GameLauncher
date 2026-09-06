@@ -1,0 +1,60 @@
+name: Launcher download page validation
+
+on:
+  pull_request:
+    paths:
+      - 'apps/launcher-download-web/**'
+      - 'apps/launcher-download-worker/**'
+      - 'scripts/release/promote_installer.py'
+      - 'scripts/tests/test_promote_installer.py'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/launcher-download-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-page:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/launcher-download-web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/launcher-download-web/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run browsers:install -- --with-deps
+      - run: npm run test:e2e
+      # Restore the portable build after testing the explicit /launcher/ base.
+      - run: npm run build
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: launcher-download-page
+          path: |
+            apps/launcher-download-web/dist/
+            apps/launcher-download-web/build/e2e-results.json
+            apps/launcher-download-web/build/screenshots/
+            apps/launcher-download-web/test-results/
+  download-worker:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+      - run: npm ci
+        working-directory: apps/launcher-download-worker
+      - run: npm test
+        working-directory: apps/launcher-download-worker
+      - run: npm run check
+        working-directory: apps/launcher-download-worker
+      - run: python -m unittest scripts.tests.test_promote_installer scripts.tests.test_desktop_release_workflow

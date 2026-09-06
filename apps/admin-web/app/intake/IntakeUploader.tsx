@@ -893,7 +893,7 @@ export function IntakeUploader() {
                 <strong>@{actor.login}</strong>
                 <small>{actor.isAdmin ? "Repository Admin" : "Authorized Operator"}</small>
               </div>
-              <Link className="text-button" href="/" style={{ textDecoration: "none", marginRight: 8 }}>
+              <Link className="text-button" href="/game" style={{ textDecoration: "none", marginRight: 8 }}>
                 Control Planeへ
               </Link>
             </>
@@ -1774,7 +1774,7 @@ export function IntakeUploader() {
                       Artifact ID <code>{sealedArtifactId}</code> をControl PlaneのStaging申請で使用できます。
                     </p>
                     <div style={{ marginTop: "14px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                      <Link className="primary-button" href="/" style={{ textDecoration: "none" }}>
+                      <Link className="primary-button" href="/game" style={{ textDecoration: "none" }}>
                         Control Planeで公開申請を作成
                       </Link>
                       <button type="button" className="secondary-button" onClick={resetForm}>

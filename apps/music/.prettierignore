@@ -1,0 +1,9 @@
+node_modules
+dist
+build
+.wrangler
+worker-configuration.d.ts
+test-results
+playwright-report
+package-lock.json
+tests/support/encoded-media.json

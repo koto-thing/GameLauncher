@@ -6,6 +6,7 @@ import { page, save, publish, readiness, status, owned } from '../src/changes.mj
 import { session, start, callback, returnTo } from '../src/auth.mjs';
 import { encrypt, decrypt, random, hash } from '../src/crypto.mjs';
 import { boundedJson } from '../src/http.mjs';
+import { navigationText, withNewPage } from '../../docs/editor-navigation.mjs';
 async function input(f, source = '# 日本語の編集\n\n本文です。\n') { const doc = await page(f.gh.api, 'guide/index'); return { key: crypto.randomUUID(), head: doc.head, files: [{ documentId: 'guide/index', content: source, sha: doc.sha }] }; }
 
 test('a non-owner write collaborator saves, verifies content, and publishes using expected SHA', async () => {
@@ -23,6 +24,29 @@ test('new page and navigation are a single commit', async () => {
   await save(f.env, f.session, { key: crypto.randomUUID(), head: doc.head, files: [{ documentId: 'guide/new-page', create: true, content: '# 新規\n' }, { documentId: '$navigation', content: JSON.stringify(nav), sha: doc.sha }] });
   assert.equal(f.gh.calls.filter(c => c.method === 'POST' && c.path.endsWith('/git/commits')).length, 1);
   assert.equal(f.gh.files(f.gh.prs[0]).length, 2);
+});
+
+test('sidebar edits and article content save together, then new content retains the section in the same PR', async () => {
+  const f = await fixture(), doc = await page(f.gh.api, 'guide/index');
+  const nav = JSON.parse(doc.navigation.content);
+  nav.sidebar['/guide/'].unshift({ text: '新しいセクション', items: [] });
+  const first = await save(f.env, f.session, { key: crypto.randomUUID(), head: doc.head, files: [
+    { documentId: 'guide/index', content: '# 本文も変更\n', sha: doc.sha },
+    { documentId: '$navigation', content: navigationText(nav), sha: doc.navigation.sha },
+  ] });
+  const saved = await page(f.gh.api, 'guide/index', f.gh.prs[0].branch);
+  assert.equal(saved.content, '# 本文も変更\n');
+  assert.equal(JSON.parse(saved.navigation.content).sidebar['/guide/'][0].text, '新しいセクション');
+  const next = withNewPage(JSON.parse(saved.navigation.content), '/guide/', [0], 'guide/new-content', '新しい本文');
+  await save(f.env, f.session, { key: crypto.randomUUID(), head: saved.head, files: [
+    { documentId: 'guide/new-content', content: '# 新しい本文\n', create: true },
+    { documentId: '$navigation', content: navigationText(next), sha: saved.navigation.sha },
+  ] }, first.id);
+  assert.equal(f.gh.prs.length, 1);
+  const article = await page(f.gh.api, 'guide/new-content', f.gh.prs[0].branch);
+  assert.equal(article.content, '# 新しい本文\n');
+  assert.equal(JSON.parse(article.navigation.content).sidebar['/guide/'][0].items[0].link, '/guide/new-content');
+  assert.equal((await readiness(f.gh.api, await owned(f.db, first.id, 42))).state, 'ready');
 });
 test('updates an owned PR and does not create a second PR', async () => {
   const f = await fixture(), body = await input(f), first = await save(f.env, f.session, body);

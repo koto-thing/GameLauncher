@@ -6,6 +6,7 @@ export type SessionUser = {
   login: string;
   avatarUrl: string;
   isAdmin: boolean;
+  gameAccess: boolean;
   authenticatedAt: string;
   authSource: "github" | "local-development";
 };
@@ -15,6 +16,7 @@ type RuntimeEnv = {
   LOCAL_DEV_AUTH?: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
+  GITHUB_CALLBACK_URL?: string;
 };
 
 type GitHubUser = { id: number; login: string; avatar_url: string };
@@ -33,7 +35,7 @@ function cookieValue(request: Request, name: string): string | undefined {
   const cookie = request.headers.get("cookie") ?? "";
   for (const part of cookie.split(";")) {
     const [key, ...value] = part.trim().split("=");
-    if (key === name) return decodeURIComponent(value.join("="));
+    if (key === name) { try { return decodeURIComponent(value.join("=")); } catch { return undefined; } }
   }
   return undefined;
 }
@@ -103,7 +105,9 @@ export async function readSession(request: Request): Promise<SessionUser | null>
       user: SessionUser;
       expiresAt: number;
     };
-    if (decoded.expiresAt <= Date.now()) return null;
+    // 古いCookieにゲーム許可を補完せず、サービス境界導入後は再ログインする。
+    if (decoded.expiresAt <= Date.now() || typeof decoded.user.gameAccess !== "boolean") return null;
+    if (decoded.user.authSource === "local-development" && !localDevAuthAvailable(request)) return null;
     return decoded.user;
   } catch {
     return null;
@@ -136,43 +140,95 @@ export function githubPublicClientId(): string | null {
   return runtimeEnv().GITHUB_CLIENT_ID?.trim() || null;
 }
 
-export async function verifyGithubToken(accessToken: string): Promise<SessionUser> {
+/** @brief GitHub本人確認を共通化し、リポジトリ認可失敗でもMusic本人情報を保持する。 @param accessToken GitHub App利用者トークン。 @returns サービス別のゲーム許可を含む本人情報。 */
+export async function verifyGithubIdentity(accessToken: string): Promise<SessionUser> {
   const headers = {
     accept: "application/vnd.github+json",
     authorization: `Bearer ${accessToken}`,
     "x-github-api-version": "2026-03-10",
     "user-agent": "PandD-Deployment-Control-Plane",
   };
-  const [userResponse, repositoryResponse] = await Promise.all([
-    fetch("https://api.github.com/user", { headers }),
-    fetch("https://api.github.com/repos/koto-thing/GameLauncher", { headers }),
-  ]);
-  if (!userResponse.ok || !repositoryResponse.ok) throw new Error("GitHub identity verification failed");
+  const userResponse = await fetch("https://api.github.com/user", { headers });
+  if (!userResponse.ok) throw new Error("GitHub identity verification failed");
   const githubUser = await userResponse.json() as GitHubUser;
-  const repository = await repositoryResponse.json() as GitHubRepository;
-  const isAdmin = githubUser.id === repository.owner.id;
-  if (!isAdmin) {
+  if (!Number.isSafeInteger(githubUser.id) || githubUser.id <= 0) throw new Error("Invalid GitHub identity");
+  let isAdmin: boolean;
+  let gameAccess: boolean;
+  try {
+    const repositoryResponse = await fetch("https://api.github.com/repos/koto-thing/GameLauncher", { headers });
+    if (!repositoryResponse.ok) throw new Error("Repository unavailable");
+    const repository = await repositoryResponse.json() as GitHubRepository;
+    isAdmin = githubUser.id === repository.owner.id;
+    gameAccess = isAdmin;
+    if (!isAdmin) {
     const permissionResponse = await fetch(
       `https://api.github.com/repos/koto-thing/GameLauncher/collaborators/${encodeURIComponent(githubUser.login)}/permission`,
       { headers },
     );
     if (!permissionResponse.ok) throw new Error("Repository Collaboratorではありません");
     const permission = await permissionResponse.json() as GitHubPermission;
-    if (!(permission.permission === "write" || permission.permission === "admin" ||
-        permission.role_name === "maintain")) {
-      throw new Error("Repository Collaboratorではありません");
+      gameAccess = permission.permission === "write" || permission.permission === "admin" || permission.role_name === "maintain";
     }
+  } catch {
+    // リポジトリへのアクセス不足・障害時にはゲーム管理を閉じる。
+    isAdmin = false;
+    gameAccess = false;
   }
   const actor: SessionUser = {
     githubUserId: String(githubUser.id),
     login: githubUser.login,
     avatarUrl: githubUser.avatar_url,
     isAdmin,
+    gameAccess,
     authenticatedAt: new Date().toISOString(),
     authSource: "github",
   };
-  await upsertUser(actor);
+  if (gameAccess) await upsertUser(actor);
   return actor;
+}
+
+/** @brief OAuthの固定Callbackを設定から解決する。 @param request 正規ログイン要求。 @returns 検証済みCallback。 */
+export function githubCallback(request: Request): string {
+  const configured = runtimeEnv().GITHUB_CALLBACK_URL;
+  const url = new URL(configured || (localDevAuthAvailable(request) ? "/api/auth/github/callback" : ""), request.url);
+  if ((!configured && !localDevAuthAvailable(request)) || url.origin !== new URL(request.url).origin ||
+      url.pathname !== "/api/auth/github/callback" || url.search || url.hash) throw new Error("GITHUB_CALLBACK_URL is not configured for this origin");
+  return url.toString();
+}
+
+/** @brief PKCE S256と改ざん不可の短期stateを作る。 @param request ログイン開始要求。 @returns 認可URLとCookie。 */
+export async function beginGithubFlow(request: Request): Promise<{ url: string; cookie: string }> {
+  const verifier = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
+  const state = crypto.randomUUID();
+  const payload = base64UrlEncode(JSON.stringify({ state, verifier, expiresAt: Date.now() + 600000 }));
+  const url = new URL("https://github.com/login/oauth/authorize");
+  url.searchParams.set("client_id", githubClientConfig().clientId);
+  url.searchParams.set("redirect_uri", githubCallback(request));
+  url.searchParams.set("state", state);
+  url.searchParams.set("code_challenge", base64UrlEncode(new Uint8Array(await crypto.subtle.digest("SHA-256", textEncoder.encode(verifier)))));
+  url.searchParams.set("code_challenge_method", "S256");
+  return { url: url.toString(), cookie: createStateCookie(`${payload}.${await sign(payload)}`, request) };
+}
+
+/** @brief state・署名・期限を検証し交換用verifierを返す。 @param request Callback要求。 @param state GitHubが返したstate。 @returns 短期PKCE verifier。 */
+export async function githubFlowVerifier(request: Request, state: string): Promise<string | null> {
+  try {
+    const [payload, signature] = (consumeState(request) ?? "").split(".");
+    if (!payload || !signature || !await crypto.subtle.verify("HMAC", await sessionKey(), Uint8Array.from(atob(signature.replaceAll("-", "+").replaceAll("_", "/")), character => character.charCodeAt(0)), textEncoder.encode(payload))) return null;
+    const flow = JSON.parse(base64UrlDecode(payload));
+    return flow.state === state && flow.expiresAt > Date.now() ? flow.verifier : null;
+  } catch { return null; }
+}
+
+/** @brief ゲームのリポジトリ許可をサーバー入口で強制する。 @param actor 共通本人情報。 @returns ゲーム管理者。 */
+export function requireGameAccess(actor: SessionUser): SessionUser {
+  if (actor.gameAccess !== true) throw new Response("Game management permission required", { status: 403 });
+  return actor;
+}
+
+/** @brief Device Flowの本人確認にも既存ゲーム条件を必須とする。 @param accessToken GitHub Appトークン。 @returns ゲーム許可済み本人。 */
+export async function verifyGithubToken(accessToken: string): Promise<SessionUser> {
+  return requireGameAccess(await verifyGithubIdentity(accessToken));
 }
 
 export async function requireUploaderActor(request: Request): Promise<SessionUser> {
@@ -195,7 +251,7 @@ export async function requireUploaderActor(request: Request): Promise<SessionUse
 
   const session = await readSession(request);
   if (session) {
-    return session;
+    return requireGameAccess(session);
   }
 
   throw new Response("Authentication required", { status: 401 });
@@ -239,7 +295,7 @@ export async function upsertUser(user: SessionUser): Promise<void> {
 export async function requireSession(request: Request): Promise<SessionUser> {
   const user = await readSession(request);
   if (!user) throw new Response("Authentication required", { status: 401 });
-  return user;
+  return requireGameAccess(user);
 }
 
 export async function requireRecentSession(request: Request): Promise<SessionUser> {
@@ -257,6 +313,7 @@ export const localUsers: Record<string, SessionUser> = {
     login: "koto-thing",
     avatarUrl: "",
     isAdmin: true,
+    gameAccess: true,
     authenticatedAt: "",
     authSource: "local-development",
   },
@@ -265,6 +322,7 @@ export const localUsers: Record<string, SessionUser> = {
     login: "pandd-maintainer",
     avatarUrl: "",
     isAdmin: false,
+    gameAccess: true,
     authenticatedAt: "",
     authSource: "local-development",
   },
@@ -273,10 +331,19 @@ export const localUsers: Record<string, SessionUser> = {
     login: "pandd-reviewer",
     avatarUrl: "",
     isAdmin: false,
+    gameAccess: true,
     authenticatedAt: "",
     authSource: "local-development",
   },
 };
+
+// ローカル専用の本人情報。MusicのDB割り当ては隔離環境のseedで明示登録する。
+export const musicLocalUsers: Record<string, SessionUser> = Object.fromEntries(
+  ["music-admin", "music-a", "music-b", "outsider"].map(
+    /** @brief ゲーム権限を持たない固定fixtureを定義する。 @param login 表示名。 @param index 固定IDの位置。 @returns 本人情報。 */
+    (login, index) => [login, { githubUserId: String(900001 + index), login, avatarUrl: "", isAdmin: false, gameAccess: false, authenticatedAt: "", authSource: "local-development" }],
+  ),
+);
 
 export async function ensureLocalFixtures(): Promise<void> {
   await ensureSchema();

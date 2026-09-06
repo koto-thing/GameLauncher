@@ -103,7 +103,7 @@ export async function deflateRawStreamToBlobParts(
     return { compressedSize, blobParts };
   } catch (err) {
     if (err instanceof ArtifactBuildCancelledError) throw err;
-    throw new Error(`DEFLATE compression is unavailable in this environment: ${err}`);
+    throw new Error(`DEFLATE compression is unavailable in this environment: ${err}`, { cause: err });
   }
 }
 
@@ -379,7 +379,6 @@ export async function createDeterministicZip(
       }
       if (item.localHeaderOffset >= UINT32_MAX) {
         view.setBigUint64(extraOffset, BigInt(item.localHeaderOffset), true);
-        extraOffset += 8;
       }
     }
 
@@ -423,7 +422,6 @@ export async function createDeterministicZip(
     z64View.setBigUint64(48, BigInt(centralDirStartOffset), true);
 
     blobParts.push(z64Eocd as unknown as BlobPart);
-    currentOffset += z64Eocd.length;
 
     // Zip64 End of Central Directory Locator (20 bytes)
     const z64Loc = new Uint8Array(20);
@@ -438,7 +436,6 @@ export async function createDeterministicZip(
     locView.setUint32(16, 1, true);
 
     blobParts.push(z64Loc as unknown as BlobPart);
-    currentOffset += z64Loc.length;
   }
 
   // Step 4: Standard End of Central Directory Record (22 bytes)

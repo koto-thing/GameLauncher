@@ -6,6 +6,13 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "vinext/server/fetch-handler",
   "vars": {
+    "LOCAL_DEV_AUTH": "false",
+    "GITHUB_CALLBACK_URL": "https://pandd-deployment-control-plane.gotoukenta62.workers.dev/api/auth/github/callback",
+    "MUSIC_ENABLED": "true",
+    "MUSIC_ENVIRONMENT": "production",
+    "MUSIC_PUBLIC_URL": "https://pandd-music.koto-thing.com/",
+    "MUSIC_BRIDGE_URL": "https://pandd-music.koto-thing.com/bridge.php",
+    "MUSIC_BRIDGE_KEY_ID": "primary",
     "STAGING_DISPATCH_ENABLED": "true",
     "PRODUCTION_DISPATCH_ENABLED": "true",
     "GITHUB_CLIENT_ID": "Iv23linf562liNP3UAZQ",

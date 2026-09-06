@@ -1,0 +1,21 @@
+# PHP/API/mediaの失敗をSPAへ置き換えない。document root外へprivate dataを置く。
+Options -Indexes -MultiViews
+DirectoryIndex index.html
+RewriteEngine On
+RewriteRule (^|/)\. - [F,END]
+RewriteRule ^api(?:/|$) api.php [END]
+RewriteRule ^bridge\.php$ - [END]
+RewriteRule ^(?:src|config|vendor|var|snapshots|tmp)(?:/|$) - [F,END]
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [END]
+RewriteRule ^(?:games|tracks)/[a-f0-9-]+$ index.html [END]
+RewriteRule ^about/?$ index.html [END]
+<IfModule mod_headers.c>
+  # 配信途中で解析コードを挿入させず、公開画面を同一origin内で完結させる。
+  <FilesMatch "\.html$">
+    Header always set Cache-Control "public, max-age=0, must-revalidate, no-transform"
+  </FilesMatch>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+</IfModule>

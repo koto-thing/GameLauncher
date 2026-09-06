@@ -76,6 +76,8 @@ apps/intake-uploader/src/pandd_intake_uploader/deployment/
 apps/intake-uploader/src/pandd_intake_uploader/pysidedeploy.spec
 apps/intake-uploader/src/pandd_intake_uploader/*.exe
 apps/admin-web/public/downloads/*.exe
+apps/admin-web/public/music-editor/
+.wrangler/
 apps/docs/dist/
 apps/docs/.vitepress/
 apps/docs-worker/node_modules/

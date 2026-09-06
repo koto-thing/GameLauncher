@@ -1,19 +1,13 @@
-import { createStateCookie, githubClientConfig } from "@/lib/auth";
+import { beginGithubFlow } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
-    const { clientId } = githubClientConfig();
-    const state = crypto.randomUUID();
-    const callback = new URL("/api/auth/github/callback", request.url);
-    const authorization = new URL("https://github.com/login/oauth/authorize");
-    authorization.searchParams.set("client_id", clientId);
-    authorization.searchParams.set("redirect_uri", callback.toString());
-    authorization.searchParams.set("state", state);
+    const flow = await beginGithubFlow(request);
     return new Response(null, {
       status: 302,
       headers: {
-        location: authorization.toString(),
-        "set-cookie": createStateCookie(state, request),
+        location: flow.url,
+        "set-cookie": flow.cookie,
       },
     });
   } catch (error) {

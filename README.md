@@ -81,6 +81,7 @@ model.jsonにゲームとの対応を入力してください
 ## ディレクトリ
 
 - `apps/launcher/` — C++ / Qt製ゲームランチャー
+- `apps/launcher-download-web/` — [GameLauncher配布ページ](apps/launcher-download-web/README.md)（独立した静的サイト）
 - `apps/intake-uploader/` — Qt for Python製のゲーム受入uploader
 - `apps/admin-web/` — Cloudflare上の申請・承認Webアプリ
 - `apps/store-web/` — 一般利用者向けストア（実装予定）
