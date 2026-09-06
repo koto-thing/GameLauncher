@@ -10,13 +10,15 @@
 
 ## 配置と秘密管理
 
-同日実施したPHP限定の再デプロイ後は、稼働PHP本体が `/home/users/2/sub.jp-koto-thing/pandd-music-private/releases/php-20260906-35b10cefc88b/app` にある。下表の初回 `app` は旧版として保持。公開側api.php/bridge.phpは新しい版のbootstrapを参照している。
+`ACCOUNT_HOME` はレンタルサーバー上のアカウントホーム（共通 `web` ディレクトリの親）。以下はその変数で表した配置。
+
+同日実施したPHP限定の再デプロイ後は、稼働PHP本体が `${ACCOUNT_HOME}/pandd-music-private/releases/php-20260906-35b10cefc88b/app` にある。下表の初回 `app` は旧版として保持。公開側api.php/bridge.phpは新しい版のbootstrapを参照している。
 
 | 内容 | サーバー内の配置 |
 |---|---|
-| 公開ファイル | `/home/users/2/sub.jp-koto-thing/web/pandd-music` |
-| PHP本体・依存・非公開設定 | `/home/users/2/sub.jp-koto-thing/pandd-music-private/app` |
-| 下書き音源・公開状態・受領記録 | `/home/users/2/sub.jp-koto-thing/pandd-music-private/data` |
+| 公開ファイル | `${ACCOUNT_HOME}/web/pandd-music` |
+| PHP本体・依存・非公開設定 | `${ACCOUNT_HOME}/pandd-music-private/app` |
+| 下書き音源・公開状態・受領記録 | `${ACCOUNT_HOME}/pandd-music-private/data` |
 
 PHP本体とデータは、Musicだけでなく共通の `web` ルートより外に配置。公開側api.php/bridge.phpのbootstrap参照を上記非公開アプリへ合わせた。再配布時も一般パッケージの `../src/bootstrap.php` をそのまま上書きしないこと。
 
