@@ -9,7 +9,7 @@ import stat
 import tempfile
 import unittest
 from unittest import mock
-from urllib.error import HTTPError, URLError
+from urllib.error import HTTPError
 from urllib.request import Request
 import zipfile
 
@@ -228,41 +228,6 @@ class CubismSdkTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     cubism_sdk.extract_cubism_archive(path, self.root / "sdk")
                 self.assertEqual(list(self.root.iterdir()), [path])
-
-    def test_fetch_verified_live2d_license_rejects_changed_bytes(self) -> None:
-        name, source = next(iter(cubism_sdk.LIVE2D_REMOTE_LICENSES.items()))
-        with mock.patch.object(cubism_sdk, "build_opener") as factory:
-            factory.return_value.open.return_value = FakeResponse(b"changed", source["url"])
-            with self.assertRaisesRegex(ValueError, "download hash mismatch"):
-                cubism_sdk.fetch_verified_live2d_license(name)
-
-    @mock.patch.object(cubism_sdk.time, "sleep")
-    def test_license_retries_connection_timeout_then_verifies_payload(self, sleep) -> None:
-        name, source = next(iter(cubism_sdk.LIVE2D_REMOTE_LICENSES.items()))
-        payload = b"reviewed license"
-        with mock.patch.dict(source, sha256=hashlib.sha256(payload).hexdigest()), \
-                mock.patch.object(cubism_sdk, "build_opener") as factory:
-            factory.return_value.open.side_effect = [
-                URLError(TimeoutError("connection timed out")),
-                FakeResponse(payload, source["url"]),
-            ]
-            self.assertEqual(cubism_sdk.fetch_verified_live2d_license(name), payload)
-        sleep.assert_called_once_with(1)
-
-    @mock.patch.object(cubism_sdk.time, "sleep")
-    def test_license_retry_is_bounded_and_rejects_permanent_http_errors(self, sleep) -> None:
-        name, source = next(iter(cubism_sdk.LIVE2D_REMOTE_LICENSES.items()))
-        for error, attempts in (
-            (URLError("unreachable"), 3),
-            (HTTPError(source["url"], 503, "unavailable", {}, None), 3),
-            (HTTPError(source["url"], 404, "missing", {}, None), 1),
-        ):
-            with self.subTest(error=error), mock.patch.object(cubism_sdk, "build_opener") as factory:
-                factory.return_value.open.side_effect = error
-                with self.assertRaises(URLError):
-                    cubism_sdk.fetch_verified_live2d_license(name)
-                self.assertEqual(factory.return_value.open.call_count, attempts)
-
 
 if __name__ == "__main__":
     unittest.main()

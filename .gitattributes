@@ -1,2 +1,3 @@
 licenses/*.txt text eol=lf
+licenses/*.html -text
 *.sh text eol=lf

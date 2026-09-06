@@ -8,8 +8,6 @@ from pathlib import Path, PurePosixPath
 import shutil
 import stat
 import tempfile
-import time
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import zipfile
@@ -33,14 +31,12 @@ NETWORK_TIMEOUT_SECONDS = 120
 DOWNLOAD_USER_AGENT = "PandD-GameLauncher/1.0 (+https://github.com/koto-thing/GameLauncher)"
 MAX_ARCHIVE_BYTES = OFFICIAL_CUBISM_ARCHIVE_SIZE
 MAX_EXTRACTED_BYTES = 256 * 1024 * 1024
-MAX_LICENSE_BYTES = 256 * 1024
 MAX_ARCHIVE_MEMBERS = 10_000
 
 WINDOWS_DEVICE_NAMES = frozenset({"CON", "PRN", "AUX", "NUL", "CLOCK$"})
 WINDOWS_DEVICE_SUFFIXES = frozenset("123456789¹²³")
 
 ALLOWED_ARCHIVE_HOSTS = frozenset({"cubism.live2d.com"})
-ALLOWED_LICENSE_HOSTS = frozenset({"www.live2d.com"})
 REQUIRED_CORE_RELATIVE_PATHS = (
     Path("Core/lib/windows/x86_64/143/Live2DCubismCore_MD.lib"),
     Path("Core/lib/windows/x86_64/143/Live2DCubismCore_MDd.lib"),
@@ -48,18 +44,6 @@ REQUIRED_CORE_RELATIVE_PATHS = (
     Path("Core/lib/macos/x86_64/libLive2DCubismCore.a"),
     Path("Core/lib/linux/x86_64/libLive2DCubismCore.a"),
 )
-
-LIVE2D_REMOTE_LICENSES = {
-    "Live2D-Proprietary-Software-License-Agreement.html": {
-        "url": "https://www.live2d.com/eula/live2d-proprietary-software-license-agreement_en.html",
-        "sha256": "e7b4ffc6c636de2cfdd6d2eed6a4e43fa7034e7f15a0c3a15f1603dbb3b4c2b6",
-    },
-    "Live2D-Open-Software-License-Agreement.html": {
-        "url": "https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html",
-        "sha256": "a8274bf5f461335738791e9f392eb3f3684eaa22cbb4dfe1f3f887c3586a8d82",
-    },
-}
-
 
 def _validate_https_url(url: str, allowed_hosts: frozenset[str]) -> None:
     if any(ord(character) <= 32 or ord(character) == 127 for character in url) or "\\" in url:
@@ -241,24 +225,3 @@ def extract_cubism_archive(archive_path: Path, destination: Path) -> Path:
             validate_extracted_sdk_layout(staging_root)
             staging_root.rename(destination)
     return destination
-
-
-def fetch_verified_live2d_license(name: str) -> bytes:
-    """Download a reviewed Live2D EULA page and reject any silent upstream change."""
-    source = LIVE2D_REMOTE_LICENSES[name]
-    with tempfile.TemporaryDirectory(prefix="live2d-license-") as temporary:
-        path = Path(temporary) / name
-        for attempt in range(3):
-            try:
-                _download_with_sha256(
-                    source["url"], path, source["sha256"],
-                    ALLOWED_LICENSE_HOSTS, MAX_LICENSE_BYTES,
-                )
-                break
-            except (URLError, TimeoutError, ConnectionError) as error:
-                if isinstance(error, HTTPError) and error.code not in (408, 429, 500, 502, 503, 504):
-                    raise
-                if attempt == 2:
-                    raise
-                time.sleep(2 ** attempt)
-        return path.read_bytes()
