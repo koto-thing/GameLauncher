@@ -7,9 +7,6 @@ import argparse
 import hashlib
 from pathlib import Path
 
-from scripts.dependencies import cubism_sdk
-
-
 SOURCE_DIRECTORY = Path(__file__).resolve().parents[2] / "licenses"
 LICENSE_SOURCES = {
     "LGPL-3.0-only.txt":
@@ -23,6 +20,10 @@ LICENSE_SOURCES = {
     # Exact vcpkg GLEW 2.3.1 share/glew/copyright, including Mesa and Khronos notices.
     "GLEW-LICENSE.txt":
         "8991cd11befec7c6a63662700f03c0cc42e864b6e77c7e70b80297c951a7f0ff",
+    "Live2D-Proprietary-Software-License-Agreement.html":
+        "e7b4ffc6c636de2cfdd6d2eed6a4e43fa7034e7f15a0c3a15f1603dbb3b4c2b6",
+    "Live2D-Open-Software-License-Agreement.html":
+        "a8274bf5f461335738791e9f392eb3f3684eaa22cbb4dfe1f3f887c3586a8d82",
 }
 
 
@@ -45,17 +46,15 @@ def write_atomic(destination: Path, content: bytes) -> None:
 
 
 def collect(output: Path) -> None:
-    """Write all verified local and remote licenses into a clean release directory."""
+    """Write all verified vendored licenses without network access."""
     output.mkdir(parents=True, exist_ok=True)
-    expected_names = set(LICENSE_SOURCES) | set(cubism_sdk.LIVE2D_REMOTE_LICENSES)
+    expected_names = set(LICENSE_SOURCES)
     unexpected = {path.name for path in output.iterdir()} - expected_names
     if unexpected:
         raise ValueError(f"unexpected existing license files: {sorted(unexpected)}")
     for name, digest in LICENSE_SOURCES.items():
         content = read_verified(SOURCE_DIRECTORY / name, digest)
         write_atomic(output / name, content)
-    for name in cubism_sdk.LIVE2D_REMOTE_LICENSES:
-        write_atomic(output / name, cubism_sdk.fetch_verified_live2d_license(name))
 
 
 def main() -> int:
