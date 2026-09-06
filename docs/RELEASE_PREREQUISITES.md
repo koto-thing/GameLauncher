@@ -14,22 +14,31 @@ these pins intentionally; production configuration rejects OpenSSL versions belo
 - `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, `R2_BUCKET`
 - `LINUX_GPG_PRIVATE_KEY_BASE64`: exported Linux release private key, Base64-encoded
 - `LINUX_GPG_KEY_ID`: full fingerprint of the Linux release signing key
-- `MACOS_CERTIFICATE_P12_BASE64`: Developer ID Application certificate and private key in PKCS#12 format, Base64-encoded
-- `MACOS_CERTIFICATE_PASSWORD`: password protecting the PKCS#12 file
-- `MACOS_KEYCHAIN_PASSWORD`: ephemeral CI keychain password
-- `MACOS_DEVELOPER_ID_APPLICATION`: complete `Developer ID Application: ...` signing identity
-- `MACOS_NOTARY_APPLE_ID`: Apple ID used by `notarytool`
-- `MACOS_NOTARY_TEAM_ID`: Apple Developer team ID
-- `MACOS_NOTARY_APP_PASSWORD`: app-specific password for the notarization Apple ID
 
 The launcher release workflow reads the manifest public key and the Linux OpenPGP
 release key; the approved game workflow is the only workflow that reads the manifest
 private key. The launcher workflow targets unsigned Windows x86_64, OpenPGP-signed
-Linux x86_64, and Developer ID signed and notarized macOS arm64. Follow
+Linux x86_64. macOS production builds and publication are disabled until Developer ID
+signing and notarization credentials are available. Follow
 `PRODUCTION_SETUP.md` for its dedicated R2 bucket, custom domain, production Ed25519
 key, and GitHub environment.
 
 ## Tag preparation
+
+The `verify-secrets` job checks required production secrets and their Base64 encoding
+before any desktop build starts. It reports variable names only. Base64 secrets must
+contain a single line: encode the exported file bytes, not its filename, and do not
+paste an ASCII-armored OpenPGP key directly into `LINUX_GPG_PRIVATE_KEY_BASE64`.
+For example, in PowerShell, upload an existing exported Linux private key with:
+
+```powershell
+$keyFile = 'C:\path\to\PandD-Linux-Release-Private-Key-BACKUP.asc'
+[Convert]::ToBase64String([IO.File]::ReadAllBytes($keyFile)) |
+    gh secret set LINUX_GPG_PRIVATE_KEY_BASE64 --repo koto-thing/GameLauncher --env production
+```
+
+Set `LINUX_GPG_KEY_ID` to the corresponding full fingerprint. Preflight checks do not
+prove that a signing key is usable; the Linux signing step still validates it.
 
 1. Update both localized `services/distribution-content/content/launcher/release.*.json` files to the tag
    version and reviewed release notes
@@ -39,12 +48,11 @@ key, and GitHub environment.
 4. Create `v<major>.<minor>.<patch>` only after the protected environment approver
    confirms the manifest key and R2 credentials
 
-The workflow builds Windows x86_64, Linux x86_64, and macOS arm64, generates their
+The workflow builds Windows x86_64 and Linux x86_64, generates their
 platform-specific Qt IFW repositories, runs deployment smoke tests, and promotes each
 `latest.json` last.
 Windows artifacts are intentionally unsigned and ship with CI-verified SHA-256
 sidecars, so Windows SmartScreen will identify an unknown publisher. Linux artifacts
-ship with SHA-256 sidecars and detached armored OpenPGP signatures. macOS artifacts
-are signed with Hardened Runtime, notarized, stapled, and distributed as ZIP files with
-SHA-256 sidecars. A staging artifact or local verification build must never be
+ship with SHA-256 sidecars and detached armored OpenPGP signatures.
+A staging artifact or local verification build must never be
 published as production.

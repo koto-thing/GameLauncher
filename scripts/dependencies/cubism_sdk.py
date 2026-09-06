@@ -8,6 +8,8 @@ from pathlib import Path, PurePosixPath
 import shutil
 import stat
 import tempfile
+import time
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import zipfile
@@ -246,11 +248,17 @@ def fetch_verified_live2d_license(name: str) -> bytes:
     source = LIVE2D_REMOTE_LICENSES[name]
     with tempfile.TemporaryDirectory(prefix="live2d-license-") as temporary:
         path = Path(temporary) / name
-        _download_with_sha256(
-            source["url"],
-            path,
-            source["sha256"],
-            ALLOWED_LICENSE_HOSTS,
-            MAX_LICENSE_BYTES,
-        )
+        for attempt in range(3):
+            try:
+                _download_with_sha256(
+                    source["url"], path, source["sha256"],
+                    ALLOWED_LICENSE_HOSTS, MAX_LICENSE_BYTES,
+                )
+                break
+            except (URLError, TimeoutError, ConnectionError) as error:
+                if isinstance(error, HTTPError) and error.code not in (408, 429, 500, 502, 503, 504):
+                    raise
+                if attempt == 2:
+                    raise
+                time.sleep(2 ** attempt)
         return path.read_bytes()
