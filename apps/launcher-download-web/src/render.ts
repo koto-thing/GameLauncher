@@ -14,14 +14,14 @@ export function renderDownloads(config: SiteConfig, base: string): string {
   const labels = { windows: "Windows", macos: "Mac", linux: "Linux" };
   return platforms.map(platform => {
     const target = config.downloads[platform];
-    const label = `${labels[platform]}版`;
+    const label = labels[platform];
     const available = target.status === "available";
-    const action = available ? "ダウンロード" : "準備中";
+    const action = available ? locales.en.download : locales.en.soon;
     const detail = available && target.detail ? `<small>${escapeHtml(target.detail)}</small>` : "";
     const content = `<span class="os-name">${label}</span><span class="download-action">${action}</span>${detail}`;
     return available
-      ? `<a class="download" data-platform="${platform}" href="${escapeHtml(siteUrl(target.url, base))}" aria-label="${label}をダウンロード${target.detail ? `（${escapeHtml(target.detail)}）` : ""}">${content}</a>`
-      : `<button class="download" data-platform="${platform}" type="button" disabled aria-label="${label}（準備中）">${content}</button>`;
+      ? `<a class="download" data-platform="${platform}" href="${escapeHtml(siteUrl(target.url, base))}" aria-label="${label} · ${action}${target.detail ? ` (${escapeHtml(target.detail)})` : ""}">${content}</a>`
+      : `<button class="download" data-platform="${platform}" type="button" disabled aria-label="${label} · ${action}">${content}</button>`;
   }).join("\n");
 }
 
@@ -31,13 +31,14 @@ export function renderPage(config: SiteConfig, base: string): string {
   const url = (value: string) => escapeHtml(siteUrl(value, base));
   const { background } = config;
   return `<!doctype html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="PandD ${escapeHtml(config.title)}の公式ダウンロードページ。Windows・Mac・Linux版の配布状況をご案内します。">
+  <meta name="description" content="${locales.en.description}">
   <meta name="theme-color" content="#17191c">
   <title>${escapeHtml(config.title)}</title>
+  <link rel="icon" type="image/png" href="${url("media/pandd-logo.png")}">
   <link rel="stylesheet" href="/src/style.css">
   <script type="module" src="/src/main.ts"></script>
 </head>
@@ -52,13 +53,13 @@ export function renderPage(config: SiteConfig, base: string): string {
   </div>
   <header class="site-header">${config.logoUrl ? `<span class="brand-logo"><img src="${url(config.logoUrl)}" alt="PandD" width="1500" height="1500"></span>` : '<span class="wordmark">PandD</span>'}<div class="language-picker" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6.5h14M5 17.5h14"/></svg>
-    <select id="language" aria-label="言語を選択">${Object.entries(locales).map(([code, text]) => `<option value="${code}" lang="${code}">${text.name}</option>`).join("")}</select>
+    <select id="language" aria-label="${locales.en.language}">${Object.entries(locales).map(([code, text]) => `<option value="${code}" lang="${code}">${text.name}</option>`).join("")}</select>
   </div></header>
   <main class="stage">
     <div class="hero">
       <h1 class="title"><span class="product-title">${config.title.split(" ").map(word => `<span class="title-word">${/^[PD]/.test(word) ? `<span class="title-initial">${escapeHtml(word[0]!)}</span>${escapeHtml(word.slice(1))}` : escapeHtml(word)}</span>`).join(" ")}</span></h1>
-      <p class="tagline">${escapeHtml(config.tagline)}</p>
-      <nav class="downloads" aria-label="OS別ダウンロード">${renderDownloads(config, base)}</nav>
+      <p class="tagline" data-japanese-tagline="${escapeHtml(config.tagline)}">${locales.en.tagline}</p>
+      <nav class="downloads" aria-label="${locales.en.nav}">${renderDownloads(config, base)}</nav>
     </div>
   </main>
   <footer class="site-footer"><small>© PandD</small></footer>

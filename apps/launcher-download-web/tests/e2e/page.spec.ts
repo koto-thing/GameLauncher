@@ -27,7 +27,7 @@ for (const platform of ["windows", "linux"] as const) test(`initial HTML, ${plat
   page.on("request", request => { if (!request.url().startsWith("http://127.0.0.1")) external.push(request.url()); });
   await page.goto("./");
   await expect(page).toHaveTitle("Play and Discover");
-  await expect(page.getByRole("button", { name: "Mac版（準備中）" })).toBeDisabled();
+  await expect(page.locator('button[data-platform="macos"]')).toBeDisabled();
   await expect(page.locator('a[data-platform="linux"]')).toHaveAttribute("href", config.downloads.linux.url);
   if (config.background.videoUrl) await expect(page.locator("video")).toHaveClass(/has-frame/u);
   await expect(page.getByRole("button", { name: /背景動画/u })).toHaveCount(0);

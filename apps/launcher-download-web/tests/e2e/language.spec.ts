@@ -29,7 +29,24 @@ test("URL language overrides the saved language on desktop", async ({page}) => {
 test("blocked storage and invalid language do not break switching", async ({page}) => {
   await page.addInitScript(() => { Object.defineProperty(window, 'localStorage', {get() {throw new Error('blocked');}}); });
   await page.goto('/launcher/?lang=invalid');
-  await expect(page.locator('html')).toHaveAttribute('lang','ja');
+  await expect(page.locator('html')).toHaveAttribute('lang','en');
   await page.locator('#language').selectOption('ko');
   await expect(page.locator('html')).toHaveAttribute('lang','ko');
+});
+
+for (const [language, expected] of [["ja-JP", "ja"], ["en-US", "en"], ["ko-KR", "ko"], ["zh-CN", "zh-CN"], ["es-MX", "es"], ["de-DE", "en"]]) {
+  test(`browser language ${language} selects ${expected}`, async ({browser}) => {
+    const context = await browser.newContext({locale: language});
+    const page = await context.newPage();
+    await page.goto("http://127.0.0.1:5181/launcher/");
+    await expect(page.locator("html")).toHaveAttribute("lang", expected);
+    await expect(page.locator("#language")).toHaveValue(expected);
+    await context.close();
+  });
+}
+
+test("uses the first supported preferred language", async ({page}) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, "languages", {value: ["de-DE", "es-MX", "ja-JP"]}));
+  await page.goto("/launcher/");
+  await expect(page.locator("html")).toHaveAttribute("lang", "es");
 });

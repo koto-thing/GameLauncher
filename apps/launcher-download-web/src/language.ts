@@ -4,7 +4,7 @@ export function setupLanguage() {
   const select = document.querySelector<HTMLSelectElement>("#language");
   if (!select) return;
   const tagline = document.querySelector<HTMLElement>(".tagline")!;
-  const japaneseTagline = tagline.textContent;
+  const japaneseTagline = tagline.dataset.japaneseTagline!;
   const apply = (locale: Locale) => {
     const text = locales[locale];
     document.documentElement.lang = locale;
@@ -26,9 +26,12 @@ export function setupLanguage() {
   let saved: string | null = null;
   try { saved = localStorage.getItem("pandd-language"); } catch { /* Storage may be disabled. */ }
   const requested = new URL(location.href).searchParams.get("lang");
-  const initial = isLocale(requested) ? requested : isLocale(saved) ? saved : "ja";
-  // Keep the build-time Japanese accessible names until a different locale is selected.
-  if (initial !== "ja") apply(initial);
+  const preferred = navigator.languages.map(language => {
+    const base = language.toLowerCase().split("-")[0];
+    return base === "zh" ? "zh-CN" : base;
+  }).find(isLocale);
+  const initial = isLocale(requested) ? requested : isLocale(saved) ? saved : preferred ?? "en";
+  apply(initial);
   select.addEventListener("change", () => {
     if (!isLocale(select.value)) return;
     apply(select.value);
