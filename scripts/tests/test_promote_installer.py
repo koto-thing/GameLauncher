@@ -24,8 +24,13 @@ class PromotionTests(unittest.TestCase):
             digest = hashlib.sha256(b"exe").hexdigest()
             artifact.with_name(artifact.name + ".sha256").write_text(digest + "  " + artifact.name)
             xml = b"<Updates><PackageUpdate><Name>org.pandd.launcher</Name><Version>1.0.5</Version></PackageUpdate></Updates>"
-            with patch.object(p, "urlopen", side_effect=[Response(b"exe"), Response(xml)]):
+            with patch.object(p, "urlopen", side_effect=[Response(b"exe"), Response(xml)]) as requests:
                 self.assertEqual(p.verify_public("1.0.5", artifact)["sha256"], digest)
+                self.assertEqual(requests.call_count, 2)
+                for call in requests.call_args_list:
+                    request = call.args[0]
+                    self.assertEqual(request.get_header("User-agent"), p.USER_AGENT)
+                    self.assertEqual(request.get_header("Cache-control"), "no-cache")
             with patch.object(p, "current_pointer", return_value=None), patch.object(p, "aws") as write, patch.object(p, "urlopen", return_value=Response(b"bad")):
                 with self.assertRaises(ValueError): p.promote("1.0.5", artifact, "endpoint", "bucket")
                 write.assert_not_called()

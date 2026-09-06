@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 
 ORIGIN = "https://downloads.koto-thing.com"
 POINTER = "v1/launcher/downloads/windows/x86_64/latest.json"
+USER_AGENT = "PandD-GameLauncher-Release/1.0 (+https://github.com/koto-thing/GameLauncher)"
 
 
 def version_tuple(version):
@@ -47,7 +48,8 @@ def verify_public(version, artifact):
     key = f"v1/launcher/installers/windows/x86_64/{version}/PandD-Game-Launcher-Online-Installer.exe"
     actual = hashlib.sha256()
     size = 0
-    with urlopen(Request(f"{ORIGIN}/{key}", headers={"Cache-Control": "no-cache"}), timeout=120) as response:
+    headers = {"Cache-Control": "no-cache", "User-Agent": USER_AGENT}
+    with urlopen(Request(f"{ORIGIN}/{key}", headers=headers), timeout=120) as response:
         if response.geturl() != f"{ORIGIN}/{key}":
             raise ValueError("Unexpected installer redirect")
         while chunk := response.read(1024 * 1024):
@@ -55,7 +57,7 @@ def verify_public(version, artifact):
             size += len(chunk)
     if size != artifact.stat().st_size or actual.hexdigest() != digest:
         raise ValueError("Public installer differs from verified build")
-    with urlopen(Request(f"{ORIGIN}/v1/launcher/ifw/windows/x86_64/Updates.xml", headers={"Cache-Control": "no-cache"}), timeout=30) as response:
+    with urlopen(Request(f"{ORIGIN}/v1/launcher/ifw/windows/x86_64/Updates.xml", headers=headers), timeout=30) as response:
         xml = response.read(1024 * 1024 + 1)
     if len(xml) > 1024 * 1024:
         raise ValueError("IFW index too large")
