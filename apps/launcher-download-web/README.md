@@ -91,7 +91,7 @@ HTTP、空文字、危険なスキーム、親ディレクトリへの移動、`
 - Windowsの設定URLをHEAD確認：GitHubから`release-assets.githubusercontent.com`へリダイレクト、最終200、
   `application/octet-stream`、`Content-Disposition: attachment`、33,337,653 bytes、`Accept-Ranges: bytes`。
   実行ファイルのダウンロード・実行はしていません。
-- Mac / Linuxの正式公開物は確認できず「準備中」。`.github/workflows/release.yml`には生成定義がありますが公開済みの根拠にはしていません。
+- Linux: [v1.1.0](https://github.com/koto-thing/GameLauncher/releases/tag/v1.1.0) の正式公開済み x86_64 オンラインインストーラーを設定。HEADで最終200、添付ファイル、36,757,472 bytesを確認。Macは準備中。
 - `downloads.koto-thing.com`は既存ランチャー／ゲーム配信基盤のホストです。今回のページの配置先として流用・変更していません。
 
 同様のリンク確認は設定からURLを取り出して行えます（Node 24、外部通信が必要）。

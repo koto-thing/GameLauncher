@@ -18,6 +18,11 @@ export default {
       detail: "x86_64",
     },
     macos: { status: "comingSoon", url: null },
-    linux: { status: "comingSoon", url: null },
+    linux: {
+      status: "available",
+      // Verified public, non-prerelease asset on 2026-09-06.
+      url: "https://github.com/koto-thing/GameLauncher/releases/download/v1.1.0/PandD-Game-Launcher-Online-Installer",
+      detail: "x86_64",
+    },
   },
 } satisfies SiteConfig;

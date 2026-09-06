@@ -4,14 +4,14 @@ test("all five languages translate, persist and preserve downloads on mobile", a
   await page.setViewportSize({width: 390, height: 844});
   // Translation assertions wait for the UI, independently of background video decoding.
   await page.goto("/launcher/", {waitUntil: "domcontentloaded"});
-  const href = await page.locator('a.download').getAttribute('href');
+  const hrefs = await page.locator('a.download').evaluateAll(links => links.map(link => link.getAttribute('href')));
   for (const [code, text] of Object.entries(locales)) {
     await page.locator('#language').selectOption(code);
     await expect(page.locator('html')).toHaveAttribute('lang', code);
     await expect(page.locator('.tagline')).toHaveText(text.tagline);
-    await expect(page.locator('a.download .download-action')).toHaveText(text.download);
+    await expect(page.locator('a.download .download-action')).toHaveText([text.download, text.download]);
     await expect(page.locator('[data-platform="macos"] .download-action')).toHaveText(text.soon);
-    await expect(page.locator('a.download')).toHaveAttribute('href', href!);
+    expect(await page.locator('a.download').evaluateAll(links => links.map(link => link.getAttribute('href')))).toEqual(hrefs);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
   await page.goto('/launcher/', {waitUntil: "domcontentloaded"});
