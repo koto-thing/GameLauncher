@@ -63,6 +63,20 @@ class DesktopReleaseWorkflowTests(unittest.TestCase):
         self.assertLess(publish.index("--check-only"), publish.index("Upload immutable objects"))
         self.assertLess(publish.index("gh release upload"), publish.index("Promote verified Windows installer"))
 
+    def test_recovery_reuses_published_assets_and_production_lock(self):
+        recovery = (ROOT / ".github/workflows/promote-desktop-download.yml").read_text(encoding="utf-8")
+        self.assertIn("workflow_dispatch:", recovery)
+        self.assertIn('test "$GITHUB_REF" = refs/heads/master', recovery)
+        self.assertIn("environment: production", recovery)
+        self.assertIn("group: launcher-production-publication", recovery)
+        self.assertIn("contents: read", recovery)
+        self.assertIn("gh release download", recovery)
+        self.assertIn("--pattern PandD-Game-Launcher-Online-Installer.exe.sha256", recovery)
+        self.assertIn("python -m scripts.release.promote_installer", recovery)
+        self.assertNotIn("cmake --build", recovery)
+        self.assertNotIn("publisher.py upload", recovery)
+        self.assertNotIn("gh release upload", recovery)
+
 
 if __name__ == "__main__":
     unittest.main()

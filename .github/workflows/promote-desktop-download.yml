@@ -1,0 +1,54 @@
+name: Promote published desktop download
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Already published version (for example 1.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    environment: production
+    concurrency:
+      group: launcher-production-publication
+      cancel-in-progress: false
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Require master workflow
+        run: test "$GITHUB_REF" = refs/heads/master
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Validate version
+        run: python -c 'import os; from scripts.release.promote_installer import version_tuple; version_tuple(os.environ["RELEASE_VERSION"])'
+      - name: Download existing published installer and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "v$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,publishedAt > release.json
+          jq --exit-status --arg tag "v$RELEASE_VERSION" '.tagName == $tag and .isDraft == false and .isPrerelease == false and .publishedAt != null' release.json
+          gh release download "v$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" \
+            --pattern PandD-Game-Launcher-Online-Installer.exe \
+            --pattern PandD-Game-Launcher-Online-Installer.exe.sha256 \
+            --dir artifacts
+      - name: Verify public release and promote Windows download
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: >-
+          python -m scripts.release.promote_installer
+          --version "$RELEASE_VERSION"
+          --artifact artifacts/PandD-Game-Launcher-Online-Installer.exe
+          --endpoint "$R2_ENDPOINT" --bucket "$R2_BUCKET"
