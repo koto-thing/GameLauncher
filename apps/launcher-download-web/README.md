@@ -91,7 +91,7 @@ HTTP、空文字、危険なスキーム、親ディレクトリへの移動、`
 - Windowsの設定URLをHEAD確認：GitHubから`release-assets.githubusercontent.com`へリダイレクト、最終200、
   `application/octet-stream`、`Content-Disposition: attachment`、33,337,653 bytes、`Accept-Ranges: bytes`。
   実行ファイルのダウンロード・実行はしていません。
-- Mac / Linuxの正式公開物は確認できず「準備中」。`.github/workflows/release.yml`には生成定義がありますが公開済みの根拠にはしていません。
+- Linux: [v1.1.0](https://github.com/koto-thing/GameLauncher/releases/tag/v1.1.0) の正式公開済み x86_64 オンラインインストーラーを設定。HEADで最終200、添付ファイル、36,757,472 bytesを確認。Macは準備中。
 - `downloads.koto-thing.com`は既存ランチャー／ゲーム配信基盤のホストです。今回のページの配置先として流用・変更していません。
 
 同様のリンク確認は設定からURLを取り出して行えます（Node 24、外部通信が必要）。
@@ -170,7 +170,7 @@ Workerと本番公開処理は `../launcher-download-worker/README.md` を参照
 
 ## 表示言語
 
-ヘッダー右側の地球アイコンから日本語・簡体中文・한국어・English・Españolを選べます。翻訳は`src/locales.ts`で管理します。初期表示は日本語で、URLの`?lang=en`等を優先し、指定がなければ保存済みの選択を使用します。保存が禁止されていても切り替え可能です。JavaScript無効時は日本語の静的ダウンロードページを表示し、操作できない言語メニューは非表示です。サイトの表示言語のみを切り替え、配布ファイルは変更しません。
+ヘッダー右側の地球アイコンから日本語・簡体中文・한국어・English・Españolを選べます。翻訳は`src/locales.ts`で管理します。URLの`?lang=en`等 → 保存済みの選択 → ブラウザーが伝えるOSの優先言語の順で表示言語を決めます。対応言語がなければ英語を使用します。保存が禁止されていても切り替え可能です。JavaScript無効時は英語の静的ダウンロードページを表示し、操作できない言語メニューは非表示です。サイトの表示言語のみを切り替え、配布ファイルは変更しません。
 
 ## タイトルフォント
 

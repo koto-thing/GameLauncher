@@ -9,7 +9,7 @@ test("production settings generate real HTML links and disabled unpublished OS s
   const html = renderPage(validateConfig(config), "/launcher/");
   assert.ok(html.includes(`href="${config.downloads.windows.url}"`));
   assert.match(html, /data-platform="macos"[^>]*disabled/u);
-  assert.match(html, /data-platform="linux"[^>]*disabled/u);
+  assert.ok(html.includes(`href="${config.downloads.linux.url}"`));
   assert.doesNotMatch(html, /href="#"|<video[^>]*\ssrc=|<video[^>]*\sautoplay/u);
   assert.match(html, /src="\/launcher\/media\/pandd-logo.png"/u);
 });
