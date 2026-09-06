@@ -56,3 +56,24 @@ sidecars, so Windows SmartScreen will identify an unknown publisher. Linux artif
 ship with SHA-256 sidecars and detached armored OpenPGP signatures.
 A staging artifact or local verification build must never be
 published as production.
+
+## Recover a failed publication
+
+Once any versioned object has been uploaded, do not move its release tag or rebuild
+that version. Rebuilding changes the binaries and IFW archives; the publisher correctly
+rejects overwriting immutable objects. Use a new version for changed build artifacts.
+For a transient publication failure, rerun only the failed Publish job using the same
+build artifacts, not all jobs.
+
+If R2 upload and GitHub Release publication succeeded but the final Windows download
+promotion failed, merge the promotion fix into `master`, then run **Promote published
+desktop download** on `master` with the existing version, for example `1.1.0`:
+
+```sh
+gh workflow run promote-desktop-download.yml --repo koto-thing/GameLauncher --ref master -f version=1.1.0
+```
+
+This recovery downloads the existing GitHub Release installer and checksum, verifies
+the public installer hash/size and IFW version, rejects downgrades, and updates only
+the Windows download pointer. It shares the production publication lock and environment
+with the release workflow. It neither rebuilds nor replaces immutable release files.
