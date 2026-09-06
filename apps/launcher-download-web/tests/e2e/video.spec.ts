@@ -18,8 +18,11 @@ test("real MP4 autoplay and loop", async ({ page }, testInfo) => {
   await expect.poll(async () => (await mediaState(page)).time).toBeLessThan(1);
   expect(errors).toEqual([]);
   // The authored test video is white: this is a deliberately bright contrast check, not product artwork.
-  await page.locator("a.download").press("Shift");
-  await expect(page.locator("a.download")).toBeFocused();
+  for (const platform of ["windows", "linux"]) {
+    const download = page.locator(`a.download[data-platform="${platform}"]`);
+    await download.press("Shift");
+    await expect(download).toBeFocused();
+  }
   await page.screenshot({ path: `build/screenshots/${testInfo.project.name}-bright-video-focus.png`, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: `build/screenshots/${testInfo.project.name}-bright-video-mobile.png`, fullPage: true });
@@ -70,7 +73,9 @@ for (const failure of ["404", "network", "unsupported", "both-missing"]) {
     await page.goto(`cases/${failure}`);
     await expect(page.locator(".video-toggle")).toBeHidden();
     await expect(page.locator("video")).not.toHaveClass(/has-frame/u);
-    await expect(page.locator("a.download")).toBeVisible();
+    for (const platform of ["windows", "linux"]) {
+      await expect(page.locator(`a.download[data-platform="${platform}"]`)).toBeVisible();
+    }
     await expect(page.locator(".backdrop")).toHaveCSS("background-color", "rgb(36, 34, 35)");
     expect(errors).toEqual([]);
   });
@@ -79,7 +84,9 @@ for (const failure of ["404", "network", "unsupported", "both-missing"]) {
 test("pending media does not hold up downloads and reduced motion cancels late playback", async ({ page }) => {
   try {
     await page.goto("cases/pending", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("a.download")).toBeVisible();
+    for (const platform of ["windows", "linux"]) {
+      await expect(page.locator(`a.download[data-platform="${platform}"]`)).toBeVisible();
+    }
     await page.emulateMedia({ reducedMotion: "reduce" });
     await expect.poll(() => page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(true);
   } finally {
