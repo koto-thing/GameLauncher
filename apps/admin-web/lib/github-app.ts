@@ -110,7 +110,7 @@ export async function dispatchDeploymentWorkflow(
   );
   if (!response.ok) {
     const responseText = await response.text();
-    let message = "";
+    let message: string;
     try {
       message = (JSON.parse(responseText) as { message?: string }).message ?? "";
     } catch {

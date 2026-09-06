@@ -152,8 +152,8 @@ export async function verifyGithubIdentity(accessToken: string): Promise<Session
   if (!userResponse.ok) throw new Error("GitHub identity verification failed");
   const githubUser = await userResponse.json() as GitHubUser;
   if (!Number.isSafeInteger(githubUser.id) || githubUser.id <= 0) throw new Error("Invalid GitHub identity");
-  let isAdmin = false;
-  let gameAccess = false;
+  let isAdmin: boolean;
+  let gameAccess: boolean;
   try {
     const repositoryResponse = await fetch("https://api.github.com/repos/koto-thing/GameLauncher", { headers });
     if (!repositoryResponse.ok) throw new Error("Repository unavailable");

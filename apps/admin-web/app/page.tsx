@@ -6,7 +6,6 @@ export const metadata: Metadata = {
 };
 
 export default function Home() {
-  /* eslint-disable @next/next/no-html-link-for-pages -- 独立した管理アプリをページ単位で読み込む。 */
   return (
     <main className="service-home">
       <header><p className="eyebrow">PandD / CONTROL PLANE</p><h1>アップロードと管理</h1><p>管理するサービスを選んでください。</p></header>

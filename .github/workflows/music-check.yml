@@ -33,6 +33,8 @@ jobs:
       - run: npm run check
       - run: npm test
         working-directory: apps/admin-web
+      - run: npm run lint
+        working-directory: apps/admin-web
       - run: npm run browsers:install -- --with-deps
       - run: npm run test:e2e
       - run: npm run test:public

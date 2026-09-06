@@ -9,8 +9,12 @@ async function assertLayout(page: Page, stacked: boolean): Promise<void> {
     return { x, y, width, height };
   }));
   expect(boxes).toHaveLength(3);
-  expect(new Set(boxes.map(box => box.width)).size).toBe(1);
-  expect(new Set(boxes.map(box => box.height)).size).toBe(1);
+  // Firefox can report identical grid tracks with a 0.00002px floating-point difference.
+  // Keep the tolerance below one layout unit (1/60px), so visible size differences still fail.
+  for (const dimension of ["width", "height"] as const) {
+    const sizes = boxes.map(box => box[dimension]);
+    expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThan(0.01);
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   if (stacked) expect(boxes[0].y < boxes[1].y && boxes[1].y < boxes[2].y).toBe(true);
   else expect(new Set(boxes.map(box => box.y)).size).toBe(1);
