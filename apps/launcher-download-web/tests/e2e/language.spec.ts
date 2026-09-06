@@ -17,6 +17,10 @@ test("all five languages translate, persist and preserve downloads on mobile", a
   await page.goto('/launcher/', {waitUntil: "domcontentloaded"});
   await expect(page.locator('html')).toHaveAttribute('lang','es');
   await page.screenshot({path: 'build/screenshots/language-mobile.png'});
+});
+
+test("URL language overrides the saved language on desktop", async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('pandd-language', 'es'));
   await page.setViewportSize({width:1366,height:768});
   await page.goto('/launcher/?lang=en', {waitUntil: "domcontentloaded"});
   await expect(page.locator('html')).toHaveAttribute('lang','en');

@@ -36,3 +36,26 @@ test("unavailable Web Audio gives an explanation and permits normal playback", /
   ).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("late playing event cannot clear a stopped player's error", /** @brief 停止前に予約されたイベントの配送順を再現する。 */ async ({ page }) => {
+  await page.goto("/");
+  const games = (await (await page.request.get("/api/public/catalogue")).json()) as PublicGame[];
+  const snapshot = await page.evaluate(
+    /** @brief 実HTMLAudioElementを停止した後に古いplaying通知を配送する。 */ async (track) => {
+      const moduleUrl = "/__test/audio.js";
+      const { BrowserAudio, PLAYER_RUNTIME_DEFAULTS } = await import(/* @vite-ignore */ moduleUrl);
+      Object.defineProperty(window, "AudioContext", { value: undefined, configurable: true });
+      const engine = new BrowserAudio(PLAYER_RUNTIME_DEFAULTS, /** @brief 公開素材URLを解決する。 */ (id: string) => `/api/assets/${id}`);
+      engine.load(track);
+      await engine.setRegion(track.loop);
+      engine.audio.dispatchEvent(new Event("playing"));
+      engine.audio.dispatchEvent(new Event("pause"));
+      const result = engine.snapshot();
+      engine.dispose();
+      return result;
+    },
+    games[0].tracks[0],
+  );
+  expect(snapshot.status).toBe("error");
+  expect(snapshot.error).toContain("このブラウザー環境はWeb Audio");
+});

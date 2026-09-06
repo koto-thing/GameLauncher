@@ -53,7 +53,8 @@ export class BrowserAudio implements AudioEngine {
   };
   /** @brief HTML音声が鳴り始めた時点で再生中を表示する。 */
   private playing = (): void => {
-    if (!this.buffer) {
+    // 停止前にキューへ入ったplaying通知で、停止後のエラーを消さない。
+    if (!this.buffer && !this.audio.paused) {
       this.status = "playing";
       this.error = null;
       this.emit();
