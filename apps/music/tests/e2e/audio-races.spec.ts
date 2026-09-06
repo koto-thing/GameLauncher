@@ -20,13 +20,13 @@ test("rapid switches, stale loop preparation, memory budget and interruption rec
     /** @brief モック音声エンジンを使わず実装の状態とNode寿命を観測する。 */ async (
       tracks,
     ) => {
-      const audioModule = "/src/infrastructure/audio/browser-audio.ts";
-      const configModule = "/src/config/player-runtime.defaults.ts";
+      const audioModule = "/__test/audio.js";
+      const configModule = "/__test/audio.js";
       const { BrowserAudio } = await import(/* @vite-ignore */ audioModule);
       const { PLAYER_RUNTIME_DEFAULTS } = await import(
         /* @vite-ignore */ configModule
       );
-      const engine = new BrowserAudio(PLAYER_RUNTIME_DEFAULTS);
+      const engine = new BrowserAudio(PLAYER_RUNTIME_DEFAULTS, /** @brief 公開素材URLだけをエンジンへ渡す。 */ (id: string) => `/api/assets/${id}`);
       const track = tracks[0];
       const second = tracks[1];
       engine.load(track);
@@ -59,7 +59,7 @@ test("rapid switches, stale loop preparation, memory budget and interruption rec
       const limited = new BrowserAudio({
         ...PLAYER_RUNTIME_DEFAULTS,
         decodedAudioBudgetBytes: 32,
-      });
+      }, /** @brief 公開素材URLだけをエンジンへ渡す。 */ (id: string) => `/api/assets/${id}`);
       limited.load(track);
       await limited.setRegion(track.loop);
       const budget = limited.snapshot();

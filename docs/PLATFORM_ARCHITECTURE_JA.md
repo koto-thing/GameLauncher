@@ -19,7 +19,7 @@ PandDは1つのモノレポで管理する。ソースコードの配置と実�
 
 ### 2. 配信環境（distribution）
 
-- 対象: `apps/launcher`、`services/distribution-content`
+- 対象: `apps/docs`、`apps/launcher`、`apps/launcher-download-web`、`apps/launcher-download-worker`、`apps/music`、`services/distribution-content`
 - 保持可能: 公開Manifest、公開ゲーム、公開画像、公開OST
 - 禁止: DB書き込み権限、決済資格情報、署名秘密鍵、Intakeへのアクセス
 - ランチャーは署名済みManifestとPlatform APIの所有権判定だけを信頼する
@@ -32,6 +32,8 @@ PandDは1つのモノレポで管理する。ソースコードの配置と実�
 - 一般ユーザー向けのCookieやPlatform DB資格情報を保持しない
 
 具体的な所有関係は`infrastructure/trust-boundaries.json`を正とする。
+
+Musicの公開UIはdistribution、管理API・認証・D1は既存`apps/admin-web`のoperationsに置く。`apps/music`からビルドする管理UIもAdmin Web上で実行する。レンタルサーバーPHPの非公開保存・署名受信口は[Music構成](music/architecture.md)で定義し、通常の公開閲覧・再生はWorkersを呼ばない。
 
 ## 業務モジュール
 

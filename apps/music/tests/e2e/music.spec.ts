@@ -131,7 +131,7 @@ test("same production loop scheduler renders intro once and ten exact repeats", 
   );
   const result = await page.evaluate(
     /** @brief 実エンジン共通のNode構成をオフライン音声レンダラーで測定する。 */ async () => {
-      const modulePath = "/src/infrastructure/audio/region-source.ts";
+      const modulePath = "/__test/audio.js";
       const { startRegionSource } = await import(/* @vite-ignore */ modulePath);
       const sampleRate = 24000;
       const duration = 23;
@@ -183,28 +183,27 @@ test("same production loop scheduler renders intro once and ten exact repeats", 
   expect(result.maxError).toBeLessThan(0.000001);
   expect(result.firstSample).toBeCloseTo(0.12, 5);
 });
-test("author uploads, edits, previews and publishes without admin approval", /** @brief 投稿UIから実API・D1・R2・一般聴取までつなげて確認する。 */ async ({
+test("author uploads, edits, previews and publishes without admin approval", /** @brief 投稿UIから実API・D1・PHP・一般聴取までつなげて確認する。 */ async ({
   page,
 }, info) => {
-  await page.goto("/manage");
-  await page.getByRole("button", { name: "composer-a", exact: true }).click();
+  await page.goto("http://127.0.0.1:8788/api/auth/dev?as=music-a");
+  await page.goto("http://127.0.0.1:8788/music#/manage");
   await expect(
     page.getByRole("heading", { name: "担当作品", exact: true }),
   ).toBeVisible();
-  await page.locator(".manage-list a").first().click();
-  const title = `E2E ${info.project.name} 検証曲`;
+  // 他のテストが作った非公開作品ではなく、公開済みの検証作品へ曲を登録する。
+  await page.locator(".manage-list a").filter({ hasText: "DEMO 1 /" }).click();
+  const title = `E2E ${info.project.name} ${Date.now()} 検証曲`;
   await page.getByLabel("新しい曲名", { exact: true }).fill(title);
   await page.getByRole("button", { name: "曲を追加", exact: true }).click();
   await page.getByRole("link", { name: new RegExp(title) }).click();
   await page.getByRole("button", { name: "クレジットを追加" }).click();
   await page.getByLabel("クレジット1の公開名").fill("検証用作成者");
-  await page
-    .getByLabel("音源（MP3")
-    .setInputFiles({
-      name: "demo.wav",
-      mimeType: "audio/wav",
-      buffer: toneWav(),
-    });
+  await page.getByLabel("音源（MP3").setInputFiles({
+    name: "demo.wav",
+    mimeType: "audio/wav",
+    buffer: toneWav(),
+  });
   await expect(
     page.getByRole("status").filter({ hasText: "音源を登録しました" }).first(),
   ).toBeVisible();
@@ -215,13 +214,11 @@ test("author uploads, edits, previews and publishes without admin approval", /**
   await page.getByLabel("この音源の区間ループを有効にする").check();
   await page.getByLabel("開始位置（秒）").fill("1");
   await page.getByLabel("終了位置（秒）").fill("3");
-  await page
-    .getByLabel("曲の代表画像")
-    .setInputFiles({
-      name: "demo.png",
-      mimeType: "image/png",
-      buffer: placeholderPng(200, 360),
-    });
+  await page.getByLabel("曲の代表画像").setInputFiles({
+    name: "demo.png",
+    mimeType: "image/png",
+    buffer: placeholderPng(200, 360),
+  });
   await expect(
     page.getByRole("status").filter({ hasText: "画像を登録しました" }).first(),
   ).toBeVisible();
@@ -278,6 +275,9 @@ test("author uploads, edits, previews and publishes without admin approval", /**
   await expect(page.getByLabel("曲名", { exact: true })).toHaveValue(
     `${title} 未保存`,
   );
+  await page.getByLabel("曲名", { exact: true }).fill(title);
+  await page.getByRole("button", { name: "この曲を非公開にする", exact: true }).click();
+  await expect(page.getByRole("button", { name: "この曲を公開する", exact: true })).toBeEnabled();
 });
 test("ad request failure does not block catalogue and playback controls", /** @brief 広告ブロック時の主要導線を検証する。 */ async ({
   page,

@@ -1,30 +1,37 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-/** @brief 公開bundleの文字列を検査する。 */
-async function inspect(dir, server = false) {
+/** @brief 公開静的物へ管理コード・認証・外部APIを混ぜない。 @param {string} dir 公開出力。 @returns 検査完了。 */
+async function inspect(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const file = path.join(dir, entry.name);
-    if (entry.isDirectory()) await inspect(file, server);
-    else if (/\.(js|mjs|html)$/.test(file)) {
+    if (entry.isDirectory()) await inspect(file);
+    else if (/\.(js|mjs|html|css)$/.test(file)) {
       const content = await readFile(file, "utf8");
-      const prohibited = server
-        ? ["/api/local/login", "Unknown fixture", "900001"]
-        : [
-            "GITHUB_CLIENT_SECRET",
-            "BOOTSTRAP_ADMIN_IDS",
-            "D1MusicRepository",
-            "github.com/login/oauth/access_token",
-          ];
-      for (const token of prohibited)
+      for (const token of [
+        "MUSIC_BRIDGE_SECRET",
+        "GITHUB_CLIENT_SECRET",
+        "SESSION_SECRET",
+        "D1MusicRepository",
+        "/api/music",
+        "/api/auth/",
+        "workers.dev",
+        "r2.dev",
+        "api.github.com",
+        "github.com/login",
+        "PandDMusicManager",
+        "/__test/",
+        "cloudflare:workers",
+      ])
         if (content.includes(token))
-          throw new Error(`${file}: forbidden production token ${token}`);
+          throw new Error(`${file}: forbidden public dependency ${token}`);
     }
   }
 }
-await inspect("dist/client");
-// Worker出力のディレクトリ名はCloudflare Vite pluginのnameに従う。
-for (const entry of await readdir("dist", { withFileTypes: true }))
-  if (entry.isDirectory() && entry.name !== "client")
-    await inspect(path.join("dist", entry.name), true);
-console.log("Production bundle boundaries passed.");
+await inspect("dist");
+if (
+  (await readFile("../../contracts/music/policy.json", "utf8")) !==
+  (await readFile("../../server/music/config/policy.json", "utf8"))
+)
+  throw new Error("PHP policy is out of sync: npm run policy:sync");
+console.log("Public bundle and TS/PHP policy boundaries passed.");

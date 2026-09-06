@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+.service-home { max-width: 1040px; margin: 0 auto; padding: clamp(40px, 8vw, 100px) 24px; }
+.service-home header { margin-bottom: 40px; }
+.service-home h1 { margin: 12px 0; font-size: clamp(28px, 5vw, 48px); letter-spacing: -.04em; }
+.service-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.service-card { display: flex; flex-direction: column; padding: clamp(24px, 4vw, 40px); border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.service-card h2 { margin: 12px 0; font-size: 28px; }
+.service-card > p { margin: 0 0 24px; color: var(--muted); line-height: 1.8; }
+.service-card .primary-link { margin-top: auto; }
+.service-settings { margin-top: 20px; color: var(--blue); text-align: center; }
+.service-home-note { margin-top: 28px; color: var(--muted); font-size: 13px; }
+.service-navigation { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 14px 24px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 13px; }
+.service-navigation a { color: var(--blue); text-decoration: none; padding: 4px 0; }
+.service-navigation a:hover { text-decoration: underline; }
+@media (max-width: 640px) { .service-cards { grid-template-columns: 1fr; } }
+
 :root {
   --ink: #17202b;
   --muted: #68717d;

@@ -53,7 +53,7 @@ body { font-size: 16px; }
 .vp-doc a { text-underline-offset: 4px; }
 .vp-doc table { display: block; max-width: 100%; overflow-x: auto; }
 .vp-doc div[class*='language-'], .vp-doc pre { max-width: 100%; overflow-x: auto; border-radius: 0; }
-.VPButton, .VPFeature, .custom-block, .VPSwitch, .VPLocalSearchBox .shell, .VPLocalSearchBox .search-input, .VPLocalSearchBox .result, .VPNavBarSearchButton, .pager-link { border-radius: 0 !important; }
+.VPButton, .VPFeature, .custom-block, .VPLocalSearchBox .shell, .VPLocalSearchBox .search-input, .VPLocalSearchBox .result, .VPNavBarSearchButton, .pager-link { border-radius: 0 !important; }
 .VPLocalSearchBox .backdrop { backdrop-filter: none !important; }
 .VPLocalSearchBox .shell { border: 1px solid var(--manual-accent); box-shadow: 8px 8px #0005; }
 .VPLocalSearchBox .result.selected { border-color: var(--manual-accent); }

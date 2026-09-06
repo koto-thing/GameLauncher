@@ -57,7 +57,9 @@ StagingとProductionの申請、別アカウント承認、GitHub Actions起動�
 4. STEP 2: 多言語表示情報とHero / Thumbnail画像を選択（焦点位置を指定）
 5. STEP 3: Buildフォルダを選択し、起動EXEを確認
 6. STEP 4: プレビュー内容を確認し、「Artifactを作成してアップロード」を実行
-7. 完了後、Control Planeの申請画面（`/`）で公開申請を作成・承認・実行
+7. 完了後、Control Planeの申請画面（`/game`）で公開申請を作成・承認・実行
+
+ルート（`/`）はサービス選択画面です。GameLauncherのWeb Uploader / Intaker（`/intake`）、公開申請・設定（`/game`）、Music Uploader（`/music`）へ移動できます。
 
 ### R2 direct-r2 用 CORS 設定
 

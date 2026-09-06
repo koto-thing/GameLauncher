@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IntakeUploader } from "./IntakeUploader";
+import { ServiceNavigation } from "../ServiceNavigation";
 
 export const metadata: Metadata = {
   title: "PandD Intake Uploader",
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function IntakePage() {
-  return <IntakeUploader />;
+  return <><ServiceNavigation /><IntakeUploader /></>;
 }

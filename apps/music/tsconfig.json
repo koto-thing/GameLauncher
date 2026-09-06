@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
@@ -11,7 +15,10 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "allowJs": true,
-    "types": ["node", "vite/client"],
+    "types": [
+      "node",
+      "vite/client"
+    ],
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
@@ -19,7 +26,9 @@
     "src",
     "tests",
     "vite.config.ts",
-    "playwright.config.ts",
-    "worker-configuration.d.ts"
+    "playwright.config.ts"
+  ],
+  "exclude": [
+    "tests/support/control-worker.ts"
   ]
 }

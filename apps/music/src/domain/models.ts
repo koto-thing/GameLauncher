@@ -31,6 +31,12 @@ export interface GameContent {
   imageAlt: string;
   externalUrl: string;
   rightsConfirmed: boolean;
+  design?: GameDesign;
+}
+export interface GameDesign {
+  backgroundColor: string;
+  backgroundAssetId: string | null;
+  backgroundMode: "cover" | "contain" | "tile";
 }
 export interface TrackContent {
   title: string;

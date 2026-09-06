@@ -3,6 +3,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { Player } from "../application/player";
 import { BrowserAudio } from "../infrastructure/audio/browser-audio";
 import { PLAYER_RUNTIME_DEFAULTS } from "../config/player-runtime.defaults";
+import { publicAssetUrl } from "../presentation/web/public-client";
 import { App } from "../presentation/web/app";
 import {
   AboutPage,
@@ -10,13 +11,13 @@ import {
   HomePage,
   TrackPage,
 } from "../presentation/web/listener-pages";
-import { ManagePage, GameEditorPage } from "../presentation/web/manage-pages";
-import { TrackEditorPage } from "../presentation/web/track-editor";
+
+
 import "../config/design-tokens.css";
 import "../presentation/web/style.css";
 
 // ルートの外で1回だけ生成し、ブラウザー履歴や画面遷移でも再生を維持する。
-const engine = new BrowserAudio(PLAYER_RUNTIME_DEFAULTS);
+const engine = new BrowserAudio(PLAYER_RUNTIME_DEFAULTS, publicAssetUrl);
 const player = new Player(engine, Math.random);
 const router = createBrowserRouter([
   {
@@ -27,13 +28,10 @@ const router = createBrowserRouter([
       { path: "games/:id", element: <GamePage /> },
       { path: "tracks/:id", element: <TrackPage /> },
       { path: "about", element: <AboutPage /> },
-      { path: "manage", element: <ManagePage /> },
-      { path: "manage/games/:id", element: <GameEditorPage /> },
-      { path: "manage/tracks/:id", element: <TrackEditorPage /> },
       { path: "*", element: <p className="empty">ページが見つかりません。</p> },
     ],
   },
-]);
+], { basename: import.meta.env.BASE_URL });
 createRoot(document.getElementById("root")!).render(
   <RouterProvider router={router} />,
 );

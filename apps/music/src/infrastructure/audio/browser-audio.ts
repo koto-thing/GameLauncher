@@ -27,7 +27,7 @@ export class BrowserAudio implements AudioEngine {
   private onEnded: () => void = empty;
   private readonly timer: ReturnType<typeof setInterval>;
   /** @brief イベントと表示専用タイマーをアプリ全体に1組だけ登録する。 */
-  constructor(private readonly runtime: PlayerRuntime) {
+  constructor(private readonly runtime: PlayerRuntime, private readonly assetUrl: (id: string) => string) {
     if (
       runtime.simultaneousDecodeLimit !== 1 ||
       runtime.nextTrackAudioPrefetchEnabled ||
@@ -145,7 +145,7 @@ export class BrowserAudio implements AudioEngine {
     this.track = track;
     this.error = null;
     this.status = "idle";
-    this.audio.src = `/api/assets/${encodeURIComponent(track.audioAssetId!)}`;
+    this.audio.src = this.assetUrl(track.audioAssetId!);
     this.audio.load();
     if ("mediaSession" in navigator)
       navigator.mediaSession.metadata = new MediaMetadata({
@@ -310,15 +310,17 @@ export class BrowserAudio implements AudioEngine {
         await previous.catch(empty);
         if (generation !== this.generation) return null;
         const response = await fetch(
-          `/api/assets/${encodeURIComponent(track.audioAssetId!)}`,
+          this.assetUrl(track.audioAssetId!),
           { signal },
         );
         if (
-          !response.ok ||
-          Number(response.headers.get("Content-Length")) !== track.audioBytes
+          !response.ok
         )
           throw new Error("音源取得に失敗しました。再試行してください。");
         const compressed = await response.arrayBuffer();
+        // 管理proxyの転送符号化に依存せず、展開後の実バイト数を検証する。
+        if (compressed.byteLength !== track.audioBytes)
+          throw new Error("音源サイズが一致しません。再試行してください。");
         if (generation !== this.generation) return null;
         const decoded = await context.decodeAudioData(compressed);
         if (

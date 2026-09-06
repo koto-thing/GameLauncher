@@ -9,7 +9,7 @@ export default defineConfig({
   expect: { timeout: 10000 },
   reporter: [["list"], ["json", { outputFile: "build/e2e-results.json" }]],
   use: {
-    baseURL: "http://127.0.0.1:5174",
+    baseURL: "http://127.0.0.1:8088",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

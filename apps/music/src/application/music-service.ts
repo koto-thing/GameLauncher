@@ -1,7 +1,6 @@
 import {
   MusicError,
   type Advertisement,
-  type Asset,
   type DomainPolicy,
   type Game,
   type Principal,
@@ -20,14 +19,20 @@ import {
   validateAsset,
   validatePolicy,
 } from "../domain/rules";
-import type { AssetStorage, Clock, IdSource, MusicRepository } from "./ports";
+import type {
+  AccountDirectory,
+  MusicPublisher,
+  Clock,
+  IdSource,
+  MusicRepository,
+} from "./ports";
 
 /** @brief 作品編集・公開・素材の認可をHTTPから独立して実行する。 */
 export class MusicService {
   /** @brief 外側から永続化・保存・時刻・ID・ルールを注入する。 */
   constructor(
     readonly repository: MusicRepository,
-    readonly storage: AssetStorage,
+    readonly publisher: MusicPublisher,
     readonly policy: DomainPolicy,
     readonly clock: Clock,
     readonly ids: IdSource,
@@ -35,6 +40,7 @@ export class MusicService {
       decodedAudioBudgetBytes: number;
       decodeSampleRateHz: number;
     },
+    readonly directory: AccountDirectory,
   ) {
     validatePolicy(policy);
   }
@@ -104,7 +110,10 @@ export class MusicService {
   async createGame(input: unknown, actor: Principal | null): Promise<Game> {
     authorize(actor);
     const draft = gameContent(input, this.policy);
-    requireValue(!draft.imageAssetId, "作品作成後に画像を登録してください。");
+    requireValue(
+      !draft.imageAssetId && !draft.design?.backgroundAssetId,
+      "作品作成後に画像を登録してください。",
+    );
     const game: Game = {
       id: this.ids.next(),
       version: 1,
@@ -129,6 +138,7 @@ export class MusicService {
     const game = await this.managedGame(id, actor);
     const draft = gameContent(input, this.policy);
     await this.checkImage(draft.imageAssetId, id);
+    await this.checkImage(draft.design?.backgroundAssetId ?? null, id);
     await this.repository.saveGame(
       { ...game, draft },
       version,
@@ -152,17 +162,17 @@ export class MusicService {
         "rightsConfirmed",
       );
       await this.checkImage(game.draft.imageAssetId, id);
+      await this.checkImage(game.draft.design?.backgroundAssetId ?? null, id);
       requireValue(
         !game.draft.imageAssetId || game.draft.imageAlt,
         "画像の代替テキストを入力してください。",
         "imageAlt",
       );
     }
-    await this.repository.saveGame(
+    await this.publisher.game(
       { ...game, published: publish ? game.draft : null },
       version,
       actor!,
-      publish ? "game.publish" : "game.unpublish",
     );
   }
   /** @brief 運営の緊急停止を担当者の公開操作から独立させる。 */
@@ -174,12 +184,7 @@ export class MusicService {
   ): Promise<void> {
     authorize(actor);
     const game = await this.managedGame(id, actor);
-    await this.repository.saveGame(
-      { ...game, suspended },
-      version,
-      actor,
-      "game.suspend",
-    );
+    await this.publisher.game({ ...game, suspended }, version, actor, true);
   }
   /** @brief 担当作品に空の下書き曲を追加する。 */
   async createTrack(
@@ -306,97 +311,11 @@ export class MusicService {
       requireValue(!game.suspended, "運営による公開停止中です。");
       await this.checkTrack(track, true);
     }
-    await this.repository.saveTrack(
+    await this.publisher.track(
       { ...track, published: publish ? track.draft : null },
       version,
       actor!,
-      publish ? "track.publish" : "track.unpublish",
     );
-  }
-  /** @brief 認可後のストリームを非公開領域へ保存し、検証完了後だけ確定する。 */
-  async upload(
-    gameId: string,
-    kind: Asset["kind"],
-    bytes: number,
-    body: ReadableStream<Uint8Array>,
-    actor: Principal | null,
-  ): Promise<Asset> {
-    await this.managedGame(gameId, actor);
-    const max =
-      kind === "audio"
-        ? this.policy.media.maxAudioFileBytes
-        : this.policy.media.maxImageFileBytes;
-    if (!Number.isSafeInteger(bytes) || bytes <= 0 || bytes > max)
-      throw new MusicError(
-        "TOO_LARGE",
-        `容量は1〜${max} bytesで指定してください。`,
-      );
-    const asset: Asset = {
-      id: this.ids.next(),
-      key: this.ids.next(),
-      gameId,
-      kind,
-      bytes,
-      mime: "",
-      status: "pending",
-      durationSeconds: null,
-      sampleRateHz: null,
-      channels: null,
-      widthPixels: null,
-      heightPixels: null,
-      createdAt: this.clock.now(),
-    };
-    await this.repository.addAsset(asset, actor!);
-    try {
-      // 同一キーへの再アップロードAPIを設けず、検証した本文を不変にする。
-      await this.storage.put(asset.key, body, bytes);
-      const metadata = await this.storage.inspect(asset.key, kind, bytes);
-      if (kind === "audio")
-        requireValue(
-          metadata.durationSeconds &&
-            metadata.durationSeconds > 0 &&
-            metadata.durationSeconds <=
-              this.policy.media.maxAudioDurationSeconds &&
-            metadata.sampleRateHz &&
-            metadata.channels,
-          "音源長・サンプルレート・チャンネル数を確認してください。",
-        );
-      else
-        requireValue(
-          metadata.widthPixels &&
-            metadata.heightPixels &&
-            Math.max(metadata.widthPixels, metadata.heightPixels) <=
-              this.policy.media.maxImageEdgePixels,
-          "画像の辺が上限を超えているか、画像が不正です。",
-        );
-      Object.assign(asset, metadata, { status: "verified" });
-      await this.repository.finishAsset(asset, actor!);
-      return asset;
-    } catch (error) {
-      // R2とDBは別トランザクション。公開参照を作らず、回収可能なpending行を残す。
-      await this.storage
-        .remove(asset.key)
-        .catch(
-          /** @brief 回収失敗は後の孤立素材整理に任せ、元の失敗を保持する。 */ () =>
-            undefined,
-        );
-      if (error instanceof MusicError) throw error;
-      throw new MusicError(
-        "INVALID",
-        "素材を検証できませんでした。対応形式を確認して再試行してください。",
-      );
-    }
-  }
-  /** @brief 公開参照または現在の作品権限を確認して素材を返す。 */
-  async readableAsset(id: string, actor: Principal | null): Promise<Asset> {
-    const asset = await this.repository.asset(id);
-    if (!asset || asset.status !== "verified")
-      throw new MusicError("NOT_FOUND", "素材が見つかりません。");
-    if (!(await this.repository.canReadAsset(id))) {
-      if (!actor || (!actor.admin && !actor.gameIds.includes(asset.gameId)))
-        throw new MusicError("NOT_FOUND", "素材が見つかりません。");
-    }
-    return asset;
   }
   /** @brief 任意HTMLを許さず運営バナーだけを保存する。 */
   async saveAdvertisement(
@@ -422,7 +341,7 @@ export class MusicService {
       !value.enabled || (value.imageAssetId && value.href && value.alt),
       "広告画像・リンク・代替テキストを指定してください。",
     );
-    await this.repository.saveAdvertisement(value, actor);
+    await this.publisher.advertisement(value, actor);
   }
   /** @brief 運営専用の設定・履歴を取得する。 */
   async adminSettings(actor: Principal | null) {
@@ -434,7 +353,7 @@ export class MusicService {
     ]);
     return { advertisement, accounts, audit };
   }
-  /** @brief ログイン済みの安定IDを作品へ割り当て・解除する。 */
+  /** @brief GitHub数値IDを確認して、未ログインの担当者にも作品編集を手渡す。 */
   async changeMembership(
     gameId: string,
     accountId: string,
@@ -444,25 +363,19 @@ export class MusicService {
     authorize(actor);
     await this.managedGame(gameId, actor);
     requireValue(
-      (await this.repository.accounts()).some(
-        /** @brief 表示名による権限付与を禁止する。 */ (account) =>
-          account.id === accountId,
-      ),
-      "先に対象者にログインしてもらってください。",
+      /^[1-9]\d{0,15}$/.test(accountId) &&
+        Number.isSafeInteger(Number(accountId)),
+      "GitHubの数値アカウントIDを指定してください。",
+      "accountId",
     );
-    await this.repository.setMembership(gameId, accountId, enabled, actor);
-  }
-  /** @brief 運営のロール変更をユースケースの境界でも検証する。 */
-  async changeAdmin(
-    accountId: string,
-    enabled: boolean,
-    actor: Principal | null,
-  ): Promise<void> {
-    authorize(actor);
-    requireValue(
-      accountId !== actor.id,
-      "自分の運営権限は別の運営担当者から変更してください。",
+    // 解除はGitHub側で削除済みのアカウントにも実行できるよう、外部照会を要求しない。
+    const account = enabled ? await this.directory.findById(accountId) : null;
+    await this.repository.setMembership(
+      gameId,
+      accountId,
+      enabled,
+      actor,
+      account?.login ?? null,
     );
-    await this.repository.setAdmin(accountId, enabled, actor);
   }
 }

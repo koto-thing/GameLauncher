@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pandd-launcher-download",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-09-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{"pattern": "downloads.koto-thing.com/download/windows*", "zone_name": "koto-thing.com"}],
+  "r2_buckets": [{"binding": "RELEASES", "bucket_name": "pandd-launcher-production"}],
+  "observability": {"enabled": true}
+}

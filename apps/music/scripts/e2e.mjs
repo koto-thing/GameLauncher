@@ -1,31 +1,45 @@
-import { spawn } from "node:child_process";
+import { fork, spawn } from "node:child_process";
+import { once } from "node:events";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { startLocal } from "./local.mjs";
 
 const require = createRequire(import.meta.url);
-// ブラウザー実体とレポートはワークスペース内に閉じ込める。
-const local = process.argv[2] === "test" ? await startLocal(true) : null;
+let server;
 try {
+  if (process.argv[2] === "test") {
+    await import("./build-harness.mjs");
+    if (process.env.MUSIC_E2E_EXTERNAL !== "true") {
+      server = fork("scripts/local-control.mjs", [], {
+        env: { ...process.env, MUSIC_E2E: "true" },
+        stdio: ["ignore", "inherit", "inherit", "ipc"],
+        windowsHide: true,
+      });
+      await Promise.race([
+        once(server, "message"),
+        once(server, "exit").then(
+          /** @brief 起動失敗をテスト開始前に検出する。 */ () => {
+            throw new Error("Local Music server failed to start");
+          },
+        ),
+      ]);
+    }
+  }
   const child = spawn(
     process.execPath,
     [require.resolve("@playwright/test/cli"), ...process.argv.slice(2)],
     {
       stdio: "inherit",
+      windowsHide: true,
       env: {
         ...process.env,
         PLAYWRIGHT_BROWSERS_PATH: path.resolve("build/browsers"),
       },
     },
   );
-  process.exitCode = await new Promise(
-    /** @brief テストの終了コードを保持する。 */ (resolve) =>
-      child.on(
-        "exit",
-        /** @brief インストール・テスト完了を待機元へ通知する。 */ (code) =>
-          resolve(code ?? 1),
-      ),
-  );
+  process.exitCode = (await once(child, "exit"))[0] ?? 1;
 } finally {
-  await local?.close();
+  if (server?.connected) {
+    server.send("stop");
+    await once(server, "exit");
+  }
 }

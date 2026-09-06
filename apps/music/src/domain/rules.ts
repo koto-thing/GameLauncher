@@ -1,6 +1,7 @@
 import {
   MusicError,
   type DomainPolicy,
+  type GameDesign,
   type GameContent,
   type TrackContent,
   type LoopRegion,
@@ -139,6 +140,29 @@ export function gameContent(input: unknown, policy: DomainPolicy): GameContent {
     imageAlt: textValue(value.imageAlt, policy.text.imageAltMax, "imageAlt"),
     externalUrl: safeUrl(value.externalUrl, policy.text.urlMax),
     rightsConfirmed: value.rightsConfirmed === true,
+    ...(value.design === undefined ? {} : { design: gameDesign(value.design) }),
+  };
+}
+/** @brief 背景の許可された値だけを扱い、任意CSSや外部画像URLを保存させない。 */
+export function gameDesign(input: unknown): GameDesign {
+  const value = record(input);
+  requireValue(
+    typeof value.backgroundColor === "string" &&
+      /^#[0-9a-fA-F]{6}$/.test(value.backgroundColor),
+    "背景色は6桁のカラーコードで指定してください。",
+    "design",
+  );
+  requireValue(
+    value.backgroundMode === "cover" ||
+      value.backgroundMode === "contain" ||
+      value.backgroundMode === "tile",
+    "背景画像の表示方法が不正です。",
+    "design",
+  );
+  return {
+    backgroundColor: value.backgroundColor.toLowerCase(),
+    backgroundAssetId: assetId(value.backgroundAssetId),
+    backgroundMode: value.backgroundMode,
   };
 }
 /** @brief 曲下書きを検証し、未知のフィールドを捨てる。 @param input JSON。 @param policy ルール。 @returns 曲内容。 */

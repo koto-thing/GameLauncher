@@ -3,10 +3,12 @@
 | 環境 | 所有コンポーネント | 扱えるデータ | 禁止される能力 |
 | --- | --- | --- | --- |
 | platform | Store、Community、Platform API（将来領域） | Platform DB、Community DB、UGC R2 | Intake、配信先書き込み、署名鍵 |
-| distribution | Docs Portal、Launcher、静的配信コンテンツ | 公開ドキュメント、署名済みManifest、公開downloads | DB書き込み、決済secret、署名鍵 |
+| distribution | Docs Portal、Launcher、Launcher配布ページ・取得Worker、Music公開UI、静的配信コンテンツ | 公開ドキュメント、署名済みManifest、公開downloads、公開音源 | DB書き込み、決済secret、署名鍵 |
 | operations | Admin Web、Docs Editor Worker、Intake Uploader、Publisher | Deployment DB、Docs専用D1、非公開Intake | Platform session secret、Platform DB直接操作 |
 
 ## Intake / Staging / Production
+
+Music管理UIは既存Admin Webに組み込み、認証・権限・D1更新はoperations側で実行する。Music公開UIはレンタルサーバーの同一originだけを参照する。PHPの署名受信口・非公開保存については[Music構成](../music/architecture.md)を参照。
 
 Intakeは未検証Artifactを置く非公開領域です。Stagingは検証用の配信環境、Productionは利用者向け配信環境です。bucket、資格情報、署名鍵、GitHub Environmentを分離し、ProductionはStaging成功物の同一性を確認して昇格します。
 

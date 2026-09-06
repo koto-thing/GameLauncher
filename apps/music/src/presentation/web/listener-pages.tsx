@@ -1,6 +1,8 @@
 import { Link, useParams } from "react-router-dom";
 import { useSite } from "./context";
 import { AdSlot, Artwork, PlayerControls, timeLabel } from "./components";
+import { GameDesignSurface } from "./design-surface";
+import { SoundtrackCarousel } from "./soundtrack-carousel";
 
 /** @brief 作品数に関係なく聴き始められる静かなライブラリを表示する。 */
 export function HomePage() {
@@ -8,20 +10,23 @@ export function HomePage() {
   return (
     <>
       <section className="hero">
-        <p className="eyebrow">PANDD ORIGINAL SOUNDTRACKS</p>
-        <h1>
-          ゲームの余韻を、
-          <br />
-          <em>音楽と。</em>
-        </h1>
-        <p>
-          あの景色、あの瞬間。
-          <br />
-          ゲームの世界を彩る音楽を、いつでもここで。
-        </p>
-        <a href="#library" className="text-link">
-          作品を選んで聴く <span>↘</span>
-        </a>
+        <div className="hero-copy">
+          <p className="eyebrow">PANDD ORIGINAL SOUNDTRACKS</p>
+          <h1>
+            ゲームの余韻を、
+            <br />
+            <em>音楽と。</em>
+          </h1>
+          <p>
+            あの景色、あの瞬間。
+            <br />
+            ゲームの世界を彩る音楽を、いつでもここで。
+          </p>
+          <a href="#library" className="text-link">
+            作品を選んで聴く <span>↘</span>
+          </a>
+        </div>
+        <SoundtrackCarousel games={catalogue} />
         <div className="hero-note" aria-hidden="true">
           PRESS PLAY.
           <br />
@@ -106,7 +111,7 @@ export function GamePage() {
       </p>
     );
   return (
-    <>
+    <GameDesignSurface design={game.design}>
       <Link className="back-link" to="/">
         ← ライブラリ
       </Link>
@@ -203,7 +208,7 @@ export function GamePage() {
         </ol>
       </section>
       <AdSlot />
-    </>
+    </GameDesignSurface>
   );
 }
 /** @brief 共有URLを開いた時は画像と情報だけを表示し、再生操作を待つ。 */
@@ -228,7 +233,7 @@ export function TrackPage() {
       </p>
     );
   return (
-    <>
+    <GameDesignSurface design={game.design}>
       <Link className="back-link" to={`/games/${game.id}`}>
         ← {game.title}
       </Link>
@@ -263,7 +268,7 @@ export function TrackPage() {
             共有URL
             <input
               readOnly
-              value={`${window.location.origin}/tracks/${track.id}`}
+              value={`${window.location.origin}${import.meta.env.BASE_URL}tracks/${track.id}`}
               onFocus={
                 /** @brief コピーしやすいようURLを選択する。 */ (event) =>
                   event.target.select()
@@ -272,12 +277,16 @@ export function TrackPage() {
           </label>
         </div>
       </section>
-    </>
+    </GameDesignSurface>
   );
 }
 /** @brief 未確定の法務情報を捏造せず利用目的と設定待ちを説明する。 */
 export function AboutPage() {
   const { config } = useSite();
+  // メール窓口はアドレスをそのまま表示し、利用者がコピーして連絡できるようにする。
+  const contactEmail = config?.contactUrl.startsWith("mailto:")
+    ? config.contactUrl.slice("mailto:".length)
+    : null;
   return (
     <article className="prose">
       <p className="eyebrow">ABOUT PANDD MUSIC</p>
@@ -297,8 +306,12 @@ export function AboutPage() {
       </p>
       <h2>権利・削除依頼とお問い合わせ</h2>
       {config?.contactUrl ? (
-        <a href={config.contactUrl} target="_blank" rel="noopener noreferrer">
-          運営の連絡窓口 ↗
+        <a
+          href={config.contactUrl}
+          target={contactEmail ? undefined : "_blank"}
+          rel="noopener noreferrer"
+        >
+          {contactEmail ?? "運営の連絡窓口 ↗"}
         </a>
       ) : (
         <p className="notice">

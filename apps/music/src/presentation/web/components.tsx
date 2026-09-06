@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { Link } from "react-router-dom";
 import type { PublicTrack } from "../../domain/models";
 import { useSite } from "./context";
-import { api } from "./api-client";
+import { publicApi as api } from "./public-client";
 
 /** @brief 秒を再生表示用に整形する。 */
 export function timeLabel(seconds: number): string {
@@ -21,6 +21,7 @@ export function Artwork({
   alt: string;
   compact?: boolean;
 }) {
+  const { assetUrl } = useSite();
   const [failed, setFailed] = useState<string[]>([]);
   const chosen = [assetId, fallbackId].find(
     /** @brief 読み込み失敗した画像を再要求し続けない。 */ (id) =>
@@ -42,7 +43,7 @@ export function Artwork({
   return (
     <img
       className={`artwork ${compact ? "compact" : ""}`}
-      src={`/api/assets/${chosen}`}
+      src={assetUrl(chosen)}
       alt={alt || "作品の代表画像"}
       loading="lazy"
       onError={
@@ -54,6 +55,7 @@ export function Artwork({
 }
 /** @brief 広告の取得・画像失敗が再生に影響しない独立したバナー枠。 */
 export function AdSlot() {
+  const { assetUrl } = useSite();
   const [ad, setAd] = useState<{
     enabled: boolean;
     imageAssetId?: string;
@@ -85,7 +87,7 @@ export function AdSlot() {
       <small>広告</small>
       <a href={ad.href} target="_blank" rel="sponsored noopener noreferrer">
         <img
-          src={`/api/assets/${ad.imageAssetId}`}
+          src={assetUrl(ad.imageAssetId!)}
           alt={ad.alt}
           onError={
             /** @brief 画像を表示できない広告枠を閉じる。 */ () => setAd(null)

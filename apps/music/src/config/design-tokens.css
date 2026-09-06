@@ -1,13 +1,20 @@
 :root {
-  /* 静止画と音声操作が主役になる紙色・深緑の一貫した配色。 */
-  --paper: #f4f2eb;
-  --surface: #fffcf5;
-  --ink: #172f2d;
-  --muted: #69756e;
-  --line: #d8ddd2;
-  --accent: #c7df86;
-  --dark: #142b2a;
+  /* PandDロゴのチャコールとコーラルピンクを、読みやすい淡色の画面へ展開する。 */
+  --paper: #faf7f8;
+  --surface: #ffffff;
+  --ink: #383838;
+  --muted: #70666a;
+  --line: #e5dce0;
+  --accent: #ff607b;
+  --accent-soft: #fff0f3;
+  --accent-ink: #a32948;
+  --dark: #383838;
   --error: #963b30;
+  --error-surface: #f8e9e2;
+  --success-surface: #e2edcf;
+  --success-line: #adbf99;
+  --on-accent: #383838;
+  color-scheme: light;
   --radius: 8px;
   --max-width: 1180px;
   --tap-size: 44px;
@@ -15,4 +22,22 @@
   color: var(--ink);
   background: var(--paper);
   font-synthesis: none;
+}
+
+/* ロゴのピンクを残し、本文・入力・背景パネルのコントラストを暗色用に揃える。 */
+:root[data-theme="dark"] {
+  --paper: #191719;
+  --surface: #252225;
+  --ink: #f4edf0;
+  --muted: #bfb1b8;
+  --line: #4b4147;
+  --accent: #ff8299;
+  --accent-soft: #38252d;
+  --accent-ink: #ff9cb0;
+  --dark: #383038;
+  --error: #ffb1a8;
+  --error-surface: #432927;
+  --success-surface: #243c32;
+  --success-line: #507966;
+  color-scheme: dark;
 }

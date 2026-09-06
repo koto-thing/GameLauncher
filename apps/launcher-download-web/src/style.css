@@ -1,0 +1,95 @@
+@font-face {
+  font-family: "Montserrat";
+  src: url("/fonts/Montserrat.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", "Yu Gothic UI", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  --charcoal: #242223;
+  --accent: #ff6079;
+  --white: #fafafa;
+  --muted: #c4c6ca;
+  --button-width: 14rem;
+  --button-height: 5.75rem;
+  --button-gap: 1rem;
+  --corner: 0.25rem;
+  --title-size: clamp(2.25rem, 6vw, 4.5rem);
+  --section-gap: 3.5rem;
+  --scrim-opacity: 0.52;
+  --center-opacity: 0.20;
+  --edge-space: 1.5rem;
+}
+* { box-sizing: border-box; }
+body { position: relative; min-height: 100svh; display: flex; flex-direction: column; margin: 0; background: var(--charcoal); color: var(--white); }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { font: inherit; }
+[hidden] { display: none !important; }
+.backdrop { position: fixed; inset: 0; z-index: -1; background: var(--charcoal); pointer-events: none; }
+.poster, .background-video, .scrim { position: absolute; inset: 0; width: 100%; height: 100%; }
+.poster { background-size: cover; background-position: var(--media-position); }
+.background-video { object-fit: cover; object-position: var(--media-position); opacity: 0; }
+.background-video.has-frame { opacity: 1; }
+.scrim {
+  /* Keep the entire video subdued, with a little extra shading behind the central UI. */
+  background: linear-gradient(125deg, rgb(255 96 121 / 0.08), transparent 55%), radial-gradient(ellipse at center, rgb(0 0 0 / var(--center-opacity)), transparent 78%),
+    linear-gradient(rgb(0 0 0 / var(--scrim-opacity)), rgb(0 0 0 / var(--scrim-opacity)));
+}
+.stage { flex: 1; display: grid; place-items: center; padding: 3rem var(--edge-space); }
+.backdrop { overflow: hidden; }
+.graphic-lines { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgb(0 0 0 / 0.2) 0 1px, transparent 1px 4px); }
+.controller-art { position: absolute; stroke: #ff6079; stroke-width: 2; opacity: 0.22; }
+.controller-art-top { width: clamp(15rem, 32vw, 32rem); right: -3vw; top: 11%; transform: rotate(-18deg); }
+.controller-art-bottom { width: clamp(9rem, 19vw, 19rem); left: -3vw; bottom: 9%; transform: rotate(18deg); opacity: 0.16; }
+.hero { width: 100%; text-align: center; }
+.title { margin: 0; font-weight: 700; }
+.tagline::before { content: ""; display: block; width: 2rem; height: 2px; margin: 0 auto 1rem; background: var(--accent); }
+.tagline { margin: 1.15rem 0 0; font-size: clamp(0.9rem, 2vw, 1.25rem); letter-spacing: 0.18em; color: #e0dfe2; line-height: 1.8; }
+.brand-logo { display: block; width: 10rem; height: 3rem; }
+.brand-logo img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 48%; }
+.wordmark { font-size: 1.25rem; letter-spacing: 0.06em; font-weight: 650; }
+.product-title { display: block; font-size: var(--title-size); line-height: 1.08; letter-spacing: 0.025em; font-style: normal; font-family: "Montserrat", Arial, sans-serif; font-weight: 500; text-transform: uppercase; text-shadow: 0 2px 24px rgb(0 0 0 / 0.35); overflow-wrap: anywhere; padding-inline: 0.08em; }
+.downloads { display: grid; grid-template-columns: repeat(3, minmax(0, var(--button-width))); justify-content: center; gap: var(--button-gap); margin-top: var(--section-gap); }
+.download {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
+  width: 100%; min-height: var(--button-height); padding: 0.6rem 1rem;
+  border: 1px solid var(--accent); border-radius: var(--corner); background: rgb(36 34 35 / 0.94); color: var(--white); box-shadow: inset 0 3px 0 var(--accent);
+  text-decoration: none; line-height: 1.4;
+}
+.os-name { font-size: 1.125rem; font-weight: 600; }
+.download-action { font-size: 0.875rem; }
+.download small { font-size: 0.75rem; line-height: 1.2; }
+.download:disabled { background: rgb(36 34 35 / 0.88); color: var(--muted); border-color: #b66b78; cursor: not-allowed; }
+.download[href]:hover { background: #54313a; border-color: #ff9aae; }
+:is(a, button):focus-visible { outline: 3px solid white; outline-offset: 5px; box-shadow: 0 0 0 5px #17191c; }
+/* Layout breakpoint: below 48rem, equal OS slots stack in the same reading order. */
+@media (max-width: 47.999rem) {
+  :root { --section-gap: 2.25rem; --button-gap: 0.75rem; --button-height: 5.5rem; --edge-space: 1.25rem; }
+  .downloads { grid-template-columns: minmax(0, 19rem); grid-auto-rows: 1fr; }
+  .brand-logo { width: 8rem; height: 2.5rem; }
+  .product-title { font-size: clamp(1.5rem, 6.5vw, 3.5rem); }
+}
+/* Equal-height framing keeps the hero centered; content can grow on small screens. */
+.site-header, .site-footer { min-height: 4.5rem; display: flex; align-items: center; padding: 1rem max(2rem, env(safe-area-inset-left)); background: var(--charcoal); }
+.site-header { padding-block: 0.5rem; border-bottom: 1px solid rgb(255 96 121 / 0.3); }
+.site-footer { justify-content: center; border-top: 1px solid rgb(255 96 121 / 0.3); color: var(--muted); }
+.site-footer small { font-size: 0.8125rem; letter-spacing: 0.05em; }
+@media (max-width: 47.999rem) {
+  .site-header, .site-footer { min-height: 3.5rem; padding: 0.75rem var(--edge-space); }
+  .site-header { padding-block: 0.4375rem; }
+  .stage { padding-block: 2rem; }
+}
+
+
+.site-header { justify-content: space-between; gap: 1rem; }
+.language-picker { position: relative; width: 44px; height: 44px; flex: 0 0 44px; color: var(--white); border-radius: 50%; }
+.language-picker svg { position: absolute; width: 25px; height: 25px; inset: 9.5px; pointer-events: none; }
+.language-picker select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font: inherit; }
+.language-picker:hover { color: var(--accent); background: rgb(255 96 121 / 0.08); }
+.language-picker:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+html:not([lang="ja"]) .tagline { letter-spacing: 0.06em; }
+
+.title-word { display: inline-block; }
+.title-initial { color: var(--accent); }

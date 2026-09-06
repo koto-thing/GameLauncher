@@ -1,9 +1,10 @@
 name: Music validation
 on:
+  workflow_dispatch:
   pull_request:
-    paths: ['apps/music/**', '.github/workflows/music-check.yml']
+    paths: ['apps/music/**', 'apps/admin-web/**', 'server/music/**', 'contracts/music/**', '.github/workflows/music-check.yml']
   push:
-    paths: ['apps/music/**', '.github/workflows/music-check.yml']
+    paths: ['apps/music/**', 'apps/admin-web/**', 'server/music/**', 'contracts/music/**', '.github/workflows/music-check.yml']
 permissions:
   contents: read
 jobs:
@@ -20,15 +21,38 @@ jobs:
           cache: npm
           cache-dependency-path: apps/music/package-lock.json
       - run: npm ci
-      - run: npm run types
+      - run: npm ci
+        working-directory: apps/admin-web
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.4'
+          extensions: fileinfo, gd
+          tools: composer:v2
+      - run: composer install --no-dev --prefer-dist --no-interaction
+        working-directory: server/music
       - run: npm run check
+      - run: npm test
+        working-directory: apps/admin-web
       - run: npm run browsers:install -- --with-deps
       - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
+      - run: npm run test:public
+      - run: npm run package:rental
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: music-rental-package
+          path: apps/music/build/rental-package-*/
+          include-hidden-files: true
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: music-test-results
           path: |
             apps/music/build/e2e-results.json
+            apps/music/build/public-independence.json
+            apps/music/build/public-workers-stopped-390.png
             apps/music/build/home-*.png
+            apps/music/build/game-design-*.png
+            apps/music/build/theme-dark-*.png
+            apps/music/build/carousel-*.png
             apps/music/test-results/

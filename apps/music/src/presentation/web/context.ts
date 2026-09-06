@@ -4,12 +4,15 @@ import type { Session } from "../../application/ports";
 import type { DomainPolicy, PublicGame } from "../../domain/models";
 
 export interface SiteConfig {
+  publicUrl?: string;
+  enabled?: boolean;
   contactUrl: string;
   policy: DomainPolicy;
   local: boolean;
   oauthConfigured: boolean;
 }
 export interface SiteState {
+  assetUrl(id: string): string;
   player: Player;
   catalogue: PublicGame[];
   session: Session | null;

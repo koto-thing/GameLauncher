@@ -1,0 +1,10 @@
+import {spawnSync} from "node:child_process";
+import {fileURLToPath} from "node:url";
+import {existsSync} from "node:fs";
+process.chdir(fileURLToPath(new URL("../", import.meta.url)));
+if (existsSync(".env")) process.loadEnvFile(".env");
+const args = process.argv.slice(2);
+if (args.some(arg => arg !== "--upload")) throw new Error("Only --upload is supported");
+const result = spawnSync("python", ["scripts/deploy-ftps.py", ...args], {stdio: "inherit", env: process.env});
+if (result.error) throw result.error;
+process.exit(result.status ?? 1);

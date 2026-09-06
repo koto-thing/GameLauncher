@@ -1,0 +1,7 @@
+{
+  "name": "pandd/music-rental-server",
+  "description": "Private media validation and local publication bridge for PandD Music",
+  "type": "project",
+  "require": { "php": ">=8.2", "ext-fileinfo": "*", "ext-gd": "*", "james-heinrich/getid3": "^1.9" },
+  "autoload": { "classmap": ["src/"] }
+}

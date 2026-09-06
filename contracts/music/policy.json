@@ -1,0 +1,5 @@
+{
+  "media": { "maxAudioFileBytes": 67108864, "maxImageFileBytes": 8388608, "maxAudioDurationSeconds": 600, "maxImageEdgePixels": 4096 },
+  "loop": { "minimumLengthSeconds": 0.1 },
+  "text": { "titleMax": 160, "descriptionMax": 4000, "creditMax": 24, "creditNameMax": 160, "creditRoleMax": 80, "imageAltMax": 300, "urlMax": 2048 }
+}

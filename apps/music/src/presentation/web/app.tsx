@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import type { Player } from "../../application/player";
-import type { Session } from "../../application/ports";
+
 import type { PublicGame } from "../../domain/models";
 import { SiteContext, type SiteConfig } from "./context";
-import { api } from "./api-client";
+import { publicApi as api, publicAssetUrl } from "./public-client";
 import { MiniPlayer } from "./components";
+import { ThemeToggle } from "./theme-toggle";
 
 /** @brief ルート遷移で破棄されないプレーヤーとサイトの共通枠を提供する。 */
 export function App({ player }: { player: Player }) {
@@ -23,20 +24,15 @@ export function App({ player }: { player: Player }) {
     [],
   );
   const [catalogue, setCatalogue] = useState<PublicGame[]>([]);
-  const [session, setSession] = useState<Session | null>(null);
+
   const [config, setConfig] = useState<SiteConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const refresh = useCallback(
     /** @brief 作品公開後も同じプレーヤーを保持したまま一覧を更新する。 */ async () => {
       try {
-        const [games, account, settings] = await Promise.all([
-          api<PublicGame[]>("/public/catalogue"),
-          api<Session | null>("/auth/me"),
-          api<SiteConfig>("/public/config"),
-        ]);
+        const [games, settings] = await Promise.all([api<PublicGame[]>("/public/catalogue"), api<SiteConfig>("/public/config")]);
         setCatalogue(games);
-        setSession(account);
         setConfig(settings);
         setError("");
       } catch (failure) {
@@ -59,23 +55,26 @@ export function App({ player }: { player: Player }) {
   );
   return (
     <SiteContext.Provider
-      value={{ player, catalogue, session, config, loading, refresh }}
+      value={{ player, catalogue, session: null, config, loading, refresh, assetUrl: publicAssetUrl }}
     >
       <a className="skip-link" href="#main">
         本文へ
       </a>
       <header className="site-header">
-        <Link to="/" className="brand">
-          PandD <span>Music</span>
-          <small>GAME SOUNDTRACKS</small>
+        <Link to="/" className="brand" aria-label="PandD Music ホーム">
+          <span className="brand-logo">
+            <img src={`${import.meta.env.BASE_URL}pandd-logo.png`} alt="PandD" width="1500" height="1500" />
+          </span>
+          <small>MUSIC · GAME SOUNDTRACKS</small>
         </Link>
         <nav aria-label="メインナビゲーション">
           <NavLink to="/" end>
             ライブラリ
           </NavLink>
           <NavLink to="/about">このサイトについて</NavLink>
-          <NavLink to="/manage">投稿者</NavLink>
+
         </nav>
+        <ThemeToggle />
       </header>
       {config?.local && (
         <div className="local-label">

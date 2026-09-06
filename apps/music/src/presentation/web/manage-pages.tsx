@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import type {
   Account,
   Advertisement,
@@ -12,6 +12,8 @@ import type {
 import { useSite } from "./context";
 import { api, uploadFile } from "./api-client";
 import { Artwork } from "./components";
+import { GameDesignEditor, GameDesignSurface } from "./game-design";
+import { GAME_DESIGN_DEFAULTS } from "../../config/game-design.defaults";
 import {
   audioUploadHint,
   imageUploadHint,
@@ -51,10 +53,10 @@ export function ManagePage() {
         <p className="eyebrow">CREATOR STUDIO</p>
         <h1>作品の音楽を、届ける。</h1>
         <p>
-          担当者は自分の判断で登録・公開できます。GitHubログイン後、運営が作品を割り当てます。
+          adminからGitHub数値IDで作品の編集権限を受け取ると、自分の判断で登録・公開できます。
         </p>
         {config?.oauthConfigured ? (
-          <a className="button primary" href="/api/auth/login">
+          <a className="button primary" href="/api/auth/github/start">
             GitHubでログイン
           </a>
         ) : (
@@ -104,44 +106,9 @@ export function ManagePage() {
     </>
   );
 }
-/** @brief テスト専用サーバーの固定アカウント選択を提供する。 @remarks 本番Workerにこの認証APIは存在しない。 */
-function LocalLogin({ onDone }: { onDone(): Promise<void> }) {
-  const task = useEditorTask();
-  return (
-    <div className="local-login">
-      <h2>ローカル検証専用ログイン</h2>
-      <p>npm run devで起動した隔離環境だけで使えます。</p>
-      <div className="button-row">
-        {["admin", "composer-a", "composer-b", "outsider"].map(
-          /** @brief 入力自由のユーザー偽装を作らず固定fixtureを選ぶ。 */ (
-            account,
-          ) => (
-            <button
-              key={account}
-              disabled={task.busy}
-              onClick={
-                /** @brief ローカルサーバーの専用ログインを試す。 */ () => {
-                  void task.run(
-                    async () => /** @brief ローカルfixtureのCookie発行後に実セッションを取得する。 */ {
-                      await api("/local/login", {
-                        method: "POST",
-                        body: { account },
-                      });
-                      await onDone();
-                    },
-                    "ログインしました。",
-                  );
-                }
-              }
-            >
-              {account}
-            </button>
-          ),
-        )}
-      </div>
-      <TaskNotice task={task} />
-    </div>
-  );
+/** @brief 既存control-planeのローカルログインだけを利用する。 */
+function LocalLogin({ onDone: _onDone }: { onDone(): Promise<void> }) {
+  return <div className="local-login"><h2>ローカル検証専用ログイン</h2>{["music-admin","music-a","music-b","outsider","admin"].map(/** @brief 固定fixtureを選ぶ。 */ account => <a className="button" key={account} href={`/api/auth/dev?as=${account}`}>{account}</a>)}</div>;
 }
 /** @brief 現在割り当てられた作品だけを表示する。 */
 function ManagedGameList() {
@@ -187,9 +154,10 @@ function ManagedGameList() {
     </section>
   );
 }
-/** @brief 作品作成・アカウントロール・広告と履歴を運営だけに表示する。 */
+/** @brief 作品作成・広告と履歴をMusic運営だけに表示する。 */
 function AdminPanel() {
-  const { session, refresh, config } = useSite();
+  const navigate = useNavigate();
+  const { session, config } = useSite();
   const { data, error, reload } = useRemote<AdminSettings>("/admin/settings");
   const task = useEditorTask();
   const [title, setTitle] = useState("");
@@ -202,7 +170,7 @@ function AdminPanel() {
         csrf: session!.csrf,
         body: { ...emptyGame, title },
       });
-      window.location.assign(`/manage/games/${game.id}`);
+      navigate(`/manage/games/${game.id}`);
     });
   }
   return (
@@ -228,7 +196,10 @@ function AdminPanel() {
       </form>
       {data && (
         <>
-          <h3>アカウントと運営権限</h3>
+          <h3>GitHubアカウント</h3>
+          <p>
+            Music運営は明示登録されたアカウントです。作品の編集権限は各作品の運営設定からGitHub数値IDで付与できます。
+          </p>
           <ul className="account-list">
             {data.accounts.map(
               /** @brief 名前だけでなく安定IDを併記する。 */ (account) => (
@@ -236,26 +207,9 @@ function AdminPanel() {
                   <span>
                     {account.login} <small>ID {account.id}</small>
                   </span>
-                  <button
-                    disabled={task.busy || account.id === session?.principal.id}
-                    onClick={
-                      /** @brief 役割変更をAPIの運営検査へ渡す。 */ () => {
-                        void task.run(
-                          async () => /** @brief ロール変更後に現在の状態を再取得する。 */ {
-                            await api(`/admin/accounts/${account.id}`, {
-                              method: "PUT",
-                              body: { admin: !account.admin },
-                              csrf: session!.csrf,
-                            });
-                            await reload();
-                            await refresh();
-                          },
-                        );
-                      }
-                    }
-                  >
-                    {account.admin ? "運営権限を解除" : "運営権限を付与"}
-                  </button>
+                  <small>
+                    {account.admin ? "Music運営" : "投稿者"}
+                  </small>
                 </li>
               ),
             )}
@@ -431,20 +385,37 @@ function GameEditor({
     );
   }
   /** @brief 画像アップロードは公開せず下書き参照に追加する。 */
-  function image(file?: File): void {
+  function image(file?: File, background = false): void {
     if (!file) return;
-    void task.run(async () => /** @brief 進捗と検証後の素材IDを取得する。 */ {
-      setProgress(0);
-      const asset = await uploadFile<Asset>(
-        game.id,
-        "image",
-        file,
-        session!.csrf,
-        setProgress,
-      );
-      setDraft({ ...draft, imageAssetId: asset.id, rightsConfirmed: false });
-      setProgress(null);
-    }, "画像を登録しました。代替テキストを入力して下書きを保存してください。");
+    void task.run(
+      async () => /** @brief 進捗と検証後の素材IDを取得する。 */ {
+        setProgress(0);
+        const asset = await uploadFile<Asset>(
+          game.id,
+          "image",
+          file,
+          session!.csrf,
+          setProgress,
+        );
+        setDraft(
+          background
+            ? {
+                ...draft,
+                design: {
+                  ...GAME_DESIGN_DEFAULTS,
+                  ...draft.design,
+                  backgroundAssetId: asset.id,
+                },
+                rightsConfirmed: false,
+              }
+            : { ...draft, imageAssetId: asset.id, rightsConfirmed: false },
+        );
+        setProgress(null);
+      },
+      background
+        ? "背景画像を登録しました。権利確認後に下書きを保存してください。"
+        : "画像を登録しました。代替テキストを入力して下書きを保存してください。",
+    );
   }
   /** @brief 複数ファイルを1件ずつ下書き登録し、個別の成否を残す。 */
   function uploadBatch(files: FileList | null): void {
@@ -578,6 +549,20 @@ function GameEditor({
                 </button>
               </>
             )}
+            <GameDesignEditor
+              value={draft.design}
+              onChange={
+                /** @brief デザインも公開版から独立した下書きに保持する。 */ (
+                  design,
+                ) => setDraft({ ...draft, design })
+              }
+              onUpload={
+                /** @brief 背景画像にも通常画像と同じ検証と作品認可を使う。 */ (
+                  file,
+                ) => image(file, true)
+              }
+              error={task.error}
+            />
             <label className="check">
               <input
                 type="checkbox"
@@ -598,10 +583,18 @@ function GameEditor({
           </fieldset>
         </form>
         <div>
-          <Artwork
-            assetId={draft.imageAssetId}
-            alt={draft.imageAlt || draft.title}
-          />
+          <h2>ページデザインのプレビュー</h2>
+          <GameDesignSurface design={draft.design}>
+            <h3>{draft.title || "作品名"}</h3>
+            <p>
+              {draft.description ||
+                "背景は作品ページと曲ページに反映されます。"}
+            </p>
+            <Artwork
+              assetId={draft.imageAssetId}
+              alt={draft.imageAlt || draft.title}
+            />
+          </GameDesignSurface>
           <div className="publication">
             <h2>公開</h2>
             <p>保存した内容をまとめて反映します。運営の事前承認は不要です。</p>
@@ -622,7 +615,7 @@ function GameEditor({
               作品を非公開にする
             </button>
             {dirty && <p className="hint">先に下書きを保存してください。</p>}
-            <Link to={`/games/${game.id}`}>公開ページを確認 ↗</Link>
+            {config?.publicUrl && <a href={`${config.publicUrl}games/${game.id}`} target="_blank" rel="noreferrer">公開ページを確認 ↗</a>}
           </div>
         </div>
       </div>
@@ -730,12 +723,59 @@ function GameOperations({
   const { session, refresh } = useSite();
   const { data } = useRemote<AdminSettings>("/admin/settings");
   const task = useEditorTask();
+  const [accountId, setAccountId] = useState("");
   return (
     <section className="admin-panel">
       <h2>作品の運営設定</h2>
       <p>
-        担当者は一度GitHubログインすると一覧に表示されます。数値IDも確認して割り当ててください。
+        GitHub数値アカウントIDを指定して、この作品の編集・公開権限を渡します。担当者の事前ログインは不要です。
       </p>
+      <form
+        className="inline-form"
+        onSubmit={
+          /** @brief 未ログインの担当者もGitHub本人IDを検証して割り当てる。 */ (
+            event,
+          ) => {
+            event.preventDefault();
+            void task.run(
+              async () => /** @brief 付与後に担当一覧を更新する。 */ {
+                await api(
+                  `/admin/games/${game.id}/members/${accountId.trim()}`,
+                  {
+                    method: "PUT",
+                    body: { enabled: true },
+                    csrf: session!.csrf,
+                  },
+                );
+                setAccountId("");
+                await onSaved();
+              },
+              "作品の編集権限を付与しました。",
+            );
+          }
+        }
+      >
+        <Field label="担当者のGitHub数値ID" name="accountId" error={task.error}>
+          <input
+            inputMode="numeric"
+            pattern="[1-9][0-9]*"
+            maxLength={16}
+            required
+            value={accountId}
+            placeholder="例：12345678"
+            onChange={
+              /** @brief ユーザー名でなく数値IDを入力する。 */ (event) =>
+                setAccountId(event.target.value)
+            }
+          />
+        </Field>
+        <button
+          className="primary"
+          disabled={task.busy || disabled || !accountId.trim()}
+        >
+          編集権限を付与
+        </button>
+      </form>
       <ul className="account-list">
         {data?.accounts.map(
           /** @brief 現在の所属をサーバーの結果から表示する。 */ (account) => (

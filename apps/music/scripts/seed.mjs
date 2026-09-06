@@ -1,10 +1,10 @@
 import { pathToFileURL } from "node:url";
-import { createRuntime, fixtureClient } from "../tests/support/runtime.mjs";
+import { fixtureClient } from "../tests/support/rental-runtime.mjs";
 import { placeholderPng, toneWav } from "../tests/support/fixtures.mjs";
 
 /** @brief 2作品6曲を実APIで登録し、公開・アップロード経路のseedにもする。 */
-export async function seed(runtime, origin = "http://127.0.0.1:5173") {
-  const client = await fixtureClient(runtime, "admin", origin);
+export async function seed(runtime) {
+  const client = await fixtureClient(runtime, "music-admin");
   const existing = await client.json("/manage/games");
   if (
     existing.some(
@@ -32,10 +32,11 @@ export async function seed(runtime, origin = "http://127.0.0.1:5173") {
       ) ??
       (await client.json("/manage/games", { method: "POST", body: draft }));
     if (!game.published) {
-      const cover = await client.json(`/manage/games/${game.id}/assets/image`, {
-        method: "POST",
-        bytes: placeholderPng(480, 270, index),
-      });
+      const cover = await client.upload(
+        game.id,
+        "image",
+        placeholderPng(480, 270, index),
+      );
       draft.imageAssetId = cover.id;
       await client.json(`/manage/games/${game.id}`, {
         method: "PUT",
@@ -63,18 +64,20 @@ export async function seed(runtime, origin = "http://127.0.0.1:5173") {
         method: "POST",
         body: { title },
       });
-      const audio = await client.json(`/manage/games/${game.id}/assets/audio`, {
-        method: "POST",
-        bytes: toneWav(index * 3 + song),
-      });
-      const image = await client.json(`/manage/games/${game.id}/assets/image`, {
-        method: "POST",
-        bytes: placeholderPng(
+      const audio = await client.upload(
+        game.id,
+        "audio",
+        toneWav(index * 3 + song),
+      );
+      const image = await client.upload(
+        game.id,
+        "image",
+        placeholderPng(
           song === 1 ? 200 : 480,
           song === 1 ? 360 : 270,
           index + song,
         ),
-      });
+      );
       const content = {
         ...track.draft,
         credits: [{ name: "PandD Music 検証トーン生成", role: "テスト素材" }],
@@ -112,17 +115,18 @@ export async function seed(runtime, origin = "http://127.0.0.1:5173") {
       });
     }
   }
-  console.log("DEMO: 2作品・6曲をローカルD1/R2に登録しました。");
+  console.log("DEMO: 2作品・6曲をローカルcontrol-plane D1/PHPに登録しました。");
 }
 // seedは独立したローカルプロセスで実施し、本番用コマンドやリモート指定を受け付けない。
 if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
-  const runtime = await createRuntime({ persistent: true });
-  try {
-    await seed(runtime);
-  } finally {
-    await runtime.dispose();
-  }
+  const origin = "http://127.0.0.1:8788";
+  await seed({
+    origin,
+    dispatchFetch: /** @brief 起動中の隔離ローカル環境へだけ送る。 */ (
+      ...args
+    ) => fetch(...args),
+  });
 }

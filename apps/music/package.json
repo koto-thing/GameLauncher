@@ -7,30 +7,26 @@
     "node": ">=24.0.0 <27"
   },
   "scripts": {
-    "dev": "node scripts/local.mjs",
-    "dev:oauth": "vite --host 127.0.0.1 --port 5173",
-    "db:local": "wrangler d1 migrations apply MUSIC_DB --local",
+    "dev": "node scripts/local-control.mjs",
     "seed": "node scripts/seed.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && node scripts/check-architecture.mjs",
     "test": "node --import tsx --test tests/unit/*.test.ts tests/integration/*.test.ts",
     "test:e2e": "node scripts/e2e.mjs test",
     "build": "vite build && node scripts/check-build.mjs",
-    "types": "wrangler types",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build",
-    "browsers:install": "node scripts/e2e.mjs install chromium firefox webkit"
+    "build:manager": "vite build --config vite.manager.config.ts",
+    "package:rental": "npm run build && node scripts/package-rental.mjs",
+    "policy:sync": "node -e \"require('node:fs').copyFileSync('../../contracts/music/policy.json','../../server/music/config/policy.json')\"",
+    "check": "npm run typecheck && npm run lint && npm run build && npm test",
+    "browsers:install": "node scripts/e2e.mjs install chromium firefox webkit",
+    "test:public": "node scripts/public-test.mjs"
   },
   "dependencies": {
-    "file-type": "22.0.2",
-    "hono": "4.13.7",
-    "image-dimensions": "2.5.1",
-    "music-metadata": "11.15.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-router-dom": "7.18.3"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.54.1",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.63.0",
     "@types/node": "26.4.0",

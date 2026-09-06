@@ -40,9 +40,10 @@ button:disabled {
 }
 button[aria-pressed="true"] {
   background: var(--accent);
+  color: var(--on-accent);
 }
 :focus-visible {
-  outline: 3px solid #698b26;
+  outline: 3px solid var(--accent-ink);
   outline-offset: 4px;
 }
 .primary {
@@ -100,20 +101,20 @@ section {
 }
 .empty {
   padding: 48px 20px;
-  background: #eaece3;
+  background: var(--accent-soft);
   text-align: center;
   border-radius: var(--radius);
 }
 .notice {
   padding: 16px;
-  background: #ececda;
+  background: var(--accent-soft);
   border-radius: var(--radius);
 }
 .notice.error {
-  background: #f8e9e2;
+  background: var(--error-surface);
 }
 .success {
-  background: #e2edcf;
+  background: var(--success-surface);
 }
 .back-link {
   display: inline-block;
@@ -145,6 +146,22 @@ section {
   letter-spacing: -0.05em;
   white-space: nowrap;
 }
+.brand-logo {
+  /* 元ロゴの透明な余白だけを表示枠で除き、画像自体は加工しない。 */
+  display: block;
+  width: 180px;
+  height: 58px;
+  overflow: hidden;
+  position: relative;
+}
+.brand-logo img {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  max-width: none;
+  left: -12px;
+  top: -65px;
+}
 .brand span {
   font-weight: 350;
 }
@@ -159,6 +176,15 @@ nav {
   gap: 24px;
   font-size: 0.78rem;
 }
+.theme-toggle {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 0.8rem;
+  padding: 8px 12px;
+}
+.theme-toggle > span:first-child {
+  font-size: 1.25rem;
+}
 nav a {
   min-height: 44px;
   display: flex;
@@ -171,7 +197,7 @@ nav a.active {
 .local-label {
   text-align: center;
   padding: 9px 18px;
-  background: #e5ecd8;
+  background: var(--accent-soft);
   font-size: 0.65rem;
   letter-spacing: 0.08em;
 }
@@ -192,6 +218,7 @@ footer {
   left: 16px;
   z-index: 20;
   background: var(--accent);
+  color: var(--on-accent);
   padding: 16px;
 }
 .skip-link:focus {
@@ -202,9 +229,13 @@ footer {
   position: relative;
   padding: 66px 0 54px;
   border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 40px;
+  align-items: center;
 }
 .hero h1 {
-  font-size: clamp(2.8rem, 6vw, 5rem);
+  font-size: clamp(2.8rem, 4.5vw, 4rem);
   font-weight: 500;
   line-height: 1.37;
   margin-bottom: 22px;
@@ -212,7 +243,7 @@ footer {
 }
 .hero h1 em {
   font-style: normal;
-  color: #65803b;
+  color: var(--accent-ink);
 }
 .hero p:not(.eyebrow) {
   color: var(--muted);
@@ -227,6 +258,92 @@ footer {
   letter-spacing: 0.28em;
   line-height: 2;
   color: var(--muted);
+}
+/* ヒーローの右側に画像全体を保って配置し、作品画像の縦横比で枠が揺れないようにする。 */
+.soundtrack-carousel {
+  min-width: 0;
+  margin-right: 56px;
+}
+.soundtrack-slide {
+  display: block;
+  animation: soundtrack-arrive 450ms ease-out;
+}
+.soundtrack-image {
+  aspect-ratio: 4 / 3;
+  background: var(--accent-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.soundtrack-image .artwork {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+}
+.soundtrack-caption {
+  padding: 16px 0 8px;
+}
+.soundtrack-caption small {
+  color: var(--muted);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+}
+.soundtrack-caption strong {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+}
+.carousel-controls {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+.carousel-controls button {
+  padding: 6px;
+  background: transparent;
+}
+.carousel-counter {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1em;
+}
+@keyframes soundtrack-arrive {
+  from {
+    opacity: 0.35;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .soundtrack-slide {
+    animation: none;
+  }
+}
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+  .soundtrack-carousel {
+    width: 100%;
+    max-width: 520px;
+    margin: 0;
+  }
+  .hero-note {
+    display: none;
+  }
 }
 .section-heading {
   display: flex;
@@ -260,7 +377,7 @@ footer {
   left: 14px;
   padding: 4px 8px;
   color: white;
-  background: #142b2a;
+  background: var(--dark);
   font-size: 0.7rem;
 }
 .artwork {
@@ -269,19 +386,19 @@ footer {
   max-height: 65vh;
   object-fit: contain;
   display: block;
-  background: #e4e8dc;
+  background: var(--accent-soft);
   border-radius: 3px;
 }
 .placeholder {
   aspect-ratio: 16/10;
-  background: #dae3c9;
-  color: #344e38;
+  background: var(--accent-soft);
+  color: var(--ink);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-direction: column;
   gap: 12px;
-  border: 1px solid #c5cfb3;
+  border: 1px solid var(--line);
 }
 .placeholder > span {
   font-size: clamp(2rem, 6vw, 5rem);
@@ -297,9 +414,9 @@ footer {
   letter-spacing: 0.25em;
 }
 .game-card:nth-child(even) .placeholder {
-  background: #cfdfe1;
-  color: #325565;
-  border-color: #b5cacf;
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
 }
 .card-meta {
   padding: 22px 0;
@@ -397,7 +514,7 @@ footer {
   font-variant-numeric: tabular-nums;
 }
 .loop-badge {
-  color: #637d3a;
+  color: var(--accent-ink);
 }
 .listening-image > .eyebrow {
   text-align: center;
@@ -516,7 +633,7 @@ input[type="range"] {
 }
 .mini-info small {
   display: block;
-  color: #b3c3b9;
+  color: #ebcfd7;
   margin-top: 4px;
   font-size: 0.68rem;
 }
@@ -533,7 +650,7 @@ input[type="range"] {
 }
 .mini-player button {
   background: var(--accent);
-  color: var(--ink);
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 .mini-error {
@@ -565,7 +682,7 @@ fieldset {
 input:not([type="checkbox"]):not([type="range"]),
 textarea,
 select {
-  border: 1px solid #b9c4b3;
+  border: 1px solid var(--line);
   border-radius: 5px;
   background: var(--surface);
   color: var(--ink);
@@ -622,7 +739,7 @@ input[type="checkbox"] {
 .publication,
 .admin-panel,
 .local-login {
-  background: #e9ede2;
+  background: var(--accent-soft);
   padding: 24px;
   border-radius: var(--radius);
   margin: 28px 0;
@@ -750,6 +867,7 @@ input[type="checkbox"] {
   nav {
     gap: 18px;
     width: 100%;
+    order: 3;
     font-size: 0.73rem;
   }
   nav a {
@@ -867,8 +985,8 @@ input[type="checkbox"] {
   right: 16px;
   max-width: calc(100vw - 32px);
   z-index: 30;
-  background: #e2edcf;
-  border: 1px solid #adbf99;
+  background: var(--success-surface);
+  border: 1px solid var(--success-line);
   padding: 12px 12px 12px 18px;
   box-shadow: 0 4px 20px #142b2a20;
   display: flex;
@@ -876,4 +994,63 @@ input[type="checkbox"] {
   align-items: center;
   font-size: 0.8rem;
   border-radius: 8px;
+}
+
+/* 作品固有の装飾はページ内に閉じ込め、ミニプレーヤーや別作品へ持ち越さない。 */
+.game-surface {
+  position: relative;
+  isolation: isolate;
+  margin: 24px -16px 32px;
+  padding: 20px;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.game-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  pointer-events: none;
+}
+.background-contain {
+  background-size: contain;
+}
+.background-tile {
+  background-size: 240px auto;
+  background-repeat: repeat;
+}
+.game-surface-content {
+  background: var(--surface);
+  padding: 24px;
+  border-radius: var(--radius);
+  min-width: 0;
+}
+.game-surface-content > section:last-child {
+  margin-bottom: 0;
+}
+.game-surface-content > .back-link {
+  padding-top: 0;
+}
+.design-editor {
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+}
+.design-editor input[type="color"] {
+  width: 100%;
+  min-height: 48px;
+  padding: 4px;
+}
+@media (max-width: 600px) {
+  .game-surface {
+    margin-inline: -8px;
+    padding: 12px;
+  }
+  .game-surface-content {
+    padding: 14px;
+  }
+  .game-surface .track-list li {
+    gap: 6px;
+  }
 }

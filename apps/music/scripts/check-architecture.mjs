@@ -17,6 +17,8 @@ for (const file of [
   ...(await files("src")),
   ...(await files("scripts")),
   ...(await files("tests")),
+  ...(await files("../admin-web/music")),
+  ...(await files("../../contracts/music")),
 ]) {
   const content = await readFile(file, "utf8");
   const normalized = file.replaceAll("\\", "/");

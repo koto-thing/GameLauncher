@@ -582,7 +582,7 @@ function TrackEditor({
             {dirty && (
               <p className="hint">公開の前に下書きを保存してください。</p>
             )}
-            <Link to={`/tracks/${track.id}`}>公開ページを確認 ↗</Link>
+            {config?.publicUrl && <a href={`${config.publicUrl}tracks/${track.id}`} target="_blank" rel="noreferrer">公開ページを確認 ↗</a>}
           </div>
         </div>
       </div>
