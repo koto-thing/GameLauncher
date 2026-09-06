@@ -23,10 +23,9 @@ Create the GitHub environment `production` and add these environment secrets:
 - `R2_ENDPOINT`: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
 - `R2_BUCKET`: `pandd-launcher-production`
 - `LINUX_GPG_PRIVATE_KEY_BASE64`, `LINUX_GPG_KEY_ID`: Linux release-signing key and fingerprint
-- `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERTIFICATE_PASSWORD`: Developer ID Application certificate
-- `MACOS_KEYCHAIN_PASSWORD`: password for the workflow's ephemeral signing keychain
-- `MACOS_DEVELOPER_ID_APPLICATION`: complete Developer ID Application identity
-- `MACOS_NOTARY_APPLE_ID`, `MACOS_NOTARY_TEAM_ID`, `MACOS_NOTARY_APP_PASSWORD`: Apple notarization credentials
+
+macOS production builds and publication are disabled until Developer ID signing and
+notarization credentials are available. They do not block Windows and Linux releases.
 
 The launcher release workflow does not read the private manifest key. The approved game
 workflow reads it only from the protected `production` Environment and writes it to the

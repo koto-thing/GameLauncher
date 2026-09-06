@@ -18,8 +18,7 @@ class DesktopReleaseWorkflowTests(unittest.TestCase):
     def test_all_desktop_platforms_build_before_one_publish_job(self) -> None:
         self.assertIn("build-windows:", self.workflow)
         self.assertIn("build-linux:", self.workflow)
-        self.assertIn("build-macos:", self.workflow)
-        self.assertIn("needs: [build-windows, build-linux, build-macos]", self.workflow)
+        self.assertIn("needs: [build-windows, build-linux]", self.workflow)
         self.assertEqual(self.workflow.count("Publish desktop artifacts to GitHub Release"), 1)
 
     def test_linux_release_is_production_built_smoke_tested_and_signed(self) -> None:
@@ -32,24 +31,29 @@ class DesktopReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("LINUX_GPG_KEY_ID", linux)
         self.assertEqual(linux.count("scripts/signing/sign_linux.sh"), 2)
 
-    def test_macos_release_is_arm64_signed_notarized_and_smoke_tested(self) -> None:
-        macos = self.workflow.split("  build-macos:", 1)[1].split("\n  publish:", 1)[0]
-        self.assertIn("runs-on: macos-15", macos)
-        self.assertIn('test "$(uname -m)" = arm64', macos)
-        self.assertIn("smoke_test_macos.sh", macos)
-        self.assertIn("scripts/signing/sign_macos.sh", macos)
-        self.assertIn("MACOS_CERTIFICATE_P12_BASE64", macos)
-        self.assertIn("MACOS_NOTARY_APPLE_ID", macos)
-        self.assertIn("/v1/launcher/ifw/macos/arm64", macos)
-        self.assertIn("PandD-Game-Launcher-macos-arm64.zip", macos)
+    def test_macos_is_excluded_until_signing_is_available(self) -> None:
+        self.assertNotIn("build-macos", self.workflow)
+        self.assertNotIn("artifacts/macos", self.workflow)
+        self.assertNotIn("macos/arm64", self.workflow)
+        self.assertNotIn("MACOS_", self.workflow)
+
+    def test_all_builds_wait_for_production_secret_validation(self) -> None:
+        from scripts.release.validate_desktop_secrets import REQUIRED_SECRETS
+
+        preflight = self.workflow.split("  verify-secrets:", 1)[1].split("  build-windows:", 1)[0]
+        self.assertIn("environment: production", preflight)
+        self.assertIn("python -m scripts.release.validate_desktop_secrets", preflight)
+        for name in REQUIRED_SECRETS:
+            self.assertIn("${{ secrets." + name + " }}", preflight)
+        for platform in ("windows", "linux"):
+            job = self.workflow.split(f"  build-{platform}:\n", 1)[1]
+            self.assertTrue(job.startswith("    needs: verify-secrets\n"))
 
     def test_publish_includes_all_platform_metadata_and_release_assets(self) -> None:
         publish = self.workflow.split("\n  publish:", 1)[1]
-        self.assertIn("for platform_arch in windows/x86_64 linux/x86_64 macos/arm64", publish)
+        self.assertIn("for platform_arch in windows/x86_64 linux/x86_64", publish)
         self.assertIn('artifacts/linux/ifw/PandD-Game-Launcher-Online-Installer.asc', publish)
         self.assertIn('artifacts/linux/ifw/PandD-Game-Launcher-linux-x86_64.tar.gz.asc', publish)
-        self.assertIn('artifacts/macos/ifw/PandD-Game-Launcher-Online-Installer-macos-arm64.zip', publish)
-        self.assertIn('artifacts/macos/ifw/PandD-Game-Launcher-macos-arm64.zip', publish)
         self.assertIn('--platform "$platform" --arch "$arch"', publish)
 
     def test_pointer_is_promoted_last_and_publications_are_serialized(self):
