@@ -74,7 +74,7 @@ jobs:
           -DPANDD_BUILD_NUMBER=${{ github.run_number }}
           "-DPANDD_CUBISM_SDK_ROOT=$env:PANDD_CUBISM_SDK_ROOT"
           -DPANDD_MANIFEST_PUBLIC_KEY_BASE64=${{ secrets.MANIFEST_PUBLIC_KEY_BASE64 }}
-          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+          "-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
       - name: Build and install
         shell: pwsh
         run: |
@@ -160,7 +160,7 @@ jobs:
           -DPANDD_BUILD_NUMBER=${{ github.run_number }}
           "-DPANDD_CUBISM_SDK_ROOT=$env:PANDD_CUBISM_SDK_ROOT"
           -DPANDD_MANIFEST_PUBLIC_KEY_BASE64=${{ secrets.MANIFEST_PUBLIC_KEY_BASE64 }}
-          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+          "-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
       - name: Build and install
         run: |
           cmake --build build --parallel
@@ -244,7 +244,7 @@ jobs:
           -DPANDD_BUILD_NUMBER=${{ github.run_number }}
           "-DPANDD_CUBISM_SDK_ROOT=$env:PANDD_CUBISM_SDK_ROOT"
           -DPANDD_MANIFEST_PUBLIC_KEY_BASE64=${{ secrets.MANIFEST_PUBLIC_KEY_BASE64 }}
-          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+          "-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
       - name: Build and install
         run: |
           cmake --build build --parallel
