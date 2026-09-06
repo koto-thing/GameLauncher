@@ -2,7 +2,8 @@ import {test, expect} from "@playwright/test";
 import {locales} from "../../src/locales.ts";
 test("all five languages translate, persist and preserve downloads on mobile", async ({page}) => {
   await page.setViewportSize({width: 390, height: 844});
-  await page.goto("/launcher/");
+  // Translation assertions wait for the UI, independently of background video decoding.
+  await page.goto("/launcher/", {waitUntil: "domcontentloaded"});
   const href = await page.locator('a.download').getAttribute('href');
   for (const [code, text] of Object.entries(locales)) {
     await page.locator('#language').selectOption(code);
@@ -13,11 +14,11 @@ test("all five languages translate, persist and preserve downloads on mobile", a
     await expect(page.locator('a.download')).toHaveAttribute('href', href!);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
-  await page.goto('/launcher/');
+  await page.goto('/launcher/', {waitUntil: "domcontentloaded"});
   await expect(page.locator('html')).toHaveAttribute('lang','es');
   await page.screenshot({path: 'build/screenshots/language-mobile.png'});
   await page.setViewportSize({width:1366,height:768});
-  await page.goto('/launcher/?lang=en');
+  await page.goto('/launcher/?lang=en', {waitUntil: "domcontentloaded"});
   await expect(page.locator('html')).toHaveAttribute('lang','en');
   await page.screenshot({path:'build/screenshots/language-desktop.png'});
 });

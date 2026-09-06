@@ -36,6 +36,14 @@ jobs:
       - run: npm run lint
         working-directory: apps/admin-web
       - run: npm run browsers:install -- --with-deps
+      - name: Start virtual audio output
+        # Firefoxの実音声出力を検証する。音声APIのモックや再生テストのスキップはしない。
+        run: |
+          sudo apt-get install -y --no-install-recommends pulseaudio pulseaudio-utils
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=music_ci rate=48000 channels=2
+          pactl set-default-sink music_ci
+          pactl info
       - run: npm run test:e2e
       - run: npm run test:public
       - run: npm run package:rental
