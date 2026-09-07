@@ -5,7 +5,12 @@ import { readFile } from "node:fs/promises";
 for (const variant of ["page", "mini"]) {
 test(`${variant}: GLSL covers the content panel and adjusts text, shadows and controls`, /** @brief 本文透過と明暗・透過背景の配色を実ブラウザーで確認する。 */ async ({
   page,
+  browserName,
 }) => {
+  test.skip(
+    browserName === "firefox",
+    "GitHub Actionsのheadless FirefoxはWebGLコンテキストを提供しません。",
+  );
   const bundle = await build({
     stdin: {
       contents: `import React, { useState } from 'react';

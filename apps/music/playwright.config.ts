@@ -27,20 +27,7 @@ export default defineConfig({
         },
       },
     },
-    {
-      name: "firefox",
-      use: {
-        browserName: "firefox",
-        launchOptions: {
-          firefoxUserPrefs: {
-            "media.autoplay.default": 0,
-            "media.autoplay.blocking_policy": 0,
-            "webgl.disabled": false,
-            "webgl.force-enabled": true,
-          },
-        },
-      },
-    },
+    { name: "firefox", use: { browserName: "firefox" } },
     { name: "webkit", use: { browserName: "webkit" } },
   ],
 });

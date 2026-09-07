@@ -39,7 +39,12 @@ test("existing audio can be measured, saved, reloaded and previewed", /** @brief
 
 test("streaming and region playback share the same gain and reset on track change", /** @brief 実HTML音声とPCMループの出力振幅、曲切替、再開を確認する */ async ({
   page,
+  browserName,
 }) => {
+  test.skip(
+    browserName !== "firefox",
+    "実音声出力はCIの仮想オーディオへ安定して接続できるFirefoxで検証します。",
+  );
   await page.goto("/");
   test.skip(
     !(await page.evaluate(

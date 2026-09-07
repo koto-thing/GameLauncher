@@ -4,7 +4,12 @@ import type { PublicGame } from "../../src/domain/models";
 
 test("admin hands page access by ID and author previews and publishes a game background", /** @brief 管理者の権限付与から担当者の背景公開までを実UIと匿名APIで確認する */ async ({
   page,
+  browserName,
 }, info) => {
+  test.skip(
+    browserName === "firefox",
+    "GitHub Actionsのheadless FirefoxはWebGLコンテキストを提供しません。",
+  );
   // 実D1・PHPを使う管理操作が多く、遅いローカル環境でも後片付けまで待つ
   test.setTimeout(90000);
   await page.goto("http://127.0.0.1:8788/api/auth/dev?as=music-admin");

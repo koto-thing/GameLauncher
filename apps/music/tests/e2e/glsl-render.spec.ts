@@ -3,7 +3,12 @@ import { build } from "esbuild";
 
 test("custom GLSL compiles, draws pixels and keeps the applied shader on errors", /** @brief 実WebGLでコード編集と描画を独立して検証する */ async ({
   page,
+  browserName,
 }) => {
+  test.skip(
+    browserName === "firefox",
+    "GitHub Actionsのheadless FirefoxはWebGLコンテキストを提供しません。",
+  );
   const bundle = await build({
     stdin: {
       contents: `import React, { useState } from 'react';
