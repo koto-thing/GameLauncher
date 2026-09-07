@@ -170,8 +170,11 @@ export async function createPhpServer({
     },
     /** @brief 自分のPHPだけを停止する */
     async close() {
-      child.kill();
-      await once(child, "exit");
+      if (child.exitCode === null && child.signalCode === null) {
+        const exited = once(child, "exit");
+        child.kill();
+        await exited;
+      }
       await writeFile(path.join(directory, "php.log"), logs);
     },
   };
