@@ -64,7 +64,7 @@ jobs:
           DOCS_D1_ID: ${{ vars.DOCS_D1_ID }}
           DOCS_GITHUB_CLIENT_ID: ${{ vars.DOCS_GITHUB_CLIENT_ID }}
           DOCS_EDITING_ENABLED: ${{ vars.DOCS_EDITING_ENABLED || 'false' }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: github.event_name != 'pull_request'
         with:
           name: verified-docs-${{ github.sha }}
@@ -80,7 +80,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '22.13.0'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: verified-docs-${{ github.sha }}
           path: verified-docs
