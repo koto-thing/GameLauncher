@@ -196,9 +196,9 @@ class GameCardDelegate final : public QStyledItemDelegate {
                                                          titleArea.width() - 16);
         painter->drawText(titleArea.adjusted(8, 0, -8, 0), Qt::AlignCenter, title);
         painter->setClipping(false);
-        painter->setPen(QPen(selected || hovered ? QColor("#e60012")
-                                                : option.palette.color(QPalette::Mid),
-                             selected || hovered ? 3 : 1));
+        painter->setPen(
+            QPen(selected || hovered ? QColor("#e60012") : option.palette.color(QPalette::Mid),
+                 selected || hovered ? 3 : 1));
         painter->drawRoundedRect(card.adjusted(1, 1, -1, -1), 8, 8);
         painter->restore();
     }
@@ -216,8 +216,7 @@ QPixmap cardThumbnail(const QPixmap& source) {
     }
 
     const auto scaled = source.scaled(gameThumbnailWidth, gameThumbnailHeight,
-                                      Qt::KeepAspectRatioByExpanding,
-                                      Qt::SmoothTransformation);
+                                      Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
     const auto x = std::max(0, (scaled.width() - gameThumbnailWidth) / 2);
     const auto y = std::max(0, (scaled.height() - gameThumbnailHeight) / 2);
     return scaled.copy(x, y, gameThumbnailWidth, gameThumbnailHeight);
@@ -807,8 +806,7 @@ void LauncherWindow::refreshData() {
     applyTheme();
     homeList_->clear();
     libraryList_->clear();
-    const QPixmap placeholderPixmap(
-        QStringLiteral(":/images/launcher_background_placeholder.png"));
+    const QPixmap placeholderPixmap(QStringLiteral(":/images/launcher_background_placeholder.png"));
     const QIcon placeholder(cardThumbnail(placeholderPixmap));
     std::vector<const GameCatalogEntry*> recommendations;
     for (const auto& game : viewModel_.catalog()) {
@@ -904,8 +902,7 @@ void LauncherWindow::refreshDiscover() {
     }
     discoverList_->clear();
     const auto query = searchInput_->text().trimmed();
-    const QPixmap placeholderPixmap(
-        QStringLiteral(":/images/launcher_background_placeholder.png"));
+    const QPixmap placeholderPixmap(QStringLiteral(":/images/launcher_background_placeholder.png"));
     const QIcon placeholder(cardThumbnail(placeholderPixmap));
     for (const auto& game : viewModel_.catalog()) {
         const auto installed =
