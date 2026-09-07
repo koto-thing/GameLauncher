@@ -15,12 +15,12 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   page.on(
     "request",
-    /** @brief 通常閲覧と再生の通信先を記録する。 */ (request) =>
+    /** @brief 通常閲覧と再生の通信先を記録する */ (request) =>
       requests.push(request.url()),
   );
   page.on(
     "pageerror",
-    /** @brief 未処理例外を検証結果へ残す。 */ (error) =>
+    /** @brief 未処理例外を検証結果へ残す */ (error) =>
       errors.push(error.message),
   );
   const response = await page.request.get(`${origin}/api/public/catalogue`);
@@ -28,7 +28,7 @@ try {
   assert.match(response.headers()["cache-control"], /no-store/);
   const games = await response.json();
   const game = games.find(
-    /** @brief 実作品を触らず指定された確認作品だけを読む。 */ (value) =>
+    /** @brief 実作品を触らず指定された確認作品だけを読む */ (value) =>
       value.id === gameId,
   );
   assert.ok(game?.tracks.length);
@@ -44,16 +44,16 @@ try {
   const artwork = page.locator(".listening-image img");
   await expect
     .poll(
-      /** @brief 曲画像が実際にデコードされたことを確認する。 */ () =>
+      /** @brief 曲画像が実際にデコードされたことを確認する */ () =>
         artwork.evaluate(
-          /** @brief 画像の読込結果を取得する。 */ (image) =>
+          /** @brief 画像の読込結果を取得する */ (image) =>
             image.complete && image.naturalWidth > 0,
         ),
     )
     .toBe(true);
   assert.equal(
     await page.evaluate(
-      /** @brief スマホの横溢れを検出する。 */ () =>
+      /** @brief スマホの横溢れを検出する */ () =>
         globalThis.document.documentElement.scrollWidth <=
         globalThis.innerWidth,
     ),
@@ -95,7 +95,7 @@ try {
     );
   }
   const external = requests.filter(
-    /** @brief Workersを含む外部通信を検出する。 */ (url) =>
+    /** @brief Workersを含む外部通信を検出する */ (url) =>
       new URL(url).origin !== origin,
   );
   assert.deepEqual(external, []);

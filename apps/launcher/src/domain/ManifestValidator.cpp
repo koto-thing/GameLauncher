@@ -21,9 +21,11 @@ OperationResult invalid(std::string detail) {
 
 } // namespace
 
+/** @brief 許可配布hostの集合を保持するvalidatorを構築する */
 ManifestValidator::ManifestValidator(std::set<std::string> allowedHosts)
     : allowedHosts_(std::move(allowedHosts)) {}
 
+/** @brief ゲームリリースの構造と配布先を検証する */
 OperationResult ManifestValidator::validate(const GameRelease& release) const {
     // 配布物全体に適用する資源上限を固定
     constexpr std::size_t maximumFiles = 10000;
@@ -87,6 +89,7 @@ OperationResult ManifestValidator::validate(const GameRelease& release) const {
     return OperationResult::success();
 }
 
+/** @brief install root内へ収まる相対pathかを検証する */
 bool ManifestValidator::isSafeRelativePath(const std::string& path) {
     // Windows driveと区切り文字をplatform共通の段階で拒否
     const bool hasWindowsDrivePrefix = path.size() >= 2 &&
@@ -109,6 +112,7 @@ bool ManifestValidator::isSafeRelativePath(const std::string& path) {
     return candidate.lexically_normal().generic_string() == path;
 }
 
+/** @brief SHA-256文字列の形式を検証する */
 bool ManifestValidator::isSha256(const std::string& value) {
     return value.size() == 64 &&
            std::all_of(value.begin(), value.end(), [](unsigned char character) {
@@ -116,6 +120,7 @@ bool ManifestValidator::isSha256(const std::string& value) {
            });
 }
 
+/** @brief HTTPSまたはlocal開発用HTTPの許可URLかを検証する */
 bool ManifestValidator::isAllowedUrl(const std::string& url) const {
     // schemeとhostだけを抽出して許可配布元と照合
     static const std::regex urlPattern("^(https?)://([^/:?#]+)(?::[0-9]+)?(?:/|$)",

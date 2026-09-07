@@ -5,6 +5,7 @@ musicHeaders();
 try {
     [$config, $policy, $store, $assets] = musicServices();
     $method = $_SERVER['REQUEST_METHOD'];
+    header('Allow: GET, HEAD');
     demand(in_array($method, ['GET', 'HEAD'], true), 405, 'Read only');
     demand(!is_file($store->root . '/STOP'), 503, 'Publication temporarily stopped');
     $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -18,7 +19,8 @@ try {
         demand(Publications::allows($snapshot, $id), 404, 'Asset not found');
         Media::send($assets, $assets->get($id), $method, $_SERVER['HTTP_RANGE'] ?? null);
     } else {
-        $value = match ($path) {
+        $value = preg_match('#^/api/public/command-codes/([^/]+)/([^/]+)$#D', $path, $codeParts)
+          ? CommandCodes::resolve($snapshot, $codeParts[1], $codeParts[2]) : match ($path) {
             '/api/public/catalogue' => array_values($snapshot['games']),
             '/api/public/ad' => $snapshot['advertisement'],
             '/api/public/config' => ['contactUrl' => $config['contactUrl'] ?? '', 'local' => $config['environment'] === 'local'],

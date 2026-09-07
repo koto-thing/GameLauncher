@@ -1,10 +1,13 @@
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useSite } from "./context";
 import { AdSlot, Artwork, PlayerControls, timeLabel } from "./components";
 import { GameDesignSurface } from "./design-surface";
 import { SoundtrackCarousel } from "./soundtrack-carousel";
+import { ShareButton } from "./share-button";
+import { CommandShare, type CommandExport } from "./command-share";
 
-/** @brief 作品数に関係なく聴き始められる静かなライブラリを表示する。 */
+/** @brief 作品数に関係なく聴き始められる静かなライブラリを表示する */
 export function HomePage() {
   const { catalogue, loading } = useSite();
   return (
@@ -50,7 +53,7 @@ export function HomePage() {
         ) : (
           <div className="game-grid">
             {catalogue.map(
-              /** @brief 架空の人気値を表示せず作品そのものを紹介する。 */ (
+              /** @brief 架空の人気値を表示せず作品そのものを紹介する */ (
                 game,
                 index,
               ) => (
@@ -97,12 +100,13 @@ export function HomePage() {
     </>
   );
 }
-/** @brief 作品紹介と曲順を示し、同じ作品のキューで再生する。 */
+
+/** @brief 作品紹介と曲順を示し、同じ作品のキューで再生する */
 export function GamePage() {
   const { id } = useParams();
   const { catalogue, player, loading } = useSite();
   const game = catalogue.find(
-    /** @brief 直接URLから公開作品を解決する。 */ (item) => item.id === id,
+    /** @brief 直接URLから公開作品を解決する */ (item) => item.id === id,
   );
   if (!game)
     return (
@@ -128,7 +132,7 @@ export function GamePage() {
             {game.tracks.length} 曲 ·{" "}
             {timeLabel(
               game.tracks.reduce(
-                /** @brief 公開曲の合計時間を表示する。 */ (sum, track) =>
+                /** @brief 公開曲の合計時間を表示する */ (sum, track) =>
                   sum + track.durationSeconds,
                 0,
               ),
@@ -138,7 +142,7 @@ export function GamePage() {
             className="primary"
             disabled={!game.tracks.length}
             onClick={
-              /** @brief 先頭から作品キューを開始する。 */ () => {
+              /** @brief 先頭から作品キューを開始する */ () => {
                 void player.start(game.tracks[0], game.tracks);
               }
             }
@@ -167,7 +171,7 @@ export function GamePage() {
         )}
         <ol className="track-list">
           {game.tracks.map(
-            /** @brief 曲詳細URLと直接再生の両方を提供する。 */ (track) => (
+            /** @brief 曲詳細URLと直接再生の両方を提供する */ (track) => (
               <li key={track.id}>
                 <span className="track-number">
                   {String(track.position).padStart(2, "0")}
@@ -177,7 +181,7 @@ export function GamePage() {
                   <small>
                     {track.credits
                       .map(
-                        /** @brief 登録者アカウントとクレジットを区別する。 */ (
+                        /** @brief 登録者アカウントとクレジットを区別する */ (
                           credit,
                         ) => `${credit.name} / ${credit.role}`,
                       )
@@ -195,7 +199,7 @@ export function GamePage() {
                 <button
                   aria-label={`${track.title}を再生`}
                   onClick={
-                    /** @brief 曲を押しても他作品へキューを混ぜない。 */ () => {
+                    /** @brief 曲を押しても他作品へキューを混ぜない */ () => {
                       void player.start(track, game.tracks);
                     }
                   }
@@ -211,20 +215,56 @@ export function GamePage() {
     </GameDesignSurface>
   );
 }
-/** @brief 共有URLを開いた時は画像と情報だけを表示し、再生操作を待つ。 */
-export function TrackPage() {
+
+/** @brief 共有URLを開いた時は画像と情報だけを表示し、再生操作を待つ */
+export function TrackPage({ commandExporter }: { commandExporter: () => Promise<CommandExport> }) {
   const { id } = useParams();
-  const { catalogue, loading } = useSite();
+  const navigate = useNavigate();
+  const { catalogue, loading, player } = useSite();
+  const playback = useSyncExternalStore(player.subscribe, player.snapshot);
+  const previousPlayingId = useRef(playback.track?.id ?? null);
+  const [displayedId, setDisplayedId] = useState(id);
+  const [transition, setTransition] = useState<"stable" | "out" | "in">(
+    "stable",
+  );
   const game = catalogue.find(
-    /** @brief 公開曲から親作品を特定する。 */ (item) =>
+    /** @brief 公開曲から親作品を特定する */ (item) =>
       item.tracks.some(
-        /** @brief ID一致を検査する。 */ (track) => track.id === id,
+        /** @brief ID一致を検査する */ (track) => track.id === displayedId,
       ),
   );
-  const track = game?.tracks.find(
-    /** @brief 共有URLの対象曲を探す。 */ (item) => item.id === id,
+  const displayedTrack = game?.tracks.find(
+    /** @brief フェード中も現在表示している曲を保持する */ (item) =>
+      item.id === displayedId,
   );
-  if (!game || !track)
+  const playingId = playback.track?.id ?? null;
+  useEffect(
+    /** @brief 閲覧中の再生曲が進んだ時だけURLを追従させる */ () => {
+      const previousId = previousPlayingId.current;
+      previousPlayingId.current = playingId;
+      if (playingId && previousId === id && playingId !== id) {
+        navigate(`/tracks/${playingId}`, { replace: true });
+      }
+    },
+    [id, navigate, playingId],
+  );
+  useEffect(
+    /** @brief 再生通知から独立して最新URLの曲へフェードする */ () => {
+      if (id === displayedId) return;
+      setTransition("out");
+      const timer = window.setTimeout(
+        /** @brief 不可視になってから情報を切り替える */ () => {
+          setDisplayedId(id);
+          setTransition("in");
+        },
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180,
+      );
+      return /** @brief 連続遷移と画面離脱時に古い更新を止める */ () =>
+        window.clearTimeout(timer);
+    },
+    [displayedId, id],
+  );
+  if (!game || !displayedTrack)
     return (
       <p className="empty">
         {loading
@@ -237,56 +277,57 @@ export function TrackPage() {
       <Link className="back-link" to={`/games/${game.id}`}>
         ← {game.title}
       </Link>
-      <section className="now-playing">
+      <section
+        className={`now-playing track-transition-${transition}`}
+        onAnimationEnd={/** @brief 次回のフェード前に入場アニメーションを解除する */ () => setTransition("stable")}
+      >
         <div className="listening-image">
           <Artwork
-            assetId={track.imageAssetId}
+            assetId={displayedTrack.imageAssetId}
             fallbackId={game.imageAssetId}
-            alt={track.imageAlt || game.imageAlt || track.title}
+            alt={
+              displayedTrack.imageAlt || game.imageAlt || displayedTrack.title
+            }
           />
           <p className="eyebrow">PANDD MUSIC · ORIGINAL SOUNDTRACK</p>
         </div>
         <div className="listening-details">
           <p className="eyebrow">{game.title}</p>
-          <h1>{track.title}</h1>
+          <h1>{displayedTrack.title}</h1>
           <p>
-            {track.credits
+            {displayedTrack.credits
               .map(
-                /** @brief 複数クレジットを役割付きで表示する。 */ (credit) =>
+                /** @brief 複数クレジットを役割付きで表示する */ (credit) =>
                   `${credit.role}：${credit.name}`,
               )
               .join(" / ")}
           </p>
-          <PlayerControls track={track} queue={game.tracks} />
-          {track.comment && (
+          <PlayerControls
+            track={displayedTrack}
+            queue={game.tracks}
+            design={game.design}
+          />
+          {displayedTrack.comment && (
             <div className="track-comment">
               <h2>この曲について</h2>
-              <p>{track.comment}</p>
+              <p>{displayedTrack.comment}</p>
             </div>
           )}
-          <label className="share-url">
-            共有URL
-            <input
-              readOnly
-              value={`${window.location.origin}${import.meta.env.BASE_URL}tracks/${track.id}`}
-              onFocus={
-                /** @brief コピーしやすいようURLを選択する。 */ (event) =>
-                  event.target.select()
-              }
-            />
-          </label>
+          <ShareButton
+            key={displayedTrack.id}
+            title={`${displayedTrack.title} / ${game.title}`}
+            url={`${window.location.origin}${import.meta.env.BASE_URL}tracks/${displayedTrack.id}`}
+          >
+            <CommandShare assignment={displayedTrack.commandCode} url={`${window.location.origin}${import.meta.env.BASE_URL}tracks/${displayedTrack.id}`} exporter={commandExporter} />
+          </ShareButton>
         </div>
       </section>
     </GameDesignSurface>
   );
 }
-/** @brief 未確定の法務情報を捏造せず利用目的と設定待ちを説明する。 */
+
+/** @brief サイトの利用案内と公開メール窓口を表示する */
 export function AboutPage() {
-  const { config } = useSite();
-  // メール窓口はアドレスをそのまま表示し、利用者がコピーして連絡できるようにする。
-  const contactEmail = config?.contactUrl.startsWith("mailto:")
-    ? config.contactUrl.slice("mailto:".length)
-    : null;
   return (
     <article className="prose">
       <p className="eyebrow">ABOUT PANDD MUSIC</p>
@@ -305,19 +346,7 @@ export function AboutPage() {
         OAuthを使用します。GitHubのユーザーID、ログイン名、サイト内権限、期限付きセッション、編集履歴を保存します。リスナーの会員登録は不要です。初期バナー広告に行動追跡は使用していません。障害対応のためAPIの処理情報を記録します。
       </p>
       <h2>権利・削除依頼とお問い合わせ</h2>
-      {config?.contactUrl ? (
-        <a
-          href={config.contactUrl}
-          target={contactEmail ? undefined : "_blank"}
-          rel="noopener noreferrer"
-        >
-          {contactEmail ?? "運営の連絡窓口 ↗"}
-        </a>
-      ) : (
-        <p className="notice">
-          連絡窓口は未設定です。本番公開前に運営が実際の窓口と、保存期間・削除方針を設定する必要があります。
-        </p>
-      )}
+      <a href="mailto:panddmail@gmail.com">panddmail@gmail.com</a>
     </article>
   );
 }

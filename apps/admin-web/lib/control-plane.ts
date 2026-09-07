@@ -45,6 +45,7 @@ async function sha256(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/** 申請またはシステム全体のイベントをハッシュチェーン付き監査ログへ追加する */
 export async function auditRecord(
   requestId: string | null,
   eventType: string,
@@ -86,6 +87,7 @@ async function activeGrant(userId: string, grantType: GrantType): Promise<boolea
   return row?.allowed === 1;
 }
 
+/** 申請作成に必要なrequester権限を検証する */
 export async function requireRequester(actor: SessionUser): Promise<void> {
   await ensureSchema();
   if (!actor.isAdmin && !await activeGrant(actor.githubUserId, "requester")) {
@@ -133,6 +135,7 @@ async function requestRow(requestId: string): Promise<Row> {
   return row;
 }
 
+/** ダッシュボード表示に必要な権限、ユーザー、申請、監査情報を集約する */
 export async function getDashboard(actor: SessionUser) {
   await ensureSchema();
   const db = getD1();
@@ -252,6 +255,7 @@ export async function getDashboard(actor: SessionUser) {
   };
 }
 
+/** Adminがユーザーのrequester・approver等の権限を付与または取消する */
 export async function setGrant(
   actor: SessionUser,
   input: { githubUserId: string; login: string; grantType: GrantType; enabled: boolean },
@@ -292,6 +296,7 @@ export async function setGrant(
   ]);
 }
 
+/** sealed Artifactを対象にStaging公開申請を作成する */
 export async function createRequest(actor: SessionUser, input: {
   artifactId: string;
   gameId: string;
@@ -355,6 +360,7 @@ export async function createRequest(actor: SessionUser, input: {
   return { requestId };
 }
 
+/** 成功済みStaging申請を元にProduction申請を作成する */
 export async function createProductionRequest(
   actor: SessionUser,
   input: { sourceStagingRequestId: string },
@@ -408,6 +414,7 @@ export async function createProductionRequest(
   return { requestId };
 }
 
+/** Adminが申請に対する承認者を指名する */
 export async function designateApprover(
   actor: SessionUser,
   input: { requestId: string; approverGithubUserId: string },
@@ -437,6 +444,7 @@ export async function designateApprover(
   ]);
 }
 
+/** 下書き申請を承認フローへ提出する */
 export async function submitRequest(
   actor: SessionUser,
   input: { requestId: string; reason: string },
@@ -480,6 +488,7 @@ export async function submitRequest(
   ]);
 }
 
+/** 指名された承認者またはAdminが申請を承認・却下する */
 export async function decideRequest(actor: SessionUser, input: {
   requestId: string;
   decision: "approved" | "rejected";
@@ -520,6 +529,7 @@ export async function decideRequest(actor: SessionUser, input: {
   ]);
 }
 
+/** 申請者またはAdminが実行前の申請を取り消す */
 export async function cancelRequest(actor: SessionUser, input: { requestId: string; reason: string }) {
   await ensureSchema();
   const request = await requestRow(input.requestId);
@@ -542,6 +552,7 @@ export async function cancelRequest(actor: SessionUser, input: { requestId: stri
   ]);
 }
 
+/** 実行失敗後の復旧再試行をAdminの明示承認で許可する */
 export async function authorizeRecovery(
   actor: SessionUser,
   input: { requestId: string; reason: string },
@@ -567,6 +578,7 @@ export async function authorizeRecovery(
   ]);
 }
 
+/** 承認済み申請をGitHub Actionsの対象Workflowへディスパッチする */
 export async function dispatchRequest(actor: SessionUser, input: { requestId: string }) {
   await ensureSchema();
   const request = await requestRow(input.requestId);
@@ -644,6 +656,7 @@ export async function dispatchRequest(actor: SessionUser, input: { requestId: st
   return { attemptId };
 }
 
+/** Production申請の候補となる成功済みStaging申請を取得する */
 export async function listSuccessfulStagingRequests() {
   await ensureSchema();
   return getD1().prepare(`SELECT request_id, artifact_id, artifact_sha256, game_id, version,

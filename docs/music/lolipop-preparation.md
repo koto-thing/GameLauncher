@@ -43,7 +43,7 @@ PACKAGE.json               → 配布情報。公開フォルダに置かない
 2. **storageRoot。** 下書き・音源原本・公開状態・受領記録を置く非公開の書込み可能領域。同一filesystemでロックとatomic renameが機能することを確認する。Webから見える場所を便宜的に指定しない。
 3. **専用連携鍵。** `MUSIC_BRIDGE_SECRET` とPHPの `keys['primary']` を同じ32文字以上のランダム鍵にする。FTPパスワードを流用せず、Git・公開物・ログへ出さない。
 4. **共通認証と権限。** 既存GitHub AppのCallbackと `GITHUB_CALLBACK_URL` の一致を確認。control-planeの現在のURLを使う場合は `https://pandd-deployment-control-plane.gotoukenta62.workers.dev/api/auth/github/callback`。既存DBへの0004_music.sql追加適用と、初期Music運営のGitHub数値IDを確認。ゲーム権限は付与しない。
-5. **連絡窓口。** PHPの `contactUrl` に実際の窓口を設定する。
+5. **連絡窓口。** PHPの `contactUrl` には `mailto:panddmail@gmail.com` を設定する。
 
 FTP転送に使うGitHub Secrets名は `FTP_SERVER`・`FTP_USERNAME`・`FTP_PASSWORD`。以前、登録名の存在を確認済みだが接続は未検証。`PUBLIC_FOLDER` の値は読み出せないため `/pandd-music` と一致すると仮定しない。`OVERWRITE` を削除・全同期の許可として使用しない。**FTP配布処理は未接続であり、公開・非公開の配置境界を確定してから実装・実行する。**
 

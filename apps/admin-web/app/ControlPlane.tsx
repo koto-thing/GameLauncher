@@ -109,12 +109,14 @@ const eventText: Record<string, string> = {
   artifact_upload_cancelled: "Intake uploadをキャンセル",
 };
 
+/** 申請一覧に表示する容量を読みやすい単位へ変換する */
 function formatBytes(value: number): string {
   if (value >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(2)} GiB`;
   if (value >= 1024 ** 2) return `${(value / 1024 ** 2).toFixed(1)} MiB`;
   return `${value.toLocaleString("ja-JP")} bytes`;
 }
 
+/** ISO日時を管理画面向けの日本語表示へ変換する */
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("ja-JP", {
     month: "short",
@@ -124,10 +126,12 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
+/** 監査画面で長いハッシュを省略表示する */
 function shortHash(value: string): string {
   return `${value.slice(0, 10)}…${value.slice(-6)}`;
 }
 
+/** 申請状態と環境から利用者向けの次の操作説明を作る */
 function nextStepText(request: DeploymentRequest): string {
   if (request.state === "ready") return "次: Adminが承認者を指名し、申請者が提出します";
   if (request.state === "pending_approval") return "次: 指名された別アカウントが内容を確認して承認します";
@@ -141,6 +145,10 @@ function nextStepText(request: DeploymentRequest): string {
   return "処理状況は監査ログとGitHub Actionsから更新されます";
 }
 
+/**
+ * 公開申請、権限設定、監査ログを操作するControl Plane画面
+ * @returns 申請・アクセス・監査の各ワークスペース
+ */
 export function ControlPlane() {
   const [response, setResponse] = useState<DashboardResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -175,7 +183,10 @@ export function ControlPlane() {
           error: "control planeへ接続できませんでした",
         });
       });
-    return () => { active = false; };
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const executionInProgress = response?.dashboard?.requests.some((request) =>
@@ -227,11 +238,17 @@ export function ControlPlane() {
   }
 
   if (!response) {
-    return <main className="loading-shell" aria-live="polite"><p>安全な公開状態を読み込んでいます…</p></main>;
+    return (
+      <main className="loading-shell" aria-live="polite">
+        <p>安全な公開状態を読み込んでいます…</p>
+      </main>
+    );
   }
 
   if (!response.authenticated || !response.dashboard) {
-    return <SignIn response={response} />;
+    return (
+      <SignIn response={response} />
+    );
   }
 
   const dashboard = response.dashboard;
@@ -247,12 +264,14 @@ export function ControlPlane() {
           <span className="brand-mark brand-logo" aria-hidden="true" />
           <span><strong>PandD</strong><small>DEPLOY CONTROL</small></span>
         </a>
+
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <a className="secondary-button" href="/intake" style={{ fontSize: "12px", padding: "6px 12px", textDecoration: "none" }}>
             Web版 Intake Uploader
           </a>
           <div className={`environment-lock ${anyDispatchConfigured ? "connected" : ""}`}><span /> {anyDispatchConfigured ? `ACTIONS: ${dashboard.system.dispatchConfigured.staging ? "S" : "-"}/${dashboard.system.dispatchConfigured.production ? "P" : "-"}` : "ACTIONS実行は無効"}</div>
         </div>
+
         <div className="account">
           <div className="avatar" aria-hidden="true">{dashboard.actor.login.slice(0, 1).toUpperCase()}</div>
           <div><strong>@{dashboard.actor.login}</strong><small>{dashboard.actor.isAdmin ? "Repository Admin" : "Authorized operator"}</small></div>
@@ -277,7 +296,9 @@ export function ControlPlane() {
 
       <nav className="tabs" aria-label="control planeセクション">
         <button className={tab === "requests" ? "active" : ""} onClick={() => setTab("requests")}>申請</button>
+
         {dashboard.permissions.canAdminister && <button className={tab === "access" ? "active" : ""} onClick={() => setTab("access")}>権限</button>}
+
         <button className={tab === "audit" ? "active" : ""} onClick={() => setTab("audit")}>監査ログ</button>
       </nav>
 
@@ -286,9 +307,11 @@ export function ControlPlane() {
       {tab === "requests" && (
         <RequestWorkspace dashboard={dashboard} busy={busy} runAction={runAction} />
       )}
+
       {tab === "access" && dashboard.permissions.canAdminister && (
         <AccessWorkspace dashboard={dashboard} busy={busy} runAction={runAction} />
       )}
+
       {tab === "audit" && <AuditWorkspace events={dashboard.events} />}
 
       {response.localDevAuthAvailable && (
@@ -303,6 +326,7 @@ export function ControlPlane() {
   );
 }
 
+/** 初回利用者向けに公開フローの概要を表示する */
 function BeginnerGuide() {
   return (
     <section className="beginner-guide" aria-labelledby="beginner-guide-title">
@@ -311,6 +335,7 @@ function BeginnerGuide() {
           <p className="eyebrow">QUICK START / はじめての方へ</p>
           <h2 id="beginner-guide-title">公開まで、この5ステップです。</h2>
         </div>
+
         <p>最初にStagingで安全に確認し、同じArtifactだけをProductionへ進めます。秘密鍵やR2認証情報を入力する場面はありません。</p>
       </div>
 
@@ -320,6 +345,7 @@ function BeginnerGuide() {
           <h3>ゲーム成果物を非公開受付へアップロードします。</h3>
           <p>Windows Defender誤検知を回避できるブラウザ版（推奨）と、従来のWindows exe版のどちらでもアップロードできます。</p>
         </div>
+
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <a className="download-button" href="/intake" style={{ background: "var(--blue)" }}>
             Web版 Uploader を開く（推奨） <span>ブラウザ完結</span>
@@ -335,18 +361,22 @@ function BeginnerGuide() {
           <span>01</span>
           <div><strong>Uploaderを起動</strong><p><a href="/intake" style={{ color: "var(--blue)", textDecoration: "underline" }}>Web版 Uploader</a> または <code>PandDIntakeUploader.exe</code> を開きます。</p></div>
         </li>
+
         <li>
           <span>02</span>
           <div><strong>ゲームを受付へ送る</strong><p>descriptor JSON と ZIP を選択し、SHA-256検証と非公開intakeへのupload・sealを完了します。</p></div>
         </li>
+
         <li>
           <span>03</span>
           <div><strong>Staging申請</strong><p><code>*.pandd-artifact.json</code> を「新しい申請」で選び、承認後にStagingへ実行します。</p></div>
         </li>
+
         <li>
           <span>04</span>
           <div><strong>Stagingを確認</strong><p>公開完了後、ゲームを起動して表示・更新・保存データを確認します。問題があればProductionへ進めません。</p></div>
         </li>
+
         <li>
           <span>05</span>
           <div><strong>Productionへ進める</strong><p>成功したStagingカードから本番申請を作り、別アカウントの承認後にProductionへ実行します。</p></div>
@@ -358,6 +388,7 @@ function BeginnerGuide() {
           <span aria-hidden="true">FILE</span>
           <div><h3>PandD artifact descriptorとは？</h3><p>ゲーム本体ではなく、アップロードした成果物のID、ゲームID、バージョン、容量、ファイル数、SHA-256を記録した小さなJSONファイルです。内容は自分で書き換えず、uploaderが出力したものをそのまま使います。</p></div>
         </article>
+
         <article>
           <span aria-hidden="true">HASH</span>
           <div><h3>Artifact SHA-256とは？</h3><p>アップロードしたファイルにつく、長い英数字の「指紋」です。同じファイルなら同じ値になり、1文字でも内容が変わると別の値になります。申請したものと公開するものが同一か確認するために使います。</p></div>
@@ -371,19 +402,23 @@ function BeginnerGuide() {
   );
 }
 
+/** 未認証時のログイン案内と、認証設定状況を表示する */
 function SignIn({ response }: { response: DashboardResponse }) {
   return (
     <main className="signin-shell">
       <section className="signin-card">
         <div className="brand signin-brand"><span className="brand-mark brand-logo" aria-hidden="true" /><span><strong>PandD</strong><small>DEPLOY CONTROL</small></span></div>
+
         <p className="eyebrow">IDENTITY REQUIRED</p>
         <h1>GitHubアカウントで<br />公開責任を確認します。</h1>
         <p>個人リポジトリのOwnerと、Adminが許可したCollaboratorだけが操作できます。</p>
+
         {response.githubAuthConfigured ? (
           <a className="primary-link" href="/api/auth/github/start">GitHubでログイン</a>
         ) : (
           <div className="setup-note"><strong>GitHub Appは未設定です</strong><span>ローカル開発ログインでPhase 1を確認できます。</span></div>
         )}
+
         {response.localDevAuthAvailable && (
           <div className="dev-login">
             <a href="/api/auth/dev?as=admin">Adminとして確認</a>
@@ -391,6 +426,7 @@ function SignIn({ response }: { response: DashboardResponse }) {
             <a href="/api/auth/dev?as=reviewer">承認者として確認</a>
           </div>
         )}
+
         {response.error && <p className="error-copy">{response.error}</p>}
       </section>
       <p className="signin-foot">STAGINGとPRODUCTIONの秘密情報はこのアプリへ渡されません。</p>
@@ -398,6 +434,7 @@ function SignIn({ response }: { response: DashboardResponse }) {
   );
 }
 
+/** 申請一覧と申請作成・承認操作をまとめて表示する */
 function RequestWorkspace({ dashboard, busy, runAction }: {
   dashboard: Dashboard;
   busy: boolean;
@@ -410,9 +447,12 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
     <section className="workspace">
       <div className="section-heading">
         <div><p className="eyebrow">DEPLOYMENT REQUESTS</p><h2>Staging / Production 公開申請</h2><p className="section-copy">カード内の「次にすること」を上から順に進めてください。Production申請は成功したStagingからだけ作成できます。</p></div>
+
         {dashboard.permissions.canRequest && <button className="primary-button" onClick={() => setShowForm((value) => !value)}>{showForm ? "閉じる" : "新しい申請"}</button>}
       </div>
+
       {showForm && <RequestForm busy={busy} runAction={runAction} onDone={() => setShowForm(false)} />}
+
       <div className="readiness-grid" aria-label="公開環境の準備状況">
         <article className={dashboard.system.dispatchConfigured.staging ? "ready" : "locked"}>
           <span>STAGING</span>
@@ -423,6 +463,7 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
           <div><strong>{dashboard.system.dispatchConfigured.production ? "実行できます" : "安全停止中"}</strong><p>{dashboard.system.dispatchConfigured.production ? "成功済みStagingから承認付きで本番公開できます。" : "Production設定が揃うまで、本番実行ボタンは表示されません。"}</p></div>
         </article>
       </div>
+
       <div className="request-list">
         {dashboard.requests.length === 0 && <div className="empty-state"><strong>申請はまだありません</strong><span>最初のartifact情報を登録すると、監査記録がここから始まります。</span></div>}
         {dashboard.requests.map((request) => (
@@ -433,6 +474,7 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
   );
 }
 
+/** descriptorを指定したStaging/Production申請の作成フォーム */
 function RequestForm({ busy, runAction, onDone }: {
   busy: boolean;
   runAction: (payload: Record<string, unknown>, success: string) => Promise<void>;
@@ -480,22 +522,31 @@ function RequestForm({ busy, runAction, onDone }: {
     }, "ステージング申請を作成しました");
     onDone();
   }
+
   return (
     <form className="request-form" onSubmit={submit}>
       <div className="form-intro"><span>01</span><div><strong>Artifactを固定</strong><small>Web版またはデスクトップ版のUploaderが生成した受付票（descriptor）を読み込みます。未アップロードの場合は先に <a href="/intake" style={{ color: "var(--blue)", textDecoration: "underline" }}>Web版 Intake Uploader</a> でZIPを送信してください。</small></div></div>
+
       <label className="wide">PandD artifact descriptor<input type="file" accept=".json,.pandd-artifact.json" onChange={(event) => loadDescriptor(event.target.files?.[0]).catch((error: unknown) => setDescriptorError(error instanceof Error ? error.message : "descriptorを読み込めませんでした"))} required /><small className="input-help">uploaderの完了画面で保存した <code>*.pandd-artifact.json</code> を選んでください。ゲーム本体を選ぶ場所ではありません。</small></label>
+
       {descriptorError && <p className="field-error wide" role="alert">{descriptorError}</p>}
+
       {descriptorName && <div className="descriptor-loaded wide"><strong>{descriptorName}</strong><span>artifact {artifactId.slice(0, 8)} を読み込みました</span></div>}
+
       <label>ゲームID<input name="gameId" value={gameId} readOnly required /></label>
       <label>バージョン<input name="version" value={version} readOnly required /></label>
+
       <label className="wide">Artifact SHA-256<input name="sha" value={sha} readOnly minLength={64} maxLength={64} required /><small className="input-help">公開物を識別する指紋です。descriptorから自動入力されるため、手入力は不要です。</small></label>
+
       <label>容量（bytes）<input name="sizeBytes" type="number" value={sizeBytes || ""} readOnly required /></label>
       <label>ファイル数<input name="fileCount" type="number" value={fileCount || ""} readOnly required /></label>
+
       <div className="form-actions wide"><button className="primary-button" disabled={busy || !artifactId}>申請を作成</button></div>
     </form>
   );
 }
 
+/** 個別申請の状態、承認操作、実行結果を表示するカード */
 function RequestCard({ request, dashboard, approvers, busy, runAction }: {
   request: DeploymentRequest;
   dashboard: Dashboard;
@@ -506,6 +557,7 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
   const [selectedApprover, setSelectedApprover] = useState(approvers[0]?.githubUserId ?? "");
   const [reason, setReason] = useState("");
   const [safetyReason, setSafetyReason] = useState("");
+
   const isOwner = request.requesterGithubUserId === dashboard.actor.githubUserId;
   const isDesignated = request.approvers.some((item) => item.githubUserId === dashboard.actor.githubUserId);
   const canDispatch = dashboard.actor.isAdmin || isOwner;
@@ -517,6 +569,7 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
   const canCreateProduction = request.environment === "staging" && request.state === "succeeded" &&
     request.productionEligible &&
     dashboard.permissions.canRequestProduction && !productionRequestExists;
+
   const environmentLabel = request.environment === "production" ? "PRODUCTION" : "STAGING";
   const dispatchConfigured = request.environment === "production"
     ? dashboard.system.dispatchConfigured.production
@@ -527,19 +580,23 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
         <div className="request-title"><span className={`environment-pill environment-${request.environment}`}>{environmentLabel}</span><span className={`state-pill state-${request.state}`}>{statusText[request.state] ?? request.state}</span><h3>{request.gameId}</h3><strong>v{request.version}</strong></div>
         <div className="request-meta"><span>申請者 <b>@{request.requesterLogin}</b></span><span>{formatBytes(request.sizeBytes)}</span><span>{request.fileCount.toLocaleString("ja-JP")} files</span><span>{formatDate(request.createdAt)}</span>{request.environment === "staging" && request.productionEligibleUntil && <span>本番申請期限 <b>{formatDate(request.productionEligibleUntil)}</b></span>}</div>
         <div className="fingerprint"><span>SHA-256</span><code title={request.artifactSha256}>{shortHash(request.artifactSha256)}</code><small>artifact {request.artifactId.slice(0, 8)}</small></div>
+
         <div className="approval-line">
           <span>指名承認者</span>
           {request.approvers.length ? request.approvers.map((item) => <b key={item.githubUserId}>@{item.login}</b>) : <em>未指名</em>}
           {request.decisions.map((decision) => <span className={`decision ${decision.decision}`} key={decision.githubUserId}>{decision.decision === "approved" ? "承認済み" : "却下"}</span>)}
         </div>
+
         {latestAttempt && <div className="approval-line"><span>実行 #{latestAttempt.attemptNumber}</span><b>{latestAttempt.stage}</b><em>{latestAttempt.result}</em>{latestAttempt.githubRunId && <span>run {latestAttempt.githubRunId}</span>}</div>}
         <p className="next-step"><strong>次にすること</strong>{nextStepText(request)}</p>
       </div>
       <div className="request-actions">
         {request.environment === "production" && <div className="production-warning"><strong>本番公開</strong><span>公開URLの内容が更新されます。Stagingで動作確認した同じSHA-256か確認してください。</span></div>}
+
         {dashboard.permissions.canAdminister && request.state === "ready" && approvers.length > 0 && (
           <div className="inline-action"><select aria-label="指名承認者" value={selectedApprover} onChange={(event) => setSelectedApprover(event.target.value)}>{approvers.map((user) => <option key={user.githubUserId} value={user.githubUserId}>@{user.login}</option>)}</select><button disabled={busy || !selectedApprover} onClick={() => runAction({ action: "designate_approver", requestId: request.requestId, approverGithubUserId: selectedApprover }, "承認者を指名しました")}>指名</button></div>
         )}
+
         {isOwner && request.state === "ready" && (
           <div className="submit-request-action">
             {dashboard.actor.isAdmin && <label>Admin bypassの理由<input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="例: 緊急パッチ" /></label>}
@@ -549,21 +606,30 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
             </button>
           </div>
         )}
+
         {isDesignated && request.state === "pending_approval" && (
           <div className="decision-actions"><input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="却下時は理由が必須" /><button disabled={busy} onClick={() => runAction({ action: "decide_request", requestId: request.requestId, decision: "rejected", reason }, "申請を却下しました")}>却下</button><button className="approve-button" disabled={busy} onClick={() => runAction({ action: "decide_request", requestId: request.requestId, decision: "approved", reason }, "申請を承認しました")}>承認</button></div>
         )}
+
         {canDispatch && dispatchConfigured && ["approved", "failed_retryable"].includes(request.state) && <button className={request.environment === "production" ? "danger-button" : "primary-button"} disabled={busy} onClick={() => runAction({ action: "dispatch_request", requestId: request.requestId }, request.state === "approved" ? `${environmentLabel} Actionsを開始しました` : `${environmentLabel} Actionsを再試行しました`)}>{request.state === "approved" ? `${environmentLabel}へ実行` : "再試行"}</button>}
+
         {canDispatch && !dispatchConfigured && request.state === "approved" && <div className="phase-block"><span>○</span><p><strong>{environmentLabel} Actions設定待ち</strong><small>GitHub Environmentと秘密情報の設定後にAdminが有効化します。</small></p></div>}
+
         {["dispatched", "running", "publishing_pointers", "verifying"].includes(request.state) && <div className="phase-block"><span>↻</span><p><strong>GitHub Actionsで実行中</strong><small>状態は監査callbackから更新されます。</small></p></div>}
+
         {canCreateProduction && <button className="danger-outline-button" disabled={busy} onClick={() => runAction({ action: "create_production_request", sourceStagingRequestId: request.requestId }, "Production申請を作成しました。承認者を指名してください")}>Production申請を作成</button>}
+
         {productionRequestExists && request.environment === "staging" && request.state === "succeeded" && <div className="phase-block"><span>✓</span><p><strong>Production申請作成済み</strong><small>一覧のPRODUCTIONカードを進めてください。</small></p></div>}
+
         {dashboard.permissions.canAdminister && ["recovery_required", "failed_terminal"].includes(request.state) && <div className="inline-action vertical"><input value={safetyReason} onChange={(event) => setSafetyReason(event.target.value)} placeholder="復旧確認内容（10文字以上）" /><button className="danger-outline-button" disabled={busy} onClick={() => runAction({ action: "authorize_recovery", requestId: request.requestId, reason: safetyReason }, "復旧確認を記録し、再試行可能にしました")}>復旧後の再試行を許可</button></div>}
+
         {canCancel && <div className="inline-action vertical"><input value={safetyReason} onChange={(event) => setSafetyReason(event.target.value)} placeholder="キャンセル理由（3文字以上）" /><button className="secondary-button" disabled={busy} onClick={() => runAction({ action: "cancel_request", requestId: request.requestId, reason: safetyReason }, "申請をキャンセルしました")}>この申請をキャンセル</button></div>}
       </div>
     </article>
   );
 }
 
+/** ユーザーへのゲーム管理権限の付与・取消画面 */
 function AccessWorkspace({ dashboard, busy, runAction }: {
   dashboard: Dashboard;
   busy: boolean;
@@ -576,15 +642,18 @@ function AccessWorkspace({ dashboard, busy, runAction }: {
     await runAction({ action: "set_grant", githubUserId: data.get("githubUserId"), login: data.get("login"), grantType: data.get("grantType"), enabled: true }, "権限を付与しました");
     form.reset();
   }
+
   return (
     <section className="workspace access-grid">
       <div><p className="eyebrow">ACCESS POLICY</p><h2>個別アカウント権限</h2><p className="section-copy">個人所有リポジトリのCollaboratorから、PandDで操作できる人だけを明示的に許可します。</p></div>
+
       <form className="access-form" onSubmit={submit}>
         <label>GitHub user ID<input name="githubUserId" inputMode="numeric" placeholder="数値ID" required /></label>
         <label>GitHubログイン名<input name="login" placeholder="octocat" required /></label>
         <label>付与する権限<select name="grantType"><option value="requester">Maintain相当申請者</option><option value="approver">指名承認者候補</option><option value="production_requester">Production申請者</option></select></label>
         <button className="primary-button" disabled={busy}>権限を付与</button>
       </form>
+
       <div className="user-table">
         {dashboard.users.map((user) => <div className="user-row" key={user.githubUserId}><span className="avatar small">{user.login.slice(0, 1).toUpperCase()}</span><div><strong>@{user.login}</strong><small>ID {user.githubUserId}</small></div><div className="grant-list">{user.isAdmin && <span>ADMIN</span>}{user.grants.map((grant) => <button type="button" disabled={busy} title={`${grant}を取り消す`} key={grant} onClick={() => runAction({ action: "set_grant", githubUserId: user.githubUserId, login: user.login, grantType: grant, enabled: false }, "権限を取り消しました")}>{grant.replaceAll("_", " ")} ×</button>)}</div></div>)}
       </div>
@@ -592,10 +661,12 @@ function AccessWorkspace({ dashboard, busy, runAction }: {
   );
 }
 
+/** 申請に紐づく改ざん検知用監査ログを表示する */
 function AuditWorkspace({ events }: { events: AuditEvent[] }) {
   return (
     <section className="workspace audit-workspace">
       <div><p className="eyebrow">APPEND-ONLY LEDGER</p><h2>監査ログ</h2><p className="section-copy">各イベントは直前のhashを含み、申請ごとの判断順序を検証できます。</p></div>
+
       <div className="audit-list">
         {events.length === 0 && <div className="empty-state"><strong>監査イベントはありません</strong></div>}
         {events.map((event) => <article key={event.eventId}><span className="audit-dot" /><div><strong>{eventText[event.eventType] ?? event.eventType}</strong><p>@{event.actorLogin} · {formatDate(event.occurredAt)}</p></div><code title={event.eventHash}>{shortHash(event.eventHash)}</code><small>#{event.sequence}</small></article>)}

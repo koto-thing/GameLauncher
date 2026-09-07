@@ -1,11 +1,22 @@
-import { useState, useSyncExternalStore, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from "react";
 import { Link, useParams } from "react-router-dom";
 import type { Asset, PublicTrack, Track } from "../../domain/models";
 import { createLoopRegion, trackContent } from "../../domain/rules";
+import {
+  LOUDNESS_TARGET_LUFS,
+  normalizationGainDb,
+} from "../../domain/loudness";
 import { PLAYER_RUNTIME_DEFAULTS } from "../../config/player-runtime.defaults";
 import { useSite } from "./context";
 import { api, uploadFile } from "./api-client";
 import { Artwork, PlayerControls } from "./components";
+import { CommandManager } from "./command-manager";
 import {
   audioUploadHint,
   imageUploadHint,
@@ -20,7 +31,8 @@ interface TrackData {
   track: Track;
   audio: PublicTrack | null;
 }
-/** @brief 曲URLを認可された管理データへ解決する。 */
+
+/** @brief 曲URLを認可された管理データへ解決する */
 export function TrackEditorPage() {
   const { id } = useParams();
   const remote = useRemote<TrackData>(`/manage/tracks/${id}`);
@@ -43,7 +55,8 @@ export function TrackEditorPage() {
     </>
   );
 }
-/** @brief 下書き保存・ループ微調整・公開反映を同じ作品権限で操作する。 */
+
+/** @brief 下書き保存・ループ微調整・公開反映を同じ作品権限で操作する */
 function TrackEditor({
   initial,
   onSaved,
@@ -51,18 +64,59 @@ function TrackEditor({
   initial: TrackData;
   onSaved(): Promise<void>;
 }) {
-  const { player, config, session, refresh } = useSite();
+  const { player, config, session, refresh, analyzeLoudness } = useSite();
   const state = useSyncExternalStore(player.subscribe, player.snapshot);
   const track = initial.track;
   const [draft, setDraft] = useState(track.draft);
-  const [position, setPosition] = useState(track.position);
   const [audio, setAudio] = useState(initial.audio);
   const [progress, setProgress] = useState<number | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState<number | null>(null);
+  const analysis = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+  useEffect(
+    /** @brief 編集対象を離れたら解析と後続の書き戻しを停止する */ () => {
+      mounted.current = true;
+      return /** @brief 測定途中のPCMを次の曲へ持ち越さない */ () => {
+        mounted.current = false;
+        analysis.current?.abort();
+      };
+    },
+    [],
+  );
   const task = useEditorTask();
-  const dirty =
-    JSON.stringify(draft) !== JSON.stringify(track.draft) ||
-    position !== track.position;
-  useUnsaved(dirty);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(track.draft);
+  useUnsaved(dirty || analysisProgress !== null);
+  /** @brief 音源全体を測定し、同じ音源の下書きへだけ結果を設定する */
+  async function measure(value: PublicTrack, file?: Blob): Promise<void> {
+    if (!analyzeLoudness || !value.audioAssetId)
+      throw new Error("音量解析を開始できません。");
+    analysis.current?.abort();
+    const controller = new AbortController();
+    analysis.current = controller;
+    if (
+      player.snapshot().status === "playing" ||
+      player.snapshot().status === "loading"
+    )
+      await player.toggle();
+    setAnalysisProgress(0);
+    try {
+      const loudness = await analyzeLoudness(
+        { ...value, audioAssetId: value.audioAssetId },
+        controller.signal,
+        setAnalysisProgress,
+        file,
+      );
+      controller.signal.throwIfAborted();
+      setDraft(
+        /** @brief 音源差し替え後の古い測定結果を捨てる */ (current) =>
+          current.audioAssetId === loudness.audioAssetId
+            ? { ...current, loudness }
+            : current,
+      );
+    } finally {
+      if (mounted.current) setAnalysisProgress(null);
+    }
+  }
   const pcmBytes = audio
     ? audio.durationSeconds *
       PLAYER_RUNTIME_DEFAULTS.decodeSampleRateHz *
@@ -70,7 +124,7 @@ function TrackEditor({
       4
     : 0;
   const overBudget = pcmBytes > PLAYER_RUNTIME_DEFAULTS.decodedAudioBudgetBytes;
-  /** @brief 現在の入力を共有Domainルールと検証済み音源長で確認する。 */
+  /** @brief 現在の入力を共有Domainルールと検証済み音源長で確認する */
   function previewData(): PublicTrack {
     if (!audio || !config) throw new Error("先に音源を登録してください。");
     const content = trackContent(draft, config.policy);
@@ -86,27 +140,27 @@ function TrackEditor({
       ...content,
       id: track.id,
       gameId: track.gameId,
-      position,
+      position: track.position,
     };
   }
-  /** @brief 不正ループをUIでも検出したうえでAPIの再検証へ送る。 */
+  /** @brief 不正ループをUIでも検出したうえでAPIの再検証へ送る */
   function save(event: FormEvent): void {
     event.preventDefault();
-    void task.run(async () => /** @brief 保存だけでは公開版に触れない。 */ {
+    void task.run(async () => /** @brief 保存だけでは公開版に触れない */ {
       if (audio) previewData();
       await api(`/manage/tracks/${track.id}`, {
         method: "PUT",
-        body: { draft, position, version: track.version },
+        body: { draft, position: track.position, version: track.version },
         csrf: session!.csrf,
       });
       await onSaved();
     }, "下書きを保存しました。公開中の内容は「更新を反映」で切り替わります。");
   }
-  /** @brief 画像と音源を逐次登録し、音源差し替え時には旧ループを解除する。 */
+  /** @brief 画像と音源を逐次登録し、音源差し替え時には旧ループを解除する */
   function upload(kind: "audio" | "image", file?: File): void {
     if (!file) return;
     void task.run(
-      async () => /** @brief 進捗の後に検証されたメタデータだけを採用する。 */ {
+      async () => /** @brief 進捗の後に検証されたメタデータだけを採用する */ {
         setProgress(0);
         const asset = await uploadFile<Asset>(
           track.gameId,
@@ -115,6 +169,8 @@ function TrackEditor({
           session!.csrf,
           setProgress,
         );
+        if (!mounted.current)
+          throw new Error("編集画面を離れたため処理を終了しました。");
         setProgress(null);
         if (kind === "image")
           setDraft({
@@ -125,21 +181,24 @@ function TrackEditor({
         else {
           const content = {
             ...draft,
+            loudness: undefined,
             audioAssetId: asset.id,
             loop: null,
             rightsConfirmed: false,
           };
           setDraft(content);
-          setAudio({
+          const uploaded: PublicTrack = {
             ...content,
             id: track.id,
             gameId: track.gameId,
-            position,
+            position: track.position,
             durationSeconds: asset.durationSeconds!,
             sampleRateHz: asset.sampleRateHz!,
             channels: asset.channels!,
             audioBytes: asset.bytes,
-          });
+          };
+          setAudio(uploaded);
+          await measure(uploaded, file);
         }
       },
       kind === "audio"
@@ -147,10 +206,10 @@ function TrackEditor({
         : "画像を登録しました。代替テキストを入力して保存してください。",
     );
   }
-  /** @brief 未保存入力を混ぜず保存済みリビジョンを公開する。 */
+  /** @brief 未保存入力を混ぜず保存済みリビジョンを公開する */
   function publish(value: boolean): void {
     void task.run(
-      async () => /** @brief 担当者本人の操作で公開版を原子的に切り替える。 */ {
+      async () => /** @brief 担当者本人の操作で公開版を原子的に切り替える */ {
         await api(`/manage/tracks/${track.id}/publication`, {
           method: "POST",
           body: { publish: value, version: track.version },
@@ -184,31 +243,15 @@ function TrackEditor({
                 maxLength={config?.policy.text.titleMax}
                 value={draft.title}
                 onChange={
-                  /** @brief 公開版とは別の入力状態を更新する。 */ (event) =>
+                  /** @brief 公開版とは別の入力状態を更新する */ (event) =>
                     setDraft({ ...draft, title: event.target.value })
-                }
-              />
-            </Field>
-            <Field
-              label="曲順（同じ番号はID順、公開反映時に適用）"
-              name="position"
-              error={task.error}
-            >
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={position}
-                onChange={
-                  /** @brief ドラッグに依存せず曲順を変更する。 */ (event) =>
-                    setPosition(Number(event.target.value))
                 }
               />
             </Field>
             <div className="field">
               <span>クレジット（公開名・役割）</span>
               {draft.credits.map(
-                /** @brief 複数人のクレジットをログインアカウントから独立して編集する。 */ (
+                /** @brief 複数人のクレジットをログインアカウントから独立して編集する */ (
                   credit,
                   index,
                 ) => (
@@ -219,13 +262,13 @@ function TrackEditor({
                       required
                       value={credit.name}
                       onChange={
-                        /** @brief 指定したクレジットの名前だけを変更する。 */ (
+                        /** @brief 指定したクレジットの名前だけを変更する */ (
                           event,
                         ) =>
                           setDraft({
                             ...draft,
                             credits: draft.credits.map(
-                              /** @brief 他の担当者名を維持する。 */ (
+                              /** @brief 他の担当者名を維持する */ (
                                 item,
                                 at,
                               ) =>
@@ -242,13 +285,13 @@ function TrackEditor({
                       required
                       value={credit.role}
                       onChange={
-                        /** @brief 役割を自由な公開テキストとして記録する。 */ (
+                        /** @brief 役割を自由な公開テキストとして記録する */ (
                           event,
                         ) =>
                           setDraft({
                             ...draft,
                             credits: draft.credits.map(
-                              /** @brief 対象行の役割だけを更新する。 */ (
+                              /** @brief 対象行の役割だけを更新する */ (
                                 item,
                                 at,
                               ) =>
@@ -263,11 +306,11 @@ function TrackEditor({
                       type="button"
                       aria-label={`クレジット${index + 1}を削除`}
                       onClick={
-                        /** @brief 下書きのクレジット行を外す。 */ () =>
+                        /** @brief 下書きのクレジット行を外す */ () =>
                           setDraft({
                             ...draft,
                             credits: draft.credits.filter(
-                              /** @brief 指定行以外を残す。 */ (_, at) =>
+                              /** @brief 指定行以外を残す */ (_, at) =>
                                 at !== index,
                             ),
                           })
@@ -284,7 +327,7 @@ function TrackEditor({
                   draft.credits.length >= (config?.policy.text.creditMax ?? 0)
                 }
                 onClick={
-                  /** @brief 最大人数内で公開名を追加する。 */ () =>
+                  /** @brief 最大人数内で公開名を追加する */ () =>
                     setDraft({
                       ...draft,
                       credits: [...draft.credits, { name: "", role: "作曲" }],
@@ -302,7 +345,7 @@ function TrackEditor({
                 maxLength={config?.policy.text.descriptionMax}
                 value={draft.comment}
                 onChange={
-                  /** @brief 改行を含む制作コメントを記録する。 */ (event) =>
+                  /** @brief 改行を含む制作コメントを記録する */ (event) =>
                     setDraft({ ...draft, comment: event.target.value })
                 }
               />
@@ -316,7 +359,7 @@ function TrackEditor({
                 type="file"
                 accept=".mp3,.wav"
                 onChange={
-                  /** @brief 送信と検証を別状態で表示する。 */ (event) =>
+                  /** @brief 送信と検証を別状態で表示する */ (event) =>
                     upload("audio", event.target.files?.[0])
                 }
               />
@@ -328,12 +371,46 @@ function TrackEditor({
                 {(pcmBytes / 1024 / 1024).toFixed(1)}MiB（作業バッファ別）
               </p>
             )}
+            {audio && (
+              <section className="loudness-editor">
+                <h2>曲ごとの音量を揃える</h2>
+                <p className="hint">
+                  曲内の強弱を保ちながら、目標 {LOUDNESS_TARGET_LUFS} LUFS
+                  に揃えます。音割れを避けるため、曲によっては増幅を抑えます。
+                </p>
+                {draft.loudness ? (
+                  <p role="status">
+                    {draft.loudness.integratedLufs === null
+                      ? "測定済み：無音または短い音源のため音量を判定できません。増幅しません。"
+                      : `測定済み：${draft.loudness.integratedLufs.toFixed(1)} LUFS / 再生時の補正 ${normalizationGainDb(draft.loudness, draft.audioAssetId).toFixed(1)} dB`}
+                  </p>
+                ) : (
+                  <p className="hint">
+                    未測定です。登録済みの音源もここで測定できます。
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={
+                    /** @brief 保存済み音源を再アップロードせず解析する */ () => {
+                      void task.run(
+                        /** @brief 現在の音源全体を測定する */ () =>
+                          measure({ ...audio, ...draft }),
+                        "音量を測定しました。下書きを保存し、公開中の曲は更新を反映してください。",
+                      );
+                    }
+                  }
+                >
+                  音量を測定する
+                </button>
+              </section>
+            )}
             <Field label={`曲の代表画像（${imageUploadHint(config?.policy)}）`}>
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={
-                  /** @brief 曲固有画像を作品画像と別に登録する。 */ (event) =>
+                  /** @brief 曲固有画像を作品画像と別に登録する */ (event) =>
                     upload("image", event.target.files?.[0])
                 }
               />
@@ -347,7 +424,7 @@ function TrackEditor({
                 value={draft.imageAlt}
                 maxLength={config?.policy.text.imageAltMax}
                 onChange={
-                  /** @brief 曲の情景をテキストでも伝える。 */ (event) =>
+                  /** @brief 曲の情景をテキストでも伝える */ (event) =>
                     setDraft({ ...draft, imageAlt: event.target.value })
                 }
               />
@@ -358,7 +435,7 @@ function TrackEditor({
                 <button
                   type="button"
                   onClick={
-                    /** @brief 共有素材は削除せず下書きから外す。 */ () =>
+                    /** @brief 共有素材は削除せず下書きから外す */ () =>
                       setDraft({ ...draft, imageAssetId: null })
                   }
                 >
@@ -378,7 +455,7 @@ function TrackEditor({
                     draft.audioAssetId !== track.draft.audioAssetId
                   }
                   onChange={
-                    /** @brief 音源差し替え後は一度保存してから区間を設定する。 */ (
+                    /** @brief 音源差し替え後は一度保存してから区間を設定する */ (
                       event,
                     ) =>
                       setDraft({
@@ -414,7 +491,7 @@ function TrackEditor({
                         step="any"
                         value={draft.loop.startSeconds}
                         onChange={
-                          /** @brief 小数精度を保ったまま開始秒を編集する。 */ (
+                          /** @brief 小数精度を保ったまま開始秒を編集する */ (
                             event,
                           ) =>
                             setDraft({
@@ -434,7 +511,7 @@ function TrackEditor({
                         step="any"
                         value={draft.loop.endSeconds}
                         onChange={
-                          /** @brief 小数精度を保ったまま終了秒を編集する。 */ (
+                          /** @brief 小数精度を保ったまま終了秒を編集する */ (
                             event,
                           ) =>
                             setDraft({
@@ -453,7 +530,7 @@ function TrackEditor({
                       type="button"
                       disabled={state.track?.id !== track.id}
                       onClick={
-                        /** @brief 実際の音声クロック位置を開始値にする。 */ () =>
+                        /** @brief 実際の音声クロック位置を開始値にする */ () =>
                           setDraft({
                             ...draft,
                             loop: {
@@ -469,7 +546,7 @@ function TrackEditor({
                       type="button"
                       disabled={state.track?.id !== track.id}
                       onClick={
-                        /** @brief 実際の音声クロック位置を終了値にする。 */ () =>
+                        /** @brief 実際の音声クロック位置を終了値にする */ () =>
                           setDraft({
                             ...draft,
                             loop: {
@@ -484,9 +561,9 @@ function TrackEditor({
                     <button
                       type="button"
                       onClick={
-                        /** @brief 通常プレーヤーを置き換え、二重再生なしで継ぎ目を確認する。 */ () => {
+                        /** @brief 通常プレーヤーを置き換え、二重再生なしで継ぎ目を確認する */ () => {
                           void task.run(
-                            async () => /** @brief 保存前のループ境界もDomainで検証する。 */ {
+                            async () => /** @brief 保存前のループ境界もDomainで検証する */ {
                               await player.preview(
                                 previewData(),
                                 PLAYER_RUNTIME_DEFAULTS.loopPreviewLeadInSeconds,
@@ -511,7 +588,7 @@ function TrackEditor({
                 type="checkbox"
                 checked={draft.rightsConfirmed}
                 onChange={
-                  /** @brief 公開と広告付きサイト利用について投稿者の確認を記録する。 */ (
+                  /** @brief 公開と広告付きサイト利用について投稿者の確認を記録する */ (
                     event,
                   ) =>
                     setDraft({
@@ -537,9 +614,9 @@ function TrackEditor({
           <button
             disabled={task.busy || !audio}
             onClick={
-              /** @brief 通常プレーヤーと同じインスタンスで試聴する。 */ () => {
+              /** @brief 通常プレーヤーと同じインスタンスで試聴する */ () => {
                 void task.run(
-                  async () => /** @brief 現在の入力で再生を始める。 */ {
+                  async () => /** @brief 現在の入力で再生を始める */ {
                     const value = previewData();
                     await player.start(value, [value]);
                   },
@@ -565,7 +642,7 @@ function TrackEditor({
               className="primary"
               disabled={task.busy || dirty}
               onClick={
-                /** @brief 担当者の判断で公開する。 */ () => publish(true)
+                /** @brief 担当者の判断で公開する */ () => publish(true)
               }
             >
               {track.published ? "更新を反映する" : "この曲を公開する"}
@@ -573,7 +650,7 @@ function TrackEditor({
             <button
               disabled={task.busy || dirty || !track.published}
               onClick={
-                /** @brief 新しい音源・画像アクセスを止める。 */ () =>
+                /** @brief 新しい音源・画像アクセスを止める */ () =>
                   publish(false)
               }
             >
@@ -582,8 +659,17 @@ function TrackEditor({
             {dirty && (
               <p className="hint">公開の前に下書きを保存してください。</p>
             )}
-            {config?.publicUrl && <a href={`${config.publicUrl}tracks/${track.id}`} target="_blank" rel="noreferrer">公開ページを確認 ↗</a>}
+            {config?.publicUrl && (
+              <a
+                href={`${config.publicUrl}tracks/${track.id}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                公開ページを確認 ↗
+              </a>
+            )}
           </div>
+          <CommandManager trackId={track.id} gameId={track.gameId} title={track.published?.title ?? track.draft.title} />
         </div>
       </div>
       {progress !== null && (
@@ -591,6 +677,9 @@ function TrackEditor({
           アップロード {progress}%{" "}
           {progress === 100 && "· サーバーで素材を検証中…"}
         </p>
+      )}
+      {analysisProgress !== null && (
+        <p role="status">曲全体の音量を解析中… {analysisProgress}%</p>
       )}
       <TaskNotice task={task} />
     </>

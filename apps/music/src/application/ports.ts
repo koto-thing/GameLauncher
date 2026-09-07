@@ -25,6 +25,11 @@ export interface MusicRepository {
     actor: Principal,
     action: string,
   ): Promise<void>;
+  reorderTracks(
+    gameId: string,
+    tracks: Pick<Track, "id" | "version" | "position">[],
+    actor: Principal,
+  ): Promise<void>;
   createGame(value: Game, actor: Principal): Promise<void>;
   createTrack(value: Track, actor: Principal): Promise<void>;
   asset(id: string): Promise<Asset | null>;

@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-// 実音声エンジンをテスト専用URLで読み込む。公開distへは含めない。
+// 実音声エンジンをテスト専用URLで読み込む、公開distへは含めない
 await build({
   stdin: {
     contents:

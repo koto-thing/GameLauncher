@@ -2,6 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildContentSecurityPolicy } from "../lib/csp.ts";
 
+test("only the Music page permits WebAssembly in production", () => {
+  const music = buildContentSecurityPolicy(false, "/music");
+  assert.match(music, /script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'(?:;|$)/);
+  assert.ok(!music.includes("'unsafe-eval'"));
+  for (const pathname of ["/", "/intake", "/music-other", "/music/child", "/api/music", "/music-editor/manager.js"]) {
+    assert.equal(buildContentSecurityPolicy(false, pathname), buildContentSecurityPolicy(false));
+  }
+});
+
 test("buildContentSecurityPolicy includes 'unsafe-eval' in development mode (explicit flag)", () => {
   const devCsp = buildContentSecurityPolicy(true);
   assert.ok(

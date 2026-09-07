@@ -1,5 +1,11 @@
 # ローカル検証報告 — 2026-09-06
 
+## コマンドコード追加時の検証
+
+共有メニューへの統合と管理画面の確認・印刷追加後も、check42件すべて成功。管理の確認・発行・印刷・コード専用反映はChromium/Firefox/WebKitの3件すべて成功。共有導線の関連E2Eは7件成功・2skip。実プリンター出力は未実施。詳細と途中の試験不備の修正記録は [command-code.md](command-code.md) を参照。
+
+今回の追加分は [command-code.md](command-code.md) の最終実行記録を参照。check42件成功（subdirectory実配信・通信エラー表示を含む）、E2E53成功/7skip/失敗0、PHP17ファイル構文確認、管理側TypeScript成功。画像は基礎100/100・軽度493/500・全640例で誤受理0、固定ベクター回転16/16。管理Workers停止後の公開GET28件・外部通信0、手入力/画像読取も成功。実機・実Apache/HTTPS・本番適用は未確認/未実行。以下は既存機能の過去の検証記録。
+
 ## 作業開始時
 
 - 対象：`D:\Pandd\GameLauncher`、branch `feature/koto/AddMusicWebApp`、HEAD `bfb6d5d`。

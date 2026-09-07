@@ -17,7 +17,7 @@ try {
       await Promise.race([
         once(server, "message"),
         once(server, "exit").then(
-          /** @brief 起動失敗をテスト開始前に検出する。 */ () => {
+          /** @brief 起動失敗をテスト開始前に検出する */ () => {
             throw new Error("Local Music server failed to start");
           },
         ),

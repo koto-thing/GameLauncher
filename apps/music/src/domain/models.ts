@@ -34,6 +34,7 @@ export interface GameContent {
   design?: GameDesign;
 }
 export interface GameDesign {
+  webgl?: { fragmentShader: string };
   backgroundColor: string;
   backgroundAssetId: string | null;
   backgroundMode: "cover" | "contain" | "tile";
@@ -47,6 +48,14 @@ export interface TrackContent {
   imageAlt: string;
   loop: LoopRegion | null;
   rightsConfirmed: boolean;
+  loudness?: TrackLoudness;
+}
+
+/** 全曲測定値省略は補正未設定、nullは測定不能を表す */
+export interface TrackLoudness {
+  audioAssetId: string;
+  integratedLufs: number | null;
+  truePeakDbtp: number | null;
 }
 export interface Game {
   id: string;
@@ -95,6 +104,7 @@ export interface Advertisement {
   version: number;
 }
 export interface PublicTrack extends TrackContent {
+  commandCode?: { version: 1; codeId: number };
   id: string;
   gameId: string;
   position: number;
@@ -118,9 +128,9 @@ export interface AuditEntry {
   at: number;
 }
 
-/** @brief 業務エラーをHTTPなど外側の表現から独立して保持する。 */
+/** @brief 業務エラーをHTTPなど外側の表現から独立して保持する */
 export class MusicError extends Error {
-  /** @brief 安定したエラーコードと利用者向けの説明を設定する。 @param code エラー分類。 @param message 復旧に必要な説明。 @param field 入力項目。 */
+  /** @brief 安定したエラーコードと利用者向けの説明を設定する @param code エラー分類 @param message 復旧に必要な説明 @param field 入力項目 */
   constructor(
     public code:
       | "INVALID"

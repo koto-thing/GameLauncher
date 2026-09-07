@@ -16,7 +16,7 @@ process.env.WRANGLER_LOG_PATH = path.join(
   "build/music-wrangler.log",
 );
 process.env.WRANGLER_SEND_METRICS = "false";
-/** @brief CLIを引数配列でローカルだけに実行する。 @param {string[]} args Node CLI引数。 @param {string} cwd 作業場所。 @returns {Promise<void>} 正常終了。 */
+/** @brief CLIを引数配列でローカルだけに実行する @param {string[]} args Node CLI引数 @param {string} cwd 作業場所 @returns {Promise<void>} 正常終了 */
 async function run(args, cwd) {
   const child = spawn(process.execPath, args, {
     cwd,
@@ -26,7 +26,8 @@ async function run(args, cwd) {
   if ((await once(child, "exit"))[0] !== 0)
     throw new Error(`Local command failed: ${args[0]}`);
 }
-// 公開静的物とcontrol-plane管理entryを先にbuildする。
+
+// 公開静的物とcontrol-plane管理entryを先にbuildする
 await run(["node_modules/vite/bin/vite.js", "build"], projectRoot);
 await run(
   [
@@ -91,7 +92,7 @@ const common = [
   path.join(local, "state"),
 ];
 let child;
-/** @brief 子プロセス終了へ制御を戻し、PHPもfinallyで停止する。 */
+/** @brief 子プロセス終了へ制御を戻し、PHPもfinallyで停止する */
 function stop() {
   child?.kill();
 }
@@ -99,7 +100,7 @@ process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
 process.on(
   "message",
-  /** @brief E2E親プロセスから安全に終了する。 */ (message) => {
+  /** @brief E2E親プロセスから安全に終了する */ (message) => {
     if (message === "stop") stop();
   },
 );
@@ -118,7 +119,8 @@ try {
     { cwd: adminRoot, stdio: "inherit", windowsHide: true },
   );
   const origin = "http://127.0.0.1:8788";
-  for (let attempt = 0; attempt < 100; attempt++) {
+  for (let attempt = 0; attempt < 300; attempt++) {
+    if (child.exitCode !== null) throw new Error(`control-plane exited during startup: ${child.exitCode}`);
     try {
       if (
         (
@@ -129,18 +131,18 @@ try {
       )
         break;
     } catch {
-      /* 実vinextサーバー起動待ち。 */
+      /* 実vinextサーバー起動待ち */
     }
-    if (attempt === 99) throw new Error("control-plane startup failed");
+    if (attempt === 299) throw new Error("control-plane startup failed");
     await new Promise(
-      /** @brief 起動待ちを短く区切る。 */ (resolve) =>
+      /** @brief 起動待ちを短く区切る */ (resolve) =>
         setTimeout(resolve, 200),
     );
   }
-  // 本番と同じHTTP APIへseedし、DB直接書込で公開済みを偽装しない。
+  // 本番と同じHTTP APIへseedし、DB直接書込で公開済みを偽装しない
   await seed({
     origin,
-    dispatchFetch: /** @brief 実vinext経由でHTTPを呼ぶ。 */ (...args) =>
+    dispatchFetch: /** @brief 実vinext経由でHTTPを呼ぶ */ (...args) =>
       fetch(...args),
   });
   console.log(

@@ -1,7 +1,9 @@
 var launcherDirectoryName = "PandDGameLauncher";
 var targetPageInitialized = false;
 
+/** @brief platform別のランチャー実行pathを返す */
 function getLauncherExecutablePath(targetDir) {
+    // IFWのtarget directoryから実行pathを組み立てる
     var prefix = targetDir ? installer.fromNativeSeparators(targetDir).replace(/\/+$/, "") : "@TargetDir@";
     if (systemInfo.productType === "windows") {
         return prefix + "/bin/PandD Game Launcher.exe";
@@ -11,6 +13,7 @@ function getLauncherExecutablePath(targetDir) {
     return prefix + "/bin/PandD Game Launcher";
 }
 
+/** @brief 指定installer pageの表示時処理を登録する */
 function hookPageEntered(pageId) {
     var page = gui.pageById(pageId);
     if (!page || !page.entered) {
@@ -40,7 +43,9 @@ function hookPageEntered(pageId) {
     });
 }
 
+/** @brief installer共通設定とpage callbackを初期化する */
 function Controller() {
+    // installer modeだけに実行設定を適用する
     if (installer.isInstaller()) {
         gui.showSettingsButton(false);
         installer.setValue("RunProgram", getLauncherExecutablePath());
@@ -50,6 +55,7 @@ function Controller() {
         installer.setDefaultPageVisible(QInstaller.LicenseCheck, false);
     }
 
+    // 利用する全pageへ表示時処理を登録する
     var pages = [
         QInstaller.Introduction,
         QInstaller.TargetDirectory,
@@ -65,11 +71,13 @@ function Controller() {
     }
 }
 
+/** @brief native separatorを統一して末尾separatorを除去する */
 function normalizedPath(path) {
     var normalized = installer.fromNativeSeparators(path).replace(/\/+$/, "");
     return normalized;
 }
 
+/** @brief ランチャー専用の最終インストールpathを返す */
 function finalInstallPath(path) {
     var normalized = normalizedPath(path);
     if (normalized === "") {
@@ -82,7 +90,9 @@ function finalInstallPath(path) {
     return normalized + suffix;
 }
 
+/** @brief install directoryの存在と空状態を検査する */
 function inspectDirectory(path) {
+    // 未作成directoryは空として扱う
     if (!installer.fileExists(path)) {
         return "empty";
     }
@@ -114,6 +124,7 @@ function inspectDirectory(path) {
     return Number(result[1]) === 0 ? "empty" : "not-empty";
 }
 
+/** @brief IFW introduction pageの表示を初期化する */
 Controller.prototype.IntroductionPageCallback = function() {
     var page = gui.pageById(QInstaller.Introduction);
     if (page && installer.isInstaller()) {
@@ -121,6 +132,7 @@ Controller.prototype.IntroductionPageCallback = function() {
             page.title = "PANDD LAUNCHER";
         } catch (e) {}
 
+        // installerの案内文を組み立てる
         var welcomeHtml =
             "<div style='padding: 8px 4px;'>" +
             "<h1 style='color: #ffffff; font-size: 20px; font-weight: bold; margin: 0 0 6px 0;'>" +
@@ -144,6 +156,7 @@ Controller.prototype.IntroductionPageCallback = function() {
     }
 };
 
+/** @brief install先表示と空directory検証を更新する */
 function updateTargetDirectory() {
     var page = gui.pageById(QInstaller.TargetDirectory);
     if (!page) {
@@ -155,6 +168,7 @@ function updateTargetDirectory() {
         page.setTargetDir(target);
     }
 
+    // platform別のshortcut説明を設定する
     var shortcutInfo = "";
     if (systemInfo.productType === "windows") {
         shortcutInfo = "ショートカット: スタートメニュー (PandD / PandD Game Launcher) に登録されます。";
@@ -164,6 +178,7 @@ function updateTargetDirectory() {
         shortcutInfo = "ショートカット: アプリケーションメニューに登録されます。";
     }
 
+    // 選択されたinstall先をpageへ表示する
     page.MessageLabel.setText(
         "インストール先の親フォルダを選択してください。\n\n" +
         "ランチャーは、" + installer.toNativeSeparators(target) +
@@ -172,6 +187,7 @@ function updateTargetDirectory() {
         "INSTALL // 準備を開始"
     );
 
+    // install先の安全性を検証して自動回答を設定する
     var state = inspectDirectory(target);
     if (state === "not-empty") {
         installer.setMessageBoxAutomaticAnswer("OverwriteTargetDirectory", QMessageBox.No);
@@ -195,6 +211,7 @@ function updateTargetDirectory() {
     page.WarningLabel.setText("");
 }
 
+/** @brief IFW target directory pageの表示とsignalを初期化する */
 Controller.prototype.TargetDirectoryPageCallback = function() {
     var page = gui.pageById(QInstaller.TargetDirectory);
     if (page) {
@@ -215,14 +232,19 @@ Controller.prototype.TargetDirectoryPageCallback = function() {
     }
 };
 
+/** @brief component selection pageを初期化する */
 Controller.prototype.ComponentSelectionPageCallback = function() {};
 
+/** @brief license agreement pageを初期化する */
 Controller.prototype.LicenseAgreementPageCallback = function() {};
 
+/** @brief start menu directory pageを初期化する */
 Controller.prototype.StartMenuDirectoryPageCallback = function() {};
 
+/** @brief ready for installation pageを初期化する */
 Controller.prototype.ReadyForInstallationPageCallback = function() {};
 
+/** @brief installation実行中の表示を初期化する */
 Controller.prototype.PerformInstallationPageCallback = function() {
     var page = gui.pageById(QInstaller.PerformInstallation);
     if (page && installer.isInstaller()) {
@@ -235,6 +257,7 @@ Controller.prototype.PerformInstallationPageCallback = function() {
     }
 };
 
+/** @brief installation完了または失敗の表示を構築する */
 Controller.prototype.FinishedPageCallback = function() {
     var page = gui.pageById(QInstaller.InstallationFinished);
 
@@ -249,6 +272,7 @@ Controller.prototype.FinishedPageCallback = function() {
             var executablePath = getLauncherExecutablePath(targetDir);
             installer.setValue("RunProgram", executablePath);
 
+            // 成功時の案内文と自動起動設定を構築する
             var finishedHtml =
                 "<div style='padding: 8px 4px;'>" +
                 "<h1 style='color: #65a7ff; font-size: 22px; font-weight: bold; margin: 0 0 6px 0; letter-spacing: 1px;'>" +
@@ -280,6 +304,7 @@ Controller.prototype.FinishedPageCallback = function() {
                 } catch (e) {}
             }
             installer.setValue("RunProgram", "");
+            // 失敗時は自動起動を無効にして案内文を表示する
             var failureHtml =
                 "<div style='padding: 8px 4px;'>" +
                 "<h1 style='color: #ff6b6b; font-size: 20px; font-weight: bold; margin: 0 0 6px 0;'>" +

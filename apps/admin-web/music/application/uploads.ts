@@ -12,6 +12,7 @@ export interface Upload {
   digest: string;
   mime: string;
 }
+
 export interface UploadRepository {
   begin(
     gameId: string,
@@ -24,6 +25,7 @@ export interface UploadRepository {
   get(id: string): Promise<Upload | null>;
   finish(upload: Upload, asset: Asset, actor: Principal): Promise<void>;
 }
+
 export interface MusicAssetStorage {
   upload(
     upload: Upload,
@@ -32,6 +34,7 @@ export interface MusicAssetStorage {
   ): Promise<Asset>;
   preview(asset: Asset, actor: Principal): Promise<Response>;
 }
+
 /** @brief 認可後にupload ID・digestを固定し、同じ操作だけを再試行させる。 */
 export class Uploads {
   /** @brief 保存・転送・投稿制約を注入する。 @param repository upload記録。 @param storage PHPストリーム転送。 @param policy 共通制約。 */
@@ -40,6 +43,7 @@ export class Uploads {
     private storage: MusicAssetStorage,
     private policy: DomainPolicy,
   ) {}
+
   /** @brief メタデータだけ先に固定しraw uploadを認可する。 @param gameId 対象作品。 @param kind 素材用途。 @param bytes 実ファイル予定量。 @param digest SHA256。 @param mime 予定形式。 @param actor 現在担当者。 @returns 再試行用ID。 */
   async begin(
     gameId: string,
@@ -66,6 +70,7 @@ export class Uploads {
     );
     return this.repository.begin(gameId, kind, bytes, digest, mime, actor);
   }
+
   /** @brief 解除済み担当者や別作品のupload IDの利用を拒否する。 @param id 固定upload ID。 @param body raw stream。 @param actor 現在担当者。 @returns PHP検証後の素材。 */
   async transfer(
     id: string,

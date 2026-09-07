@@ -10,6 +10,8 @@
 
 namespace pandd {
 namespace {
+
+/** @brief JSON数値が有限値かつ指定範囲内かを返す */
 bool validNumber(const QJsonObject& object, const QString& key, double minimum, double maximum) {
     const auto value = object.value(key);
     return value.isDouble() && std::isfinite(value.toDouble()) && value.toDouble() >= minimum &&
@@ -17,6 +19,7 @@ bool validNumber(const QJsonObject& object, const QString& key, double minimum, 
 }
 } // namespace
 
+/** @brief 同梱Live2D registryを読み込む */
 bool Live2DAssetCatalog::load(QString& error) {
     // 本番で差し替え不能なApplication Resourceだけを登録元とする
     QFile file(":/live2d/models.json");
@@ -28,6 +31,7 @@ bool Live2DAssetCatalog::load(QString& error) {
     return parse(file.readAll(), QStringLiteral(":/live2d"), error);
 }
 
+/** @brief Live2D registry JSONを検証して解析する */
 bool Live2DAssetCatalog::parse(const QByteArray& json, const QString& root, QString& error) {
     // 以前の登録を残さず入力全体を一時領域で検証する
     assets_.clear();
@@ -72,6 +76,7 @@ bool Live2DAssetCatalog::parse(const QByteArray& json, const QString& root, QStr
     return true;
 }
 
+/** @brief ゲームIDに対応するLive2D assetを返す */
 std::optional<Live2DAsset> Live2DAssetCatalog::find(const QString& gameId) const {
     const auto it = assets_.constFind(gameId);
     return it == assets_.cend() ? std::nullopt : std::optional<Live2DAsset>(*it);

@@ -6,4 +6,8 @@ export const locales = {
   es: {name: "Español", tagline: "Dale vida a tus ganas de jugar.", download: "Descargar", soon: "Próximamente", suffix: "", language: "Seleccionar idioma", nav: "Descargas por sistema operativo", description: "Página oficial de descarga de Play and Discover. Consulta la disponibilidad para Windows, Mac y Linux."},
 } as const;
 export type Locale = keyof typeof locales;
-export function isLocale(value: unknown): value is Locale { return typeof value === "string" && Object.hasOwn(locales, value); }
+
+/** @brief 値が定義済みロケールかを判定し、外部入力を安全に絞り込む @param value 判定する値 @returns 利用可能なロケールならtrue */
+export function isLocale(value: unknown): value is Locale {
+  return typeof value === "string" && Object.hasOwn(locales, value);
+}

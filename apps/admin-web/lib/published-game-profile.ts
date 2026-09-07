@@ -1,3 +1,4 @@
+// 公開済みプロフィールを読み込める公開環境
 export const PUBLISHED_GAME_ENVIRONMENTS = [
   { environment: "production", baseUrl: "https://downloads.koto-thing.com" },
   { environment: "staging", baseUrl: "https://pub-1ada658d7c4f46b1bf109646a4a68bcb.r2.dev" },
@@ -28,6 +29,7 @@ function isPublishedGame(value: unknown): value is PublishedGame {
     isTrustedPublishedAssetUrl(item.heroUrl) && isTrustedPublishedAssetUrl(item.thumbnailUrl);
 }
 
+/** 指定ロケールの公開カタログから、検証済みゲーム情報だけを読み込む */
 export async function loadPublishedGames(
   locale: string,
   fetcher: typeof fetch = fetch,
@@ -52,6 +54,7 @@ export async function loadPublishedGames(
   return [...games.values()].sort((left, right) => left.gameId.localeCompare(right.gameId));
 }
 
+/** 公開ゲームプロフィールから返された画像URLが許可済みOriginかを確認する */
 export function isTrustedPublishedAssetUrl(value: string): boolean {
   try {
     const url = new URL(value);

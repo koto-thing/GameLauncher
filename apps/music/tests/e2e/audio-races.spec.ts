@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import type { PublicGame } from "../../src/domain/models";
 
-test("rapid switches, stale loop preparation, memory budget and interruption recover safely", /** @brief 実AudioContextで競合とメモリ制限を再現する。 */ async ({
+test("rapid switches, stale loop preparation, memory budget and interruption recover safely", /** @brief 実AudioContextで競合とメモリ制限を再現する */ async ({
   page,
 }) => {
   await page.goto("/");
@@ -11,13 +11,13 @@ test("rapid switches, stale loop preparation, memory budget and interruption rec
   ).json()) as PublicGame[];
   test.skip(
     !(await page.evaluate(
-      /** @brief Windows版WebKitに存在しないAPIを成功として扱わない。 */ () =>
+      /** @brief Windows版WebKitに存在しないAPIを成功として扱わない */ () =>
         typeof AudioContext !== "undefined",
     )),
     "この実行環境にはWeb Audio APIがありません。実Safariでの音声確認が必要です。",
   );
   const results = await page.evaluate(
-    /** @brief モック音声エンジンを使わず実装の状態とNode寿命を観測する。 */ async (
+    /** @brief モック音声エンジンを使わず実装の状態とNode寿命を観測する */ async (
       tracks,
     ) => {
       const audioModule = "/__test/audio.js";
@@ -26,7 +26,7 @@ test("rapid switches, stale loop preparation, memory budget and interruption rec
       const { PLAYER_RUNTIME_DEFAULTS } = await import(
         /* @vite-ignore */ configModule
       );
-      const engine = new BrowserAudio(PLAYER_RUNTIME_DEFAULTS, /** @brief 公開素材URLだけをエンジンへ渡す。 */ (id: string) => `/api/assets/${id}`);
+      const engine = new BrowserAudio(PLAYER_RUNTIME_DEFAULTS, /** @brief 公開素材URLだけをエンジンへ渡す */ (id: string) => `/api/assets/${id}`);
       const track = tracks[0];
       const second = tracks[1];
       engine.load(track);
@@ -35,7 +35,7 @@ test("rapid switches, stale loop preparation, memory budget and interruption rec
       await pending;
       const stale = engine.snapshot();
       const noOldBuffer = engine.buffer === null && engine.source === null;
-      // 区間準備後もページごとにエンジンが増えない。切替は同じインスタンスで繰り返す。
+      // 区間準備後もページごとにエンジンが増えない切替は同じインスタンスで繰り返す
       for (let count = 0; count < 8; count++) {
         engine.load(track);
         await engine.setRegion(track.loop);
@@ -46,9 +46,9 @@ test("rapid switches, stale loop preparation, memory budget and interruption rec
       await engine.play();
       await engine.setRegion(track.loop);
       await engine.context.suspend();
-      // suspendのPromise解決とstatechangeイベントは別タスクなので、実際の通知を待って評価する。
+      // suspendのPromise解決とstatechangeイベントは別タスクなので、実際の通知を待って評価する
       await new Promise(
-        /** @brief ブラウザーの状態イベントを配送させる。 */ (resolve) =>
+        /** @brief ブラウザーの状態イベントを配送させる */ (resolve) =>
           setTimeout(resolve, 50),
       );
       const interrupted = engine.snapshot();

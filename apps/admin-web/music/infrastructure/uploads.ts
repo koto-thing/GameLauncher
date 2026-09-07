@@ -12,6 +12,7 @@ import { RentalBridge, digest } from "./bridge";
 export class D1Uploads implements UploadRepository {
   /** @brief 既存素材Repositoryを再利用する。 @param repository 素材保存。 */
   constructor(private repository: D1MusicRepository) {}
+
   /** @brief 作品認可をSQLで再確認して一意のuploadを作る。 @param gameId 作品。 @param kind 用途。 @param bytes 予定量。 @param hash 予定SHA256。 @param mime 予定MIME。 @param actor 担当者。 @returns 不変のupload。 */
   async begin(
     gameId: string,
@@ -65,6 +66,7 @@ export class D1Uploads implements UploadRepository {
       throw new MusicError("FORBIDDEN", "作品の編集権限がありません。");
     return { id, asset, digest: hash, mime };
   }
+
   /** @brief upload IDから所属を解決する。 @param id upload UUID。 @returns uploadまたはnull。 */
   async get(id: string): Promise<Upload | null> {
     const row = await this.repository.db
@@ -76,6 +78,7 @@ export class D1Uploads implements UploadRepository {
       ? { id, asset, digest: row.digest, mime: row.mime }
       : null;
   }
+
   /** @brief PHP反映後のD1失敗にも同じuploadで追いつける。 @param upload 元要求。 @param asset 検証済み結果。 @param actor 担当者。 @returns 保存完了。 */
   async finish(upload: Upload, asset: Asset, actor: Principal): Promise<void> {
     if ((await this.repository.asset(asset.id))?.status === "verified") return;
@@ -90,6 +93,7 @@ export class D1Uploads implements UploadRepository {
 export class RentalAssetStorage implements MusicAssetStorage {
   /** @brief 固定bridgeを注入する。 @param bridge PHP署名Client。 */
   constructor(private bridge: RentalBridge) {}
+
   /** @brief 実容量・digest・形式・所属をPHP検証結果と照合する。 @param upload 固定情報。 @param body raw音源。 @param actor 現在担当者。 @returns 検証済み素材。 */
   async upload(
     upload: Upload,
@@ -134,6 +138,7 @@ export class RentalAssetStorage implements MusicAssetStorage {
       createdAt: upload.asset.createdAt,
     };
   }
+
   /** @brief 非公開試聴を認証済み管理APIだけにストリームで返す。 @param asset 認可済み素材。 @param actor 担当者。 @returns 非キャッシュ音源・画像。 */
   async preview(asset: Asset, actor: Principal): Promise<Response> {
     const response = await this.bridge.request({

@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 
+// 同一Workerインスタンス内でスキーマ初期化を一度だけ実行するPromise
 let initialized: Promise<void> | undefined;
 
 const statements = [
@@ -130,6 +131,7 @@ const statements = [
     ON audit_events(occurred_at)`,
 ];
 
+/** Cloudflare Worker bindingからD1データベースを取得する */
 export function getD1(): D1Database {
   if (!env.DB) {
     throw new Error("D1 binding DB is unavailable");
@@ -137,6 +139,7 @@ export function getD1(): D1Database {
   return env.DB;
 }
 
+/** D1のテーブル・インデックスを作成し、初期化完了を共有する */
 export async function ensureSchema(): Promise<void> {
   initialized ??= (async () => {
     const db = getD1();

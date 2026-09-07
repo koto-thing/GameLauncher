@@ -1,5 +1,6 @@
 import type { ArtifactDescriptor } from "../artifact-limits.ts";
 
+// Artifact生成で扱う入力、進捗、出力の共有型
 export type SupportedEngine = "unity" | "godot" | "siv3d";
 
 export type Translation = {
@@ -71,6 +72,7 @@ export type ArtifactBuildResult = {
 };
 
 export class ArtifactBuildCancelledError extends Error {
+  /** ユーザー操作によるArtifact生成キャンセルを表す */
   constructor(message: string = "Artifactの作成をキャンセルしました") {
     super(message);
     this.name = "ArtifactBuildCancelledError";
@@ -80,6 +82,7 @@ export class ArtifactBuildCancelledError extends Error {
 export class ArtifactValidationError extends Error {
   readonly details?: string[];
 
+  /** 入力検証の詳細エラーを保持する */
   constructor(message: string, details?: string[]) {
     super(message);
     this.name = "ArtifactValidationError";

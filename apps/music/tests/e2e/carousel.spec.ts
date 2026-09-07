@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import type { PublicGame } from "../../src/domain/models";
 
-test("hero cycles soundtrack artwork and permits pausing and manual navigation", /** @brief 実ブラウザーで時間経過・操作中停止・作品リンク・スマホ配置を検証する。 */ async ({
+test("hero cycles soundtrack artwork and permits pausing and manual navigation", /** @brief 実ブラウザーで時間経過・操作中停止・作品リンク・スマホ配置を検証する */ async ({
   page,
 }, info) => {
   await page.clock.install();
@@ -29,7 +29,7 @@ test("hero cycles soundtrack artwork and permits pausing and manual navigation",
     await page.setViewportSize({ width, height: 900 });
     expect(
       await page.evaluate(
-        /** @brief 画像枠を追加しても画面が横へ溢れないことを確認する。 */ () =>
+        /** @brief 画像枠を追加しても画面が横へ溢れないことを確認する */ () =>
           document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
@@ -69,7 +69,7 @@ test("reduced motion and zero or single soundtrack do not auto rotate", /** @bri
   );
   await page.route(
     "**/api/public/catalogue",
-    /** @brief 公開作品が1つだけの場合を再現する。 */ async (route) => {
+    /** @brief 公開作品が1つだけの場合を再現する */ async (route) => {
       await route.fulfill({ json: [games[0]] });
     },
   );
@@ -79,7 +79,7 @@ test("reduced motion and zero or single soundtrack do not auto rotate", /** @bri
   await page.unroute("**/api/public/catalogue");
   await page.route(
     "**/api/public/catalogue",
-    /** @brief 公開前の空のライブラリを再現する。 */ async (route) => {
+    /** @brief 公開前の空のライブラリを再現する */ async (route) => {
       await route.fulfill({ json: [] });
     },
   );
