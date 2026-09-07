@@ -71,10 +71,19 @@ try {
     canvas.getContext("2d").drawImage(document.querySelector(".command-image"), 0, 0, 1600, 960);
     return canvas.toDataURL("image/png").split(",")[1];
   });
+  await page.getByRole("button", { name: "共有を閉じる", exact: true }).click();
   await page.getByRole("button", { name: "再生", exact: true }).click();
   await page.getByRole("button", { name: "一時停止", exact: true }).waitFor();
   const before = (await cdp.send("Performance.getMetrics")).metrics;
-  await page.getByLabel("リピート", { exact: true }).selectOption("region");
+  const repeat = page.getByRole("button", { name: "リピート", exact: true });
+  for (const mode of ["track", "queue", "region"]) {
+    await repeat.click();
+    await page.waitForFunction(
+      /** @brief 非同期モード切替の完了を属性で待つ */ (expected) =>
+        document.querySelector('[aria-label="リピート"]')?.getAttribute("data-repeat") === expected,
+      mode,
+    );
+  }
   await page.waitForTimeout(4600);
   const position = Number(
     await page.getByLabel("再生位置", { exact: true }).inputValue(),
