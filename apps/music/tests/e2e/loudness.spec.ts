@@ -78,13 +78,18 @@ test("streaming and region playback share the same gain and reset on track chang
       engine.output.connect(analyser);
       /** @brief 音声レンダーが進んだ後に実振幅を取得する */
       async function amplitude() {
-        await new Promise(
-          /** @brief 実オーディオスレッドの入力を待つ */ (resolve) =>
-            setTimeout(resolve, 150),
-        );
-        const samples = new Float32Array(analyser.fftSize);
-        analyser.getFloatTimeDomainData(samples);
-        return Math.max(...samples.map(Math.abs));
+        let peak = 0;
+        // CIの実音声デバイス起動とSource切替を含む測定窓から最大振幅を得る
+        for (let attempt = 0; attempt < 20; attempt++) {
+          await new Promise(
+            /** @brief 実オーディオスレッドの次の入力を待つ */ (resolve) =>
+              setTimeout(resolve, 50),
+          );
+          const samples = new Float32Array(analyser.fftSize);
+          analyser.getFloatTimeDomainData(samples);
+          peak = Math.max(peak, ...samples.map(Math.abs));
+        }
+        return peak;
       }
       const streaming = await amplitude();
       await engine.setRegion({ startSeconds: 1, endSeconds: 3 });

@@ -14,8 +14,33 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "chromium", use: { browserName: "chromium" } },
-    { name: "firefox", use: { browserName: "firefox" } },
+    {
+      name: "chromium",
+      use: {
+        browserName: "chromium",
+        launchOptions: {
+          args: [
+            "--autoplay-policy=no-user-gesture-required",
+            "--enable-unsafe-swiftshader",
+            "--use-gl=swiftshader",
+          ],
+        },
+      },
+    },
+    {
+      name: "firefox",
+      use: {
+        browserName: "firefox",
+        launchOptions: {
+          firefoxUserPrefs: {
+            "media.autoplay.default": 0,
+            "media.autoplay.blocking_policy": 0,
+            "webgl.disabled": false,
+            "webgl.force-enabled": true,
+          },
+        },
+      },
+    },
     { name: "webkit", use: { browserName: "webkit" } },
   ],
 });
