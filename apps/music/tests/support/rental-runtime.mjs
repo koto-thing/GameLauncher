@@ -14,22 +14,24 @@ export const projectRoot = path.resolve(
 );
 export const workspaceRoot = path.resolve(projectRoot, "../..");
 
-/** @brief 空きローカルポートを取得する。 @returns {Promise<number>} ポート。 */
+/** @brief 空きローカルポートを取得する @returns {Promise<number>} ポート */
 export async function freePort() {
   const server = createServer();
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const port = server.address().port;
   await new Promise(
-    /** @brief ソケットを返す。 */ (resolve) => server.close(resolve),
+    /** @brief ソケットを返す */ (resolve) => server.close(resolve),
   );
   return port;
 }
-/** @brief 実PHPをdocument root外の私有領域とともに起動する。 @param {object} options ローカル設定。 @returns 配信環境。 */
+/** @brief 実PHPをdocument root外の私有領域とともに起動する @param {object} options ローカル設定 @returns 配信環境 */
 export async function createPhpServer({
   port,
   directory,
   secret = randomBytes(32).toString("hex"),
+  documentRoot = path.join(projectRoot, "dist"),
+  basePath = "",
 } = {}) {
   await mkdir(path.join(projectRoot, "build"), { recursive: true });
   directory ??= await mkdtemp(path.join(projectRoot, "build/rental-"));
@@ -38,8 +40,8 @@ export async function createPhpServer({
   const config = {
     environment: "local",
     storageRoot: path.join(directory, "private"),
-    documentRoot: path.join(projectRoot, "dist"),
-    basePath: "",
+    documentRoot,
+    basePath,
     bridgePath: "/bridge.php",
     keys: { primary: secret },
     contactUrl: "",
@@ -78,7 +80,7 @@ export async function createPhpServer({
   let initialization = "";
   init.stderr.on(
     "data",
-    /** @brief 初期化失敗だけを保存する。 */ (data) => {
+    /** @brief 初期化失敗だけを保存する */ (data) => {
       initialization += data;
     },
   );
@@ -105,20 +107,24 @@ export async function createPhpServer({
   let logs = "";
   child.stderr.on(
     "data",
-    /** @brief PHPプロセスログを保存する。 */ (data) => {
+    /** @brief PHPプロセスログを保存する */ (data) => {
       logs += data;
     },
   );
   const origin = `http://127.0.0.1:${port}`;
   for (let attempt = 0; attempt < 100; attempt++) {
     try {
-      if ((await fetch(`${origin}/api/public/catalogue`)).ok) break;
+      if ((await fetch(`${origin}${basePath}/api/public/catalogue`)).ok) break;
     } catch {
       /* 起動待ち。 */
     }
-    if (attempt === 99) throw new Error(`PHP startup failed: ${logs}`);
+    if (attempt === 99) {
+      child.kill();
+      await once(child, "exit");
+      throw new Error(`PHP startup failed: ${logs}`);
+    }
     await new Promise(
-      /** @brief 起動待ちを短く区切る。 */ (resolve) => setTimeout(resolve, 50),
+      /** @brief 起動待ちを短く区切る */ (resolve) => setTimeout(resolve, 50),
     );
   }
   return {
@@ -126,7 +132,7 @@ export async function createPhpServer({
     secret,
     directory,
     config,
-    /** @brief 同じ私有設定で運用CLIを検証する。 @param {string} script scripts内の名前。 @param {string[]} extra 引数。 @returns CLI結果。 */
+    /** @brief 同じ私有設定で運用CLIを検証する @param {string} script scripts内の名前 @param {string[]} extra 引数 @returns CLI結果 */
     async cli(script, extra = []) {
       const command = spawn(
         php,
@@ -141,13 +147,13 @@ export async function createPhpServer({
         error = "";
       command.stdout.on(
         "data",
-        /** @brief JSON結果を保存する。 */ (data) => {
+        /** @brief JSON結果を保存する */ (data) => {
           output += data;
         },
       );
       command.stderr.on(
         "data",
-        /** @brief 検証失敗を保存する。 */ (data) => {
+        /** @brief 検証失敗を保存する */ (data) => {
           error += data;
         },
       );
@@ -155,14 +161,14 @@ export async function createPhpServer({
       if (code !== 0) throw new Error(error || output);
       return JSON.parse(output);
     },
-    /** @brief ローカル限定の障害を注入する。 @param {string} fault 障害点。 */
+    /** @brief ローカル限定の障害を注入する @param {string} fault 障害点 */
     async fault(fault) {
       await writeFile(
         path.join(directory, "settings.json"),
         JSON.stringify({ ...config, fault }),
       );
     },
-    /** @brief 自分のPHPだけを停止する。 */
+    /** @brief 自分のPHPだけを停止する */
     async close() {
       child.kill();
       await once(child, "exit");
@@ -170,7 +176,7 @@ export async function createPhpServer({
     },
   };
 }
-/** @brief 実control-plane入口をworkerdへ載せ、共通D1と実PHPへ接続する。 @param {object} options 隔離設定。 @returns 統合環境。 */
+/** @brief 実control-plane入口をworkerdへ載せ、共通D1と実PHPへ接続する @param {object} options 隔離設定 @returns 統合環境 */
 export async function createRuntime({
   port,
   origin = "http://127.0.0.1:8788",
@@ -262,12 +268,14 @@ export async function createRuntime({
   )
     .split("\n")
     .filter(
-      /** @brief SQLコメントだけを除く。 */ (line) =>
+      /** @brief SQLコメントだけを除く */ (line) =>
         !line.trim().startsWith("--"),
     )
     .join("\n");
   if (process.env.MUSIC_TEST_DEBUG) console.log("D1 SQL bytes", sql.length);
   await db.exec(sql);
+  // 追加migrationも本番と同じ順序で隔離テストDBだけへ適用する
+  await db.exec(await readFile(path.join(workspaceRoot, "apps/admin-web/drizzle/0005_music_command_codes.sql"), "utf8"));
   if (process.env.MUSIC_TEST_DEBUG) console.log("D1 schema ready");
   for (const [id, login, admin] of [
     ["900001", "music-admin", 1],
@@ -284,11 +292,11 @@ export async function createRuntime({
     php,
     origin,
     sessionSecret,
-    /** @brief 実Worker APIへ配送する。 @param {...unknown} args Fetch引数。 */
+    /** @brief 実Worker APIへ配送する @param {...unknown} args Fetch引数 */
     dispatchFetch(...args) {
       return runtime.dispatchFetch(...args);
     },
-    /** @brief この試験で所有する実行環境だけを停止する。 */
+    /** @brief この試験で所有する実行環境だけを停止する */
     async dispose() {
       await runtime.dispose();
       if (ownPhp) await php.close();
@@ -296,9 +304,9 @@ export async function createRuntime({
   };
 }
 
-/** @brief テスト用SQLをWorker内の実D1 bindingで実行する。 @param {Miniflare} runtime 実行環境。 @param {string} origin 管理origin。 @returns fixture操作。 */
+/** @brief テスト用SQLをWorker内の実D1 bindingで実行する @param {Miniflare} runtime 実行環境 @param {string} origin 管理origin @returns fixture操作 */
 function testDatabase(runtime, origin) {
-  /** @brief テスト専用入口で実D1 batchを実行する。 @param {object[]} queries SQL列。 */
+  /** @brief テスト専用入口で実D1 batchを実行する @param {object[]} queries SQL列 */
   async function execute(queries) {
     const response = await runtime.dispatchFetch(`${origin}/__test/db`, {
       method: "POST",
@@ -308,36 +316,36 @@ function testDatabase(runtime, origin) {
     return response.json();
   }
   return {
-    /** @brief 1行に1文のmigrationを実D1へ適用する。 @param {string} sql migration。 */
+    /** @brief 1行に1文のmigrationを実D1へ適用する @param {string} sql migration */
     async exec(sql) {
       return execute(
         sql
           .split("\n")
           .map(/** @brief 空白を除く。 */ (line) => line.trim())
-          .filter(Boolean)
+          .filter(/** @brief コメント行はSQLとして送らない。 */ line => Boolean(line) && !line.startsWith("--"))
           .map(
-            /** @brief statementに変換する。 */ (sql) => ({ sql, values: [] }),
+            /** @brief statementに変換する */ (sql) => ({ sql, values: [] }),
           ),
       );
     },
-    /** @brief パラメーターSQLのテスト用ハンドルを作る。 @param {string} sql SQL。 */
+    /** @brief パラメーターSQLのテスト用ハンドルを作る @param {string} sql SQL */
     prepare(sql) {
       let values = [];
       const statement = {
-        /** @brief パラメーターを保持する。 @param {...unknown} args 値。 */
+        /** @brief パラメーターを保持する @param {...unknown} args 値 */
         bind(...args) {
           values = args;
           return statement;
         },
-        /** @brief 更新を実行する。 */
+        /** @brief 更新を実行する */
         async run() {
           return (await execute([{ sql, values }]))[0];
         },
-        /** @brief 読取結果を返す。 */
+        /** @brief 読取結果を返す */
         async all() {
           return statement.run();
         },
-        /** @brief 最初の行を返す。 */
+        /** @brief 最初の行を返す */
         async first() {
           return (await statement.run()).results[0] ?? null;
         },
@@ -346,7 +354,7 @@ function testDatabase(runtime, origin) {
     },
   };
 }
-/** @brief 既存control-planeの共通CookieでAPIを操作する。 @param {object} runtime 環境。 @param {string|null} account 本人。 @returns HTTPクライアント。 */
+/** @brief 既存control-planeの共通CookieでAPIを操作する @param {object} runtime 環境 @param {string|null} account 本人 @returns HTTPクライアント */
 export async function fixtureClient(runtime, account = "music-admin") {
   const origin = runtime.origin;
   let cookie = "";
@@ -357,7 +365,7 @@ export async function fixtureClient(runtime, account = "music-admin") {
     );
     cookie = login.headers.get("set-cookie")?.split(";")[0] ?? "";
   }
-  /** @brief raw本文とJSONを分離して実入口へ送る。 @param {string} route API。 @param {object} options HTTP入力。 */
+  /** @brief raw本文とJSONを分離して実入口へ送る @param {string} route API @param {object} options HTTP入力 */
   async function request(
     route,
     { method = "GET", body, bytes, headers = {} } = {},
@@ -382,7 +390,7 @@ export async function fixtureClient(runtime, account = "music-admin") {
       },
     );
   }
-  /** @brief 成功以外のHTTP応答で試験を失敗させる。 @param {string} route API。 @param {object} options 入力。 */
+  /** @brief 成功以外のHTTP応答で試験を失敗させる @param {string} route API @param {object} options 入力 */
   async function json(route, options = {}) {
     const response = await request(route, options);
     const value = await response.json();
@@ -390,7 +398,7 @@ export async function fixtureClient(runtime, account = "music-admin") {
       throw new Error(`${response.status}: ${JSON.stringify(value)}`);
     return value;
   }
-  /** @brief 本番と同じ2段階ストリーム投稿を実行する。 @param {string} gameId 作品。 @param {string} kind 用途。 @param {Buffer} bytes 原本。 @param {string} mime 形式。 */
+  /** @brief 本番と同じ2段階ストリーム投稿を実行する @param {string} gameId 作品 @param {string} kind 用途 @param {Buffer} bytes 原本 @param {string} mime 形式 */
   async function upload(
     gameId,
     kind,

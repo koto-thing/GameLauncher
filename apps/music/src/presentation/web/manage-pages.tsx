@@ -1,4 +1,10 @@
-import { useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type FormEvent,
+} from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type {
   Account,
@@ -43,7 +49,7 @@ interface ManagedGame {
   members: string[];
 }
 
-/** @brief 投稿者ログインと担当作品・運営機能への入口を表示する。 */
+/** @brief 投稿者ログインと担当作品・運営機能への入口を表示する */
 export function ManagePage() {
   const { session, config, refresh } = useSite();
   const task = useEditorTask();
@@ -83,9 +89,9 @@ export function ManagePage() {
         <button
           disabled={task.busy}
           onClick={
-            /** @brief セッションを明示的に無効化する。 */ () => {
+            /** @brief セッションを明示的に無効化する */ () => {
               void task.run(
-                async () => /** @brief ログアウト後に公開状態へ戻す。 */ {
+                async () => /** @brief ログアウト後に公開状態へ戻す */ {
                   await api("/auth/logout", {
                     method: "POST",
                     csrf: session.csrf,
@@ -106,11 +112,13 @@ export function ManagePage() {
     </>
   );
 }
-/** @brief 既存control-planeのローカルログインだけを利用する。 */
+
+/** @brief 既存control-planeのローカルログインだけを利用する */
 function LocalLogin({ onDone: _onDone }: { onDone(): Promise<void> }) {
-  return <div className="local-login"><h2>ローカル検証専用ログイン</h2>{["music-admin","music-a","music-b","outsider","admin"].map(/** @brief 固定fixtureを選ぶ。 */ account => <a className="button" key={account} href={`/api/auth/dev?as=${account}`}>{account}</a>)}</div>;
+  return <div className="local-login"><h2>ローカル検証専用ログイン</h2>{["music-admin","music-a","music-b","outsider","admin"].map(/** @brief 固定fixtureを選ぶ */ account => <a className="button" key={account} href={`/api/auth/dev?as=${account}`}>{account}</a>)}</div>;
 }
-/** @brief 現在割り当てられた作品だけを表示する。 */
+
+/** @brief 現在割り当てられた作品だけを表示する */
 function ManagedGameList() {
   const { data, error, reload } = useRemote<Game[]>("/manage/games");
   return (
@@ -120,7 +128,7 @@ function ManagedGameList() {
           {error}
           <button
             onClick={
-              /** @brief 権限変更後も一覧を再取得する。 */ () => {
+              /** @brief 権限変更後も一覧を再取得する */ () => {
                 void reload();
               }
             }
@@ -137,7 +145,7 @@ function ManagedGameList() {
       )}
       <div className="manage-list">
         {data?.map(
-          /** @brief 下書き・公開停止を明確に表示する。 */ (game) => (
+          /** @brief 下書き・公開停止を明確に表示する */ (game) => (
             <Link key={game.id} to={`/manage/games/${game.id}`}>
               <strong>{game.draft.title}</strong>
               <span>
@@ -154,17 +162,18 @@ function ManagedGameList() {
     </section>
   );
 }
-/** @brief 作品作成・広告と履歴をMusic運営だけに表示する。 */
+
+/** @brief 作品作成・広告と履歴をMusic運営だけに表示する */
 function AdminPanel() {
   const navigate = useNavigate();
   const { session, config } = useSite();
   const { data, error, reload } = useRemote<AdminSettings>("/admin/settings");
   const task = useEditorTask();
   const [title, setTitle] = useState("");
-  /** @brief 空作品を作成して担当者の割り当て可能な状態にする。 */
+  /** @brief 空作品を作成して担当者の割り当て可能な状態にする */
   function create(event: FormEvent): void {
     event.preventDefault();
-    void task.run(async () => /** @brief 作成完了を一覧へ反映する。 */ {
+    void task.run(async () => /** @brief 作成完了を一覧へ反映する */ {
       const game = await api<Game>("/manage/games", {
         method: "POST",
         csrf: session!.csrf,
@@ -183,7 +192,7 @@ function AdminPanel() {
           <input
             value={title}
             onChange={
-              /** @brief 新作品の名前を入力する。 */ (event) =>
+              /** @brief 新作品の名前を入力する */ (event) =>
                 setTitle(event.target.value)
             }
             required
@@ -202,7 +211,7 @@ function AdminPanel() {
           </p>
           <ul className="account-list">
             {data.accounts.map(
-              /** @brief 名前だけでなく安定IDを併記する。 */ (account) => (
+              /** @brief 名前だけでなく安定IDを併記する */ (account) => (
                 <li key={account.id}>
                   <span>
                     {account.login} <small>ID {account.id}</small>
@@ -222,7 +231,7 @@ function AdminPanel() {
           <h3>最近の更新履歴</h3>
           <div className="audit-list">
             {data.audit.map(
-              /** @brief 内部履歴は運営画面内だけに表示する。 */ (entry) => (
+              /** @brief 内部履歴は運営画面内だけに表示する */ (entry) => (
                 <p key={entry.id}>
                   <time>{new Date(entry.at).toLocaleString("ja-JP")}</time>{" "}
                   <strong>{entry.action}</strong>
@@ -239,7 +248,8 @@ function AdminPanel() {
     </section>
   );
 }
-/** @brief バナー素材は既存の作品アップロードから選び任意コードを実行させない。 */
+
+/** @brief バナー素材は既存の作品アップロードから選び任意コードを実行させない */
 function AdvertisementEditor({
   initial,
   onSaved,
@@ -251,10 +261,10 @@ function AdvertisementEditor({
   const [ad, setAd] = useState(initial);
   const task = useEditorTask();
   useUnsaved(JSON.stringify(ad) !== JSON.stringify(initial));
-  /** @brief バナー設定を原子的に保存する。 */
+  /** @brief バナー設定を原子的に保存する */
   function save(event: FormEvent): void {
     event.preventDefault();
-    void task.run(async () => /** @brief 保存後に最新versionを取り直す。 */ {
+    void task.run(async () => /** @brief 保存後に最新versionを取り直す */ {
       await api("/admin/advertisement", {
         method: "PUT",
         csrf: session!.csrf,
@@ -274,7 +284,7 @@ function AdvertisementEditor({
           type="checkbox"
           checked={ad.enabled}
           onChange={
-            /** @brief 広告表示の有効・無効を選ぶ。 */ (event) =>
+            /** @brief 広告表示の有効・無効を選ぶ */ (event) =>
               setAd({ ...ad, enabled: event.target.checked })
           }
         />
@@ -284,7 +294,7 @@ function AdvertisementEditor({
         <input
           value={ad.imageAssetId ?? ""}
           onChange={
-            /** @brief 画像の検証はAPIでも実施する。 */ (event) =>
+            /** @brief 画像の検証はAPIでも実施する */ (event) =>
               setAd({ ...ad, imageAssetId: event.target.value || null })
           }
         />
@@ -294,7 +304,7 @@ function AdvertisementEditor({
           type="url"
           value={ad.href}
           onChange={
-            /** @brief 安全なリンクを入力する。 */ (event) =>
+            /** @brief 安全なリンクを入力する */ (event) =>
               setAd({ ...ad, href: event.target.value })
           }
         />
@@ -304,7 +314,7 @@ function AdvertisementEditor({
           maxLength={config?.policy.text.imageAltMax}
           value={ad.alt}
           onChange={
-            /** @brief 広告の意味をテキストでも説明する。 */ (event) =>
+            /** @brief 広告の意味をテキストでも説明する */ (event) =>
               setAd({ ...ad, alt: event.target.value })
           }
         />
@@ -314,7 +324,8 @@ function AdvertisementEditor({
     </form>
   );
 }
-/** @brief 作品・曲一覧を現在の権限で読み込む。 */
+
+/** @brief 作品・曲一覧を現在の権限で読み込む */
 export function GameEditorPage() {
   const { id } = useParams();
   const remote = useRemote<ManagedGame>(`/manage/games/${id}`);
@@ -340,7 +351,8 @@ export function GameEditorPage() {
     </>
   );
 }
-/** @brief 作品下書きと公開操作、逐次一括曲登録を分けて扱う。 */
+
+/** @brief 作品下書きと公開操作、逐次一括曲登録を分けて扱う */
 function GameEditor({
   initial,
   onSaved,
@@ -353,14 +365,53 @@ function GameEditor({
   const [title, setTitle] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
   const [batch, setBatch] = useState<string[]>([]);
+  const [tracks, setTracks] = useState(initial.tracks);
+  const tracksRef = useRef(initial.tracks);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
   const task = useEditorTask();
   const game = initial.game;
   const dirty = JSON.stringify(draft) !== JSON.stringify(game.draft);
+  useEffect(
+    /** @brief 再取得した曲順で表示と保存対象を同期する */ () => {
+      tracksRef.current = initial.tracks;
+      setTracks(initial.tracks);
+    },
+    [initial.tracks],
+  );
   useUnsaved(dirty);
-  /** @brief 保存と公開は別操作にし公開版を保持する。 */
+  /** @brief ドラッグ中の曲を対象位置へ移動して即時に見た目へ反映する */
+  function moveTrack(targetId: string): void {
+    if (!draggedId || draggedId === targetId) return;
+    setTracks((current) => {
+      const from = current.findIndex((track) => track.id === draggedId);
+      const to = current.findIndex((track) => track.id === targetId);
+      if (from < 0 || to < 0) return current;
+      const next = [...current];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      tracksRef.current = next;
+      return next;
+    });
+  }
+  /** @brief 確定した全曲順を一括保存する */
+  function saveTrackOrder(): void {
+    setDraggedId(null);
+    void task.run(
+      async () => {
+        await api(`/manage/games/${game.id}/tracks/order`, {
+          method: "PUT",
+          body: { trackIds: tracksRef.current.map((track) => track.id) },
+          csrf: session!.csrf,
+        });
+        await onSaved();
+      },
+      "曲順を保存しました。公開版には次回の公開時に反映されます。",
+    );
+  }
+  /** @brief 保存と公開は別操作にし公開版を保持する */
   function save(event: FormEvent): void {
     event.preventDefault();
-    void task.run(async () => /** @brief 最新versionへ切り替える。 */ {
+    void task.run(async () => /** @brief 最新versionへ切り替える */ {
       await api(`/manage/games/${game.id}`, {
         method: "PUT",
         body: { draft, version: game.version },
@@ -369,10 +420,10 @@ function GameEditor({
       await onSaved();
     });
   }
-  /** @brief 保存済みの作品情報だけを公開・取り下げする。 */
+  /** @brief 保存済みの作品情報だけを公開・取り下げする */
   function publish(value: boolean): void {
     void task.run(
-      async () => /** @brief 原子的公開後に一般一覧も更新する。 */ {
+      async () => /** @brief 原子的公開後に一般一覧も更新する */ {
         await api(`/manage/games/${game.id}/publication`, {
           method: "POST",
           body: { publish: value, version: game.version },
@@ -384,11 +435,11 @@ function GameEditor({
       value ? "作品を公開しました。" : "作品を非公開にしました。",
     );
   }
-  /** @brief 画像アップロードは公開せず下書き参照に追加する。 */
+  /** @brief 画像アップロードは公開せず下書き参照に追加する */
   function image(file?: File, background = false): void {
     if (!file) return;
     void task.run(
-      async () => /** @brief 進捗と検証後の素材IDを取得する。 */ {
+      async () => /** @brief 進捗と検証後の素材IDを取得する */ {
         setProgress(0);
         const asset = await uploadFile<Asset>(
           game.id,
@@ -417,11 +468,11 @@ function GameEditor({
         : "画像を登録しました。代替テキストを入力して下書きを保存してください。",
     );
   }
-  /** @brief 複数ファイルを1件ずつ下書き登録し、個別の成否を残す。 */
+  /** @brief 複数ファイルを1件ずつ下書き登録し、個別の成否を残す */
   function uploadBatch(files: FileList | null): void {
     if (!files?.length) return;
     void task.run(
-      async () => /** @brief 並列アップロードと自動公開を避ける。 */ {
+      async () => /** @brief 並列アップロードと自動公開を避ける */ {
         const results: string[] = [];
         for (const file of Array.from(files)) {
           try {
@@ -486,7 +537,7 @@ function GameEditor({
                 maxLength={config?.policy.text.titleMax}
                 value={draft.title}
                 onChange={
-                  /** @brief 作品名の下書きだけを変更する。 */ (event) =>
+                  /** @brief 作品名の下書きだけを変更する */ (event) =>
                     setDraft({ ...draft, title: event.target.value })
                 }
               />
@@ -496,7 +547,7 @@ function GameEditor({
                 maxLength={config?.policy.text.descriptionMax}
                 value={draft.description}
                 onChange={
-                  /** @brief 紹介の改行を維持する。 */ (event) =>
+                  /** @brief 紹介の改行を維持する */ (event) =>
                     setDraft({ ...draft, description: event.target.value })
                 }
               />
@@ -506,7 +557,7 @@ function GameEditor({
                 type="url"
                 value={draft.externalUrl}
                 onChange={
-                  /** @brief 任意リンクを保存する。 */ (event) =>
+                  /** @brief 任意リンクを保存する */ (event) =>
                     setDraft({ ...draft, externalUrl: event.target.value })
                 }
               />
@@ -516,7 +567,7 @@ function GameEditor({
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={
-                  /** @brief 画像を1件ずつ登録する。 */ (event) =>
+                  /** @brief 画像を1件ずつ登録する */ (event) =>
                     image(event.target.files?.[0])
                 }
               />
@@ -530,7 +581,7 @@ function GameEditor({
                 maxLength={config?.policy.text.imageAltMax}
                 value={draft.imageAlt}
                 onChange={
-                  /** @brief 見えない利用者にも情景を伝える。 */ (event) =>
+                  /** @brief 見えない利用者にも情景を伝える */ (event) =>
                     setDraft({ ...draft, imageAlt: event.target.value })
                 }
               />
@@ -541,7 +592,7 @@ function GameEditor({
                 <button
                   type="button"
                   onClick={
-                    /** @brief 素材本体は削除せず下書き参照だけを外す。 */ () =>
+                    /** @brief 素材本体は削除せず下書き参照だけを外す */ () =>
                       setDraft({ ...draft, imageAssetId: null })
                   }
                 >
@@ -552,12 +603,12 @@ function GameEditor({
             <GameDesignEditor
               value={draft.design}
               onChange={
-                /** @brief デザインも公開版から独立した下書きに保持する。 */ (
+                /** @brief デザインも公開版から独立した下書きに保持する */ (
                   design,
                 ) => setDraft({ ...draft, design })
               }
               onUpload={
-                /** @brief 背景画像にも通常画像と同じ検証と作品認可を使う。 */ (
+                /** @brief 背景画像にも通常画像と同じ検証と作品認可を使う */ (
                   file,
                 ) => image(file, true)
               }
@@ -568,7 +619,7 @@ function GameEditor({
                 type="checkbox"
                 checked={draft.rightsConfirmed}
                 onChange={
-                  /** @brief 担当者自身の確認として記録する。 */ (event) =>
+                  /** @brief 担当者自身の確認として記録する */ (event) =>
                     setDraft({
                       ...draft,
                       rightsConfirmed: event.target.checked,
@@ -601,14 +652,14 @@ function GameEditor({
             <button
               className="primary"
               disabled={task.busy || dirty || game.suspended}
-              onClick={/** @brief 保存後だけ公開できる。 */ () => publish(true)}
+            onClick={/** @brief 保存後だけ公開できる */ () => publish(true)}
             >
               {game.published ? "作品の更新を反映" : "作品を公開"}
             </button>
             <button
               disabled={task.busy || dirty || !game.published}
               onClick={
-                /** @brief 新しい一般アクセスを停止する。 */ () =>
+                /** @brief 新しい一般アクセスを停止する */ () =>
                   publish(false)
               }
             >
@@ -628,17 +679,51 @@ function GameEditor({
       <section>
         <div className="section-heading">
           <h2>収録曲の編集</h2>
-          <span>{initial.tracks.length} 曲</span>
+          <span>{tracks.length} 曲</span>
         </div>
-        <div className="manage-list">
-          {initial.tracks.map(
-            /** @brief 曲順は数値編集でも操作できる入口を作る。 */ (track) => (
-              <Link key={track.id} to={`/manage/tracks/${track.id}`}>
-                <strong>
-                  {track.position}. {track.draft.title}
-                </strong>
-                <span>{track.published ? "公開版あり" : "下書き"} →</span>
-              </Link>
+        <p className="hint">ハンドルをドラッグして曲順を変更できます。</p>
+        <div className="manage-list track-order-list">
+          {tracks.map(
+            /** @brief ハンドルから曲順をドラッグ操作する */ (track, index) => (
+              <div
+                key={track.id}
+                className={draggedId === track.id ? "dragging" : ""}
+                onDragOver={
+                  /** @brief ドロップ対象として受け付ける */ (event: DragEvent) =>
+                    event.preventDefault()
+                }
+                onDragEnter={
+                  /** @brief 通過した行へドラッグ中の曲を移す */ () =>
+                    moveTrack(track.id)
+                }
+                onDrop={/** @brief 現在の表示順を保存する */ (event: DragEvent) => {
+                  event.preventDefault();
+                  saveTrackOrder();
+                }}
+              >
+                <button
+                  type="button"
+                  className="drag-handle"
+                  draggable={!task.busy}
+                  aria-label={`${track.draft.title}を並び替え`}
+                  onDragStart={/** @brief 並び替え対象を記録する */ (event) => {
+                    setDraggedId(track.id);
+                    event.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragEnd={
+                    /** @brief ドロップ外で終了した状態も解除する */ () =>
+                      setDraggedId(null)
+                  }
+                >
+                  ⠿
+                </button>
+                <Link to={`/manage/tracks/${track.id}`}>
+                  <strong>
+                    {index + 1}. {track.draft.title}
+                  </strong>
+                  <span>{track.published ? "公開版あり" : "下書き"} →</span>
+                </Link>
+              </div>
             ),
           )}
         </div>
@@ -648,7 +733,7 @@ function GameEditor({
               value={title}
               maxLength={config?.policy.text.titleMax}
               onChange={
-                /** @brief 新曲の初期名を入力する。 */ (event) =>
+                /** @brief 新曲の初期名を入力する */ (event) =>
                   setTitle(event.target.value)
               }
             />
@@ -656,9 +741,9 @@ function GameEditor({
           <button
             disabled={task.busy || !title.trim() || dirty}
             onClick={
-              /** @brief 未保存作品を破棄せず曲の下書きを追加する。 */ () => {
+              /** @brief 未保存作品を破棄せず曲の下書きを追加する */ () => {
                 void task.run(
-                  async () => /** @brief 追加後の一覧を取得する。 */ {
+                  async () => /** @brief 追加後の一覧を取得する */ {
                     await api(`/manage/games/${game.id}/tracks`, {
                       method: "POST",
                       body: { title },
@@ -684,14 +769,14 @@ function GameEditor({
             accept=".mp3,.wav"
             disabled={task.busy || dirty}
             onChange={
-              /** @brief 一括処理は逐次実行へ渡す。 */ (event) =>
+              /** @brief 一括処理は逐次実行へ渡す */ (event) =>
                 uploadBatch(event.target.files)
             }
           />
         </Field>
         <ul>
           {batch.map(
-            /** @brief 部分成功と失敗を明記する。 */ (message, index) => (
+            /** @brief 部分成功と失敗を明記する */ (message, index) => (
               <li key={index}>{message}</li>
             ),
           )}
@@ -708,7 +793,8 @@ function GameEditor({
     </>
   );
 }
-/** @brief 担当者割り当てと運営停止を作品単位で実施する。 */
+
+/** @brief 担当者割り当てと運営停止を作品単位で実施する */
 function GameOperations({
   game,
   members,
@@ -733,12 +819,12 @@ function GameOperations({
       <form
         className="inline-form"
         onSubmit={
-          /** @brief 未ログインの担当者もGitHub本人IDを検証して割り当てる。 */ (
+          /** @brief 未ログインの担当者もGitHub本人IDを検証して割り当てる */ (
             event,
           ) => {
             event.preventDefault();
             void task.run(
-              async () => /** @brief 付与後に担当一覧を更新する。 */ {
+              async () => /** @brief 付与後に担当一覧を更新する */ {
                 await api(
                   `/admin/games/${game.id}/members/${accountId.trim()}`,
                   {
@@ -764,7 +850,7 @@ function GameOperations({
             value={accountId}
             placeholder="例：12345678"
             onChange={
-              /** @brief ユーザー名でなく数値IDを入力する。 */ (event) =>
+              /** @brief ユーザー名でなく数値IDを入力する */ (event) =>
                 setAccountId(event.target.value)
             }
           />
@@ -778,7 +864,7 @@ function GameOperations({
       </form>
       <ul className="account-list">
         {data?.accounts.map(
-          /** @brief 現在の所属をサーバーの結果から表示する。 */ (account) => (
+          /** @brief 現在の所属をサーバーの結果から表示する */ (account) => (
             <li key={account.id}>
               <span>
                 {account.login} <small>ID {account.id}</small>
@@ -786,9 +872,9 @@ function GameOperations({
               <button
                 disabled={task.busy || disabled}
                 onClick={
-                  /** @brief 割り当て・解除を即時適用する。 */ () => {
+                  /** @brief 割り当て・解除を即時適用する */ () => {
                     void task.run(
-                      async () => /** @brief 運営認可付きAPIで担当を変更する。 */ {
+                      async () => /** @brief 運営認可付きAPIで担当を変更する */ {
                         await api(
                           `/admin/games/${game.id}/members/${account.id}`,
                           {
@@ -813,9 +899,9 @@ function GameOperations({
         disabled={task.busy || disabled}
         className="danger"
         onClick={
-          /** @brief 作品全体の公開入口を緊急停止する。 */ () => {
+          /** @brief 作品全体の公開入口を緊急停止する */ () => {
             void task.run(
-              async () => /** @brief 停止状態を公開カタログにも反映する。 */ {
+              async () => /** @brief 停止状態を公開カタログにも反映する */ {
                 await api(`/admin/games/${game.id}/suspension`, {
                   method: "PUT",
                   body: { suspended: !game.suspended, version: game.version },

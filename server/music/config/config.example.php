@@ -7,5 +7,5 @@ return [
     'basePath' => '',
     'bridgePath' => '/bridge.php',
     'keys' => ['primary' => 'REPLACE_WITH_A_SEPARATE_RANDOM_SECRET_AT_LEAST_32_BYTES'],
-    'contactUrl' => '',
+    'contactUrl' => 'mailto:panddmail@gmail.com',
 ];

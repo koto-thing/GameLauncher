@@ -1,6 +1,6 @@
 import type { SiteConfig } from "./src/config.ts";
 
-// This file is the only source of product text, media URLs and download destinations.
+// 商品文言・メディアURL・配布先をこのファイルだけで管理する
 export default {
   title: "Play and Discover",
   tagline: "遊び心が、動き出す。",
@@ -13,14 +13,14 @@ export default {
   downloads: {
     windows: {
       status: "available",
-      // Verified public, non-prerelease asset on 2026-09-06. Update only after verification.
+      // 2026-09-06に検証済みの公開・非プレリリース素材で、検証後だけ更新する
       url: "https://github.com/koto-thing/GameLauncher-Releases/releases/download/v1.0.5/PandD-Game-Launcher-Online-Installer.exe",
       detail: "x86_64",
     },
     macos: { status: "comingSoon", url: null },
     linux: {
       status: "available",
-      // Verified public, non-prerelease asset on 2026-09-06.
+      // 2026-09-06に検証済みの公開・非プレリリース素材
       url: "https://github.com/koto-thing/GameLauncher/releases/download/v1.1.0/PandD-Game-Launcher-Online-Installer",
       detail: "x86_64",
     },

@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-/** @brief 公開静的物へ管理コード・認証・外部APIを混ぜない。 @param {string} dir 公開出力。 @returns 検査完了。 */
+/** @brief 公開静的物へ管理コード・認証・外部APIを混ぜない @param {string} dir 公開出力 @returns 検査完了 */
 async function inspect(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const file = path.join(dir, entry.name);

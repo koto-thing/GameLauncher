@@ -18,6 +18,7 @@ function rotr(x: number, n: number): number {
   return (x >>> n) | (x << (32 - n));
 }
 
+/** 大きなファイルを固定メモリ量で処理するSHA-256ハッシャー */
 export class Sha256Hasher {
   private h = new Uint32Array([
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,

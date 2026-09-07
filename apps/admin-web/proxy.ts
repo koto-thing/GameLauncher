@@ -3,9 +3,14 @@ import { buildContentSecurityPolicy } from "./lib/csp.ts";
 
 export { buildContentSecurityPolicy };
 
+/**
+ * 管理画面とAPIレスポンスへ共通のセキュリティヘッダーを付与する
+ * @param request Next.jsから渡される受信リクエスト
+ * @returns セキュリティヘッダーを設定した次のレスポンス
+ */
 export function proxy(request: NextRequest) {
   const response = NextResponse.next();
-  response.headers.set("Content-Security-Policy", buildContentSecurityPolicy());
+  response.headers.set("Content-Security-Policy", buildContentSecurityPolicy(undefined, request.nextUrl.pathname));
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
@@ -20,6 +25,7 @@ export function proxy(request: NextRequest) {
   return response;
 }
 
+// 全パスでproxyを実行し、APIだけキャッシュ無効化を追加する
 export const proxyConfig = {
   matcher: ["/:path*"],
 };

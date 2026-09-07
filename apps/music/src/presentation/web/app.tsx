@@ -8,17 +8,17 @@ import { publicApi as api, publicAssetUrl } from "./public-client";
 import { MiniPlayer } from "./components";
 import { ThemeToggle } from "./theme-toggle";
 
-/** @brief ルート遷移で破棄されないプレーヤーとサイトの共通枠を提供する。 */
+/** @brief ルート遷移で破棄されないプレーヤーとサイトの共通枠を提供する */
 export function App({ player }: { player: Player }) {
   const [notice, setNotice] = useState("");
   useEffect(
-    /** @brief 保存後のリビジョン切替で編集コンポーネントが再作成されても結果を保持する。 */ () => {
-      /** @brief 保存完了を共通枠へ表示する。 */
+    /** @brief 保存後のリビジョン切替で編集コンポーネントが再作成されても結果を保持する */ () => {
+      /** @brief 保存完了を共通枠へ表示する */
       function onNotice(event: Event): void {
         setNotice((event as CustomEvent<string>).detail);
       }
       window.addEventListener("music-notice", onNotice);
-      return /** @brief アプリ終了時に購読を外す。 */ () =>
+      return /** @brief アプリ終了時に購読を外す */ () =>
         window.removeEventListener("music-notice", onNotice);
     },
     [],
@@ -29,7 +29,7 @@ export function App({ player }: { player: Player }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const refresh = useCallback(
-    /** @brief 作品公開後も同じプレーヤーを保持したまま一覧を更新する。 */ async () => {
+    /** @brief 作品公開後も同じプレーヤーを保持したまま一覧を更新する */ async () => {
       try {
         const [games, settings] = await Promise.all([api<PublicGame[]>("/public/catalogue"), api<SiteConfig>("/public/config")]);
         setCatalogue(games);
@@ -48,7 +48,7 @@ export function App({ player }: { player: Player }) {
     [],
   );
   useEffect(
-    /** @brief 初回URLを開いただけでは再生を開始しない。 */ () => {
+    /** @brief 初回URLを開いただけでは再生を開始しない */ () => {
       void refresh();
     },
     [refresh],
@@ -72,6 +72,7 @@ export function App({ player }: { player: Player }) {
             ライブラリ
           </NavLink>
           <NavLink to="/about">このサイトについて</NavLink>
+          <NavLink to="/scan">コードを読み取る</NavLink>
 
         </nav>
         <ThemeToggle />
@@ -87,7 +88,7 @@ export function App({ player }: { player: Player }) {
             {error}
             <button
               onClick={
-                /** @brief 通信を再試行する。 */ () => {
+                /** @brief 通信を再試行する */ () => {
                   void refresh();
                 }
               }
@@ -109,7 +110,7 @@ export function App({ player }: { player: Player }) {
           {notice}
           <button
             aria-label="通知を閉じる"
-            onClick={/** @brief 確認済みの通知を閉じる。 */ () => setNotice("")}
+            onClick={/** @brief 確認済みの通知を閉じる */ () => setNotice("")}
           >
             ×
           </button>

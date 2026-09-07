@@ -2,7 +2,7 @@ import { cp, mkdir, mkdtemp, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
 
-// 配布は準備だけ。FTP・SSH・DNS・本番書込は行わない。
+// 配布は準備だけFTP・SSH・DNS・本番書込は行わない
 await import("./check-build.mjs");
 await mkdir("build", { recursive: true });
 const destination = await mkdtemp(path.resolve("build/rental-package-"));

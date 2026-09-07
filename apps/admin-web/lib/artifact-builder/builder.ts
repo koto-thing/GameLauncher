@@ -23,6 +23,7 @@ import {
   type ZipEntrySource,
 } from "./zip-builder.ts";
 
+/** ブラウザ上のArtifact生成へ渡すキャンセル・進捗通知 */
 export type BuildArtifactOptions = {
   onProgress?: (progress: ArtifactBuildProgress) => void;
   signal?: AbortSignal;

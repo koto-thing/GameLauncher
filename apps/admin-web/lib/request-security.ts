@@ -1,3 +1,7 @@
+/**
+ * OriginとSec-Fetch-Siteを確認し、外部サイトからの書き込みを拒否する
+ * @param request 検証対象のHTTPリクエスト
+ */
 export function assertSameOrigin(request: Request): void {
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
@@ -9,6 +13,10 @@ export function assertSameOrigin(request: Request): void {
   }
 }
 
+/**
+ * ブラウザ由来の同一Origin書き込みであることを必須にする
+ * @param request 検証対象のHTTPリクエスト
+ */
 export function assertBrowserWrite(request: Request): void {
   const origin = request.headers.get("origin");
   if (!origin || origin !== new URL(request.url).origin) {

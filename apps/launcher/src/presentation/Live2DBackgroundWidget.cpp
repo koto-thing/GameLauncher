@@ -15,6 +15,7 @@
 #include <algorithm>
 
 namespace pandd {
+/** @brief Live2D背景widgetを初期化する */
 Live2DBackgroundWidget::Live2DBackgroundWidget(QWidget* parent) : QOpenGLWidget(parent) {
     // Cubismが対応するOpenGL互換profileとdepthおよびstencil bufferを要求する
     QSurfaceFormat format;
@@ -33,6 +34,7 @@ Live2DBackgroundWidget::Live2DBackgroundWidget(QWidget* parent) : QOpenGLWidget(
     qApp->installEventFilter(this);
 }
 
+/** @brief 非同期読込を停止してOpenGL資源を解放する */
 Live2DBackgroundWidget::~Live2DBackgroundWidget() {
     // 実行中workerへ取消を通知してcontext破棄callbackを解除する
     if (canceled_) {
@@ -44,6 +46,7 @@ Live2DBackgroundWidget::~Live2DBackgroundWidget() {
     releaseGraphics();
 }
 
+/** @brief ヒーロー画像を設定して表示を更新する */
 void Live2DBackgroundWidget::setHero(const QPixmap& hero) {
     hero_ = hero;
     scaledHero_ = {};
@@ -51,14 +54,20 @@ void Live2DBackgroundWidget::setHero(const QPixmap& hero) {
     update();
 }
 
-void Live2DBackgroundWidget::clearHero() { setHero({}); }
+/** @brief ヒーロー画像を解除する */
+void Live2DBackgroundWidget::clearHero() {
+    // 空画像を設定して前の画像を解除する
+    setHero({});
+}
 
+/** @brief ヒーロー画像の切り抜き焦点を設定する */
 void Live2DBackgroundWidget::setFocalPoint(double x, double y) {
     focalX_ = std::clamp(x, 0.0, 1.0);
     focalY_ = std::clamp(y, 0.0, 1.0);
     update();
 }
 
+/** @brief 選択モデルを変更して必要なら非同期読込を開始する */
 void Live2DBackgroundWidget::setModel(std::optional<Live2DAsset> asset) {
     if (asset_ == asset) {
         return;
@@ -83,14 +92,25 @@ void Live2DBackgroundWidget::setModel(std::optional<Live2DAsset> asset) {
     update();
 }
 
+/** @brief ゲーム実行状態に応じて背景更新を切り替える */
 void Live2DBackgroundWidget::setGameRunning(bool running) {
     gameRunning_ = running;
     refreshAnimation();
 }
 
-bool Live2DBackgroundWidget::animationRunning() const { return timer_.isActive(); }
-bool Live2DBackgroundWidget::modelLoaded() const { return model_ != nullptr; }
+/** @brief 背景animationが動作中かを返す */
+bool Live2DBackgroundWidget::animationRunning() const {
+    // timerの動作状態を返す
+    return timer_.isActive();
+}
 
+/** @brief Live2D modelがGPUへ読込済みかを返す */
+bool Live2DBackgroundWidget::modelLoaded() const {
+    // modelの所有状態を返す
+    return model_ != nullptr;
+}
+
+/** @brief OpenGL context初期化後に保留中のmodel読込を開始する */
 void Live2DBackgroundWidget::initializeGL() {
     graphicsReady_ = true;
     connect(context(), &QOpenGLContext::aboutToBeDestroyed, this,
@@ -98,6 +118,7 @@ void Live2DBackgroundWidget::initializeGL() {
     startModelLoad();
 }
 
+/** @brief current context上のmodel資源を解放する */
 void Live2DBackgroundWidget::releaseGraphics() {
     timer_.stop();
     clock_.invalidate();
@@ -111,6 +132,7 @@ void Live2DBackgroundWidget::releaseGraphics() {
 
 // QObject parent ownership and the finished callback jointly manage each watcher lifetime.
 // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks)
+/** @brief CPU側のmodel準備処理をworkerへ投入する */
 void Live2DBackgroundWidget::startModelLoad() {
     if (!asset_ || prepared_ || loading_ || model_) {
         return;
@@ -141,6 +163,7 @@ void Live2DBackgroundWidget::startModelLoad() {
 }
 // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
+/** @brief 準備済みmodel dataをcurrent contextへ読み込む */
 void Live2DBackgroundWidget::loadPendingModel() {
     if (!prepared_ || !asset_) {
         return;
@@ -176,6 +199,7 @@ void Live2DBackgroundWidget::loadPendingModel() {
         Qt::QueuedConnection);
 }
 
+/** @brief ヒーロー画像とLive2D modelと陰影を描画する */
 void Live2DBackgroundWidget::paintGL() {
     // CPU側で準備済みの選択モデルを描画開始前にGPUへ転送する
     loadPendingModel();
@@ -222,6 +246,7 @@ void Live2DBackgroundWidget::paintGL() {
     painter.fillRect(rect(), gradient);
 }
 
+/** @brief 可視性とゲーム実行状態からanimationを更新する */
 void Live2DBackgroundWidget::refreshAnimation() {
     const bool run = graphicsReady_ && model_ && isVisible() && window()->isVisible() &&
                      !window()->isMinimized() && !gameRunning_;
@@ -237,6 +262,7 @@ void Live2DBackgroundWidget::refreshAnimation() {
     }
 }
 
+/** @brief widget表示時にanimation状態を更新する */
 void Live2DBackgroundWidget::showEvent(QShowEvent* event) {
     QOpenGLWidget::showEvent(event);
     refreshAnimation();
@@ -247,12 +273,14 @@ void Live2DBackgroundWidget::showEvent(QShowEvent* event) {
     });
 }
 
+/** @brief widget非表示時にanimationを停止する */
 void Live2DBackgroundWidget::hideEvent(QHideEvent* event) {
     QOpenGLWidget::hideEvent(event);
     timer_.stop();
     clock_.invalidate();
 }
 
+/** @brief 親windowの表示状態変化をanimationへ反映する */
 bool Live2DBackgroundWidget::eventFilter(QObject* watched, QEvent* event) {
     if (watched == window() && (event->type() == QEvent::WindowStateChange ||
                                 event->type() == QEvent::Show || event->type() == QEvent::Hide)) {

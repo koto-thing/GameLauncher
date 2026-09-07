@@ -23,6 +23,7 @@
     "noUnusedParameters": true
   },
   "include": [
+    "../admin-web/cloudflare-env.d.ts",
     "src",
     "tests",
     "vite.config.ts",

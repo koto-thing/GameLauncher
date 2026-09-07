@@ -1,11 +1,12 @@
 export { GameDesignSurface } from "./design-surface";
+import { ShaderEditor } from "./shader-editor";
 import type { GameDesign } from "../../domain/models";
 import { GAME_DESIGN_DEFAULTS } from "../../config/game-design.defaults";
 import type { ApiError } from "./api-client";
 import { Field, imageUploadHint } from "./editor-common";
 import { useSite } from "./context";
 
-/** @brief 担当作品の背景を限定された入力で編集し、すぐ隣のプレビューへ反映する。 */
+/** @brief 担当作品の背景を限定された入力で編集し、すぐ隣のプレビューへ反映する */
 export function GameDesignEditor({
   value,
   onChange,
@@ -23,14 +24,26 @@ export function GameDesignEditor({
     <div className="design-editor">
       <h2>作品ページのデザイン</h2>
       <p className="hint">
-        作品・曲ページの背景を変更できます。文字と操作部分は読みやすいパネルで表示します。保存後に作品を公開すると反映されます。
+        作品・曲ページの背景を変更できます。GLSL背景は本文部分にも表示され、明るさに合わせて文字色とシャドウを調整します。保存後に作品を公開すると反映されます。
       </p>
+      <ShaderEditor
+        key={design.webgl?.fragmentShader ?? "disabled"}
+        value={design.webgl}
+        onChange={
+          /** @brief コンパイル済みコードを下書きへ反映する */ (webgl) => {
+            const updated = { ...design };
+            if (webgl) updated.webgl = webgl;
+            else delete updated.webgl;
+            onChange(updated);
+          }
+        }
+      />
       <Field label="背景色" name="design" error={error}>
         <input
           type="color"
           value={design.backgroundColor}
           onChange={
-            /** @brief 色を変えた時点で作品固有のデザインを有効にする。 */ (
+            /** @brief 色を変えた時点で作品固有のデザインを有効にする */ (
               event,
             ) => onChange({ ...design, backgroundColor: event.target.value })
           }
@@ -41,7 +54,7 @@ export function GameDesignEditor({
           type="file"
           accept="image/jpeg,image/png,image/webp"
           onChange={
-            /** @brief 背景も非公開R2へ通常の画像登録経路で送る。 */ (event) =>
+            /** @brief 背景も非公開R2へ通常の画像登録経路で送る */ (event) =>
               onUpload(event.target.files?.[0])
           }
         />
@@ -50,7 +63,7 @@ export function GameDesignEditor({
         <select
           value={design.backgroundMode}
           onChange={
-            /** @brief 表示方法は許可された3種類だけを選べる。 */ (event) =>
+            /** @brief 表示方法は許可された3種類だけを選べる */ (event) =>
               onChange({
                 ...design,
                 backgroundMode: event.target
@@ -67,7 +80,7 @@ export function GameDesignEditor({
         <button
           type="button"
           onClick={
-            /** @brief 素材を削除せず下書きから背景参照を外す。 */ () =>
+            /** @brief 素材を削除せず下書きから背景参照を外す */ () =>
               onChange({ ...design, backgroundAssetId: null })
           }
         >
@@ -78,7 +91,7 @@ export function GameDesignEditor({
         <button
           type="button"
           onClick={
-            /** @brief 次回公開時にサイト標準デザインへ戻す。 */ () =>
+            /** @brief 次回公開時にサイト標準デザインへ戻す */ () =>
               onChange(undefined)
           }
         >

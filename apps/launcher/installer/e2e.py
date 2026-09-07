@@ -16,6 +16,7 @@ from apps.launcher.installer.build import build_installer
 
 def platform_executable(base: Path) -> Path:
     """Resolve the executable emitted by binarycreator for the current host."""
+    # Resolve the platform-specific output shape
     if os.name == "nt":
         return base.with_suffix(".exe")
     if sys.platform == "darwin":
@@ -25,6 +26,7 @@ def platform_executable(base: Path) -> Path:
 
 def installed_launcher(root: Path) -> Path:
     """Resolve the launcher executable inside an IFW installation root."""
+    # Resolve the installed launcher path
     if os.name == "nt":
         return root / "bin" / "PandD Game Launcher.exe"
     if sys.platform == "darwin":
@@ -34,6 +36,7 @@ def installed_launcher(root: Path) -> Path:
 
 def maintenance_tool(root: Path) -> Path:
     """Resolve the platform-native Qt IFW maintenance tool."""
+    # Resolve the installed maintenance tool path
     if os.name == "nt":
         return root / "maintenancetool.exe"
     if sys.platform == "darwin":
@@ -43,6 +46,7 @@ def maintenance_tool(root: Path) -> Path:
 
 def dedicated_uninstaller(root: Path) -> Path:
     """Resolve the user-facing Windows uninstaller entry point."""
+    # Keep the dedicated Windows entry point in the install root
     return root / "Uninstall PandD Game Launcher.exe"
 
 
@@ -54,6 +58,7 @@ def run_checked(arguments: list[os.PathLike[str] | str], environment: dict[str, 
 
 def main() -> int:
     """Exercise initial install, deployed startup, and full launcher uninstallation."""
+    # Parse E2E build arguments
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ifw-root", type=Path)
     parser.add_argument("--install-tree", type=Path, required=True)
@@ -61,6 +66,7 @@ def main() -> int:
     parser.add_argument("--version", required=True)
     arguments = parser.parse_args()
 
+    # Build the local online installer and resolve its platform output
     output = arguments.output.resolve()
     repository_url = (output / "repository").as_uri()
     installer_base = build_installer(arguments.ifw_root, arguments.install_tree.resolve(),
@@ -69,6 +75,7 @@ def main() -> int:
     if not installer.exists():
         raise FileNotFoundError(f"binarycreator did not produce {installer}")
 
+    # Use an offscreen Qt platform for non-Windows validation
     environment = os.environ.copy()
     if os.name != "nt":
         environment["QT_QPA_PLATFORM"] = "offscreen"

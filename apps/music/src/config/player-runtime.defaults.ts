@@ -6,7 +6,8 @@ export interface PlayerRuntime {
   nextTrackAudioPrefetchEnabled: boolean;
   displayIntervalMs: number;
 }
-// PCM以外の一時バッファも必要になるため、この値を端末の安全保証とは扱わない。
+
+// PCM以外の一時バッファも必要になるため、この値を端末の安全保証とは扱わない
 export const PLAYER_RUNTIME_DEFAULTS: PlayerRuntime = {
   decodedAudioBudgetBytes: 96 * 1024 * 1024,
   decodeSampleRateHz: 48000,

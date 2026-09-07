@@ -74,6 +74,7 @@ bool completesGamePreparation(InstallState previous) {
     }
 }
 
+/** @brief byte列を画像として復号し寸法上限を検証する */
 QImage decodeImage(const QByteArray& data, int maximumDimension) {
     QBuffer buffer;
     buffer.setData(data);
@@ -103,15 +104,20 @@ class ElidedLabel final : public QLabel {
     }
 
     /** @brief 省略前の完全な文字列を返す */
-    [[nodiscard]] const QString& fullText() const { return fullText_; }
+    [[nodiscard]] const QString& fullText() const {
+        // 省略前の文字列を返す
+        return fullText_;
+    }
 
   protected:
+    /** @brief resize後に表示文字列を更新する */
     void resizeEvent(QResizeEvent* event) override {
         QLabel::resizeEvent(event);
         updateDisplayedText();
     }
 
   private:
+    /** @brief 現在のlabel幅に合わせて文字列を省略する */
     void updateDisplayedText() {
         setText(QFontMetrics(font()).elidedText(fullText_, Qt::ElideRight, width()));
     }
@@ -119,6 +125,7 @@ class ElidedLabel final : public QLabel {
     QString fullText_;
 };
 
+/** @brief ViewModelへ接続してランチャーwindowを構築する */
 LauncherWindow::LauncherWindow(LauncherViewModel& viewModel, bool initialize, QWidget* parent)
     : QMainWindow(parent), viewModel_(viewModel) {
     buildUi();
@@ -128,6 +135,7 @@ LauncherWindow::LauncherWindow(LauncherViewModel& viewModel, bool initialize, QW
     }
 }
 
+/** @brief close-to-tray設定に従ってwindowを閉じる */
 void LauncherWindow::closeEvent(QCloseEvent* event) {
     if (viewModel_.settings().closeToTray && QSystemTrayIcon::isSystemTrayAvailable()) {
         hide();
@@ -137,7 +145,9 @@ void LauncherWindow::closeEvent(QCloseEvent* event) {
     QMainWindow::closeEvent(event);
 }
 
+/** @brief sidebarと各pageとsystem trayを構築する */
 void LauncherWindow::buildUi() {
+    // windowの基本サイズとthemeを設定する
     setWindowTitle(tr("PandD Game Launcher"));
     const QIcon logoIcon(QStringLiteral(":/images/PandDLogo.png"));
     setWindowIcon(logoIcon);
@@ -232,7 +242,9 @@ void LauncherWindow::buildUi() {
     QTimer::singleShot(0, this, [this] { updateNavigationIndicator(false); });
 }
 
+/** @brief 現在の設定に応じたwidget themeを適用する */
 void LauncherWindow::applyTheme() {
+    // theme paletteを一度に組み立てる
     const auto dark = viewModel_.settings().darkTheme;
     const auto background = dark ? "#17181c" : "#f5f5f5";
     const auto surface = dark ? "#24262c" : "#ffffff";
@@ -287,7 +299,9 @@ void LauncherWindow::applyTheme() {
             .arg(background, surface, text, muted, border, hover, selected));
 }
 
+/** @brief おすすめゲームを表示するhome pageを構築する */
 QWidget* LauncherWindow::createHomePage() {
+    // page本体とheaderを構築する
     auto* page = new QWidget(this);
     page->setObjectName("page");
     auto* layout = new QVBoxLayout(page);
@@ -369,7 +383,9 @@ QWidget* LauncherWindow::createHomePage() {
     return page;
 }
 
+/** @brief 未所持ゲームを検索するdiscover pageを構築する */
 QWidget* LauncherWindow::createDiscoverPage() {
+    // page本体と検索欄を構築する
     auto* page = new QWidget(this);
     page->setObjectName("page");
     auto* layout = new QVBoxLayout(page);
@@ -421,7 +437,9 @@ QWidget* LauncherWindow::createDiscoverPage() {
     return page;
 }
 
+/** @brief 導入済みゲームを表示するlibrary pageを構築する */
 QWidget* LauncherWindow::createLibraryPage() {
+    // page本体と一覧を構築する
     auto* page = new QWidget(this);
     page->setObjectName("page");
     auto* layout = new QVBoxLayout(page);
@@ -468,7 +486,9 @@ QWidget* LauncherWindow::createLibraryPage() {
     return page;
 }
 
+/** @brief 選択ゲームのdetail pageと背景を構築する */
 QWidget* LauncherWindow::createDetailPage() {
+    // 背景widgetと操作領域を構築する
     detailPage_ = new GameDetailPage(this);
     auto* page = detailPage_->contentWidget();
     connect(detailPage_, &GameDetailPage::backgroundError, this, [this](const QString& error) {
@@ -564,7 +584,9 @@ QWidget* LauncherWindow::createDetailPage() {
     return detailPage_;
 }
 
+/** @brief ViewModel signalを画面状態と通知へ接続する */
 void LauncherWindow::connectViewModel() {
+    // snapshot変更と初期読込を画面へ接続する
     connect(&viewModel_, &LauncherViewModel::dataChanged, this, &LauncherWindow::refreshData);
     connect(&viewModel_, &LauncherViewModel::loaded, this, [this] {
         refreshData();
@@ -675,7 +697,9 @@ void LauncherWindow::connectViewModel() {
             });
 }
 
+/** @brief カタログと導入済み一覧を各pageへ反映する */
 void LauncherWindow::refreshData() {
+    // 既存一覧をsnapshotから再構築する
     applyTheme();
     homeList_->clear();
     libraryList_->clear();
@@ -709,6 +733,7 @@ void LauncherWindow::refreshData() {
         }
     }
 
+    // homeのおすすめをランダムな最大5件へ絞る
     std::mt19937 randomEngine(QRandomGenerator::global()->generate());
     std::shuffle(recommendations.begin(), recommendations.end(), randomEngine);
     recommendations.resize(std::min<std::size_t>(5, recommendations.size()));
@@ -724,6 +749,7 @@ void LauncherWindow::refreshData() {
         item->setTextAlignment(Qt::AlignHCenter | Qt::AlignBottom);
         homeList_->addItem(item);
     }
+    // 各一覧の空状態と表示状態を同期する
     homeEmpty_->setVisible(homeList_->count() == 0);
     homeList_->setVisible(homeList_->count() != 0);
     if (homeList_->count() != 0) {
@@ -745,6 +771,7 @@ void LauncherWindow::refreshData() {
     }
 }
 
+/** @brief homeで選択されたゲームのpreviewを更新する */
 void LauncherWindow::updateHomeSelection(const QString& gameId) {
     const auto iterator = std::find_if(
         viewModel_.catalog().begin(), viewModel_.catalog().end(),
@@ -763,7 +790,9 @@ void LauncherWindow::updateHomeSelection(const QString& gameId) {
     homePreviewImage_->setPixmap(image);
 }
 
+/** @brief 検索条件に合う未所持ゲームを再描画する */
 void LauncherWindow::refreshDiscover() {
+    // 検索結果を現在のqueryから再構築する
     if (discoverList_ == nullptr) {
         return;
     }
@@ -797,6 +826,7 @@ void LauncherWindow::refreshDiscover() {
     discoverList_->setVisible(!empty);
 }
 
+/** @brief 指定pageへ移動してnavigation状態を更新する */
 void LauncherWindow::navigateTo(int pageIndex) {
     pages_->setCurrentIndex(pageIndex);
     homeButton_->setChecked(pageIndex == 0);
@@ -805,6 +835,7 @@ void LauncherWindow::navigateTo(int pageIndex) {
     updateNavigationIndicator(isVisible());
 }
 
+/** @brief 選択中navigation項目へindicatorを移動する */
 void LauncherWindow::updateNavigationIndicator(bool animated) {
     if (!navigationIndicator_ || !navigationIndicator_->parentWidget()->isVisible()) {
         return;
@@ -837,7 +868,9 @@ void LauncherWindow::updateNavigationIndicator(bool animated) {
     navigationIndicatorAnimation_->start();
 }
 
+/** @brief catalog画像を取得して一覧のiconを更新する */
 void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& imageUrl) {
+    // redirectと応答サイズを制限して画像を取得する
     QNetworkRequest request{QUrl(imageUrl)};
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::ManualRedirectPolicy);
@@ -894,7 +927,9 @@ void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& i
     });
 }
 
+/** @brief 指定ゲームのdetail pageを表示する */
 void LauncherWindow::showGame(const QString& gameId) {
+    // catalogから選択ゲームを解決する
     const auto iterator = std::find_if(
         viewModel_.catalog().begin(), viewModel_.catalog().end(),
         [&gameId](const auto& entry) { return entry.gameId.value() == gameId.toStdString(); });
@@ -976,14 +1011,18 @@ void LauncherWindow::showGame(const QString& gameId) {
     navigateTo(3);
 }
 
+/** @brief 選択ゲームが導入済みかを返す */
 bool LauncherWindow::selectedGameInstalled() const {
+    // ViewModel snapshotからゲームIDを検索する
     return std::any_of(viewModel_.installedGames().begin(), viewModel_.installedGames().end(),
                        [this](const auto& value) {
                            return value.gameId.value() == selectedGameId_.toStdString();
                        });
 }
 
+/** @brief 選択ゲームの状態に応じた主操作を実行する */
 void LauncherWindow::runPrimaryAction() {
+    // 必須更新と取得操作を優先して判定する
     if (mandatoryUpdate_) {
         QMessageBox::warning(this, tr("必須アップデート"),
                              tr("ランチャーを更新してからゲームを操作してください"));
@@ -1004,7 +1043,9 @@ void LauncherWindow::runPrimaryAction() {
     }
 }
 
+/** @brief ゲーム導入確認dialogを表示して結果を返す */
 bool LauncherWindow::confirmInstall() const {
+    // 設定済みinstall rootを確認文へ表示する
     const auto root = QString::fromStdString(viewModel_.settings().installRoot);
     return QMessageBox::question(const_cast<LauncherWindow*>(this), tr("ダウンロードの確認"),
                                  tr("%1 を次の場所へインストールします。\n\n%2\n\n続行しますか？")
@@ -1012,7 +1053,9 @@ bool LauncherWindow::confirmInstall() const {
                                  QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes;
 }
 
+/** @brief 一般・download・更新・詳細設定をdialogへ構築する */
 void LauncherWindow::showSettingsDialog() {
+    // 設定dialogの共通layoutを構築する
     QDialog dialog(this);
     dialog.setWindowTitle(tr("設定"));
     dialog.resize(620, 520);
@@ -1061,6 +1104,7 @@ void LauncherWindow::showSettingsDialog() {
     generalForm->addRow(showAfterExit);
     tabs->addTab(general, tr("一般"));
 
+    // download設定を構築する
     auto* downloads = new QWidget(tabs);
     auto* downloadForm = new QFormLayout(downloads);
     auto* speed = new QSpinBox(downloads);
@@ -1077,6 +1121,7 @@ void LauncherWindow::showSettingsDialog() {
     downloadForm->addRow(continueDownloads);
     tabs->addTab(downloads, tr("ダウンロード"));
 
+    // launcher更新と通知設定を構築する
     auto* update = new QWidget(tabs);
     auto* updateForm = new QFormLayout(update);
     auto* updateCheck = new QCheckBox(tr("起動時にランチャー更新を確認"), update);
@@ -1124,6 +1169,7 @@ void LauncherWindow::showSettingsDialog() {
     updateForm->addRow(applyUpdate);
     tabs->addTab(update, tr("更新と通知"));
 
+    // versionとドキュメント操作を構築する
     auto* details = new QWidget(tabs);
     auto* detailsForm = new QFormLayout(details);
     detailsForm->addRow(tr("ランチャーバージョン"), new QLabel(PANDD_LAUNCHER_VERSION, details));
@@ -1190,6 +1236,7 @@ void LauncherWindow::showSettingsDialog() {
     connect(terms, &QPushButton::clicked, &dialog,
             [this] { showTextDocument(tr("利用規約"), ":/legal/TERMS_OF_USE.md"); });
     connect(diagnostics, &QPushButton::clicked, &dialog, [this] { copyDiagnostics(); });
+    // dialog確定後に設定値をViewModelへ渡す
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }
@@ -1217,6 +1264,7 @@ void LauncherWindow::showSettingsDialog() {
     }
 }
 
+/** @brief 選択ゲームの検証・修復・保存場所操作menuを表示する */
 void LauncherWindow::showToolsMenu() {
     if (mandatoryUpdate_ || selectedGameId_.isEmpty() || !selectedGameInstalled()) {
         return;
@@ -1277,9 +1325,11 @@ void LauncherWindow::showToolsMenu() {
     }
 }
 
+/** @brief 同梱resource文書をdialogへ表示する */
 // 同じQString型でもtitleとresource pathを別のUI概念として受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 void LauncherWindow::showTextDocument(const QString& title, const QString& resourcePath) {
+    // 同梱文書をread-only browserへ表示する
     QFile file(resourcePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QMessageBox::warning(this, title, tr("文書を読み込めません"));
@@ -1299,7 +1349,9 @@ void LauncherWindow::showTextDocument(const QString& title, const QString& resou
     dialog.exec();
 }
 
+/** @brief ランチャー更新履歴をread-only dialogへ表示する */
 void LauncherWindow::showLauncherChangelog() {
+    // changelogを表示用の行へ変換する
     QDialog dialog(this);
     dialog.setWindowTitle(tr("更新履歴"));
     dialog.resize(680, 520);
@@ -1323,7 +1375,9 @@ void LauncherWindow::showLauncherChangelog() {
     dialog.exec();
 }
 
+/** @brief 個人pathを除外した診断情報をclipboardへコピーする */
 void LauncherWindow::copyDiagnostics() {
+    // pathを含まない診断情報を組み立てる
     QStringList lines{
         "PandD Game Launcher diagnostics",
         QString("LauncherVersion=%1").arg(PANDD_LAUNCHER_VERSION),
@@ -1347,6 +1401,7 @@ void LauncherWindow::copyDiagnostics() {
                              tr("個人パスを除外した診断情報をコピーしました"));
 }
 
+/** @brief byte数を利用者向け単位へ整形する */
 QString LauncherWindow::formatBytes(quint64 bytes) {
     if (bytes >= 1000000000ULL) {
         return QString::number(static_cast<double>(bytes) / 1000000000.0, 'f', 1) + " GB";

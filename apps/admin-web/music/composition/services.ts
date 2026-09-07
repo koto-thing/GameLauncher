@@ -13,21 +13,28 @@ import {
 } from "../infrastructure/publications";
 import { Publications } from "../application/publications";
 import { Uploads } from "../application/uploads";
+import { IssueCommandCode } from "../application/command-codes";
+import { D1CommandReservations, CryptoCommandRandom } from "../infrastructure/command-codes";
 import { D1Uploads, RentalAssetStorage } from "../infrastructure/uploads";
 
 /** @brief Music入口だけで依存を組み立て、未設定をゲームへ波及させない。 @returns リクエスト専用Use Case。 */
 export function musicServices() {
   const settings = musicSettings(env as Record<string, unknown>);
   const db = getD1();
+
   const repository = new D1MusicRepository(db);
   const bridge = new RentalBridge(settings);
   const operations = new D1Publications(db);
+  const codes = new IssueCommandCode(new D1CommandReservations(db), new CryptoCommandRandom());
+
   const publications = new Publications(
     operations,
     new RentalPublisher(bridge),
     repository,
+    codes,
   );
   const storage = new RentalAssetStorage(bridge);
+
   const music = new MusicService(
     repository,
     publications,
@@ -65,8 +72,10 @@ export function musicServices() {
       },
     },
   );
+
   return {
     db,
+    codes,
     repository,
     operations,
     publications,

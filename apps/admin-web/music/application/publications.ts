@@ -8,6 +8,7 @@ import type {
 import { MusicError } from "../../../music/src/domain/models";
 import { authorize, validateAsset } from "../../../music/src/domain/rules";
 import type { MusicRepository } from "../../../music/src/application/ports";
+import type { IssueCommandCode } from "./command-codes";
 import type {
   PublicationPayload,
   Receipt,
@@ -25,10 +26,13 @@ export interface PublicationOperation {
   actor: string;
   error: string | null;
 }
+
 export type PublicationMutation =
+  | { kind: "codes" }
   | { kind: "game"; value: Game; adminOnly: boolean }
   | { kind: "track"; value: Track; gameVersion: number }
   | { kind: "ad"; value: Advertisement };
+
 export interface PublicationRepository {
   prepare(
     payload: PublicationPayload,
@@ -41,6 +45,7 @@ export interface PublicationRepository {
   state(id: string, state: PublicationState, error?: string): Promise<void>;
   confirm(operation: PublicationOperation, receipt: Receipt): Promise<void>;
 }
+
 export interface PublicationTransport {
   apply(operation: PublicationOperation, actor: Principal): Promise<Receipt>;
   status(
@@ -56,10 +61,13 @@ export class Publications {
     private repository: PublicationRepository,
     private transport: PublicationTransport,
     private music: MusicRepository,
+    private codes: IssueCommandCode,
   ) {}
+
   /** @brief 作品単位の公開DTOへ今回の変更だけを加える。 @param game 公開候補作品。 @param changedTrack 変更候補曲。 @returns 不変に保存するDTO。 */
   private async snapshot(
     game: Game,
+    actor: Principal,
     changedTrack?: Track,
   ): Promise<PublicGame | null> {
     if (!game.published || game.suspended) return null;
@@ -75,6 +83,7 @@ export class Publications {
         result.push({
           ...track.published,
           id: track.id,
+          commandCode: { version: 1 as const, codeId: await this.codes.issue(track.id, actor) },
           gameId: game.id,
           position: track.publishedPosition ?? track.position,
           durationSeconds: audio.durationSeconds!,
@@ -90,6 +99,7 @@ export class Publications {
     );
     return { id: game.id, ...game.published, tracks: result };
   }
+
   /** @brief 作品公開・停止の要求を固定する。 @param value 検証済み変更。 @param version 編集開始版。 @param actor 現在担当者。 @returns 反映状態。 */
   async game(
     value: Game,
@@ -100,7 +110,7 @@ export class Publications {
     const payload: PublicationPayload = {
       protocolVersion: 1,
       scope: value.id,
-      game: await this.snapshot(value),
+      game: await this.snapshot(value, actor),
     };
     const operation = await this.repository.prepare(
       payload,
@@ -110,6 +120,7 @@ export class Publications {
     );
     await this.run(operation, actor);
   }
+
   /** @brief 曲公開時に他曲の公開状態を維持する。 @param value 検証済み曲。 @param version 曲の期待版。 @param actor 現在担当者。 @returns 反映状態。 */
   async track(value: Track, version: number, actor: Principal): Promise<void> {
     authorize(actor, value.gameId);
@@ -124,7 +135,7 @@ export class Publications {
     const payload: PublicationPayload = {
       protocolVersion: 1,
       scope: game.id,
-      game: await this.snapshot(game, track),
+      game: await this.snapshot(game, actor, track),
     };
     const operation = await this.repository.prepare(
       payload,
@@ -134,6 +145,7 @@ export class Publications {
     );
     await this.run(operation, actor);
   }
+
   /** @brief 運営専用広告を作品と独立したscopeで反映する。 @param value 検証済みバナー。 @param actor Music運営。 @returns 反映状態。 */
   async advertisement(value: Advertisement, actor: Principal): Promise<void> {
     authorize(actor);
@@ -145,6 +157,22 @@ export class Publications {
     );
     await this.run(operation, actor);
   }
+
+  /** @brief 公開済み曲だけの対象一覧を返し、適用時もPHP現在版のコード項目だけを変更する。 */
+  async backfill(gameId: string, actor: Principal, dryRun: boolean) {
+    authorize(actor, gameId);
+    const game = await this.music.game(gameId);
+    if (!game) throw new MusicError("NOT_FOUND", "作品がありません。");
+    const tracks = (await this.music.tracks(gameId)).filter(/** @brief 下書きを対象に含めない。 */ t => t.published !== null);
+    const targets = tracks.map(/** @brief 確認用に公開済みの曲名だけを返す。 */ t => ({trackId: t.id, title: t.published!.title}));
+    if (dryRun || !game.published || game.suspended) return { targets, dryRun, skipped: !game.published || game.suspended };
+    const commandCodes = [];
+    for (const track of tracks) commandCodes.push({ trackId: track.id, version: 1 as const, codeId: await this.codes.issue(track.id, actor) });
+    const op = await this.repository.prepare({ protocolVersion: 1, scope: gameId, game: null, commandCodes }, { kind: "codes" }, game.version, actor);
+    await this.run(op, actor);
+    return {targets, dryRun, skipped: false};
+  }
+
   /** @brief 未確定処理は元の内容を使い、照会後だけ再送する。 @param id 操作ID。 @param actor 現在担当者。 @returns 反映状態。 */
   async retry(id: string, actor: Principal): Promise<void> {
     const operation = await this.repository.operation(id);
@@ -155,6 +183,7 @@ export class Publications {
     if (operation.state === "applied") return;
     await this.run(operation, actor);
   }
+
   /** @brief 外部結果とD1更新の間の障害を結果不明として保持する。 @param operation 固定した要求。 @param actor 現在担当者。 @returns 確認済みの場合だけ成功。 */
   private async run(
     operation: PublicationOperation,

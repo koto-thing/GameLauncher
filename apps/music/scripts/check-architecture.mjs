@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
 
-/** @brief 第一者のソースとスクリプトを再帰列挙する。 */
+/** @brief 第一者のソースとスクリプトを再帰列挙する */
 async function files(dir) {
   const result = [];
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -28,7 +28,7 @@ for (const file of [
     ts.ScriptTarget.Latest,
     true,
   );
-  /** @brief 層の依存違反と未記述の自作関数をASTで検出する。 */
+  /** @brief 層の依存違反と未記述の自作関数をASTで検出する */
   function visit(node) {
     if (ts.isImportDeclaration(node)) {
       const name = node.moduleSpecifier.text;
@@ -58,7 +58,7 @@ for (const file of [
       ts.isArrowFunction(node) ||
       ts.isFunctionExpression(node)
     ) {
-      // JSDocが親の変数・メソッドへ付く形と、匿名callbackの直前コメントを認識する。
+      // JSDocが親の変数・メソッドへ付く形と、匿名callbackの直前コメントを認識する
       const start = Math.max(0, node.getFullStart() - 300);
       const end = ts.isArrowFunction(node)
         ? node.equalsGreaterThanToken.end

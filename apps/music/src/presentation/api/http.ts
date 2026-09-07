@@ -1,6 +1,6 @@
 import { MusicError } from "../../domain/models";
 
-/** @brief 小さな管理JSONも実測の本文上限を強制する。 */
+/** @brief 小さな管理JSONも実測の本文上限を強制する */
 export async function readJson(
   request: Request,
   maxBytes: number,
@@ -35,7 +35,8 @@ export async function readJson(
     throw new MusicError("INVALID", "JSONが不正です。");
   }
 }
-/** @brief 単一区間のHTTP Rangeを正規化する。 @returns nullは全体、falseは416。 */
+
+/** @brief 単一区間のHTTP Rangeを正規化する @returns nullは全体、falseは416 */
 export function byteRange(
   header: string | null,
   size: number,

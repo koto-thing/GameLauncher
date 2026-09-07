@@ -20,6 +20,7 @@ export {
   type ArtifactDescriptor,
 };
 
+// 未完了の分割アップロードを一定期間だけ保持する
 const UPLOAD_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
 type IntakeEnv = {
@@ -50,6 +51,7 @@ function number(value: unknown): number {
   return typeof value === "number" ? value : Number(value);
 }
 
+/** Intakeへ登録するdescriptorの識別子、容量、ハッシュ、対象環境を検証する */
 function validateDescriptor(input: ArtifactDescriptor): ArtifactDescriptor {
   if (input.schemaVersion !== 1) throw new Error("descriptor schemaVersionが不正です");
   const artifactId = text(input.artifactId).trim().toLowerCase();
@@ -109,6 +111,11 @@ async function partNumbers(artifactId: string): Promise<number[]> {
   return result.results.map((row) => row.part_number);
 }
 
+/**
+ * 新しい分割アップロードを作成するか、同じdescriptorの未完了セッションを再開する
+ * @param actor アップロードを実行する認証済みユーザー
+ * @param descriptorInput クライアントが申告したArtifact descriptor
+ */
 export async function createOrResumeUpload(actor: SessionUser, descriptorInput: ArtifactDescriptor) {
   await ensureSchema();
   await requireRequester(actor);
@@ -178,6 +185,7 @@ export async function createOrResumeUpload(actor: SessionUser, descriptorInput: 
   };
 }
 
+/** 指定されたパート番号に対するアップロードURLを発行する */
 export async function issuePartUrls(
   request: Request,
   actor: SessionUser,
@@ -223,6 +231,7 @@ function downloadConfig() {
   };
 }
 
+/** Worker経由の分割データをR2 multipart uploadへ書き込む */
 export async function uploadLocalPart(
   actor: SessionUser,
   artifactId: string,
@@ -255,6 +264,7 @@ function expectedPartSize(row: Row, partNumber: number): number {
   return partNumber === count ? size - partSize * (count - 1) : partSize;
 }
 
+/** 受信済みパートのETagと容量をD1へ記録する */
 export async function recordPart(
   actor: SessionUser,
   artifactId: string,
@@ -276,6 +286,7 @@ export async function recordPart(
     .bind(artifactId, partNumber, etag, sizeBytes, new Date().toISOString()).run();
 }
 
+/** 全パートを結合し、容量を確認してArtifactをsealed状態へ遷移させる */
 export async function sealUpload(actor: SessionUser, artifactId: string) {
   await ensureSchema();
   const row = await uploadRow(artifactId, actor);
@@ -338,6 +349,7 @@ export async function sealUpload(actor: SessionUser, artifactId: string) {
   }
 }
 
+/** 未完了のmultipart uploadと管理レコードを取り消す */
 export async function cancelUpload(actor: SessionUser, artifactId: string) {
   await ensureSchema();
   const row = await uploadRow(artifactId, actor);
@@ -353,6 +365,7 @@ export async function cancelUpload(actor: SessionUser, artifactId: string) {
   ]);
 }
 
+/** sealed ArtifactをWorkflowが取得するための署名付きダウンロードURLを発行する */
 export async function issueArtifactDownloadUrl(artifactId: string): Promise<string> {
   await ensureSchema();
   const artifact = await getD1().prepare(`SELECT intake_object_key, status FROM artifacts

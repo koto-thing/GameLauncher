@@ -5,12 +5,14 @@
 
 namespace pandd {
 
+/** @brief 公開pathへ使用できるBCP 47形式の言語tagか検証する */
 bool isValidLocaleTag(const std::string& locale) {
     // 公開pathへ埋め込む前に許可文字と区切り形式を限定
     static const std::regex pattern(R"(^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$)");
     return std::regex_match(locale, pattern);
 }
 
+/** @brief 日本語catalogへ選択言語のgame単位翻訳を重ねる */
 std::vector<GameCatalogEntry>
 // 同じcontainer型の引数を翻訳元とfallbackの異なる役割で受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
@@ -35,6 +37,7 @@ mergeCatalogTranslations(std::vector<GameCatalogEntry> japanese,
     return japanese;
 }
 
+/** @brief 日本語お知らせへ選択言語のID単位翻訳を重ねる */
 std::vector<Announcement>
 // 同じcontainer型の引数を翻訳元とfallbackの異なる役割で受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
@@ -54,6 +57,7 @@ mergeAnnouncementTranslations(std::vector<Announcement> japanese,
     return japanese;
 }
 
+/** @brief 日本語更新履歴へ選択言語のversion単位翻訳を重ねる */
 std::vector<LauncherChangelogEntry>
 // 同じcontainer型の引数を翻訳元とfallbackの異なる役割で受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)

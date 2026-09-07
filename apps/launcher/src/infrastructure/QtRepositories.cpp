@@ -38,6 +38,7 @@ OperationResult storageFailure(const QString& detail) {
 
 } // namespace
 
+/** @brief base64公開鍵を検証器へ設定する */
 OpenSslEd25519Verifier::OpenSslEd25519Verifier(QByteArray publicKeyBase64)
     : publicKey_(QByteArray::fromBase64(publicKeyBase64)) {
     // Ed25519 raw公開鍵の固定長を構築時に検証
@@ -46,6 +47,7 @@ OpenSslEd25519Verifier::OpenSslEd25519Verifier(QByteArray publicKeyBase64)
     }
 }
 
+/** @brief payloadとbase64署名をEd25519で検証する */
 // 暗号境界のpayloadと署名は意味の異なるbyte列として個別に受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 bool OpenSslEd25519Verifier::verify(const QByteArray& payload,
@@ -78,6 +80,7 @@ bool OpenSslEd25519Verifier::verify(const QByteArray& payload,
                             static_cast<std::size_t>(payload.size())) == 1;
 }
 
+/** @brief 固定配布元と署名検証器を構築する */
 StaticContentRepository::StaticContentRepository(QUrl baseUrl, QByteArray manifestPublicKeyBase64,
                                                  QObject* networkParent)
     : baseUrl_(std::move(baseUrl)), allowedHost_(baseUrl_.host().toLower()),
@@ -93,6 +96,7 @@ StaticContentRepository::StaticContentRepository(QUrl baseUrl, QByteArray manife
     }
 }
 
+/** @brief 指定言語のゲームカタログを取得する */
 std::vector<GameCatalogEntry> StaticContentRepository::fetchCatalog(const std::string& language) {
     // path構築へ使う言語tagを先に検証
     if (!isValidLocaleTag(language)) {
@@ -125,6 +129,7 @@ std::vector<GameCatalogEntry> StaticContentRepository::fetchCatalog(const std::s
     return result;
 }
 
+/** @brief 指定言語のお知らせ一覧を取得する */
 std::vector<Announcement> StaticContentRepository::fetchAnnouncements(const std::string& language) {
     // 完全な日本語一覧へ存在する翻訳だけを重ねる
     if (!isValidLocaleTag(language)) {
@@ -146,6 +151,7 @@ std::vector<Announcement> StaticContentRepository::fetchAnnouncements(const std:
     return result;
 }
 
+/** @brief 署名と構造を検証したゲームreleaseを取得する */
 GameRelease StaticContentRepository::fetchLatestRelease(const std::string& releaseUrl) {
     const QUrl url(QString::fromStdString(releaseUrl));
     if (!isAllowedUrl(url)) {
@@ -166,6 +172,7 @@ GameRelease StaticContentRepository::fetchLatestRelease(const std::string& relea
     return release;
 }
 
+/** @brief 指定言語の最新ランチャーreleaseを取得する */
 LauncherRelease StaticContentRepository::fetchLatestLauncherRelease(const std::string& language) {
     if (!isValidLocaleTag(language)) {
         throw std::invalid_argument("invalid launcher release locale");
@@ -194,6 +201,7 @@ LauncherRelease StaticContentRepository::fetchLatestLauncherRelease(const std::s
     return release;
 }
 
+/** @brief 指定言語のランチャーchangelogを取得する */
 std::vector<LauncherChangelogEntry>
 StaticContentRepository::fetchLauncherChangelog(const std::string& language) {
     if (!isValidLocaleTag(language)) {
@@ -216,6 +224,7 @@ StaticContentRepository::fetchLauncherChangelog(const std::string& language) {
     return result;
 }
 
+/** @brief サイズ制限とretry付きで静的endpointへGETする */
 QByteArray StaticContentRepository::get(const QUrl& url, qsizetype maximumBytes) {
     // 一時障害に対する最大試行回数を固定
     constexpr int maximumAttempts = 3;
@@ -267,6 +276,7 @@ QByteArray StaticContentRepository::get(const QUrl& url, qsizetype maximumBytes)
     throw std::runtime_error("HTTP request failed: " + lastError.toStdString());
 }
 
+/** @brief 配布元hostとschemeが許可範囲かを返す */
 bool StaticContentRepository::isAllowedUrl(const QUrl& url) const {
     const bool secure = url.scheme() == "https";
     const bool localDevelopment =
@@ -275,6 +285,7 @@ bool StaticContentRepository::isAllowedUrl(const QUrl& url) const {
            url.host().compare(allowedHost_, Qt::CaseInsensitive) == 0;
 }
 
+/** @brief 現在platformのendpoint名を返す */
 QString StaticContentRepository::platformName() {
 #if defined(Q_OS_WIN)
     return "windows";
@@ -285,6 +296,7 @@ QString StaticContentRepository::platformName() {
 #endif
 }
 
+/** @brief 現在architectureのendpoint名を返す */
 QString StaticContentRepository::architectureName() {
 #if defined(Q_PROCESSOR_ARM_64)
     return "arm64";
@@ -293,14 +305,17 @@ QString StaticContentRepository::architectureName() {
 #endif
 }
 
+/** @brief 指定data directoryを初期化する */
 JsonStateRepository::JsonStateRepository(QString dataDirectory)
     : dataDirectory_(std::move(dataDirectory)) {
     QDir().mkpath(dataDirectory_);
 }
 
+/** @brief OS標準のApplication Data directoryを使用する */
 JsonStateRepository::JsonStateRepository()
     : JsonStateRepository(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)) {}
 
+/** @brief 保存済みゲーム一覧を読み込む */
 std::vector<InstalledGame> JsonStateRepository::loadAll() {
     const auto path = QDir(dataDirectory_).filePath("installed-games.json");
     if (!QFileInfo::exists(path)) {
@@ -309,6 +324,7 @@ std::vector<InstalledGame> JsonStateRepository::loadAll() {
     return JsonCodec::parseInstalledGames(readJson(path));
 }
 
+/** @brief ゲームの導入記録を追加または置換する */
 OperationResult JsonStateRepository::save(const InstalledGame& game) {
     // game IDをキーに導入記録を追加または置換
     auto games = loadAll();
@@ -325,6 +341,7 @@ OperationResult JsonStateRepository::save(const InstalledGame& game) {
         QJsonObject{{"schemaVersion", 1}, {"games", JsonCodec::serializeInstalledGames(games)}});
 }
 
+/** @brief 指定ゲームの導入記録を削除する */
 OperationResult JsonStateRepository::remove(const GameId& gameId) {
     auto games = loadAll();
     std::erase_if(games, [&gameId](const auto& value) { return value.gameId == gameId; });
@@ -333,6 +350,7 @@ OperationResult JsonStateRepository::remove(const GameId& gameId) {
         QJsonObject{{"schemaVersion", 1}, {"games", JsonCodec::serializeInstalledGames(games)}});
 }
 
+/** @brief 保存済み設定または既定設定を読み込む */
 LauncherSettings JsonStateRepository::load() {
     // platform標準pathとOS localeから既定値を構築
     LauncherSettings defaults;
@@ -346,11 +364,13 @@ LauncherSettings JsonStateRepository::load() {
     return QFileInfo::exists(path) ? JsonCodec::parseSettings(readJson(path), defaults) : defaults;
 }
 
+/** @brief 設定を原子的に保存する */
 OperationResult JsonStateRepository::save(const LauncherSettings& settings) {
     return writeJson(QDir(dataDirectory_).filePath("settings.json"),
                      JsonCodec::serializeSettings(settings));
 }
 
+/** @brief JSON objectをQSaveFileで原子的に保存する */
 OperationResult JsonStateRepository::writeJson(const QString& path, const QJsonObject& object) {
     // QSaveFileで書込み途中の状態を公開しない
     QSaveFile file(path);
@@ -363,6 +383,7 @@ OperationResult JsonStateRepository::writeJson(const QString& path, const QJsonO
     return OperationResult::success();
 }
 
+/** @brief JSON state fileを読み込みobjectとして返す */
 QJsonObject JsonStateRepository::readJson(const QString& path) const {
     // 未作成fileは空objectとして扱う
     QFile file(path);

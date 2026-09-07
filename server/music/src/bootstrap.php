@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/Failure.php';
+require_once __DIR__ . '/CommandCodes.php';
 
 /** @brief 公開領域外の設定からサービスを組み立てる。 @return array 設定・保存・素材・公開Use Case。 */
 function musicServices(): array {

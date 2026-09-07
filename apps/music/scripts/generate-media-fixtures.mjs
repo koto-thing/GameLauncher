@@ -2,7 +2,7 @@ import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { toneWav, placeholderPng } from "../tests/support/fixtures.mjs";
 
-// 自作トーンと単色画像をFFmpegで変換する。実作品の素材は取り込まない。
+// 自作トーンと単色画像をFFmpegで変換する実作品の素材は取り込まない
 await mkdir("build/media", { recursive: true });
 await writeFile("build/media/source.wav", toneWav());
 await writeFile("build/media/source.png", placeholderPng());

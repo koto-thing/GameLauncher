@@ -17,6 +17,7 @@ import { RentalBridge, digest } from "./bridge";
 export class D1Publications implements PublicationRepository {
   /** @brief 既存control-planeのDBを受け取る。 @param db 共通D1 binding。 */
   constructor(private db: D1Database) {}
+
   /** @brief 楽観ロック・現在権限・単一保留処理を原子的に確認する。 @param value 公開DTO。 @param mutation 確認後に反映する変更。 @param version 対象の期待版。 @param actor 現在担当者。 @returns 不変操作。 */
   async prepare(
     value: PublicationPayload,
@@ -51,7 +52,7 @@ export class D1Publications implements PublicationRepository {
     if (mutation.kind === "ad") {
       condition = "(SELECT version FROM music_advertisement WHERE id=1)=?";
       args.push(version);
-    } else if (mutation.kind === "game") {
+    } else if (mutation.kind === "game" || mutation.kind === "codes") {
       condition = "(SELECT version FROM music_games WHERE id=?)=?";
       args.push(scope, version);
     } else {
@@ -80,6 +81,7 @@ export class D1Publications implements PublicationRepository {
       );
     return (await this.operation(id))!;
   }
+
   /** @brief 操作IDを解決する。 @param id UUID。 @returns 操作またはnull。 */
   async operation(id: string): Promise<PublicationOperation | null> {
     return this.db
@@ -87,6 +89,7 @@ export class D1Publications implements PublicationRepository {
       .bind(id)
       .first<PublicationOperation>();
   }
+
   /** @brief 現在の担当範囲だけに公開状態を返す。 @param actor 現在担当者。 @returns 操作一覧。 */
   async list(actor: Principal): Promise<PublicationOperation[]> {
     return (
@@ -98,6 +101,7 @@ export class D1Publications implements PublicationRepository {
         .all<PublicationOperation>()
     ).results;
   }
+
   /** @brief 確定結果を後からsendingへ戻さない。 @param id 操作ID。 @param state 処理状態。 @param error 安全な説明。 @returns 保存完了。 */
   async state(
     id: string,
@@ -111,6 +115,7 @@ export class D1Publications implements PublicationRepository {
       .bind(state, error ?? null, id)
       .run();
   }
+
   /** @brief 下書きを書き戻さず公開列と確認版だけをD1 batchで確定する。 @param operation 元操作。 @param receipt PHPで確認済み結果。 @returns 保存完了。 */
   async confirm(
     operation: PublicationOperation,
@@ -155,7 +160,7 @@ export class D1Publications implements PublicationRepository {
             operation.id,
           ),
       );
-    else
+    else if (mutation.kind === "ad")
       statements.push(
         this.db
           .prepare(
@@ -198,6 +203,7 @@ export class D1Publications implements PublicationRepository {
 export class RentalPublisher implements PublicationTransport {
   /** @brief 署名済み転送を注入する。 @param bridge 固定PHP接続。 */
   constructor(private bridge: RentalBridge) {}
+
   /** @brief 不変本文を反映する。 @param operation 固定要求。 @param actor 現在の操作者。 @returns 照合済みreceipt。 */
   async apply(
     operation: PublicationOperation,
@@ -219,6 +225,7 @@ export class RentalPublisher implements PublicationTransport {
       operation,
     );
   }
+
   /** @brief 同じdigest・版・scopeで結果を照会する。 @param operation 固定要求。 @param actor 現在の操作者。 @returns 未反映ならnull。 */
   async status(
     operation: PublicationOperation,

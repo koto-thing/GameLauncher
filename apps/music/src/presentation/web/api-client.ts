@@ -1,9 +1,9 @@
 import { hashFileInChunks } from "../../../../admin-web/lib/sha256-stream";
 import { MANAGER_RUNTIME_DEFAULTS } from "../../config/manager-runtime.defaults";
 
-/** @brief APIの入力項目別エラーをUIまで保持する。 */
+/** @brief APIの入力項目別エラーをUIまで保持する */
 export class ApiError extends Error {
-  /** @brief エラーコードと該当項目を記録する。 */
+  /** @brief エラーコードと該当項目を記録する */
   constructor(
     message: string,
     public readonly code: string,
@@ -12,7 +12,8 @@ export class ApiError extends Error {
     super(message);
   }
 }
-/** @brief HTTP失敗を一貫した復旧可能なエラーへ変換する。 */
+
+/** @brief HTTP失敗を一貫した復旧可能なエラーへ変換する */
 export async function api<T>(
   path: string,
   options: { method?: string; body?: unknown; csrf?: string } = {},
@@ -45,7 +46,8 @@ export async function api<T>(
     );
   return value;
 }
-/** @brief 実送信進捗を表示し、同じ素材IDへの再送を行わない。 */
+
+/** @brief 実送信進捗を表示し、同じ素材IDへの再送を行わない */
 export async function uploadFile<T>(
   gameId: string,
   kind: "audio" | "image",
@@ -70,7 +72,7 @@ export async function uploadFile<T>(
   }
   const uploadId = upload.id;
   return new Promise(
-    /** @brief XHRの進捗と最終検証結果をPromiseへ接続する。 */ (
+    /** @brief XHRの進捗と最終検証結果をPromiseへ接続する */ (
       resolve,
       reject,
     ) => {
@@ -80,14 +82,14 @@ export async function uploadFile<T>(
       request.setRequestHeader("X-CSRF-Token", csrf);
       request.setRequestHeader("Content-Type", "application/octet-stream");
       request.upload.onprogress =
-        /** @brief 送信完了後もサーバー検証待ちを表示できるよう進捗だけ更新する。 */ (
+        /** @brief 送信完了後もサーバー検証待ちを表示できるよう進捗だけ更新する */ (
           event,
         ) => {
           if (event.lengthComputable)
             progress(Math.round((event.loaded / event.total) * 100));
         };
       request.onerror =
-        /** @brief 失敗後も元upload IDで再試行できるよう記録を残す。 */ () =>
+        /** @brief 失敗後も元upload IDで再試行できるよう記録を残す */ () =>
           reject(
             new ApiError(
               "アップロードに失敗しました。ファイルを選び直して再試行してください。",
@@ -97,7 +99,7 @@ export async function uploadFile<T>(
       request.ontimeout = request.onerror;
       request.onabort = request.onerror;
       request.onload =
-        /** @brief サーバー側の素材検証失敗を成功扱いにしない。 */ () => {
+        /** @brief サーバー側の素材検証失敗を成功扱いにしない */ () => {
           try {
             const value = JSON.parse(request.responseText) as T & {
               message?: string;
@@ -127,5 +129,5 @@ export async function uploadFile<T>(
   );
 }
 
-// 通信失敗・D1確認失敗でも同じファイルの再試行は同じupload IDを使用する。
+// 通信失敗・D1確認失敗でも同じファイルの再試行は同じupload IDを使用する
 const pendingUploads = new Map<string, { id: string; assetId: string }>();

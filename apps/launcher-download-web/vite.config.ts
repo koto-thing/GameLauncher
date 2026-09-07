@@ -9,13 +9,13 @@ export default defineConfig({
     name: "launcher-static-page",
     transformIndexHtml: {
       order: "pre",
-      handler: () => renderPage(config, base),
+      handler: /** @brief 検証済み設定から静的HTMLを生成する */ () => renderPage(config, base),
     },
-    // Production URLs are relative by default, and --base also applies to configured assets.
-    configResolved(resolved) {
+    // 本番URLは既定で相対指定とし、--baseを設定素材にも適用する
+    configResolved: /** @brief Vite確定後のbase URLをHTML生成へ渡す */ (resolved) => {
       base = resolved.base;
     },
-    handleHotUpdate(context) {
+    handleHotUpdate: /** @brief 設定変更時だけ開発サーバーを再起動する */ (context) => {
       if (context.file.endsWith("site.config.ts")) void context.server.restart();
     },
   }],

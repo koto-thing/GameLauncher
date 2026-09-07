@@ -8,6 +8,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
+// Control PlaneとIntakeの永続化モデル。各テーブルはdb/initialize.tsのDDLと対応する
 export const users = sqliteTable("users", {
   githubUserId: text("github_user_id").primaryKey(),
   loginSnapshot: text("login_snapshot").notNull(),

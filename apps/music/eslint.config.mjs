@@ -1,7 +1,7 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
-// 型付きコードとスクリプトを両方lintし、生成物と依存は除外する。
+// 型付きコードとスクリプトを両方lintし、生成物と依存は除外する
 export default tseslint.config(
   {
     ignores: [

@@ -4,6 +4,7 @@
 
 namespace pandd {
 
+/** @brief build固定の具象Serviceを生成してPortへ接続する */
 AppContainer::AppContainer() {
     // テスト配信先はbuild時に固定し利用者設定へ露出しない
     const auto baseUrl = QUrl(QStringLiteral(PANDD_DISTRIBUTION_BASE_URL));
@@ -24,8 +25,12 @@ AppContainer::AppContainer() {
         *updateService_, *clock_, SemanticVersion(PANDD_LAUNCHER_VERSION));
 }
 
+/** @brief 所有しているServiceを解放する */
 AppContainer::~AppContainer() = default;
 
-LauncherService& AppContainer::launcherService() { return *launcherService_; }
+LauncherService& AppContainer::launcherService() {
+    // UIへApplication Facadeを返す
+    return *launcherService_;
+}
 
 } // namespace pandd

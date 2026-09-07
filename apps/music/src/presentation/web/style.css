@@ -1,4 +1,4 @@
-/* 共通の読みやすさとタッチ領域。小さな画面では余白を縮め、文字を省略しすぎない。 */
+/* 共通の読みやすさとタッチ領域、小さな画面では余白を縮め、文字を省略しすぎない */
 * {
   box-sizing: border-box;
 }
@@ -129,7 +129,7 @@ section {
   border-bottom: 1px solid currentColor;
   font-size: 0.85rem;
 }
-/* ヘッダーとフッターはページ遷移でも安定した位置を保つ。 */
+/* ヘッダーとフッターはページ遷移でも安定した位置を保つ */
 .site-header {
   max-width: var(--max-width);
   margin: auto;
@@ -147,7 +147,7 @@ section {
   white-space: nowrap;
 }
 .brand-logo {
-  /* 元ロゴの透明な余白だけを表示枠で除き、画像自体は加工しない。 */
+  /* 元ロゴの透明な余白だけを表示枠で除き、画像自体は加工しない */
   display: block;
   width: 180px;
   height: 58px;
@@ -224,7 +224,7 @@ footer {
 .skip-link:focus {
   top: 8px;
 }
-/* ホームは作品の実データを中心に、少数作品でも余白が成立する構成。 */
+/* ホームは作品の実データを中心に、少数作品でも余白が成立する構成 */
 .hero {
   position: relative;
   padding: 66px 0 54px;
@@ -259,7 +259,7 @@ footer {
   line-height: 2;
   color: var(--muted);
 }
-/* ヒーローの右側に画像全体を保って配置し、作品画像の縦横比で枠が揺れないようにする。 */
+/* ヒーローの右側に画像全体を保って配置し、作品画像の縦横比で枠が揺れないようにする */
 .soundtrack-carousel {
   min-width: 0;
   margin-right: 56px;
@@ -269,8 +269,9 @@ footer {
   animation: soundtrack-arrive 450ms ease-out;
 }
 .soundtrack-image {
-  aspect-ratio: 4 / 3;
-  background: var(--accent-soft);
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: #252525;
   border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
@@ -278,10 +279,14 @@ footer {
   place-items: center;
 }
 .soundtrack-image .artwork {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  padding: 6%;
   max-height: none;
   object-fit: contain;
+  object-position: center;
 }
 .soundtrack-caption {
   padding: 16px 0 8px;
@@ -299,6 +304,15 @@ footer {
   overflow-wrap: anywhere;
   font-size: 1rem;
 }
+.soundtrack-titles {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.6;
+}
+.soundtrack-titles > span { grid-area: 1 / 1; }
+.soundtrack-title-reserve { visibility: hidden; }
+.soundtrack-arrow { flex-shrink: 0; }
 .carousel-controls {
   display: flex;
   justify-content: flex-end;
@@ -386,13 +400,13 @@ footer {
   max-height: 65vh;
   object-fit: contain;
   display: block;
-  background: var(--accent-soft);
+  background: #252525;
   border-radius: 3px;
 }
 .placeholder {
   aspect-ratio: 16/10;
-  background: var(--accent-soft);
-  color: var(--ink);
+  background: #252525;
+  color: #f4f4f4;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -458,7 +472,7 @@ footer {
   margin: 0;
   color: var(--muted);
 }
-/* 曲画像を縦横比のまま表示し、横幅が狭い時には上下に並べる。 */
+/* 曲画像を縦横比のまま表示し、横幅が狭い時には上下に並べる */
 .game-intro,
 .now-playing {
   display: grid;
@@ -532,8 +546,61 @@ footer {
   margin-top: 25px;
 }
 .seek-label {
+  display: block;
   font-size: 0.7rem;
   color: var(--muted);
+}
+.spectrum-seek {
+  position: relative;
+  display: block;
+  height: 70px;
+  margin-top: 8px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.spectrum-bars {
+  position: absolute;
+  inset: 7px 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
+}
+.spectrum-bars i {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 2px;
+  opacity: 0.24;
+  transform: scaleY(0.88);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.spectrum-bars i.is-played {
+  opacity: 1;
+  transform: scaleY(1);
+  box-shadow: 0 0 8px color-mix(in srgb, currentColor 22%, transparent);
+}
+.spectrum-seek:hover .spectrum-bars i,
+.spectrum-seek:focus-within .spectrum-bars i {
+  opacity: 0.42;
+}
+.spectrum-seek:hover .spectrum-bars i.is-played,
+.spectrum-seek:focus-within .spectrum-bars i.is-played {
+  opacity: 1;
+}
+.spectrum-seek.is-disabled {
+  cursor: not-allowed;
+  filter: saturate(0.65);
+}
+.spectrum-seek input[type="range"] {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
 }
 input[type="range"] {
   width: 100%;
@@ -570,13 +637,45 @@ input[type="range"] {
   justify-content: center;
   font-size: 0.78rem;
 }
-.mode-row label {
-  display: flex;
+.mode-row .mode-icon {
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
 }
-.mode-row select {
-  max-width: 165px;
+.mode-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mode-icon.is-active,
+.mode-icon[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.mode-icon.is-disabled { opacity: 0.4; cursor: default; }
+.repeat-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.mode-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  font-size: 10px;
+  font-weight: 700;
 }
 .player-controls > .hint {
   margin-top: 22px;
@@ -590,15 +689,97 @@ input[type="range"] {
 .track-comment h2 {
   font-size: 1rem;
 }
-.share-url {
-  display: block;
-  font-size: 0.75rem;
+.share-trigger {
   margin-top: 24px;
+  border-radius: 999px;
 }
-.share-url input {
-  font-size: 0.7rem;
+.share-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 24px 80px #0006;
 }
-/* ミニプレーヤーの高さとセーフエリアを本文・フッターの余白に確保する。 */
+.share-dialog::backdrop {
+  background: #0009;
+}
+.share-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.share-heading h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.share-heading button {
+  border: 0;
+  border-radius: 50%;
+  font-size: 1.5rem;
+}
+.share-title {
+  margin: 12px 0 24px;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+}
+.share-services {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 6px 4px 20px;
+}
+.share-services a,
+.share-services button {
+  display: flex;
+  flex: 0 0 64px;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  padding: 0;
+  font-size: 0.75rem;
+}
+.share-service-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #656975;
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.share-services a:hover .share-service-icon,
+.share-services button:hover .share-service-icon {
+  filter: brightness(1.2);
+}
+.share-copy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.share-copy input {
+  min-width: 0;
+  flex: 1;
+  font-size: 0.8rem;
+}
+.share-copy button {
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+.share-status {
+  margin: 12px 0 0;
+  min-height: 1.5em;
+  font-size: 0.8rem;
+}
+/* ミニプレーヤーの高さとセーフエリアを本文・フッターの余白に確保する */
 .mini-player {
   position: fixed;
   bottom: 0;
@@ -656,7 +837,7 @@ input[type="range"] {
 .mini-error {
   font-size: 0.65rem;
 }
-/* 管理画面も44pxの操作と項目別エラーを維持する。 */
+/* 管理画面も44pxの操作と項目別エラーを維持する */
 .editor-columns {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
@@ -791,6 +972,46 @@ input[type="checkbox"] {
   padding: 22px 4px;
   border-bottom: 1px solid var(--line);
   overflow-wrap: anywhere;
+}
+.track-transition-out {
+  opacity: 0;
+  transition: opacity 180ms ease-in;
+}
+.track-transition-in {
+  animation: track-content-enter 240ms ease-out both;
+}
+@keyframes track-content-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.track-order-list > div {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+}
+.track-order-list > div.dragging {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.track-order-list a {
+  flex: 1;
+  border-bottom: 0;
+}
+.drag-handle {
+  width: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.4rem;
+  cursor: grab;
+  touch-action: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
 }
 .manage-list span {
   font-size: 0.75rem;
@@ -977,8 +1198,15 @@ input[type="checkbox"] {
   * {
     scroll-behavior: auto !important;
   }
+  .track-transition-out {
+    opacity: 1;
+    transition: none;
+  }
+  .track-transition-in {
+    animation: none;
+  }
 }
-/* 保存完了はリビジョン更新後も利用者が確認できる。 */
+/* 保存完了はリビジョン更新後も利用者が確認できる */
 .toast {
   position: fixed;
   top: 16px;
@@ -996,7 +1224,7 @@ input[type="checkbox"] {
   border-radius: 8px;
 }
 
-/* 作品固有の装飾はページ内に閉じ込め、ミニプレーヤーや別作品へ持ち越さない。 */
+/* 作品固有の装飾はページ内に閉じ込め、ミニプレーヤーや別作品へ持ち越さない */
 .game-surface {
   position: relative;
   isolation: isolate;
@@ -1027,6 +1255,50 @@ input[type="checkbox"] {
   border-radius: var(--radius);
   min-width: 0;
 }
+.game-surface-glsl {
+  color: var(--ink);
+  --ink: #ffffff;
+  --muted: #f0f3f8;
+  --line: #8995a5;
+  --surface: #202938;
+  --accent: #b6dcff;
+  --accent-ink: #c9e6ff;
+  --accent-soft: #263950;
+  --on-accent: #111b29;
+  --dark: #202938;
+  --error: #ffcec8;
+  --background-text-shadow: 0 1px 3px #000, 0 0 8px #0009;
+  color-scheme: dark;
+}
+.game-surface-glsl[data-background-tone="light"] {
+  --ink: #101925;
+  --muted: #1d2b3c;
+  --line: #53677c;
+  --surface: #f4f8fc;
+  --accent: #214e78;
+  --accent-ink: #12395e;
+  --accent-soft: #dceafa;
+  --on-accent: #ffffff;
+  --error: #851c20;
+  --background-text-shadow: 0 1px 2px #fffd, 0 0 7px #fff9;
+  color-scheme: light;
+}
+.game-surface-glsl .game-surface-content {
+  background: transparent;
+  text-shadow: var(--background-text-shadow);
+}
+.game-surface-glsl :is(button, .button, select, input:not([type="range"])) {
+  text-shadow: none;
+  box-shadow: 0 2px 8px #0003;
+}
+.game-surface-glsl .spectrum-bars i {
+  background: var(--ink) !important;
+  color: var(--ink);
+  opacity: 0.5;
+}
+.game-surface-glsl .spectrum-bars i.is-played {
+  opacity: 1;
+}
 .game-surface-content > section:last-child {
   margin-bottom: 0;
 }
@@ -1053,4 +1325,117 @@ input[type="checkbox"] {
   .game-surface .track-list li {
     gap: 6px;
   }
+}
+/* コード領域はテーマから独立した白黒、周辺のタイトルは画像外へ置く */
+.command-scan { max-width: 900px; margin: 2rem auto; }
+.command-card { margin-top: 1rem; padding: 1rem; border: 1px solid currentColor; border-radius: 12px; }
+.command-image { display: block; width: 100%; height: auto; background: white; }
+.command-text { font-size: clamp(1rem, 3vw, 1.6rem); letter-spacing: .14em; overflow-wrap: anywhere; }
+.command-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+.command-actions button, .command-pad button { min-height: 48px; min-width: 48px; }
+.command-actions button[aria-pressed=true] { outline: 2px solid currentColor; }
+.command-slots { display: grid; grid-template-columns: repeat(6, 1fr); gap: .4rem; list-style: none; padding: 0; max-width: 540px; }
+.command-slots li { text-align: center; border: 1px solid currentColor; border-radius: 8px; padding: .6rem; font-size: 1.4rem; }
+.command-pad { display: flex; align-items: center; gap: 2rem; margin: 1rem 0; }
+.direction-pad { display: grid; grid-template-columns: repeat(3, 48px); gap: .3rem; }
+.direction-U { grid-column: 2; }.direction-L { grid-row: 2; grid-column: 1; }.direction-D { grid-row: 2; grid-column: 2; }.direction-R { grid-row: 2; grid-column: 3; }
+.letter-pad { display: grid; grid-template-columns: repeat(2,48px); gap: .3rem; }
+.command-video { width: 100%; max-height: 60vh; background: #111; border-radius: 12px; }
+.command-file { display: block; padding: 2rem 0; }
+.command-manual input { display: block; width: 100%; max-width: 540px; }
+.command-manager { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.command-manager button { min-height: 44px; margin: .4rem 0; }
+.command-print-sheet { display: none; }
+@media print {
+  body:has(> .command-print-sheet) > :not(.command-print-sheet) { display: none !important; }
+  body:has(> .command-print-sheet) { background: white !important; color: black !important; margin: 0; }
+  .command-print-sheet { display: block; width: 100%; padding: 12mm; box-sizing: border-box; color: black; background: white; text-align: center; break-inside: avoid; font: 12pt sans-serif; }
+  .command-print-sheet h1 { color: black; font-size: 20pt; overflow-wrap: anywhere; }
+  .command-print-sheet img { display: block; width: 140mm; max-width: 100%; height: auto; margin: 8mm auto; }
+  .command-print-sheet .command-text { color: black; font-size: 16pt; }
+  .command-print-url { overflow-wrap: anywhere; font-size: 10pt; }
+}
+.mini-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 190px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.volume-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  color: inherit;
+}
+.volume-meter {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 100%;
+  pointer-events: none;
+}
+.volume-meter i {
+  flex: 1;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.22;
+  transition: opacity 100ms ease;
+}
+.volume-meter i.is-active { opacity: 1; }
+.mini-volume .volume-control input[type="range"] {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  box-shadow: none;
+  cursor: ew-resize;
+}
+.volume-control:has(input:focus-visible) .volume-meter {
+  outline: 2px solid currentColor;
+  outline-offset: 5px;
+  border-radius: 2px;
+}
+.mini-volume output {
+  min-width: 4ch;
+  font-variant-numeric: tabular-nums;
+}
+@media (min-width: 1600px) {
+  .mini-volume { position: absolute; right: 24px; width: 190px; }
+}
+@media (max-width: 600px) {
+  .mini-player { gap: 10px; }
+  .mini-volume { flex-basis: 100px; gap: 4px; }
+  .mini-volume > span { display: none; }
+}
+.mini-player { padding: 0; }
+.mini-player-content {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px max(24px, calc((100vw - 1108px) / 2)) calc(12px + env(safe-area-inset-bottom));
+}
+.mini-player-content.game-surface {
+  margin: 0;
+  border-radius: 0;
+  padding: 12px max(24px, calc((100vw - 1108px) / 2)) calc(12px + env(safe-area-inset-bottom));
+  text-shadow: var(--background-text-shadow);
+}
+.mini-player-content > .game-surface-content { display: contents; }
+.mini-player-content.game-surface-glsl .mini-info small { color: var(--muted); }
+.mini-player-content.game-surface-glsl button {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.mini-player-content.game-surface-glsl .mini-volume input { accent-color: var(--ink); }
+@media (max-width: 600px) {
+  .mini-player-content, .mini-player-content.game-surface { padding-inline: 12px; gap: 10px; }
 }

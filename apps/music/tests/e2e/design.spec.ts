@@ -2,9 +2,11 @@ import { test, expect } from "@playwright/test";
 import { placeholderPng } from "../support/fixtures.mjs";
 import type { PublicGame } from "../../src/domain/models";
 
-test("admin hands page access by ID and author previews and publishes a game background", /** @brief 管理者の権限付与から担当者の背景公開までを実UIと匿名APIで確認する。 */ async ({
+test("admin hands page access by ID and author previews and publishes a game background", /** @brief 管理者の権限付与から担当者の背景公開までを実UIと匿名APIで確認する */ async ({
   page,
 }, info) => {
+  // 実D1・PHPを使う管理操作が多く、遅いローカル環境でも後片付けまで待つ
+  test.setTimeout(90000);
   await page.goto("http://127.0.0.1:8788/api/auth/dev?as=music-admin");
   await page.goto("http://127.0.0.1:8788/music#/manage");
   const title = `背景検証 ${info.project.name} ${Date.now()}`;
@@ -23,12 +25,39 @@ test("admin hands page access by ID and author previews and publishes a game bac
   const id = page.url().split("/").at(-1)!;
   await page.goto("http://127.0.0.1:8788/music#/manage");
   await page.getByRole("button", { name: "ログアウト", exact: true }).click();
-  await expect(page.getByRole("link", { name: "music-a", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "music-a", exact: true }),
+  ).toBeVisible();
   await page.goto("http://127.0.0.1:8788/api/auth/dev?as=music-a");
   await page.goto("http://127.0.0.1:8788/music#/manage");
   await page.locator(".manage-list a").filter({ hasText: title }).click();
   await expect(page.getByLabel("担当者のGitHub数値ID")).toHaveCount(0);
   await page.getByLabel("背景色", { exact: true }).fill("#344466");
+  const source =
+    "void mainImage(out vec4 color, in vec2 p) { color = vec4(p / iResolution.xy, 0.5 + 0.5 * sin(iTime), 1.0); }";
+  const code = page.getByLabel("フラグメントシェーダー（GLSL）");
+  await code.fill("invalid GLSL");
+  await page
+    .getByRole("button", { name: "コンパイルして適用", exact: true })
+    .click();
+  await expect(page.locator("#shader-error")).not.toBeEmpty();
+  await expect(page.locator("canvas.game-backdrop")).toHaveCount(0);
+  await code.fill(source);
+  await page
+    .getByRole("button", { name: "コンパイルして適用", exact: true })
+    .click();
+  await expect(page.locator("#shader-error")).toBeEmpty();
+  await expect(page.locator("canvas.game-backdrop")).toBeVisible();
+  await code.fill("invalid GLSL again");
+  await page
+    .getByRole("button", { name: "コンパイルして適用", exact: true })
+    .click();
+  await expect(page.locator("#shader-error")).not.toBeEmpty();
+  await expect(page.locator("canvas.game-backdrop")).toBeVisible();
+  await page
+    .getByRole("button", { name: "編集を取り消す", exact: true })
+    .click();
+  await expect(code).toHaveValue(source);
   await page.getByLabel("背景画像（任意").setInputFiles({
     name: "background.png",
     mimeType: "image/png",
@@ -69,7 +98,7 @@ test("admin hands page access by ID and author previews and publishes a game bac
     await page.setViewportSize({ width, height: 900 });
     expect(
       await page.evaluate(
-        /** @brief 背景の余白追加でスマホ横溢れを起こさない。 */ () =>
+        /** @brief 背景の余白追加でスマホ横溢れを起こさない */ () =>
           document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
@@ -84,10 +113,17 @@ test("admin hands page access by ID and author previews and publishes a game bac
   ).json()) as PublicGame[];
   expect(
     catalogue.find(
-      /** @brief 公開版の保存内容をUIと照合する。 */ (game) => game.id === id,
+      /** @brief 公開版の保存内容をUIと照合する */ (game) => game.id === id,
     )?.design?.backgroundColor,
   ).toBe("#344466");
-  // 他のE2Eが共有デモ件数へ依存するため、検証で公開した作品だけを取り下げる。
+  expect(
+    catalogue.find(
+      /** @brief 公開後もGLSL全文が保持されることを確認する */ (game) =>
+        game.id === id,
+    )?.design?.webgl?.fragmentShader,
+  ).toBe(source);
+  await expect(page.locator("canvas.game-backdrop")).toBeVisible();
+  // 他のE2Eが共有デモ件数へ依存するため、検証で公開した作品だけを取り下げる
   await page.goto(`http://127.0.0.1:8788/music#/manage/games/${id}`);
   await page
     .getByRole("button", { name: "作品を非公開にする", exact: true })

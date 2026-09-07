@@ -75,6 +75,7 @@ async function sign(payload: string): Promise<string> {
   return base64UrlEncode(new Uint8Array(signature));
 }
 
+/** 認証済みユーザー情報を署名付きHttpOnlyセッションCookieへ変換する */
 export async function createSessionCookie(user: SessionUser, request: Request): Promise<string> {
   const expiresAt = Date.now() + 8 * 60 * 60 * 1000;
   const payload = base64UrlEncode(JSON.stringify({ user, expiresAt }));
@@ -83,11 +84,13 @@ export async function createSessionCookie(user: SessionUser, request: Request): 
   return `${SESSION_COOKIE}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800${secure}`;
 }
 
+/** 現在のセッションCookieを期限切れにするSet-Cookie値を作る */
 export function clearSessionCookie(request: Request): string {
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
   return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
 }
 
+/** リクエストCookieを検証し、期限内のセッション本人情報を返す */
 export async function readSession(request: Request): Promise<SessionUser | null> {
   const value = cookieValue(request, SESSION_COOKIE);
   if (!value) return null;
@@ -114,17 +117,20 @@ export async function readSession(request: Request): Promise<SessionUser | null>
   }
 }
 
+/** 現在の環境でローカル開発用認証を表示してよいかを判定する */
 export function localDevAuthAvailable(request: Request): boolean {
   const hostname = new URL(request.url).hostname;
   return runtimeEnv().LOCAL_DEV_AUTH === "true" &&
     (hostname === "localhost" || hostname === "127.0.0.1");
 }
 
+/** GitHub OAuthに必要な公開設定が揃っているかを判定する */
 export function githubAuthConfigured(): boolean {
   const current = runtimeEnv();
   return Boolean(current.GITHUB_CLIENT_ID && current.GITHUB_CLIENT_SECRET);
 }
 
+/** GitHub OAuth開始処理で利用する公開設定を返す */
 export function githubClientConfig() {
   const current = runtimeEnv();
   if (!current.GITHUB_CLIENT_ID || !current.GITHUB_CLIENT_SECRET) {
@@ -136,6 +142,7 @@ export function githubClientConfig() {
   };
 }
 
+/** ブラウザへ公開してよいGitHub OAuth Client IDを返す */
 export function githubPublicClientId(): string | null {
   return runtimeEnv().GITHUB_CLIENT_ID?.trim() || null;
 }
@@ -231,6 +238,7 @@ export async function verifyGithubToken(accessToken: string): Promise<SessionUse
   return requireGameAccess(await verifyGithubIdentity(accessToken));
 }
 
+/** Intakeアップロード権限を持つ認証済み本人を取得する */
 export async function requireUploaderActor(request: Request): Promise<SessionUser> {
   const authorization = request.headers.get("authorization") ?? "";
   if (authorization.startsWith("Bearer ")) {
@@ -257,20 +265,24 @@ export async function requireUploaderActor(request: Request): Promise<SessionUse
   throw new Response("Authentication required", { status: 401 });
 }
 
+/** OAuth stateを改ざん防止Cookieへ保存する */
 export function createStateCookie(state: string, request: Request): string {
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
   return `${STATE_COOKIE}=${encodeURIComponent(state)}; Path=/api/auth/github; HttpOnly; SameSite=Lax; Max-Age=600${secure}`;
 }
 
+/** OAuth state Cookieを読み取り、検証後に破棄する値を返す */
 export function consumeState(request: Request): string | undefined {
   return cookieValue(request, STATE_COOKIE);
 }
 
+/** OAuth state Cookieを期限切れにするSet-Cookie値を作る */
 export function clearStateCookie(request: Request): string {
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
   return `${STATE_COOKIE}=; Path=/api/auth/github; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
 }
 
+/** GitHub本人情報をユーザーテーブルへ追加または更新する */
 export async function upsertUser(user: SessionUser): Promise<void> {
   await ensureSchema();
   await getD1()
@@ -292,12 +304,14 @@ export async function upsertUser(user: SessionUser): Promise<void> {
     .run();
 }
 
+/** 未認証なら401を返し、認証済みセッションを取得する */
 export async function requireSession(request: Request): Promise<SessionUser> {
   const user = await readSession(request);
   if (!user) throw new Response("Authentication required", { status: 401 });
   return requireGameAccess(user);
 }
 
+/** 直近に本人確認されたセッションだけを重要操作へ通す */
 export async function requireRecentSession(request: Request): Promise<SessionUser> {
   const user = await requireSession(request);
   const age = Date.now() - Date.parse(user.authenticatedAt);
@@ -345,6 +359,7 @@ export const musicLocalUsers: Record<string, SessionUser> = Object.fromEntries(
   ),
 );
 
+/** ローカル開発用の固定ユーザーをD1へ登録する */
 export async function ensureLocalFixtures(): Promise<void> {
   await ensureSchema();
   const now = new Date().toISOString();

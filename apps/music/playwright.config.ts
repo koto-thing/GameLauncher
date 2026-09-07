@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-// 実ブラウザー3種で同じ導線を検証し、ローカルの編集データは別ポートで保護する。
+// 実ブラウザー3種で同じ導線を検証し、ローカルの編集データは別ポートで保護する
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: false,
