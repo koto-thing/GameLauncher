@@ -35,6 +35,7 @@
 #include <QNetworkRequest>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QProgressBar>
 #include <QPropertyAnimation>
 #include <QPushButton>
@@ -45,6 +46,7 @@
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QStatusBar>
+#include <QStyledItemDelegate>
 #include <QSysInfo>
 #include <QSystemTrayIcon>
 #include <QTabWidget>
@@ -124,6 +126,113 @@ class ElidedLabel final : public QLabel {
 
     QString fullText_;
 };
+
+/** @brief 元画像の縦横比を保って表示領域内へ収めるラベル */
+class AspectRatioPixmapLabel final : public QLabel {
+  public:
+    using QLabel::QLabel;
+
+    /** @brief 元画像を保持して現在の表示領域へ反映する */
+    void setSourcePixmap(const QPixmap& pixmap) {
+        sourcePixmap_ = pixmap;
+        updatePixmap();
+    }
+
+  protected:
+    /** @brief resize後の表示領域へ元画像を再調整する */
+    void resizeEvent(QResizeEvent* event) override {
+        QLabel::resizeEvent(event);
+        updatePixmap();
+    }
+
+  private:
+    /** @brief 元画像を変形せず表示領域内へ最大化する */
+    void updatePixmap() {
+        if (sourcePixmap_.isNull() || size().isEmpty()) {
+            QLabel::clear();
+            return;
+        }
+
+        QLabel::setPixmap(
+            sourcePixmap_.scaled(size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    }
+
+    QPixmap sourcePixmap_;
+};
+
+constexpr int gameThumbnailWidth = 190;
+constexpr int gameThumbnailHeight = 107;
+constexpr int gameCardWidth = 200;
+constexpr int gameCardHeight = 120;
+
+/** @brief 16:9画像へタイトルを重ねてゲームカードを描画する */
+class GameCardDelegate final : public QStyledItemDelegate {
+  public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    /** @brief 固定寸法のゲームカードを描画する */
+    void paint(QPainter* painter, const QStyleOptionViewItem& option,
+               const QModelIndex& index) const override {
+        const QRect card(option.rect.left() + 5, option.rect.top() + 6, gameThumbnailWidth,
+                         gameThumbnailHeight);
+        const auto selected = option.state.testFlag(QStyle::State_Selected);
+        const auto hovered = option.state.testFlag(QStyle::State_MouseOver);
+        const auto icon = index.data(Qt::DecorationRole).value<QIcon>();
+
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        QPainterPath clip;
+        clip.addRoundedRect(card, 8, 8);
+        painter->setClipPath(clip);
+        painter->fillRect(card, option.palette.color(QPalette::Base));
+        icon.paint(painter, card, Qt::AlignCenter, QIcon::Normal, QIcon::On);
+
+        constexpr int titleHeight = 27;
+        const QRect titleArea(card.left(), card.bottom() - titleHeight + 1, card.width(),
+                              titleHeight);
+        painter->fillRect(titleArea, QColor(0, 0, 0, 170));
+        painter->setPen(Qt::white);
+        const auto title = option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight,
+                                                         titleArea.width() - 16);
+        painter->drawText(titleArea.adjusted(8, 0, -8, 0), Qt::AlignCenter, title);
+        painter->setClipping(false);
+        painter->setPen(QPen(selected || hovered ? QColor("#e60012")
+                                                : option.palette.color(QPalette::Mid),
+                             selected || hovered ? 3 : 1));
+        painter->drawRoundedRect(card.adjusted(1, 1, -1, -1), 8, 8);
+        painter->restore();
+    }
+
+    /** @brief 一覧layoutへ固定カード寸法を返す */
+    QSize sizeHint(const QStyleOptionViewItem&, const QModelIndex&) const override {
+        return {gameCardWidth, gameCardHeight};
+    }
+};
+
+/** @brief 一覧用画像を中央基準で16:9に切り抜く */
+QPixmap cardThumbnail(const QPixmap& source) {
+    if (source.isNull()) {
+        return {};
+    }
+
+    const auto scaled = source.scaled(gameThumbnailWidth, gameThumbnailHeight,
+                                      Qt::KeepAspectRatioByExpanding,
+                                      Qt::SmoothTransformation);
+    const auto x = std::max(0, (scaled.width() - gameThumbnailWidth) / 2);
+    const auto y = std::max(0, (scaled.height() - gameThumbnailHeight) / 2);
+    return scaled.copy(x, y, gameThumbnailWidth, gameThumbnailHeight);
+}
+
+/** @brief 一覧を同一寸法の16:9カード表示に設定する */
+void configureGameCardList(QListWidget* list) {
+    list->setViewMode(QListView::IconMode);
+    list->setItemDelegate(new GameCardDelegate(list));
+    list->setIconSize(QSize(gameThumbnailWidth, gameThumbnailHeight));
+    list->setGridSize(QSize(gameCardWidth, gameCardHeight));
+    list->setItemAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    list->setMovement(QListView::Static);
+    list->setResizeMode(QListView::Adjust);
+}
 
 /** @brief ViewModelへ接続してランチャーwindowを構築する */
 LauncherWindow::LauncherWindow(LauncherViewModel& viewModel, bool initialize, QWidget* parent)
@@ -332,10 +441,9 @@ QWidget* LauncherWindow::createHomePage() {
 
     auto* previewRow = new QHBoxLayout();
     previewRow->setSpacing(24);
-    homePreviewImage_ = new QLabel(page);
+    homePreviewImage_ = new AspectRatioPixmapLabel(page);
     homePreviewImage_->setObjectName("homePreviewImage");
     homePreviewImage_->setAlignment(Qt::AlignCenter);
-    homePreviewImage_->setScaledContents(true);
     homePreviewImage_->setMinimumSize(400, 225);
     homePreviewImage_->setAccessibleName(tr("選択中ゲームのサムネイル"));
     previewRow->addWidget(homePreviewImage_, 2);
@@ -358,20 +466,24 @@ QWidget* LauncherWindow::createHomePage() {
     layout->addLayout(previewRow, 3);
 
     homeList_ = new QListWidget(page);
-    homeList_->setViewMode(QListView::IconMode);
-    homeList_->setIconSize(QSize(170, 96));
-    homeList_->setGridSize(QSize(200, 150));
-    homeList_->setMovement(QListView::Static);
-    homeList_->setResizeMode(QListView::Adjust);
+    configureGameCardList(homeList_);
     homeList_->setFlow(QListView::LeftToRight);
     homeList_->setWrapping(false);
     homeList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    homeList_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     homeList_->setAccessibleName(tr("おすすめゲーム"));
-    layout->addWidget(homeList_, 1);
+    homeList_->setFixedHeight(gameCardHeight);
     homeEmpty_ = new QLabel(tr("現在おすすめできる未所持ゲームはありません"), page);
     homeEmpty_->setObjectName("empty");
     homeEmpty_->setAlignment(Qt::AlignCenter);
-    layout->addWidget(homeEmpty_);
+    auto* recommendations = new QWidget(page);
+    auto* recommendationsLayout = new QVBoxLayout(recommendations);
+    recommendationsLayout->setContentsMargins(0, 0, 0, 0);
+    recommendationsLayout->addStretch();
+    recommendationsLayout->addWidget(homeList_);
+    recommendationsLayout->addWidget(homeEmpty_);
+    recommendationsLayout->addStretch();
+    layout->addWidget(recommendations, 1);
     connect(homeList_, &QListWidget::currentItemChanged, this, [this](QListWidgetItem* current) {
         if (current) {
             updateHomeSelection(current->data(Qt::UserRole).toString());
@@ -419,11 +531,7 @@ QWidget* LauncherWindow::createDiscoverPage() {
     section->setObjectName("sectionTitle");
     layout->addWidget(section);
     discoverList_ = new QListWidget(page);
-    discoverList_->setViewMode(QListView::IconMode);
-    discoverList_->setIconSize(QSize(210, 118));
-    discoverList_->setGridSize(QSize(250, 185));
-    discoverList_->setMovement(QListView::Static);
-    discoverList_->setResizeMode(QListView::Adjust);
+    configureGameCardList(discoverList_);
     discoverList_->setAccessibleName(tr("未所持ゲーム一覧"));
     layout->addWidget(discoverList_, 1);
     discoverEmpty_ = new QLabel(page);
@@ -468,11 +576,7 @@ QWidget* LauncherWindow::createLibraryPage() {
     hint->setObjectName("muted");
     layout->addWidget(hint);
     libraryList_ = new QListWidget(page);
-    libraryList_->setViewMode(QListView::IconMode);
-    libraryList_->setIconSize(QSize(210, 118));
-    libraryList_->setGridSize(QSize(250, 185));
-    libraryList_->setMovement(QListView::Static);
-    libraryList_->setResizeMode(QListView::Adjust);
+    configureGameCardList(libraryList_);
     libraryList_->setAccessibleName(tr("所持ゲーム一覧"));
     layout->addWidget(libraryList_, 1);
     libraryEmpty_ = new QLabel(
@@ -703,7 +807,9 @@ void LauncherWindow::refreshData() {
     applyTheme();
     homeList_->clear();
     libraryList_->clear();
-    const QIcon placeholder(QStringLiteral(":/images/launcher_background_placeholder.png"));
+    const QPixmap placeholderPixmap(
+        QStringLiteral(":/images/launcher_background_placeholder.png"));
+    const QIcon placeholder(cardThumbnail(placeholderPixmap));
     std::vector<const GameCatalogEntry*> recommendations;
     for (const auto& game : viewModel_.catalog()) {
         const auto gameId = QString::fromStdString(game.gameId.value());
@@ -714,7 +820,7 @@ void LauncherWindow::refreshData() {
                         [&game](const auto& value) { return value.gameId == game.gameId; });
         const auto imageUrl = QString::fromStdString(game.thumbnailUrl);
         const QIcon icon = heroCache_.contains(imageUrl)
-                               ? QIcon(heroCache_.value(imageUrl))
+                               ? QIcon(cardThumbnail(heroCache_.value(imageUrl)))
                                : (imageUrl.isEmpty() ? placeholder : QIcon{});
         auto addCard = [&](QListWidget* list) {
             auto* item = new QListWidgetItem(icon, name);
@@ -741,7 +847,7 @@ void LauncherWindow::refreshData() {
         const auto gameId = QString::fromStdString(game->gameId.value());
         const auto imageUrl = QString::fromStdString(game->thumbnailUrl);
         const QIcon icon = heroCache_.contains(imageUrl)
-                               ? QIcon(heroCache_.value(imageUrl))
+                               ? QIcon(cardThumbnail(heroCache_.value(imageUrl)))
                                : (imageUrl.isEmpty() ? placeholder : QIcon{});
         auto* item = new QListWidgetItem(icon, QString::fromStdString(game->name));
         item->setData(Qt::UserRole, gameId);
@@ -755,7 +861,7 @@ void LauncherWindow::refreshData() {
     if (homeList_->count() != 0) {
         homeList_->setCurrentRow(0);
     } else {
-        homePreviewImage_->clear();
+        homePreviewImage_->setSourcePixmap({});
         homePreviewTitle_->clear();
         homePreviewSummary_->clear();
     }
@@ -787,7 +893,7 @@ void LauncherWindow::updateHomeSelection(const QString& gameId) {
         heroCache_.contains(imageUrl)
             ? heroCache_.value(imageUrl)
             : QPixmap(QStringLiteral(":/images/launcher_background_placeholder.png"));
-    homePreviewImage_->setPixmap(image);
+    homePreviewImage_->setSourcePixmap(image);
 }
 
 /** @brief 検索条件に合う未所持ゲームを再描画する */
@@ -798,7 +904,9 @@ void LauncherWindow::refreshDiscover() {
     }
     discoverList_->clear();
     const auto query = searchInput_->text().trimmed();
-    const QIcon placeholder(QStringLiteral(":/images/launcher_background_placeholder.png"));
+    const QPixmap placeholderPixmap(
+        QStringLiteral(":/images/launcher_background_placeholder.png"));
+    const QIcon placeholder(cardThumbnail(placeholderPixmap));
     for (const auto& game : viewModel_.catalog()) {
         const auto installed =
             std::any_of(viewModel_.installedGames().begin(), viewModel_.installedGames().end(),
@@ -811,7 +919,7 @@ void LauncherWindow::refreshDiscover() {
         }
         const auto imageUrl = QString::fromStdString(game.thumbnailUrl);
         const QIcon icon = heroCache_.contains(imageUrl)
-                               ? QIcon(heroCache_.value(imageUrl))
+                               ? QIcon(cardThumbnail(heroCache_.value(imageUrl)))
                                : (imageUrl.isEmpty() ? placeholder : QIcon{});
         auto* item = new QListWidgetItem(icon, name);
         item->setData(Qt::UserRole, QString::fromStdString(game.gameId.value()));
@@ -891,7 +999,7 @@ void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& i
                     if (decoded.isNull()) {
                         const QPixmap placeholderPixmap(
                             QStringLiteral(":/images/launcher_background_placeholder.png"));
-                        const QIcon placeholder(placeholderPixmap);
+                        const QIcon placeholder(cardThumbnail(placeholderPixmap));
                         heroCache_.insert(imageUrl, placeholderPixmap);
                         for (auto* list : {homeList_, discoverList_, libraryList_}) {
                             for (int index = 0; index < list->count(); ++index) {
@@ -913,7 +1021,7 @@ void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& i
                         for (int index = 0; index < list->count(); ++index) {
                             auto* item = list->item(index);
                             if (item->data(Qt::UserRole).toString() == gameId) {
-                                item->setIcon(QIcon(pixmap));
+                                item->setIcon(QIcon(cardThumbnail(pixmap)));
                             }
                         }
                     }
