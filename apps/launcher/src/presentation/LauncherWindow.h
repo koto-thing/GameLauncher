@@ -22,6 +22,7 @@ class QNetworkAccessManager;
 namespace pandd {
 
 class ElidedLabel;
+class AspectRatioPixmapLabel;
 class GameDetailPage;
 
 /** @brief ストアと所持ゲームを明確に分けたゲームランチャー画面 */
@@ -114,7 +115,7 @@ class LauncherWindow final : public QMainWindow {
     QListWidget* libraryList_{nullptr};
     QLineEdit* searchInput_{nullptr};
     QLabel* homeEmpty_{nullptr};
-    QLabel* homePreviewImage_{nullptr};
+    AspectRatioPixmapLabel* homePreviewImage_{nullptr};
     QLabel* homePreviewTitle_{nullptr};
     QLabel* homePreviewSummary_{nullptr};
     QLabel* discoverEmpty_{nullptr};
