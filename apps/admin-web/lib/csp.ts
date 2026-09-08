@@ -1,5 +1,12 @@
+/**
+ * パスと実行環境に応じたContent-Security-Policyを生成する
+ * @param isDev 開発用のunsafe-evalを許可するか
+ * @param pathname Music管理画面など、追加の実行要件を持つパス
+ * @returns セミコロン区切りのCSPポリシー
+ */
 export function buildContentSecurityPolicy(
   isDev: boolean = process.env.NODE_ENV === "development",
+  pathname: string = "",
 ): string {
   const scriptSrc = isDev
     ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
@@ -14,7 +21,7 @@ export function buildContentSecurityPolicy(
     "frame-ancestors 'none'",
     "img-src 'self' blob: data: https://avatars.githubusercontent.com",
     "object-src 'none'",
-    scriptSrc,
+    scriptSrc + (pathname === "/music" ? " 'wasm-unsafe-eval'" : ""),
     "style-src 'self' 'unsafe-inline'",
   ].join("; ");
 }

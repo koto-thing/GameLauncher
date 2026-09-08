@@ -6,10 +6,12 @@ import {
   type ErrorObject,
 } from "./schema-validator.ts";
 
+/** descriptor検証に成功した場合と失敗した場合の結果型 */
 export type ValidationResult =
   | { valid: true; descriptor: ArtifactDescriptor; errors: [] }
   | { valid: false; descriptor: null; errors: string[] };
 
+/** AJVのエラーを利用者が修正しやすい日本語メッセージへ変換する */
 function formatDescriptorError(err: ErrorObject): string {
   if (err.keyword === "additionalProperties") {
     const prop = (err.params as { additionalProperty?: string }).additionalProperty;
@@ -58,6 +60,11 @@ function formatDescriptorError(err: ErrorObject): string {
   return `${path ? path.slice(1) + ": " : ""}${err.message ?? "値が不正です"}`;
 }
 
+/**
+ * 未信頼のJSON値をdescriptorスキーマで検証し、型付きdescriptorへ変換する
+ * @param raw ファイルから読み込んだJSON値
+ * @returns 検証結果と、成功時のdescriptorまたは失敗理由
+ */
 export function validateDescriptorSchema(raw: unknown): ValidationResult {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { valid: false, descriptor: null, errors: ["descriptorはJSONオブジェクトである必要があります"] };

@@ -2,34 +2,61 @@ import { locales } from "./locales.ts";
 import { platforms, siteUrl, validateConfig } from "./config.ts";
 import type { SiteConfig } from "./config.ts";
 
-/** Escape configuration text for HTML text nodes and quoted attributes. */
+/**
+ * @brief 設定値をHTML本文と属性で安全に扱える文字列へ変換する
+ * @param value エスケープする設定値
+ * @returns HTMLとして解釈されない文字列
+ */
 export function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/gu, char => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  })[char]!);
+  return value.replace(
+    /[&<>"']/gu,
+    /** @brief HTML予約文字を対応するエンティティへ置換する @param char 置換対象の文字 */
+    (char): string => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[char]!,
+  );
 }
 
-/** Render real links or disabled OS slots at build time, including without JavaScript. */
+/**
+ * @brief OSごとの実リンクまたは準備中ボタンをJavaScriptなしでも描画する
+ * @param config サイト設定
+ * @param base 配置先のbase URL
+ * @returns ダウンロード領域のHTML
+ */
 export function renderDownloads(config: SiteConfig, base: string): string {
   const labels = { windows: "Windows", macos: "Mac", linux: "Linux" };
-  return platforms.map(platform => {
+
+  return platforms.map(
+    /** @brief 配布状態をOS別のアクセシブルな要素へ変換する @param platform OS識別子 */
+    (platform): string => {
     const target = config.downloads[platform];
     const label = labels[platform];
     const available = target.status === "available";
     const action = available ? locales.en.download : locales.en.soon;
     const detail = available && target.detail ? `<small>${escapeHtml(target.detail)}</small>` : "";
     const content = `<span class="os-name">${label}</span><span class="download-action">${action}</span>${detail}`;
+
     return available
       ? `<a class="download" data-platform="${platform}" href="${escapeHtml(siteUrl(target.url, base))}" aria-label="${label} · ${action}${target.detail ? ` (${escapeHtml(target.detail)})` : ""}">${content}</a>`
       : `<button class="download" data-platform="${platform}" type="button" disabled aria-label="${label} · ${action}">${content}</button>`;
-  }).join("\n");
+    },
+  ).join("\n");
 }
 
-/** Produce the page shell from validated settings; media loading is never a render prerequisite. */
+/**
+ * @brief 検証済み設定から、メディア未読込でも成立するページシェルを生成する
+ * @param config サイト設定
+ * @param base 配置先のbase URL
+ * @returns 完成したHTML文書
+ * @throws 設定が不正な場合
+ */
 export function renderPage(config: SiteConfig, base: string): string {
   validateConfig(config);
-  const url = (value: string) => escapeHtml(siteUrl(value, base));
+
+  const url = /** @brief 設定素材URLをHTML属性用に解決する @param value 素材URL */ (value: string): string =>
+    escapeHtml(siteUrl(value, base));
   const { background } = config;
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -53,11 +80,11 @@ export function renderPage(config: SiteConfig, base: string): string {
   </div>
   <header class="site-header">${config.logoUrl ? `<span class="brand-logo"><img src="${url(config.logoUrl)}" alt="PandD" width="1500" height="1500"></span>` : '<span class="wordmark">PandD</span>'}<div class="language-picker" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6.5h14M5 17.5h14"/></svg>
-    <select id="language" aria-label="${locales.en.language}">${Object.entries(locales).map(([code, text]) => `<option value="${code}" lang="${code}">${text.name}</option>`).join("")}</select>
+    <select id="language" aria-label="${locales.en.language}">${Object.entries(locales).map(/** @brief 言語選択肢を静的HTMLへ変換する @param entry ロケールコードと表示名 */ ([code, text]) => `<option value="${code}" lang="${code}">${text.name}</option>`).join("")}</select>
   </div></header>
   <main class="stage">
     <div class="hero">
-      <h1 class="title"><span class="product-title">${config.title.split(" ").map(word => `<span class="title-word">${/^[PD]/.test(word) ? `<span class="title-initial">${escapeHtml(word[0]!)}</span>${escapeHtml(word.slice(1))}` : escapeHtml(word)}</span>`).join(" ")}</span></h1>
+      <h1 class="title"><span class="product-title">${config.title.split(" ").map(/** @brief タイトルの頭文字を装飾し、残りをエスケープする @param word タイトル語 */ (word) => `<span class="title-word">${/^[PD]/.test(word) ? `<span class="title-initial">${escapeHtml(word[0]!)}</span>${escapeHtml(word.slice(1))}` : escapeHtml(word)}</span>`).join(" ")}</span></h1>
       <p class="tagline" data-japanese-tagline="${escapeHtml(config.tagline)}">${locales.en.tagline}</p>
       <nav class="downloads" aria-label="${locales.en.nav}">${renderDownloads(config, base)}</nav>
     </div>

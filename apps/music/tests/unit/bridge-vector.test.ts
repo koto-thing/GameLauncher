@@ -4,7 +4,7 @@ import vector from "../../../../contracts/music/signature-vector.json" with { ty
 import { signatureHeaders } from "../../../admin-web/music/infrastructure/bridge";
 import type { Envelope } from "../../../../contracts/music/bridge-v1";
 
-test("v1 signature has a fixed cross-language byte representation", /** @brief 固定ベクトルでJSON表現・base64url・HMACの互換性を検査する。 */ async () => {
+test("v1 signature has a fixed cross-language byte representation", /** @brief 固定ベクトルでJSON表現・base64url・HMACの互換性を検査する */ async () => {
   const headers = await signatureHeaders(
     vector.envelope as Envelope,
     vector.secret,

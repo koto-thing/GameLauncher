@@ -15,9 +15,9 @@ import {
 } from "../../../admin-web/lib/auth";
 import { getD1 } from "../../../admin-web/db/initialize";
 
-// テスト用のHTTP配送だけを定義し、認証・ゲーム・Musicの本物のサーバー入口を実行する。
+// テスト用のHTTP配送だけを定義し、認証・ゲーム・Musicの本物のサーバー入口を実行する
 export default {
-  /** @brief ローカルD1と実PHPに本番と同じUse Caseをつなぐ。 @param request 統合テスト要求。 @returns 実API応答。 */
+  /** @brief ローカルD1と実PHPに本番と同じUse Caseをつなぐ @param request 統合テスト要求 @returns 実API応答 */
   async fetch(request: Request): Promise<Response> {
     const path = new URL(request.url).pathname;
     if (path === "/__test/db") {
@@ -27,7 +27,7 @@ export default {
       return Response.json(
         await getD1().batch(
           queries.map(
-            /** @brief テストfixtureのSQLを実D1へ適用する。 */ (query) =>
+            /** @brief テストfixtureのSQLを実D1へ適用する */ (query) =>
               getD1()
                 .prepare(query.sql)
                 .bind(...query.values),
@@ -46,7 +46,7 @@ export default {
     if (path === "/api/intake/config") return intakeConfig(request);
     if (path === "/api/intake/uploads") return intakeUpload(request);
     if (path === "/api/actions/preflight") return preflight(request);
-    // GitHubへの実接続を起こさず本人確認の外部境界を試験する専用入口。
+    // GitHubへの実接続を起こさず本人確認の外部境界を試験する専用入口
     if (path === "/__test/identity") {
       try {
         return Response.json(

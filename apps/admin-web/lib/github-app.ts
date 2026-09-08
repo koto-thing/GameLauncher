@@ -38,6 +38,7 @@ function config(environment: DeploymentEnvironment) {
   };
 }
 
+/** 指定環境のGitHub Actions dispatchに必要な設定が揃っているかを確認する */
 export function githubAppDispatchConfigured(environment: DeploymentEnvironment): boolean {
   const current = env as unknown as GitHubAppEnv;
   return Boolean(
@@ -84,6 +85,12 @@ async function installationToken(environment: DeploymentEnvironment): Promise<st
   return result.token;
 }
 
+/**
+ * GitHub Appとして対象環境のデプロイWorkflowを起動する
+ * @param environment 起動対象の公開環境
+ * @param requestId 実行する公開申請ID
+ * @param attemptId 実行試行ID
+ */
 export async function dispatchDeploymentWorkflow(
   environment: DeploymentEnvironment,
   requestId: string,

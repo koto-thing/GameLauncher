@@ -27,9 +27,9 @@ import type {
   MusicRepository,
 } from "./ports";
 
-/** @brief 作品編集・公開・素材の認可をHTTPから独立して実行する。 */
+/** @brief 作品編集・公開・素材の認可をHTTPから独立して実行する */
 export class MusicService {
-  /** @brief 外側から永続化・保存・時刻・ID・ルールを注入する。 */
+  /** @brief 外側から永続化・保存・時刻・ID・ルールを注入する */
   constructor(
     readonly repository: MusicRepository,
     readonly publisher: MusicPublisher,
@@ -44,7 +44,7 @@ export class MusicService {
   ) {
     validatePolicy(policy);
   }
-  /** @brief 非公開の情報を混ぜず公開カタログを構築する。 @returns 公開作品と公開曲。 */
+  /** @brief 非公開の情報を混ぜず公開カタログを構築する @returns 公開作品と公開曲 */
   async catalogue(): Promise<PublicGame[]> {
     const result: PublicGame[] = [];
     for (const game of await this.repository.games()) {
@@ -53,14 +53,14 @@ export class MusicService {
       for (const track of await this.repository.tracks(game.id))
         if (track.published) tracks.push(await this.publicTrack(track, false));
       tracks.sort(
-        /** @brief 公開時の曲順を維持する。 */ (left, right) =>
+        /** @brief 公開時の曲順を維持する */ (left, right) =>
           left.position - right.position || left.id.localeCompare(right.id),
       );
       result.push({ id: game.id, ...game.published, tracks });
     }
     return result;
   }
-  /** @brief 再生に必要な検証済みメタデータだけをDTOへ加える。 @param track 保存行。 @param preview 下書き版を使用するか。 @returns プレーヤー用DTO。 */
+  /** @brief 再生に必要な検証済みメタデータだけをDTOへ加える @param track 保存行 @param preview 下書き版を使用するか @returns プレーヤー用DTO */
   async publicTrack(track: Track, preview: boolean): Promise<PublicTrack> {
     const content = preview ? track.draft : track.published;
     requireValue(
@@ -83,30 +83,30 @@ export class MusicService {
       audioBytes: audio.bytes,
     };
   }
-  /** @brief 担当作品だけを管理画面に返す。 @param actor 現在の権限。 */
+  /** @brief 担当作品だけを管理画面に返す @param actor 現在の権限 */
   async managedGames(actor: Principal | null): Promise<Game[]> {
     if (!actor)
       throw new MusicError("UNAUTHENTICATED", "ログインしてください。");
     return (await this.repository.games()).filter(
-      /** @brief 未担当作品を管理一覧から除く。 */ (game) =>
+      /** @brief 未担当作品を管理一覧から除く */ (game) =>
         actor.admin || actor.gameIds.includes(game.id),
     );
   }
-  /** @brief 作品取得と認可を統一する。 @param id 作品ID。 @param actor 現在の権限。 */
+  /** @brief 作品取得と認可を統一する @param id 作品ID @param actor 現在の権限 */
   async managedGame(id: string, actor: Principal | null): Promise<Game> {
     authorize(actor, id);
     const game = await this.repository.game(id);
     if (!game) throw new MusicError("NOT_FOUND", "作品が見つかりません。");
     return game;
   }
-  /** @brief 曲IDから所属作品を解決して認可する。 @param id 曲ID。 @param actor 現在の権限。 */
+  /** @brief 曲IDから所属作品を解決して認可する @param id 曲ID @param actor 現在の権限 */
   async managedTrack(id: string, actor: Principal | null): Promise<Track> {
     const track = await this.repository.track(id);
     if (!track) throw new MusicError("NOT_FOUND", "曲が見つかりません。");
     authorize(actor, track.gameId);
     return track;
   }
-  /** @brief 運営だけが空の作品を作成できる。 @param input 作品内容。 @param actor 操作者。 */
+  /** @brief 運営だけが空の作品を作成できる @param input 作品内容 @param actor 操作者 */
   async createGame(input: unknown, actor: Principal | null): Promise<Game> {
     authorize(actor);
     const draft = gameContent(input, this.policy);
@@ -124,11 +124,11 @@ export class MusicService {
     await this.repository.createGame(game, actor);
     return game;
   }
-  /** @brief 必要な画像の所属・検証状態を保存時から確認する。 @param id 素材ID。 @param gameId 作品。 */
+  /** @brief 必要な画像の所属・検証状態を保存時から確認する @param id 素材ID @param gameId 作品 */
   async checkImage(id: string | null, gameId: string): Promise<void> {
     if (id) validateAsset(await this.repository.asset(id), gameId, "image");
   }
-  /** @brief 楽観ロックで作品下書きだけを変更する。 */
+  /** @brief 楽観ロックで作品下書きだけを変更する */
   async editGame(
     id: string,
     input: unknown,
@@ -146,7 +146,7 @@ export class MusicService {
       "game.save",
     );
   }
-  /** @brief 承認待ちを挟まず作品の公開版を切り替える。 */
+  /** @brief 承認待ちを挟まず作品の公開版を切り替える */
   async publishGame(
     id: string,
     publish: boolean,
@@ -175,7 +175,7 @@ export class MusicService {
       actor!,
     );
   }
-  /** @brief 運営の緊急停止を担当者の公開操作から独立させる。 */
+  /** @brief 運営の緊急停止を担当者の公開操作から独立させる */
   async suspendGame(
     id: string,
     suspended: boolean,
@@ -186,7 +186,7 @@ export class MusicService {
     const game = await this.managedGame(id, actor);
     await this.publisher.game({ ...game, suspended }, version, actor, true);
   }
-  /** @brief 担当作品に空の下書き曲を追加する。 */
+  /** @brief 担当作品に空の下書き曲を追加する */
   async createTrack(
     gameId: string,
     title: string,
@@ -201,7 +201,7 @@ export class MusicService {
       publishedPosition: null,
       position:
         tracks.reduce(
-          /** @brief 空き曲順を末尾に確保する。 */ (max, item) =>
+          /** @brief 空き曲順を末尾に確保する */ (max, item) =>
             Math.max(max, item.position),
           0,
         ) + 1,
@@ -220,7 +220,49 @@ export class MusicService {
     await this.repository.createTrack(track, actor!);
     return track;
   }
-  /** @brief 素材とループの関係を公開前も検証する。 */
+  /** @brief 作品内の全曲を重複のない連番へ並び替える */
+  async reorderTracks(
+    gameId: string,
+    ids: unknown,
+    actor: Principal | null,
+  ): Promise<void> {
+    await this.managedGame(gameId, actor);
+    const tracks = await this.repository.tracks(gameId);
+    requireValue(
+      Array.isArray(ids) &&
+        ids.length === tracks.length &&
+        ids.every(
+          /** @brief 曲IDだけを受け付ける */ (id) => typeof id === "string",
+        ) &&
+        new Set(ids).size === ids.length &&
+        tracks.every(
+          /** @brief 現在の全曲が要求に含まれることを確認する */ (track) =>
+            ids.includes(track.id),
+        ),
+      "曲順の対象が最新の一覧と一致しません。再読み込みしてください。",
+      "tracks",
+    );
+    const byId = new Map(
+      tracks.map(
+        /** @brief 曲IDから現在版を引けるようにする */ (track) => [
+          track.id,
+          track,
+        ],
+      ),
+    );
+    await this.repository.reorderTracks(
+      gameId,
+      ids.map(
+        /** @brief 配列順を1始まりの曲順へ変換する */ (id, index) => ({
+          id,
+          version: byId.get(id)!.version,
+          position: index + 1,
+        }),
+      ),
+      actor!,
+    );
+  }
+  /** @brief 素材とループの関係を公開前も検証する */
   async checkTrack(track: Track, publishing: boolean): Promise<void> {
     const content = track.draft;
     await this.checkImage(content.imageAssetId, track.gameId);
@@ -270,7 +312,7 @@ export class MusicService {
       );
     }
   }
-  /** @brief 音源変更時の古いループ流用を禁止し下書き保存する。 */
+  /** @brief 音源変更時の古いループ流用を禁止し下書き保存する */
   async editTrack(
     id: string,
     input: unknown,
@@ -298,7 +340,7 @@ export class MusicService {
       "track.save",
     );
   }
-  /** @brief 音源・画像・ループを1回のDB更新で公開版に反映する。 */
+  /** @brief 音源・画像・ループを1回のDB更新で公開版に反映する */
   async publishTrack(
     id: string,
     publish: boolean,
@@ -317,7 +359,7 @@ export class MusicService {
       actor!,
     );
   }
-  /** @brief 任意HTMLを許さず運営バナーだけを保存する。 */
+  /** @brief 任意HTMLを許さず運営バナーだけを保存する */
   async saveAdvertisement(
     input: Advertisement,
     actor: Principal | null,
@@ -343,7 +385,7 @@ export class MusicService {
     );
     await this.publisher.advertisement(value, actor);
   }
-  /** @brief 運営専用の設定・履歴を取得する。 */
+  /** @brief 運営専用の設定・履歴を取得する */
   async adminSettings(actor: Principal | null) {
     authorize(actor);
     const [advertisement, accounts, audit] = await Promise.all([
@@ -353,7 +395,7 @@ export class MusicService {
     ]);
     return { advertisement, accounts, audit };
   }
-  /** @brief GitHub数値IDを確認して、未ログインの担当者にも作品編集を手渡す。 */
+  /** @brief GitHub数値IDを確認して、未ログインの担当者にも作品編集を手渡す */
   async changeMembership(
     gameId: string,
     accountId: string,
@@ -368,7 +410,7 @@ export class MusicService {
       "GitHubの数値アカウントIDを指定してください。",
       "accountId",
     );
-    // 解除はGitHub側で削除済みのアカウントにも実行できるよう、外部照会を要求しない。
+    // 解除はGitHub側で削除済みのアカウントにも実行できるよう、外部照会を要求しない
     const account = enabled ? await this.directory.findById(accountId) : null;
     await this.repository.setMembership(
       gameId,

@@ -11,6 +11,7 @@
 
 namespace pandd {
 
+/** @brief 同梱registryから利用可能な言語一覧を読み込む */
 QVector<SupportedLocale> supportedLocales() {
     // resource内の言語registryを読み込み失敗時は日本語だけを提供
     QFile file(":/i18n/locales.json");
@@ -32,6 +33,7 @@ QVector<SupportedLocale> supportedLocales() {
                             : result;
 }
 
+/** @brief 指定localeのQt翻訳をApplicationへ登録する */
 bool installApplicationTranslation(QApplication& application, QTranslator& translator,
                                    const QString& locale) {
     // 適用済みtranslatorを外して二重翻訳を防止

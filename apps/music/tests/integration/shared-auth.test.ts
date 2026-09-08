@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
 import { createRuntime, fixtureClient } from "../support/rental-runtime.mjs";
 
-test("shared GitHub identity, strict game authorization, PKCE and cookie boundaries", /** @brief GitHub境界だけを模擬し本物の認証関数・D1・Callbackを実行する。 */ async (t) => {
+test("shared GitHub identity, strict game authorization, PKCE and cookie boundaries", /** @brief GitHub境界だけを模擬し本物の認証関数・D1・Callbackを実行する */ async (t) => {
   let permission = "none";
   let userId = 900002;
   let identityFails = false;
   let tokenRequest: Record<string, string> = {};
   const runtime = await createRuntime({
-    github: /** @brief 外部GitHub応答を限定し本番通信を行わない。 */ async (
+    github: /** @brief 外部GitHub応答を限定し本番通信を行わない */ async (
       request: Request,
     ) => {
       const url = new URL(request.url);
@@ -29,9 +29,9 @@ test("shared GitHub identity, strict game authorization, PKCE and cookie boundar
         : Response.json({ owner: { id: 1001 } });
     },
   });
-  t.after(/** @brief 所有する隔離環境を停止する。 */ () => runtime.dispose());
+  t.after(/** @brief 所有する隔離環境を停止する */ () => runtime.dispose());
   const url = runtime.origin;
-  /** @brief 同じWorkerへ認証APIを送る。 @param path API。 @param cookie Cookie。 @returns 応答。 */
+  /** @brief 同じWorkerへ認証APIを送る @param path API @param cookie Cookie @returns 応答 */
   const get = (path: string, cookie = "") =>
     runtime.dispatchFetch(url + path, {
       headers: { Cookie: cookie },
@@ -147,7 +147,7 @@ test("shared GitHub identity, strict game authorization, PKCE and cookie boundar
       "base64url",
     ).toString(),
   );
-  /** @brief 古い形・期限切れの正しく署名したCookieを試験する。 @param value Cookie内容。 @returns 署名Cookie。 */
+  /** @brief 古い形・期限切れの正しく署名したCookieを試験する @param value Cookie内容 @returns 署名Cookie */
   function signed(value: unknown): string {
     const payload = Buffer.from(JSON.stringify(value)).toString("base64url");
     return `pandd_deploy_session=${payload}.${createHmac("sha256", runtime.sessionSecret).update(payload).digest("base64url")}`;

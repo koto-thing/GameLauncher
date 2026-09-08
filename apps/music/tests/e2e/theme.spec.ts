@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("theme follows initial system preference and persists a manual choice across pages", /** @brief 端末設定・手動選択・画面遷移・再読込を通して実際の配色を確認する。 */ async ({
+test("theme follows initial system preference and persists a manual choice across pages", /** @brief 端末設定・手動選択・画面遷移・再読込を通して実際の配色を確認する */ async ({
   page,
 }, info) => {
   await page.emulateMedia({ colorScheme: "dark" });
@@ -14,7 +14,7 @@ test("theme follows initial system preference and persists a manual choice acros
     await page.setViewportSize({ width, height: 844 });
     expect(
       await page.evaluate(
-        /** @brief 切替ボタン追加でナビゲーションが横に溢れないことを確認する。 */ () =>
+        /** @brief 切替ボタン追加でナビゲーションが横に溢れないことを確認する */ () =>
           document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
@@ -69,7 +69,7 @@ test("theme can switch when browser storage is blocked", /** @brief 保存拒否
 }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await page.addInitScript(
-    /** @brief ブラウザーのストレージ利用拒否を再現する。 */ () => {
+    /** @brief ブラウザーのストレージ利用拒否を再現する */ () => {
       Object.defineProperty(window, "localStorage", {
         get: /** @brief 読取と書込の両方でSecurityErrorを返す。 */ () => {
           throw new DOMException("Blocked", "SecurityError");
@@ -80,7 +80,7 @@ test("theme can switch when browser storage is blocked", /** @brief 保存拒否
   const errors: string[] = [];
   page.on(
     "pageerror",
-    /** @brief 設定保存の失敗がページ全体へ伝播しないことを調べる。 */ (
+    /** @brief 設定保存の失敗がページ全体へ伝播しないことを調べる */ (
       error,
     ) => errors.push(error.message),
   );

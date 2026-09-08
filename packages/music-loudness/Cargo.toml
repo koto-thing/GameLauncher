@@ -1,0 +1,16 @@
+[package]
+name = "music-loudness"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+loudness-core = { git = "https://github.com/koto-thing/LoudnessMeter.git", rev = "c828effc8ccff7f61312fcbe53693aa7c2d30127" }
+wasm-bindgen = "=0.2.114"
+
+[profile.release]
+opt-level = "s"
+lto = true

@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { Player } from "../../application/player";
+import type { AnalyzeLoudness } from "../../application/loudness";
 import type { Session } from "../../application/ports";
 import type { DomainPolicy, PublicGame } from "../../domain/models";
 
@@ -12,6 +13,7 @@ export interface SiteConfig {
   oauthConfigured: boolean;
 }
 export interface SiteState {
+  analyzeLoudness?: AnalyzeLoudness;
   assetUrl(id: string): string;
   player: Player;
   catalogue: PublicGame[];
@@ -21,7 +23,7 @@ export interface SiteState {
   refresh(): Promise<void>;
 }
 export const SiteContext = createContext<SiteState | null>(null);
-/** @brief サイト全体に1つだけのデータとプレーヤーを参照する。 */
+/** @brief サイト全体に1つだけのデータとプレーヤーを参照する */
 export function useSite(): SiteState {
   const state = useContext(SiteContext);
   if (!state) throw new Error("SiteContextがありません。");

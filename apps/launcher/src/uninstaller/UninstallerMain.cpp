@@ -7,6 +7,7 @@
 
 namespace {
 
+/** @brief 現在のuninstaller executableがあるdirectoryを返す */
 std::filesystem::path executableDirectory() {
     std::vector<wchar_t> buffer(32768);
     const DWORD length =
@@ -17,6 +18,7 @@ std::filesystem::path executableDirectory() {
     return std::filesystem::path(std::wstring(buffer.data(), length)).parent_path();
 }
 
+/** @brief Windows message boxで起動エラーを表示する */
 void showLaunchError(const std::wstring& message) {
     MessageBoxW(nullptr, message.c_str(), L"PandD Game Launcher のアンインストール",
                 MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
@@ -24,13 +26,16 @@ void showLaunchError(const std::wstring& message) {
 
 } // namespace
 
+/** @brief Qt IFW Maintenance Toolを起動して終了コードを返す */
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR arguments, int) {
+    // 自身の配置directoryからMaintenance Toolを解決する
     const auto directory = executableDirectory();
     if (directory.empty()) {
         showLaunchError(L"アンインストーラーの場所を取得できませんでした。");
         return 1;
     }
 
+    // Maintenance Toolの存在を確認する
     const auto maintenanceTool = directory / L"maintenancetool.exe";
     std::error_code fileError;
     if (!std::filesystem::is_regular_file(maintenanceTool, fileError)) {
@@ -39,6 +44,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR arguments, int) {
         return 2;
     }
 
+    // 引数を一つのcommand lineへ組み立てる
     std::wstring commandLine = L"\"" + maintenanceTool.wstring() + L"\"";
     if (arguments != nullptr && arguments[0] != L'\0') {
         commandLine += L" ";
@@ -47,6 +53,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR arguments, int) {
     std::vector<wchar_t> mutableCommand(commandLine.begin(), commandLine.end());
     mutableCommand.push_back(L'\0');
 
+    // Maintenance Toolを同じworking directoryで起動する
     STARTUPINFOW startupInfo{};
     startupInfo.cb = sizeof(startupInfo);
     PROCESS_INFORMATION processInfo{};
@@ -59,6 +66,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR arguments, int) {
         return 3;
     }
 
+    // thread handleを閉じてMaintenance Toolの終了を待機する
     CloseHandle(processInfo.hThread);
     if (WaitForSingleObject(processInfo.hProcess, INFINITE) == WAIT_FAILED) {
         CloseHandle(processInfo.hProcess);

@@ -32,6 +32,7 @@ constexpr const char* kFrameworkShaderResourcePrefix = ":/live2d/FrameworkShader
 std::mutex diagnosticsMutex;
 QString diagnosticsBuffer;
 
+/** @brief 呼び出し元がQt GUI threadかを返す */
 bool isGuiThread() {
     if (const auto* app = QCoreApplication::instance()) {
         return QThread::currentThread() == app->thread();
@@ -40,6 +41,7 @@ bool isGuiThread() {
     return true;
 }
 
+/** @brief Cubism Frameworkのshader pathを同梱resourceへ正規化する */
 QString normalizeFrameworkPath(const std::string& filePath) {
     // Framework既定shader pathを検証済みApplication Resourceへ置換する
     const QString path = QString::fromUtf8(filePath);
@@ -51,6 +53,7 @@ QString normalizeFrameworkPath(const std::string& filePath) {
     return path;
 }
 
+/** @brief Cubism Frameworkから要求されたshader bytesを読み込む */
 csmByte* loadFrameworkFileBytes(const std::string filePath, csmSizeInt* outSize) {
     if (!outSize) {
         return nullptr;
@@ -89,8 +92,13 @@ csmByte* loadFrameworkFileBytes(const std::string filePath, csmSizeInt* outSize)
     return buffer;
 }
 
-void releaseFrameworkBytes(csmByte* byteData) { delete[] byteData; }
+/** @brief Frameworkへ渡したshader bufferを解放する */
+void releaseFrameworkBytes(csmByte* byteData) {
+    // loadFrameworkFileBytesで確保した配列を解放する
+    delete[] byteData;
+}
 
+/** @brief Cubism診断をログと共有bufferへ記録する */
 void cubismLog(const char* message) {
     const QString text = QString::fromUtf8(message ? message : "");
     // 診断bufferを固定長へ保ちながら複数callbackから保護する
@@ -109,10 +117,13 @@ void cubismLog(const char* message) {
 
 class CubismAllocator final : public ICubismAllocator {
   public:
+    /** @brief Cubism用の未初期化メモリを確保する */
     void* Allocate(const csmSizeType size) override { return ::operator new(size, std::nothrow); }
 
+    /** @brief Cubism用のメモリを解放する */
     void Deallocate(void* memory) override { ::operator delete(memory); }
 
+    /** @brief 指定alignmentでメモリを確保する */
     void* AllocateAligned(const csmSizeType size, const csmUint32 alignment) override {
 #ifdef _MSC_VER
         return _aligned_malloc(size, alignment);
@@ -122,6 +133,7 @@ class CubismAllocator final : public ICubismAllocator {
 #endif
     }
 
+    /** @brief alignment付きメモリを解放する */
     void DeallocateAligned(void* alignedMemory) override {
 #ifdef _MSC_VER
         _aligned_free(alignedMemory);
@@ -150,6 +162,7 @@ CubismRuntime::CubismRuntime() : impl_(std::make_unique<Impl>()) {
     impl_->option.LoggingLevel = CubismFramework::Option::LogLevel_Warning;
 }
 
+/** @brief Cubism Frameworkと共有runtimeを終了する */
 CubismRuntime::~CubismRuntime() {
     if (!impl_ || !impl_->initialized) {
         return;
@@ -171,6 +184,7 @@ CubismRuntime::~CubismRuntime() {
     CubismFramework::CleanUp();
 }
 
+/** @brief GUI threadとcurrent context上でCubism Frameworkを初期化する */
 bool CubismRuntime::initialize(QString& error) {
     error.clear();
 
@@ -196,6 +210,7 @@ bool CubismRuntime::initialize(QString& error) {
     return true;
 }
 
+/** @brief process共有のCubism runtimeを取得する */
 std::shared_ptr<CubismRuntime> CubismRuntime::acquire(QString& error) {
     static std::mutex mutex;
     static std::weak_ptr<CubismRuntime> sharedRuntime;
@@ -216,8 +231,13 @@ std::shared_ptr<CubismRuntime> CubismRuntime::acquire(QString& error) {
     return runtime;
 }
 
-bool CubismRuntime::isInitialized() const noexcept { return impl_ && impl_->initialized; }
+/** @brief runtimeが初期化済みかを返す */
+bool CubismRuntime::isInitialized() const noexcept {
+    // Framework初期化状態を返す
+    return impl_ && impl_->initialized;
+}
 
+/** @brief 蓄積したCubism診断を取得して空にする */
 QString CubismRuntime::takeDiagnostics() {
     std::lock_guard lock(diagnosticsMutex);
     QString text = diagnosticsBuffer;

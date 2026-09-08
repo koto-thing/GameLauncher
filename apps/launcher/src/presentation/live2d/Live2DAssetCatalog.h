@@ -16,6 +16,7 @@ struct Live2DAsset {
     float centerY{0.5F};
     float scale{1.0F};
 
+    /** @brief asset内容が一致するかを比較する */
     bool operator==(const Live2DAsset&) const = default;
 };
 

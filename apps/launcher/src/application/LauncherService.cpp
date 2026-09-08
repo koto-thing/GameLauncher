@@ -64,6 +64,7 @@ class ActiveOperation final {
 
 } // namespace
 
+/** @brief 必要なPortを受け取りApplication Serviceを構築する */
 LauncherService::LauncherService(
     IGameCatalogRepository& catalogRepository, IGameReleaseRepository& releaseRepository,
     ILauncherReleaseRepository& launcherReleaseRepository,
@@ -78,6 +79,7 @@ LauncherService::LauncherService(
       startupService_(startupService), updateService_(updateService), clock_(clock),
       currentVersion_(std::move(currentVersion)) {}
 
+/** @brief 設定と導入状態を読み込みcatalogを更新する */
 OperationResult LauncherService::load() {
     try {
         // 設定を検証してから他の状態を読み込む
@@ -107,6 +109,7 @@ OperationResult LauncherService::load() {
     }
 }
 
+/** @brief 現在言語のcatalogとお知らせを取得する */
 OperationResult LauncherService::refreshCatalog() {
     try {
         // 同じ言語の表示データを一まとまりとして更新
@@ -120,6 +123,7 @@ OperationResult LauncherService::refreshCatalog() {
     }
 }
 
+/** @brief ゲームを新規導入または更新する */
 OperationResult LauncherService::installOrUpdate(const GameId& gameId,
                                                  const ProgressCallback& progress) {
     ActiveOperation operation(activeOperations_);
@@ -190,6 +194,7 @@ OperationResult LauncherService::installOrUpdate(const GameId& gameId,
     }
 }
 
+/** @brief 既存directoryを検証してゲームとして登録する */
 OperationResult LauncherService::locateExisting(const GameId& gameId,
                                                 const std::string& sourceDirectory,
                                                 const ProgressCallback& progress) {
@@ -243,6 +248,7 @@ OperationResult LauncherService::locateExisting(const GameId& gameId,
     }
 }
 
+/** @brief 導入済みゲームのファイルを検証する */
 OperationResult LauncherService::verify(const GameId& gameId) {
     ActiveOperation operation(activeOperations_);
     // 導入記録と最新release情報の両方を要求
@@ -272,6 +278,7 @@ OperationResult LauncherService::verify(const GameId& gameId) {
     }
 }
 
+/** @brief 破損したゲームを検証後に再導入する */
 OperationResult LauncherService::repair(const GameId& gameId, const ProgressCallback& progress) {
     ActiveOperation operation(activeOperations_);
     // 正常な場合は再取得せず完了
@@ -284,6 +291,7 @@ OperationResult LauncherService::repair(const GameId& gameId, const ProgressCall
     return installOrUpdate(gameId, progress);
 }
 
+/** @brief ゲーム本体をアンインストールする */
 OperationResult LauncherService::uninstall(const GameId& gameId) {
     ActiveOperation operation(activeOperations_);
     auto* installed = findInstalled(gameId);
@@ -309,6 +317,7 @@ OperationResult LauncherService::uninstall(const GameId& gameId) {
     return result;
 }
 
+/** @brief 失敗した一時データを削除する */
 OperationResult LauncherService::cleanupTemporary(const GameId& gameId) {
     ActiveOperation operation(activeOperations_);
     auto* installed = findInstalled(gameId);
@@ -325,6 +334,7 @@ OperationResult LauncherService::cleanupTemporary(const GameId& gameId) {
     return installationService_.cleanupTemporary(*installed);
 }
 
+/** @brief 導入済みゲームを起動して状態を監視する */
 OperationResult LauncherService::launch(const GameId& gameId) {
     // 永続化済みの導入情報を起動契約として使用
     auto* installed = findInstalled(gameId);
@@ -344,6 +354,7 @@ OperationResult LauncherService::launch(const GameId& gameId) {
     return result;
 }
 
+/** @brief 起動前設定に応じてゲーム更新を確認する */
 OperationResult LauncherService::prepareLaunch(const GameId& gameId,
                                                const ProgressCallback& progress) {
     ActiveOperation operation(activeOperations_);
@@ -374,18 +385,25 @@ OperationResult LauncherService::prepareLaunch(const GameId& gameId,
     }
 }
 
-void LauncherService::cancel() { cancelled_ = true; }
+/** @brief 実行中操作へキャンセルを要求する */
+void LauncherService::cancel() {
+    // workerが停止条件を確認できるよう共有状態を更新する
+    cancelled_ = true;
+}
 
+/** @brief ゲーム取得を一時停止する */
 void LauncherService::pause(const GameId& gameId) {
     installationService_.pause();
     notifyState(gameId, InstallState::Paused);
 }
 
+/** @brief ゲーム取得を再開する */
 void LauncherService::resume(const GameId& gameId) {
     installationService_.resume();
     notifyState(gameId, InstallState::Downloading);
 }
 
+/** @brief 設定を検証してOSと永続storeへ保存する */
 OperationResult LauncherService::saveSettings(const LauncherSettings& settings) {
     const auto validation = validateSettings(settings);
     if (!validation.ok) {
@@ -404,6 +422,7 @@ OperationResult LauncherService::saveSettings(const LauncherSettings& settings) 
     return result;
 }
 
+/** @brief ランチャー更新情報を確認する */
 OperationResult LauncherService::checkLauncherUpdate() {
     try {
         // metadataと履歴を同じ言語で取得
@@ -431,6 +450,7 @@ OperationResult LauncherService::checkLauncherUpdate() {
     }
 }
 
+/** @brief ランチャー更新をMaintenance Toolへ委譲する */
 OperationResult LauncherService::applyLauncherUpdate() {
     // 適用対象がなければ何もせず成功
     if (!latestLauncherRelease_.has_value() || latestLauncherRelease_->version <= currentVersion_) {
@@ -453,6 +473,7 @@ OperationResult LauncherService::applyLauncherUpdate() {
     return updateService_.apply();
 }
 
+/** @brief 現在のランチャー更新状態を返す */
 LauncherUpdateStatus LauncherService::launcherUpdateStatus() const {
     // 未確認時は現在versionを最新versionとして返す
     LauncherUpdateStatus status;
@@ -468,18 +489,37 @@ LauncherUpdateStatus LauncherService::launcherUpdateStatus() const {
     return status;
 }
 
+/** @brief 取得済みランチャー更新履歴を返す */
 const std::vector<LauncherChangelogEntry>& LauncherService::launcherChangelog() const {
+    // Application内のchangelog snapshotを返す
     return launcherChangelog_;
 }
 
-const std::vector<GameCatalogEntry>& LauncherService::catalog() const { return catalog_; }
+/** @brief 現在のcatalogを返す */
+const std::vector<GameCatalogEntry>& LauncherService::catalog() const {
+    // Application内のcatalog snapshotを返す
+    return catalog_;
+}
 
-const std::vector<Announcement>& LauncherService::announcements() const { return announcements_; }
+/** @brief 現在のお知らせを返す */
+const std::vector<Announcement>& LauncherService::announcements() const {
+    // Application内のお知らせ snapshotを返す
+    return announcements_;
+}
 
-const std::vector<InstalledGame>& LauncherService::installedGames() const { return installed_; }
+/** @brief 現在の導入済みゲーム一覧を返す */
+const std::vector<InstalledGame>& LauncherService::installedGames() const {
+    // Application内の導入状態 snapshotを返す
+    return installed_;
+}
 
-const LauncherSettings& LauncherService::settings() const { return settings_; }
+/** @brief 現在の設定を返す */
+const LauncherSettings& LauncherService::settings() const {
+    // Application内の設定 snapshotを返す
+    return settings_;
+}
 
+/** @brief 指定ゲームのsave directoryを解決する */
 std::optional<std::string> LauncherService::saveDirectory(const GameId& gameId) const {
     // game IDに対応する導入記録を検索
     const auto iterator =
@@ -491,10 +531,12 @@ std::optional<std::string> LauncherService::saveDirectory(const GameId& gameId) 
     return resolveSaveDirectory(iterator->saveDirectoryName);
 }
 
+/** @brief 状態変更callbackを登録する */
 void LauncherService::setStateCallback(StateCallback callback) {
     stateCallback_ = std::move(callback);
 }
 
+/** @brief catalogから指定ゲームを検索する */
 const GameCatalogEntry* LauncherService::findCatalogEntry(const GameId& gameId) const {
     const auto iterator =
         std::find_if(catalog_.begin(), catalog_.end(),
@@ -502,6 +544,7 @@ const GameCatalogEntry* LauncherService::findCatalogEntry(const GameId& gameId) 
     return iterator == catalog_.end() ? nullptr : &*iterator;
 }
 
+/** @brief 導入済み一覧から指定ゲームを検索する */
 InstalledGame* LauncherService::findInstalled(const GameId& gameId) {
     const auto iterator =
         std::find_if(installed_.begin(), installed_.end(),
@@ -509,6 +552,7 @@ InstalledGame* LauncherService::findInstalled(const GameId& gameId) {
     return iterator == installed_.end() ? nullptr : &*iterator;
 }
 
+/** @brief 状態変更を登録済みcallbackへ通知する */
 void LauncherService::notifyState(const GameId& gameId, InstallState state,
                                   const OperationError& error) {
     if (stateCallback_) {
@@ -516,6 +560,7 @@ void LauncherService::notifyState(const GameId& gameId, InstallState state,
     }
 }
 
+/** @brief releaseが現在のランチャーで処理可能かを検証する */
 OperationResult LauncherService::ensureLauncherCompatible(const GameRelease& release) const {
     if (release.minimumLauncherVersion > currentVersion_) {
         return OperationResult::failure(
@@ -525,6 +570,7 @@ OperationResult LauncherService::ensureLauncherCompatible(const GameRelease& rel
     return OperationResult::success();
 }
 
+/** @brief platform標準のsave data rootを解決する */
 std::string LauncherService::resolveSaveDirectory(const std::string& saveDirectoryName) {
 #if defined(_WIN32)
     // Unity標準のWindows save rootへ解決

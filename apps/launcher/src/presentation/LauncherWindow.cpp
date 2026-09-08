@@ -35,6 +35,7 @@
 #include <QNetworkRequest>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QProgressBar>
 #include <QPropertyAnimation>
 #include <QPushButton>
@@ -45,6 +46,7 @@
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QStatusBar>
+#include <QStyledItemDelegate>
 #include <QSysInfo>
 #include <QSystemTrayIcon>
 #include <QTabWidget>
@@ -74,6 +76,7 @@ bool completesGamePreparation(InstallState previous) {
     }
 }
 
+/** @brief byte列を画像として復号し寸法上限を検証する */
 QImage decodeImage(const QByteArray& data, int maximumDimension) {
     QBuffer buffer;
     buffer.setData(data);
@@ -103,15 +106,20 @@ class ElidedLabel final : public QLabel {
     }
 
     /** @brief 省略前の完全な文字列を返す */
-    [[nodiscard]] const QString& fullText() const { return fullText_; }
+    [[nodiscard]] const QString& fullText() const {
+        // 省略前の文字列を返す
+        return fullText_;
+    }
 
   protected:
+    /** @brief resize後に表示文字列を更新する */
     void resizeEvent(QResizeEvent* event) override {
         QLabel::resizeEvent(event);
         updateDisplayedText();
     }
 
   private:
+    /** @brief 現在のlabel幅に合わせて文字列を省略する */
     void updateDisplayedText() {
         setText(QFontMetrics(font()).elidedText(fullText_, Qt::ElideRight, width()));
     }
@@ -119,6 +127,113 @@ class ElidedLabel final : public QLabel {
     QString fullText_;
 };
 
+/** @brief 元画像の縦横比を保って表示領域内へ収めるラベル */
+class AspectRatioPixmapLabel final : public QLabel {
+  public:
+    using QLabel::QLabel;
+
+    /** @brief 元画像を保持して現在の表示領域へ反映する */
+    void setSourcePixmap(const QPixmap& pixmap) {
+        sourcePixmap_ = pixmap;
+        updatePixmap();
+    }
+
+  protected:
+    /** @brief resize後の表示領域へ元画像を再調整する */
+    void resizeEvent(QResizeEvent* event) override {
+        QLabel::resizeEvent(event);
+        updatePixmap();
+    }
+
+  private:
+    /** @brief 元画像を変形せず表示領域内へ最大化する */
+    void updatePixmap() {
+        if (sourcePixmap_.isNull() || size().isEmpty()) {
+            QLabel::clear();
+            return;
+        }
+
+        QLabel::setPixmap(
+            sourcePixmap_.scaled(size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    }
+
+    QPixmap sourcePixmap_;
+};
+
+constexpr int gameThumbnailWidth = 190;
+constexpr int gameThumbnailHeight = 107;
+constexpr int gameCardWidth = 200;
+constexpr int gameCardHeight = 120;
+
+/** @brief 16:9画像へタイトルを重ねてゲームカードを描画する */
+class GameCardDelegate final : public QStyledItemDelegate {
+  public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    /** @brief 固定寸法のゲームカードを描画する */
+    void paint(QPainter* painter, const QStyleOptionViewItem& option,
+               const QModelIndex& index) const override {
+        const QRect card(option.rect.left() + 5, option.rect.top() + 6, gameThumbnailWidth,
+                         gameThumbnailHeight);
+        const auto selected = option.state.testFlag(QStyle::State_Selected);
+        const auto hovered = option.state.testFlag(QStyle::State_MouseOver);
+        const auto icon = index.data(Qt::DecorationRole).value<QIcon>();
+
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        QPainterPath clip;
+        clip.addRoundedRect(card, 8, 8);
+        painter->setClipPath(clip);
+        painter->fillRect(card, option.palette.color(QPalette::Base));
+        icon.paint(painter, card, Qt::AlignCenter, QIcon::Normal, QIcon::On);
+
+        constexpr int titleHeight = 27;
+        const QRect titleArea(card.left(), card.bottom() - titleHeight + 1, card.width(),
+                              titleHeight);
+        painter->fillRect(titleArea, QColor(0, 0, 0, 170));
+        painter->setPen(Qt::white);
+        const auto title = option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight,
+                                                         titleArea.width() - 16);
+        painter->drawText(titleArea.adjusted(8, 0, -8, 0), Qt::AlignCenter, title);
+        painter->setClipping(false);
+        painter->setPen(
+            QPen(selected || hovered ? QColor("#e60012") : option.palette.color(QPalette::Mid),
+                 selected || hovered ? 3 : 1));
+        painter->drawRoundedRect(card.adjusted(1, 1, -1, -1), 8, 8);
+        painter->restore();
+    }
+
+    /** @brief 一覧layoutへ固定カード寸法を返す */
+    QSize sizeHint(const QStyleOptionViewItem&, const QModelIndex&) const override {
+        return {gameCardWidth, gameCardHeight};
+    }
+};
+
+/** @brief 一覧用画像を中央基準で16:9に切り抜く */
+QPixmap cardThumbnail(const QPixmap& source) {
+    if (source.isNull()) {
+        return {};
+    }
+
+    const auto scaled = source.scaled(gameThumbnailWidth, gameThumbnailHeight,
+                                      Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    const auto x = std::max(0, (scaled.width() - gameThumbnailWidth) / 2);
+    const auto y = std::max(0, (scaled.height() - gameThumbnailHeight) / 2);
+    return scaled.copy(x, y, gameThumbnailWidth, gameThumbnailHeight);
+}
+
+/** @brief 一覧を同一寸法の16:9カード表示に設定する */
+void configureGameCardList(QListWidget* list) {
+    list->setViewMode(QListView::IconMode);
+    list->setItemDelegate(new GameCardDelegate(list));
+    list->setIconSize(QSize(gameThumbnailWidth, gameThumbnailHeight));
+    list->setGridSize(QSize(gameCardWidth, gameCardHeight));
+    list->setItemAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    list->setMovement(QListView::Static);
+    list->setResizeMode(QListView::Adjust);
+}
+
+/** @brief ViewModelへ接続してランチャーwindowを構築する */
 LauncherWindow::LauncherWindow(LauncherViewModel& viewModel, bool initialize, QWidget* parent)
     : QMainWindow(parent), viewModel_(viewModel) {
     buildUi();
@@ -128,6 +243,7 @@ LauncherWindow::LauncherWindow(LauncherViewModel& viewModel, bool initialize, QW
     }
 }
 
+/** @brief close-to-tray設定に従ってwindowを閉じる */
 void LauncherWindow::closeEvent(QCloseEvent* event) {
     if (viewModel_.settings().closeToTray && QSystemTrayIcon::isSystemTrayAvailable()) {
         hide();
@@ -137,7 +253,9 @@ void LauncherWindow::closeEvent(QCloseEvent* event) {
     QMainWindow::closeEvent(event);
 }
 
+/** @brief sidebarと各pageとsystem trayを構築する */
 void LauncherWindow::buildUi() {
+    // windowの基本サイズとthemeを設定する
     setWindowTitle(tr("PandD Game Launcher"));
     const QIcon logoIcon(QStringLiteral(":/images/PandDLogo.png"));
     setWindowIcon(logoIcon);
@@ -232,7 +350,9 @@ void LauncherWindow::buildUi() {
     QTimer::singleShot(0, this, [this] { updateNavigationIndicator(false); });
 }
 
+/** @brief 現在の設定に応じたwidget themeを適用する */
 void LauncherWindow::applyTheme() {
+    // theme paletteを一度に組み立てる
     const auto dark = viewModel_.settings().darkTheme;
     const auto background = dark ? "#17181c" : "#f5f5f5";
     const auto surface = dark ? "#24262c" : "#ffffff";
@@ -287,7 +407,9 @@ void LauncherWindow::applyTheme() {
             .arg(background, surface, text, muted, border, hover, selected));
 }
 
+/** @brief おすすめゲームを表示するhome pageを構築する */
 QWidget* LauncherWindow::createHomePage() {
+    // page本体とheaderを構築する
     auto* page = new QWidget(this);
     page->setObjectName("page");
     auto* layout = new QVBoxLayout(page);
@@ -318,10 +440,9 @@ QWidget* LauncherWindow::createHomePage() {
 
     auto* previewRow = new QHBoxLayout();
     previewRow->setSpacing(24);
-    homePreviewImage_ = new QLabel(page);
+    homePreviewImage_ = new AspectRatioPixmapLabel(page);
     homePreviewImage_->setObjectName("homePreviewImage");
     homePreviewImage_->setAlignment(Qt::AlignCenter);
-    homePreviewImage_->setScaledContents(true);
     homePreviewImage_->setMinimumSize(400, 225);
     homePreviewImage_->setAccessibleName(tr("選択中ゲームのサムネイル"));
     previewRow->addWidget(homePreviewImage_, 2);
@@ -344,20 +465,24 @@ QWidget* LauncherWindow::createHomePage() {
     layout->addLayout(previewRow, 3);
 
     homeList_ = new QListWidget(page);
-    homeList_->setViewMode(QListView::IconMode);
-    homeList_->setIconSize(QSize(170, 96));
-    homeList_->setGridSize(QSize(200, 150));
-    homeList_->setMovement(QListView::Static);
-    homeList_->setResizeMode(QListView::Adjust);
+    configureGameCardList(homeList_);
     homeList_->setFlow(QListView::LeftToRight);
     homeList_->setWrapping(false);
     homeList_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    homeList_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     homeList_->setAccessibleName(tr("おすすめゲーム"));
-    layout->addWidget(homeList_, 1);
+    homeList_->setFixedHeight(gameCardHeight);
     homeEmpty_ = new QLabel(tr("現在おすすめできる未所持ゲームはありません"), page);
     homeEmpty_->setObjectName("empty");
     homeEmpty_->setAlignment(Qt::AlignCenter);
-    layout->addWidget(homeEmpty_);
+    auto* recommendations = new QWidget(page);
+    auto* recommendationsLayout = new QVBoxLayout(recommendations);
+    recommendationsLayout->setContentsMargins(0, 0, 0, 0);
+    recommendationsLayout->addStretch();
+    recommendationsLayout->addWidget(homeList_);
+    recommendationsLayout->addWidget(homeEmpty_);
+    recommendationsLayout->addStretch();
+    layout->addWidget(recommendations, 1);
     connect(homeList_, &QListWidget::currentItemChanged, this, [this](QListWidgetItem* current) {
         if (current) {
             updateHomeSelection(current->data(Qt::UserRole).toString());
@@ -369,7 +494,9 @@ QWidget* LauncherWindow::createHomePage() {
     return page;
 }
 
+/** @brief 未所持ゲームを検索するdiscover pageを構築する */
 QWidget* LauncherWindow::createDiscoverPage() {
+    // page本体と検索欄を構築する
     auto* page = new QWidget(this);
     page->setObjectName("page");
     auto* layout = new QVBoxLayout(page);
@@ -403,11 +530,7 @@ QWidget* LauncherWindow::createDiscoverPage() {
     section->setObjectName("sectionTitle");
     layout->addWidget(section);
     discoverList_ = new QListWidget(page);
-    discoverList_->setViewMode(QListView::IconMode);
-    discoverList_->setIconSize(QSize(210, 118));
-    discoverList_->setGridSize(QSize(250, 185));
-    discoverList_->setMovement(QListView::Static);
-    discoverList_->setResizeMode(QListView::Adjust);
+    configureGameCardList(discoverList_);
     discoverList_->setAccessibleName(tr("未所持ゲーム一覧"));
     layout->addWidget(discoverList_, 1);
     discoverEmpty_ = new QLabel(page);
@@ -421,7 +544,9 @@ QWidget* LauncherWindow::createDiscoverPage() {
     return page;
 }
 
+/** @brief 導入済みゲームを表示するlibrary pageを構築する */
 QWidget* LauncherWindow::createLibraryPage() {
+    // page本体と一覧を構築する
     auto* page = new QWidget(this);
     page->setObjectName("page");
     auto* layout = new QVBoxLayout(page);
@@ -450,11 +575,7 @@ QWidget* LauncherWindow::createLibraryPage() {
     hint->setObjectName("muted");
     layout->addWidget(hint);
     libraryList_ = new QListWidget(page);
-    libraryList_->setViewMode(QListView::IconMode);
-    libraryList_->setIconSize(QSize(210, 118));
-    libraryList_->setGridSize(QSize(250, 185));
-    libraryList_->setMovement(QListView::Static);
-    libraryList_->setResizeMode(QListView::Adjust);
+    configureGameCardList(libraryList_);
     libraryList_->setAccessibleName(tr("所持ゲーム一覧"));
     layout->addWidget(libraryList_, 1);
     libraryEmpty_ = new QLabel(
@@ -468,7 +589,9 @@ QWidget* LauncherWindow::createLibraryPage() {
     return page;
 }
 
+/** @brief 選択ゲームのdetail pageと背景を構築する */
 QWidget* LauncherWindow::createDetailPage() {
+    // 背景widgetと操作領域を構築する
     detailPage_ = new GameDetailPage(this);
     auto* page = detailPage_->contentWidget();
     connect(detailPage_, &GameDetailPage::backgroundError, this, [this](const QString& error) {
@@ -564,7 +687,9 @@ QWidget* LauncherWindow::createDetailPage() {
     return detailPage_;
 }
 
+/** @brief ViewModel signalを画面状態と通知へ接続する */
 void LauncherWindow::connectViewModel() {
+    // snapshot変更と初期読込を画面へ接続する
     connect(&viewModel_, &LauncherViewModel::dataChanged, this, &LauncherWindow::refreshData);
     connect(&viewModel_, &LauncherViewModel::loaded, this, [this] {
         refreshData();
@@ -675,11 +800,14 @@ void LauncherWindow::connectViewModel() {
             });
 }
 
+/** @brief カタログと導入済み一覧を各pageへ反映する */
 void LauncherWindow::refreshData() {
+    // 既存一覧をsnapshotから再構築する
     applyTheme();
     homeList_->clear();
     libraryList_->clear();
-    const QIcon placeholder(QStringLiteral(":/images/launcher_background_placeholder.png"));
+    const QPixmap placeholderPixmap(QStringLiteral(":/images/launcher_background_placeholder.png"));
+    const QIcon placeholder(cardThumbnail(placeholderPixmap));
     std::vector<const GameCatalogEntry*> recommendations;
     for (const auto& game : viewModel_.catalog()) {
         const auto gameId = QString::fromStdString(game.gameId.value());
@@ -690,7 +818,7 @@ void LauncherWindow::refreshData() {
                         [&game](const auto& value) { return value.gameId == game.gameId; });
         const auto imageUrl = QString::fromStdString(game.thumbnailUrl);
         const QIcon icon = heroCache_.contains(imageUrl)
-                               ? QIcon(heroCache_.value(imageUrl))
+                               ? QIcon(cardThumbnail(heroCache_.value(imageUrl)))
                                : (imageUrl.isEmpty() ? placeholder : QIcon{});
         auto addCard = [&](QListWidget* list) {
             auto* item = new QListWidgetItem(icon, name);
@@ -709,6 +837,7 @@ void LauncherWindow::refreshData() {
         }
     }
 
+    // homeのおすすめをランダムな最大5件へ絞る
     std::mt19937 randomEngine(QRandomGenerator::global()->generate());
     std::shuffle(recommendations.begin(), recommendations.end(), randomEngine);
     recommendations.resize(std::min<std::size_t>(5, recommendations.size()));
@@ -716,7 +845,7 @@ void LauncherWindow::refreshData() {
         const auto gameId = QString::fromStdString(game->gameId.value());
         const auto imageUrl = QString::fromStdString(game->thumbnailUrl);
         const QIcon icon = heroCache_.contains(imageUrl)
-                               ? QIcon(heroCache_.value(imageUrl))
+                               ? QIcon(cardThumbnail(heroCache_.value(imageUrl)))
                                : (imageUrl.isEmpty() ? placeholder : QIcon{});
         auto* item = new QListWidgetItem(icon, QString::fromStdString(game->name));
         item->setData(Qt::UserRole, gameId);
@@ -724,12 +853,13 @@ void LauncherWindow::refreshData() {
         item->setTextAlignment(Qt::AlignHCenter | Qt::AlignBottom);
         homeList_->addItem(item);
     }
+    // 各一覧の空状態と表示状態を同期する
     homeEmpty_->setVisible(homeList_->count() == 0);
     homeList_->setVisible(homeList_->count() != 0);
     if (homeList_->count() != 0) {
         homeList_->setCurrentRow(0);
     } else {
-        homePreviewImage_->clear();
+        homePreviewImage_->setSourcePixmap({});
         homePreviewTitle_->clear();
         homePreviewSummary_->clear();
     }
@@ -745,6 +875,7 @@ void LauncherWindow::refreshData() {
     }
 }
 
+/** @brief homeで選択されたゲームのpreviewを更新する */
 void LauncherWindow::updateHomeSelection(const QString& gameId) {
     const auto iterator = std::find_if(
         viewModel_.catalog().begin(), viewModel_.catalog().end(),
@@ -760,16 +891,19 @@ void LauncherWindow::updateHomeSelection(const QString& gameId) {
         heroCache_.contains(imageUrl)
             ? heroCache_.value(imageUrl)
             : QPixmap(QStringLiteral(":/images/launcher_background_placeholder.png"));
-    homePreviewImage_->setPixmap(image);
+    homePreviewImage_->setSourcePixmap(image);
 }
 
+/** @brief 検索条件に合う未所持ゲームを再描画する */
 void LauncherWindow::refreshDiscover() {
+    // 検索結果を現在のqueryから再構築する
     if (discoverList_ == nullptr) {
         return;
     }
     discoverList_->clear();
     const auto query = searchInput_->text().trimmed();
-    const QIcon placeholder(QStringLiteral(":/images/launcher_background_placeholder.png"));
+    const QPixmap placeholderPixmap(QStringLiteral(":/images/launcher_background_placeholder.png"));
+    const QIcon placeholder(cardThumbnail(placeholderPixmap));
     for (const auto& game : viewModel_.catalog()) {
         const auto installed =
             std::any_of(viewModel_.installedGames().begin(), viewModel_.installedGames().end(),
@@ -782,7 +916,7 @@ void LauncherWindow::refreshDiscover() {
         }
         const auto imageUrl = QString::fromStdString(game.thumbnailUrl);
         const QIcon icon = heroCache_.contains(imageUrl)
-                               ? QIcon(heroCache_.value(imageUrl))
+                               ? QIcon(cardThumbnail(heroCache_.value(imageUrl)))
                                : (imageUrl.isEmpty() ? placeholder : QIcon{});
         auto* item = new QListWidgetItem(icon, name);
         item->setData(Qt::UserRole, QString::fromStdString(game.gameId.value()));
@@ -797,6 +931,7 @@ void LauncherWindow::refreshDiscover() {
     discoverList_->setVisible(!empty);
 }
 
+/** @brief 指定pageへ移動してnavigation状態を更新する */
 void LauncherWindow::navigateTo(int pageIndex) {
     pages_->setCurrentIndex(pageIndex);
     homeButton_->setChecked(pageIndex == 0);
@@ -805,6 +940,7 @@ void LauncherWindow::navigateTo(int pageIndex) {
     updateNavigationIndicator(isVisible());
 }
 
+/** @brief 選択中navigation項目へindicatorを移動する */
 void LauncherWindow::updateNavigationIndicator(bool animated) {
     if (!navigationIndicator_ || !navigationIndicator_->parentWidget()->isVisible()) {
         return;
@@ -837,7 +973,9 @@ void LauncherWindow::updateNavigationIndicator(bool animated) {
     navigationIndicatorAnimation_->start();
 }
 
+/** @brief catalog画像を取得して一覧のiconを更新する */
 void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& imageUrl) {
+    // redirectと応答サイズを制限して画像を取得する
     QNetworkRequest request{QUrl(imageUrl)};
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::ManualRedirectPolicy);
@@ -858,7 +996,7 @@ void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& i
                     if (decoded.isNull()) {
                         const QPixmap placeholderPixmap(
                             QStringLiteral(":/images/launcher_background_placeholder.png"));
-                        const QIcon placeholder(placeholderPixmap);
+                        const QIcon placeholder(cardThumbnail(placeholderPixmap));
                         heroCache_.insert(imageUrl, placeholderPixmap);
                         for (auto* list : {homeList_, discoverList_, libraryList_}) {
                             for (int index = 0; index < list->count(); ++index) {
@@ -880,7 +1018,7 @@ void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& i
                         for (int index = 0; index < list->count(); ++index) {
                             auto* item = list->item(index);
                             if (item->data(Qt::UserRole).toString() == gameId) {
-                                item->setIcon(QIcon(pixmap));
+                                item->setIcon(QIcon(cardThumbnail(pixmap)));
                             }
                         }
                     }
@@ -894,7 +1032,9 @@ void LauncherWindow::requestCatalogImage(const QString& gameId, const QString& i
     });
 }
 
+/** @brief 指定ゲームのdetail pageを表示する */
 void LauncherWindow::showGame(const QString& gameId) {
+    // catalogから選択ゲームを解決する
     const auto iterator = std::find_if(
         viewModel_.catalog().begin(), viewModel_.catalog().end(),
         [&gameId](const auto& entry) { return entry.gameId.value() == gameId.toStdString(); });
@@ -976,14 +1116,18 @@ void LauncherWindow::showGame(const QString& gameId) {
     navigateTo(3);
 }
 
+/** @brief 選択ゲームが導入済みかを返す */
 bool LauncherWindow::selectedGameInstalled() const {
+    // ViewModel snapshotからゲームIDを検索する
     return std::any_of(viewModel_.installedGames().begin(), viewModel_.installedGames().end(),
                        [this](const auto& value) {
                            return value.gameId.value() == selectedGameId_.toStdString();
                        });
 }
 
+/** @brief 選択ゲームの状態に応じた主操作を実行する */
 void LauncherWindow::runPrimaryAction() {
+    // 必須更新と取得操作を優先して判定する
     if (mandatoryUpdate_) {
         QMessageBox::warning(this, tr("必須アップデート"),
                              tr("ランチャーを更新してからゲームを操作してください"));
@@ -1004,7 +1148,9 @@ void LauncherWindow::runPrimaryAction() {
     }
 }
 
+/** @brief ゲーム導入確認dialogを表示して結果を返す */
 bool LauncherWindow::confirmInstall() const {
+    // 設定済みinstall rootを確認文へ表示する
     const auto root = QString::fromStdString(viewModel_.settings().installRoot);
     return QMessageBox::question(const_cast<LauncherWindow*>(this), tr("ダウンロードの確認"),
                                  tr("%1 を次の場所へインストールします。\n\n%2\n\n続行しますか？")
@@ -1012,7 +1158,9 @@ bool LauncherWindow::confirmInstall() const {
                                  QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes;
 }
 
+/** @brief 一般・download・更新・詳細設定をdialogへ構築する */
 void LauncherWindow::showSettingsDialog() {
+    // 設定dialogの共通layoutを構築する
     QDialog dialog(this);
     dialog.setWindowTitle(tr("設定"));
     dialog.resize(620, 520);
@@ -1061,6 +1209,7 @@ void LauncherWindow::showSettingsDialog() {
     generalForm->addRow(showAfterExit);
     tabs->addTab(general, tr("一般"));
 
+    // download設定を構築する
     auto* downloads = new QWidget(tabs);
     auto* downloadForm = new QFormLayout(downloads);
     auto* speed = new QSpinBox(downloads);
@@ -1077,6 +1226,7 @@ void LauncherWindow::showSettingsDialog() {
     downloadForm->addRow(continueDownloads);
     tabs->addTab(downloads, tr("ダウンロード"));
 
+    // launcher更新と通知設定を構築する
     auto* update = new QWidget(tabs);
     auto* updateForm = new QFormLayout(update);
     auto* updateCheck = new QCheckBox(tr("起動時にランチャー更新を確認"), update);
@@ -1124,6 +1274,7 @@ void LauncherWindow::showSettingsDialog() {
     updateForm->addRow(applyUpdate);
     tabs->addTab(update, tr("更新と通知"));
 
+    // versionとドキュメント操作を構築する
     auto* details = new QWidget(tabs);
     auto* detailsForm = new QFormLayout(details);
     detailsForm->addRow(tr("ランチャーバージョン"), new QLabel(PANDD_LAUNCHER_VERSION, details));
@@ -1190,6 +1341,7 @@ void LauncherWindow::showSettingsDialog() {
     connect(terms, &QPushButton::clicked, &dialog,
             [this] { showTextDocument(tr("利用規約"), ":/legal/TERMS_OF_USE.md"); });
     connect(diagnostics, &QPushButton::clicked, &dialog, [this] { copyDiagnostics(); });
+    // dialog確定後に設定値をViewModelへ渡す
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }
@@ -1217,6 +1369,7 @@ void LauncherWindow::showSettingsDialog() {
     }
 }
 
+/** @brief 選択ゲームの検証・修復・保存場所操作menuを表示する */
 void LauncherWindow::showToolsMenu() {
     if (mandatoryUpdate_ || selectedGameId_.isEmpty() || !selectedGameInstalled()) {
         return;
@@ -1277,9 +1430,11 @@ void LauncherWindow::showToolsMenu() {
     }
 }
 
+/** @brief 同梱resource文書をdialogへ表示する */
 // 同じQString型でもtitleとresource pathを別のUI概念として受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 void LauncherWindow::showTextDocument(const QString& title, const QString& resourcePath) {
+    // 同梱文書をread-only browserへ表示する
     QFile file(resourcePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QMessageBox::warning(this, title, tr("文書を読み込めません"));
@@ -1299,7 +1454,9 @@ void LauncherWindow::showTextDocument(const QString& title, const QString& resou
     dialog.exec();
 }
 
+/** @brief ランチャー更新履歴をread-only dialogへ表示する */
 void LauncherWindow::showLauncherChangelog() {
+    // changelogを表示用の行へ変換する
     QDialog dialog(this);
     dialog.setWindowTitle(tr("更新履歴"));
     dialog.resize(680, 520);
@@ -1323,7 +1480,9 @@ void LauncherWindow::showLauncherChangelog() {
     dialog.exec();
 }
 
+/** @brief 個人pathを除外した診断情報をclipboardへコピーする */
 void LauncherWindow::copyDiagnostics() {
+    // pathを含まない診断情報を組み立てる
     QStringList lines{
         "PandD Game Launcher diagnostics",
         QString("LauncherVersion=%1").arg(PANDD_LAUNCHER_VERSION),
@@ -1347,6 +1506,7 @@ void LauncherWindow::copyDiagnostics() {
                              tr("個人パスを除外した診断情報をコピーしました"));
 }
 
+/** @brief byte数を利用者向け単位へ整形する */
 QString LauncherWindow::formatBytes(quint64 bytes) {
     if (bytes >= 1000000000ULL) {
         return QString::number(static_cast<double>(bytes) / 1000000000.0, 'f', 1) + " GB";

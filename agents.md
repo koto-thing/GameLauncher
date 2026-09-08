@@ -23,3 +23,7 @@
 
 - Make architectural decisions for the long term. Do not accept a stopgap
   that only works for now and is meant to be replaced later.
+
+- Add function comments according to the syntax of each language's `gen` method.
+  Separate each block of code with a blank line and add comments using `//`.
+  There is no need to add a period at the end of the line.

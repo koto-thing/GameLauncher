@@ -13,6 +13,7 @@ import {
   type ErrorObject,
 } from "../schema-validator.ts";
 
+/** release.jsonとして生成するゲーム公開情報 */
 export type GameReleaseSourceDocument = {
   gameId: string;
   version: string;
@@ -132,6 +133,7 @@ export function validateGameReleaseSourceSchema(doc: unknown): {
   };
 }
 
+/** メタデータ生成時に作成されたアーカイブ入力 */
 export type CreatedMetadataResult = {
   document: GameReleaseSourceDocument;
   releaseJsonBytes: Uint8Array;

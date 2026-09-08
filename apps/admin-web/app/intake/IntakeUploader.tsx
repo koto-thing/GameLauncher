@@ -89,6 +89,11 @@ type UploadStage =
   | "cancelled"
   | "error";
 
+/**
+ * バイト数を画面表示用の単位へ変換する
+ * @param bytes バイト数
+ * @returns GiB、MiB、KiB、またはバイト単位の表示文字列
+ */
 function formatBytes(bytes: number): string {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GiB`;
   if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
@@ -96,15 +101,25 @@ function formatBytes(bytes: number): string {
   return `${bytes.toLocaleString("ja-JP")} bytes`;
 }
 
+/**
+ * SHA-256などの長いハッシュを先頭・末尾だけの短い表示へ変換する
+ * @param hash 表示対象のハッシュ文字列
+ * @returns 省略表示したハッシュ文字列
+ */
 function shortHash(hash: string): string {
   if (hash.length <= 16) return hash;
   return `${hash.slice(0, 10)}…${hash.slice(-6)}`;
 }
 
+/**
+ * ブラウザのFileをArtifactBuilder用のビルド入力へ変換する
+ * @param file ファイル選択で取得したブラウザファイル
+ * @returns 相対パスとストリーム操作を備えたビルド入力
+ */
 function convertWebFileToBuildInput(file: File): BuildInputFile {
   const relativePath = (file as { webkitRelativePath?: string }).webkitRelativePath || file.name;
   const parts = relativePath.split(/[/\\]/);
-  // If webkitRelativePath starts with root folder name (e.g. "MyGame_Build/MyGame.exe"), strip top-level folder
+  // webkitRelativePathがルートフォルダ名（例：「MyGame_Build/MyGame.exe」）で始まる場合、最上位フォルダを削除
   const strippedRel = parts.length > 1 ? parts.slice(1).join("/") : parts[0];
 
   return {
@@ -117,6 +132,11 @@ function convertWebFileToBuildInput(file: File): BuildInputFile {
   };
 }
 
+/**
+ * ブラウザのFileをArtifactBuilder用の画像入力へ変換する
+ * @param file 選択された画像ファイル
+ * @returns 画像検証に必要なサイズ・読み込み操作を備えた入力
+ */
 function convertWebFileToImageInput(file: File): ImageInputFile {
   return {
     name: file.name,
@@ -135,11 +155,15 @@ const AUXILIARY_EXE_PATTERNS = [
   /helper/i,
 ];
 
+/**
+ * ゲーム情報からArtifactを生成する機能と、既存Artifactを検証して送信する機能を提供するIntake画面
+ * @returns 認証状態、入力内容、検証結果、アップロード進捗を表示する画面
+ */
 export function IntakeUploader() {
   const [mode, setMode] = useState<IntakeMode>("create");
   const [authResponse, setAuthResponse] = useState<SessionResponse | null>(null);
 
-  // --- Builder Mode State ---
+  // Artifactを新規生成するモードの入力値・公開済みプロフィール再利用状態
   const [gameId, setGameId] = useState("");
   const [version, setVersion] = useState("1.0.0");
   const [minimumLauncherVersion, setMinimumLauncherVersion] = useState("1.0.1");
@@ -169,14 +193,14 @@ export function IntakeUploader() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [builtResult, setBuiltResult] = useState<ArtifactBuildResult | null>(null);
 
-  // --- Existing File Upload Mode State ---
+  // 既存のdescriptorとZIPを送信するモードの入力値・整合性検証結果
   const [descriptorFile, setDescriptorFile] = useState<File | null>(null);
   const [zipFile, setZipFile] = useState<File | null>(null);
   const [descriptorData, setDescriptorData] = useState<ArtifactDescriptor | null>(null);
   const [descriptorErrors, setDescriptorErrors] = useState<string[]>([]);
   const [zipCheckError, setZipCheckError] = useState<string | null>(null);
 
-  // --- Common Upload / Execution State ---
+  // 両モードで共有するアップロード進捗・結果・キャンセル状態
   const [stage, setStage] = useState<UploadStage>("idle");
   const [stageText, setStageText] = useState("ファイルまたはゲーム情報を入力してください");
   const [detailText, setDetailText] = useState("");
@@ -192,6 +216,7 @@ export function IntakeUploader() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const heroImageRef = useRef<HTMLImageElement | null>(null);
 
+  // 初回表示時にセッション情報を取得し、未認証でもログイン導線を表示できるようにする
   useEffect(() => {
     let active = true;
     fetch("/api/dashboard", { cache: "no-store" })
@@ -213,6 +238,7 @@ export function IntakeUploader() {
     };
   }, []);
 
+  // 認証済みの場合だけ、前回の公開情報を再利用できるゲーム一覧を取得する
   useEffect(() => {
     if (!authResponse?.authenticated) return;
     let active = true;
@@ -223,10 +249,13 @@ export function IntakeUploader() {
       })
       .then(({ games }) => { if (active) setPublishedGames(games); })
       .catch(() => { if (active) setPublishedGames([]); });
-    return () => { active = false; };
+
+    return () => {
+      active = false;
+    };
   }, [authResponse?.authenticated]);
 
-  // Cleanup object URLs on unmount
+  // 画像差し替え時や画面破棄時に、プレビュー用Object URLを解放する
   useEffect(() => {
     return () => {
       if (heroPreviewUrl) URL.revokeObjectURL(heroPreviewUrl);
@@ -234,8 +263,13 @@ export function IntakeUploader() {
     };
   }, [heroPreviewUrl, thumbnailPreviewUrl]);
 
-  // --- Builder Input Handlers & Validation ---
+  // 新規Artifact作成モードの入力変更・画像選択・ビルドフォルダ検証
 
+  /**
+   * 入力項目ごとの形式を検証し、項目単位のエラー表示を更新する
+   * @param key 検証対象の項目名
+   * @param value 入力値
+   */
   function validateField(key: string, value: unknown) {
     const errors = { ...fieldErrors };
 
@@ -280,6 +314,7 @@ export function IntakeUploader() {
     setFieldErrors(errors);
   }
 
+  /** Hero画像を検証して選択状態とプレビューを更新する */
   function handleHeroSelected(file: File) {
     const ext = getFileExtension(file.name);
     if (!IMAGE_EXTENSIONS.has(ext)) {
@@ -296,6 +331,7 @@ export function IntakeUploader() {
     setHeroPreviewUrl(URL.createObjectURL(file));
   }
 
+  /** Thumbnail画像を検証して選択状態とプレビューを更新する */
   function handleThumbnailSelected(file: File) {
     const ext = getFileExtension(file.name);
     if (!IMAGE_EXTENSIONS.has(ext)) {
@@ -312,16 +348,19 @@ export function IntakeUploader() {
     setThumbnailPreviewUrl(URL.createObjectURL(file));
   }
 
+  /** 画像ドロップ領域へのドラッグ中表示を有効にする */
   function handleImageDragOver(event: DragEvent<HTMLDivElement>, setDragOver: (value: boolean) => void) {
     event.preventDefault();
     if (!isProcessing) setDragOver(true);
   }
 
+  /** 子要素間の移動では表示を維持し、領域外へ出た場合だけドラッグ中表示を解除する */
   function handleImageDragLeave(event: DragEvent<HTMLDivElement>, setDragOver: (value: boolean) => void) {
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
     setDragOver(false);
   }
 
+  /** 画像ドロップから先頭ファイルを取り出し、選択処理へ渡す */
   function handleImageDrop(
     event: DragEvent<HTMLDivElement>,
     setDragOver: (value: boolean) => void,
@@ -335,6 +374,7 @@ export function IntakeUploader() {
     if (file) onSelected(file);
   }
 
+  /** Hero画像上のクリック位置を0〜1の焦点座標へ変換する */
   function handleHeroImageClick(e: React.MouseEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
@@ -345,6 +385,10 @@ export function IntakeUploader() {
     });
   }
 
+  /**
+   * Buildフォルダの全ファイルを入力へ変換し、起動候補の抽出と安全性検証を行う
+   * @param fileList フォルダ選択またはドロップで取得したファイル一覧
+   */
   function handleFolderFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
     setErrorMessage(null);
@@ -363,7 +407,7 @@ export function IntakeUploader() {
       }
     }
 
-    // Sort executables: prioritize primary game executables over CrashHandlers / updaters
+    // CrashHandlerやアップデーターなどの補助exeを後ろへ回し、主ゲームexeを優先する
     exes.sort((a, b) => {
       const aAux = AUXILIARY_EXE_PATTERNS.some((p) => p.test(a));
       const bAux = AUXILIARY_EXE_PATTERNS.some((p) => p.test(b));
@@ -375,14 +419,14 @@ export function IntakeUploader() {
     setBuildFiles(inputs);
     setDetectedExecutables(exes);
 
-    // Auto-select top executable candidate
+    // 最優先のexeを起動ファイルとして仮選択する
     if (exes.length > 0) {
       setEntrypointRelativePath(exes[0]);
     } else {
       setEntrypointRelativePath("");
     }
 
-    // Validate collected build files
+    // 収集したファイルのパス安全性・重複・容量を検証する
     try {
       const validated = validateAndCollectBuildFiles(inputs);
       setBuildScanStats({ count: validated.files.length, bytes: validated.totalBytes });
@@ -395,6 +439,7 @@ export function IntakeUploader() {
     }
   }
 
+  /** 言語タグを検証して翻訳入力行を追加する */
   function addTranslationLocale(newLocale: string = "") {
     const loc = newLocale.trim();
     if (!loc) return;
@@ -410,6 +455,7 @@ export function IntakeUploader() {
     setTranslations((prev) => ({ ...prev, [loc]: { name: "", summary: "" } }));
   }
 
+  /** 必須のja-JPを残したまま、任意の翻訳入力行を削除する */
   function removeTranslationLocale(locale: string) {
     if (locale === "ja-JP") return;
     setTranslations((prev) => {
@@ -419,6 +465,7 @@ export function IntakeUploader() {
     });
   }
 
+  /** 指定ロケールのゲーム名または概要を更新する */
   function updateTranslation(locale: string, field: "name" | "summary", val: string) {
     setTranslations((prev) => ({
       ...prev,
@@ -429,6 +476,9 @@ export function IntakeUploader() {
     }));
   }
 
+  /**
+   * 公開済みゲームの翻訳・画像・Hero焦点位置を取得し、新規Artifactの入力へ反映する
+   */
   async function reusePublishedProfile() {
     if (!selectedPublishedGame) return;
     setProfileLoading(true);
@@ -475,7 +525,7 @@ export function IntakeUploader() {
     }
   }
 
-  // --- Preview Computation ---
+  // 入力が揃った時点でArtifactの構成を検証し、アップロード前プレビューを計算する
   let previewSummary: ReleasePreview | null = null;
   let draftValidationErrorMessage: string | null = null;
 
@@ -500,8 +550,9 @@ export function IntakeUploader() {
     }
   }
 
-  // --- Existing Mode Handlers ---
+  // 既存Artifactモードのdescriptor・ZIP読み込みと整合性検証
 
+  /** descriptor JSONを読み込み、スキーマと選択済みZIPとの整合性を検証する */
   async function handleDescriptorSelected(file: File) {
     setErrorMessage(null);
     setDescriptorFile(file);
@@ -547,6 +598,7 @@ export function IntakeUploader() {
     }
   }
 
+  /** ZIPを選択状態へ登録し、descriptorの申告内容とファイル名・容量を照合する */
   function handleZipSelected(file: File) {
     setErrorMessage(null);
     setZipFile(file);
@@ -565,6 +617,7 @@ export function IntakeUploader() {
     }
   }
 
+  /** 既存Artifactモードのドロップ内容をdescriptorとZIPに振り分ける */
   function handleExistingDropFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     for (let i = 0; i < files.length; i += 1) {
@@ -577,18 +630,21 @@ export function IntakeUploader() {
     }
   }
 
-  // --- Drag & Drop Handlers ---
+  // 画面全体のドロップ領域をモード別のファイル処理へ振り分ける
 
+  /** ドロップ領域上でファイルを受け付けていることを表示する */
   function onDragOver(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setIsDragOver(true);
   }
 
+  /** ドロップ領域から離れたときの表示を解除する */
   function onDragLeave(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setIsDragOver(false);
   }
 
+  /** 現在のモードに応じてBuildフォルダまたは既存Artifactを処理する */
   function onDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setIsDragOver(false);
@@ -599,8 +655,12 @@ export function IntakeUploader() {
     }
   }
 
-  // --- Start Upload Pipeline ---
+  // 新規Artifactの生成からIntakeへの分割アップロード、Sealまでを実行する
 
+  /**
+   * 入力されたゲーム情報からArtifactを生成し、検証済みZIPをIntakeへ送信する
+   * @remarks 生成進捗と分割アップロード進捗を共通のステージ表示へ反映する
+   */
   async function startBuildAndUpload() {
     const actor = authResponse?.dashboard?.actor;
     if (!authResponse?.authenticated || !actor) {
@@ -639,7 +699,7 @@ export function IntakeUploader() {
         entrypointRelativePath,
       };
 
-      // Step 1 - 4: Build artifact in browser (validate, release.json, ZIP, SHA-256, descriptor)
+      // Step 1〜4: ブラウザ上で入力検証、メタデータ生成、ZIP作成、SHA-256計算、descriptor生成を行う
       setStage("validating");
       setStageText("Buildフォルダを検証しています");
       setProgressPercent(2);
@@ -657,7 +717,7 @@ export function IntakeUploader() {
 
       setBuiltResult(buildRes);
 
-      // Step 5: Upload session & Multipart Upload & Seal
+      // Step 5: Intakeセッションを作成し、分割アップロード完了後にArtifactをSealする
       setStage("creating_session");
       setStageText("Upload sessionを作成しています");
       setProgressPercent(88);
@@ -713,6 +773,7 @@ export function IntakeUploader() {
     }
   }
 
+  /** 既存descriptorとZIPを検証し、問題がなければIntakeへ分割アップロードする */
   async function startExistingUpload() {
     if (!descriptorFile || !zipFile || !descriptorData) {
       setErrorMessage("descriptorとZIPファイルの両方を選択してください");
@@ -802,12 +863,14 @@ export function IntakeUploader() {
     }
   }
 
+  /** 実行中の生成・検証・アップロード処理へキャンセルを通知する */
   function cancelOperation() {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
   }
 
+  /** 生成済みdescriptorをローカルファイルとして保存する */
   function downloadGeneratedDescriptor() {
     if (!builtResult) return;
     const jsonStr = JSON.stringify(builtResult.descriptor, null, 2) + "\n";
@@ -820,6 +883,7 @@ export function IntakeUploader() {
     URL.revokeObjectURL(url);
   }
 
+  /** 生成済みArtifact ZIPをローカルファイルとして保存する */
   function downloadGeneratedZip() {
     if (!builtResult) return;
     const url = URL.createObjectURL(builtResult.zipBlob);
@@ -830,6 +894,7 @@ export function IntakeUploader() {
     URL.revokeObjectURL(url);
   }
 
+  /** 完了・エラー表示を初期状態へ戻し、次のArtifactを受け付けられるようにする */
   function resetForm() {
     setStage("idle");
     setStageText("ファイルまたはゲーム情報を入力してください");
@@ -842,6 +907,7 @@ export function IntakeUploader() {
     setBuiltResult(null);
   }
 
+  // 処理中は入力切り替えや重複送信を防ぐため、画面操作を制限する
   const isProcessing =
     stage === "validating" ||
     stage === "metadata" ||
@@ -854,6 +920,7 @@ export function IntakeUploader() {
     stage === "uploading_parts" ||
     stage === "sealing";
 
+  // 新規作成はプレビュー・入力検証・認証のすべてを満たした場合だけ送信可能
   const canSubmitBuilder =
     Boolean(
       previewSummary &&
@@ -863,6 +930,7 @@ export function IntakeUploader() {
         authResponse?.authenticated,
     ) && !isProcessing;
 
+  // 既存ArtifactはdescriptorとZIPの検証が完了した場合だけ送信可能
   const canSubmitExisting =
     Boolean(descriptorData && zipFile && !zipCheckError && descriptorErrors.length === 0) &&
     !isProcessing;
@@ -870,6 +938,7 @@ export function IntakeUploader() {
   const actor = authResponse?.dashboard?.actor;
   const [newLocaleInput, setNewLocaleInput] = useState("");
 
+  // 認証、入力モード、検証結果、進捗を一つのIntakeワークスペースとして表示する
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -933,7 +1002,7 @@ export function IntakeUploader() {
         </div>
       </section>
 
-      {/* Mode Switcher Tabs */}
+      {/* Artifact新規作成と既存Artifact送信を切り替えるタブ */}
       <div className="intake-mode-switcher" role="tablist">
         <button
           type="button"
@@ -963,7 +1032,7 @@ export function IntakeUploader() {
       </div>
 
       <div className="workspace">
-        {/* Auth prompt if not logged in */}
+        {/* 未認証時はアップロード権限を得るためのログイン導線を表示 */}
         {authResponse && !authResponse.authenticated && (
           <div className="setup-note" style={{ margin: "0 0 28px 0", padding: "18px" }}>
             <strong>ログインが必要です</strong>
@@ -988,17 +1057,17 @@ export function IntakeUploader() {
           </div>
         )}
 
-        {/* Global Error Banner */}
+        {/* 入力検証やアップロードで発生した共通エラーを表示 */}
         {errorMessage && (
           <div className="notice error" role="alert" style={{ margin: "0 0 24px 0" }}>
             {errorMessage}
           </div>
         )}
 
-        {/* MODE 1: CREATE & UPLOAD ARTIFACT (Recommended) */}
+        {/* モード1: Artifactを生成してアップロード */}
         {mode === "create" && (
           <div className="builder-steps-container">
-            {/* STEP 1: GAME INFO */}
+            {/* STEP 1: ゲーム基本情報 */}
             <section className="builder-step-card">
               <div className="step-header">
                 <span className="step-num-badge">STEP 1</span>
@@ -1142,7 +1211,7 @@ export function IntakeUploader() {
               </div>
             </section>
 
-            {/* STEP 2: DISPLAY / TRANSLATIONS & IMAGES */}
+            {/* STEP 2: 多言語表示情報と画像 */}
             <section className="builder-step-card">
               <div className="step-header">
                 <span className="step-num-badge">STEP 2</span>
@@ -1152,7 +1221,7 @@ export function IntakeUploader() {
                 </div>
               </div>
 
-              {/* Translations table */}
+              {/* 言語別のゲーム名・概要入力 */}
               <div className="form-field-group" style={{ marginBottom: "22px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: "12px", fontWeight: 680, color: "#344054" }}>言語別表示テキスト *</span>
@@ -1237,9 +1306,9 @@ export function IntakeUploader() {
                 </div>
               </div>
 
-              {/* Images & Focal Point */}
+              {/* Hero・Thumbnail画像とHero焦点位置 */}
               <div className="image-picker-row">
-                {/* Hero Image Card */}
+                {/* Hero画像カード */}
                 <div
                   className={`image-picker-card image-picker-card--drop-target ${isHeroDragOver ? "dragover" : ""}`}
                   title="ランチャーでゲームを選択したとき、ゲーム詳細画面の背景に表示されます。"
@@ -1339,7 +1408,7 @@ export function IntakeUploader() {
                   {fieldErrors.hero && <span className="field-error-msg">{fieldErrors.hero}</span>}
                 </div>
 
-                {/* Thumbnail Image Card */}
+                {/* Thumbnail画像カード */}
                 <div
                   className={`image-picker-card image-picker-card--drop-target ${isThumbnailDragOver ? "dragover" : ""}`}
                   title="ランチャーのゲーム一覧に表示されるゲームカードのサムネイルです。"
@@ -1387,7 +1456,7 @@ export function IntakeUploader() {
               </div>
             </section>
 
-            {/* STEP 3: BUILD FOLDER & ENTRYPOINT */}
+            {/* STEP 3: ビルドフォルダと起動ファイル */}
             <section className="builder-step-card">
               <div className="step-header">
                 <span className="step-num-badge">STEP 3</span>
@@ -1397,7 +1466,7 @@ export function IntakeUploader() {
                 </div>
               </div>
 
-              {/* Folder Dropzone */}
+              {/* ビルドフォルダの選択・ドロップ領域 */}
               <div
                 className={`intake-dropzone ${isDragOver ? "dragover" : ""}`}
                 onDragOver={onDragOver}
@@ -1427,7 +1496,7 @@ export function IntakeUploader() {
                 </div>
               </div>
 
-              {/* Scan Results & Entrypoint Picker */}
+              {/* ビルド検証結果と起動EXEの選択 */}
               {buildScanStats ? (
                 <div className="build-scan-box">
                   <div className="build-scan-stats">
@@ -1493,7 +1562,7 @@ export function IntakeUploader() {
               ) : null}
             </section>
 
-            {/* STEP 4: REVIEW & SUBMIT */}
+            {/* STEP 4: 生成内容の確認と送信 */}
             <section className="builder-step-card">
               <div className="step-header">
                 <span className="step-num-badge">STEP 4</span>
@@ -1556,7 +1625,7 @@ export function IntakeUploader() {
                 </div>
               )}
 
-              {/* Action Buttons */}
+              {/* 生成・アップロード・キャンセル操作 */}
               <div className="intake-actions-bar" style={{ marginTop: "20px" }}>
                 {stage !== "completed" && (
                   <>
@@ -1577,7 +1646,7 @@ export function IntakeUploader() {
                   </>
                 )}
 
-                {/* Optional Debug Downloads */}
+                {/* 生成物のローカル保存（確認用） */}
                 {builtResult && (
                   <div style={{ display: "flex", gap: "10px", marginLeft: "auto" }}>
                     <button type="button" className="secondary-button" onClick={downloadGeneratedDescriptor}>
@@ -1593,7 +1662,7 @@ export function IntakeUploader() {
           </div>
         )}
 
-        {/* MODE 2: EXISTING ARTIFACT UPLOAD (Compatibility) */}
+        {/* モード2: 既存Artifactを検証してアップロード */}
         {mode === "existing" && (
           <div>
             <section
@@ -1641,7 +1710,7 @@ export function IntakeUploader() {
             </section>
 
             <div className="intake-files-grid">
-              {/* Descriptor card */}
+              {/* descriptor検証結果カード */}
               <article
                 className={`intake-card ${descriptorData ? "valid" : descriptorErrors.length > 0 ? "invalid" : ""}`}
               >
@@ -1684,7 +1753,7 @@ export function IntakeUploader() {
                 )}
               </article>
 
-              {/* ZIP card */}
+              {/* Artifact ZIP整合性カード */}
               <article
                 className={`intake-card ${zipFile && !zipCheckError ? "valid" : zipCheckError ? "invalid" : ""}`}
               >
@@ -1734,7 +1803,7 @@ export function IntakeUploader() {
           </div>
         )}
 
-        {/* STEP 5 / PROGRESS & STATUS PANEL */}
+        {/* STEP 5: 生成・検証・アップロードの進捗と結果 */}
         {(isProcessing || stage === "completed" || stage === "cancelled" || stage === "error") && (
           <section className="intake-action-section" style={{ marginTop: "32px" }}>
             <div className={`intake-progress-card ${stage === "completed" ? "completed" : ""}`} role="status">
@@ -1764,7 +1833,7 @@ export function IntakeUploader() {
                 )}
               </div>
 
-              {/* Completed Success Banner */}
+              {/* Seal完了後の成功バナー */}
               {stage === "completed" && sealedArtifactId && (
                 <div className="intake-completed-box">
                   <div className="completed-icon">✓</div>
@@ -1789,7 +1858,7 @@ export function IntakeUploader() {
         )}
       </div>
 
-      {/* Local Dev switcher */}
+      {/* ローカル開発時だけ表示する認証ユーザー切り替え */}
       {authResponse?.localDevAuthAvailable && (
         <aside className="dev-switcher" aria-label="ローカル開発者切り替え">
           <span>LOCAL</span>

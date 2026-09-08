@@ -2,13 +2,13 @@ import { test, expect } from "@playwright/test";
 import { placeholderPng, toneWav } from "../support/fixtures.mjs";
 import type { PublicGame } from "../../src/domain/models";
 
-test("home, direct links, mobile widths and artwork aspect ratios", /** @brief スマホ幅とPCで実ページと操作の表示を確認する。 */ async ({
+test("home, direct links, mobile widths and artwork aspect ratios", /** @brief スマホ幅とPCで実ページと操作の表示を確認する */ async ({
   page,
 }, info) => {
   const failures: string[] = [];
   page.on(
     "pageerror",
-    /** @brief コンソールではなく未処理例外を記録する。 */ (error) =>
+    /** @brief コンソールではなく未処理例外を記録する */ (error) =>
       failures.push(error.message),
   );
   await page.goto("/");
@@ -20,7 +20,7 @@ test("home, direct links, mobile widths and artwork aspect ratios", /** @brief �
     await page.setViewportSize({ width, height: 900 });
     expect(
       await page.evaluate(
-        /** @brief ページ全体の横溢れを測定する。 */ () =>
+        /** @brief ページ全体の横溢れを測定する */ () =>
           document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
@@ -41,7 +41,7 @@ test("home, direct links, mobile widths and artwork aspect ratios", /** @brief �
   await expect(image).toBeVisible();
   expect(
     await image.evaluate(
-      /** @brief 縦画像を正方形へ切り抜いていないことを確認する。 */ (
+      /** @brief 縦画像を正方形へ切り抜いていないことを確認する */ (
         element: HTMLImageElement,
       ) =>
         Math.abs(
@@ -63,7 +63,7 @@ test("playback survives navigation and game loop can pause, seek and disable", /
   await page.goto("/");
   test.skip(
     !(await page.evaluate(
-      /** @brief 実際に備わる音声APIだけを検証する。 */ () =>
+      /** @brief 実際に備わる音声APIだけを検証する */ () =>
         typeof AudioContext !== "undefined",
     )),
     "この実行環境にWeb Audioがないためループ動作は未検証です。",
@@ -78,8 +78,11 @@ test("playback survives navigation and game loop can pause, seek and disable", /
   await expect(
     page.getByRole("button", { name: "一時停止", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("リピート", { exact: true }).selectOption("region");
-  await expect(page.getByLabel("リピート", { exact: true })).toHaveValue(
+  for (const mode of ["track", "queue", "region"]) {
+    await page.getByLabel("リピート", { exact: true }).click();
+    if (mode !== "region") await expect(page.getByLabel("リピート", { exact: true })).toHaveAttribute("data-repeat", mode);
+  }
+  await expect(page.getByLabel("リピート", { exact: true })).toHaveAttribute("data-repeat",
     "region",
   );
   await page.waitForTimeout(4600);
@@ -108,15 +111,35 @@ test("playback survives navigation and game loop can pause, seek and disable", /
     .click();
   await expect(page.locator(".mini-player")).toContainText(track.title);
   await page.locator(".mini-info").click();
-  await expect(page.getByLabel("リピート", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("リピート", { exact: true })).toHaveAttribute("data-repeat",
     "region",
   );
-  await page.getByLabel("リピート", { exact: true }).selectOption("off");
-  await expect(page.getByLabel("リピート", { exact: true })).toHaveValue("off");
+  await page.getByLabel("リピート", { exact: true }).click();
+  await expect(page.getByLabel("リピート", { exact: true })).toHaveAttribute("data-repeat","off");
   await page.waitForTimeout(4100);
   await expect(page.locator(".mini-player")).toContainText(
     game.tracks[1].title,
   );
+  await expect(
+    page.getByRole("heading", { name: game.tracks[1].title, exact: true }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/tracks/${game.tracks[1].id}$`));
+  await expect(page.locator(".now-playing")).toHaveClass(/track-transition-stable/);
+  await page.getByRole("button", { name: "前の曲", exact: true }).click();
+  await expect(page.getByRole("heading", { name: track.title, exact: true })).toBeVisible();
+  await expect(page.locator(".now-playing")).toHaveClass(/track-transition-stable/);
+  const shuffle = page.getByRole("button", { name: "シャッフル", exact: true });
+  await expect(shuffle.locator("svg")).toHaveCount(1);
+  await shuffle.click();
+  await expect(shuffle).toHaveAttribute("aria-pressed", "true");
+  await shuffle.click();
+  await page.getByLabel("リピート", { exact: true }).click();
+  await expect(page.locator(".repeat-icon")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".mode-badge")).toHaveText("1");
+  await page.getByRole("button", { name: "一時停止", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "build/track-player-icons.png", fullPage: true });
+
 });
 test("same production loop scheduler renders intro once and ten exact repeats", /** @brief モックでなくOfflineAudioContextの波形を全サンプル比較する。 */ async ({
   page,
@@ -124,13 +147,13 @@ test("same production loop scheduler renders intro once and ten exact repeats", 
   await page.goto("/");
   test.skip(
     !(await page.evaluate(
-      /** @brief OfflineAudioContext不在を合格に読み替えない。 */ () =>
+      /** @brief OfflineAudioContext不在を合格に読み替えない */ () =>
         typeof OfflineAudioContext !== "undefined",
     )),
     "この実行環境にはOfflineAudioContextがありません。",
   );
   const result = await page.evaluate(
-    /** @brief 実エンジン共通のNode構成をオフライン音声レンダラーで測定する。 */ async () => {
+    /** @brief 実エンジン共通のNode構成をオフライン音声レンダラーで測定する */ async () => {
       const modulePath = "/__test/audio.js";
       const { startRegionSource } = await import(/* @vite-ignore */ modulePath);
       const sampleRate = 24000;
@@ -149,7 +172,7 @@ test("same production loop scheduler renders intro once and ten exact repeats", 
             : index < sampleRate * 3
               ? 0.2 + 0.1 * Math.sin((2 * Math.PI * 240 * index) / sampleRate)
               : -0.3;
-      // FirefoxはSourceが取得したBufferの元ArrayBufferをdetachするため、期待波形は先に複写する。
+      // FirefoxはSourceが取得したBufferの元ArrayBufferをdetachするため、期待波形は先に複写する
       const expected = original.slice();
       startRegionSource(
         context,
@@ -191,7 +214,7 @@ test("author uploads, edits, previews and publishes without admin approval", /**
   await expect(
     page.getByRole("heading", { name: "担当作品", exact: true }),
   ).toBeVisible();
-  // 他のテストが作った非公開作品ではなく、公開済みの検証作品へ曲を登録する。
+  // 他のテストが作った非公開作品ではなく、公開済みの検証作品へ曲を登録する
   await page.locator(".manage-list a").filter({ hasText: "DEMO 1 /" }).click();
   const title = `E2E ${info.project.name} ${Date.now()} 検証曲`;
   await page.getByLabel("新しい曲名", { exact: true }).fill(title);
@@ -199,14 +222,14 @@ test("author uploads, edits, previews and publishes without admin approval", /**
   await page.getByRole("link", { name: new RegExp(title) }).click();
   await page.getByRole("button", { name: "クレジットを追加" }).click();
   await page.getByLabel("クレジット1の公開名").fill("検証用作成者");
+  const canAnalyze = await page.evaluate(/** @brief Windows WebKitにない音量解析と、音源登録の成否を区別する。 */ () => typeof OfflineAudioContext !== "undefined");
   await page.getByLabel("音源（MP3").setInputFiles({
     name: "demo.wav",
     mimeType: "audio/wav",
     buffer: toneWav(),
   });
-  await expect(
-    page.getByRole("status").filter({ hasText: "音源を登録しました" }).first(),
-  ).toBeVisible();
+  if (canAnalyze) await expect(page.getByRole("status").filter({ hasText: "音源を登録しました" }).first()).toBeVisible();
+  else await expect(page.getByRole("alert")).toContainText("音量解析に対応していません");
   await page.getByRole("button", { name: "下書きを保存", exact: true }).click();
   await expect(
     page.getByLabel("この音源の区間ループを有効にする"),
@@ -226,12 +249,12 @@ test("author uploads, edits, previews and publishes without admin approval", /**
   await page.getByLabel("音源・画像・クレジットの公開と").check();
   if (
     await page.evaluate(
-      /** @brief 実ブラウザーのAPIがある場合だけ試聴成功を検証する。 */ () =>
+      /** @brief 実ブラウザーのAPIがある場合だけ試聴成功を検証する */ () =>
         typeof AudioContext !== "undefined",
     )
   ) {
     await page.getByRole("button", { name: "つなぎ目を試聴" }).click();
-    await expect(page.getByLabel("リピート", { exact: true })).toHaveValue(
+    await expect(page.getByLabel("リピート", { exact: true })).toHaveAttribute("data-repeat",
       "region",
     );
   } else
@@ -257,17 +280,17 @@ test("author uploads, edits, previews and publishes without admin approval", /**
   expect(
     publicResult
       .flatMap(
-        /** @brief 公開APIで投稿結果を確認する。 */ (game) => game.tracks,
+        /** @brief 公開APIで投稿結果を確認する */ (game) => game.tracks,
       )
       .some(
-        /** @brief 下書きだけの成功ではないことを検査する。 */ (track) =>
+        /** @brief 下書きだけの成功ではないことを検査する */ (track) =>
           track.id === trackId && track.title === title,
       ),
   ).toBe(true);
   await page.getByLabel("曲名", { exact: true }).fill(`${title} 未保存`);
   page.once(
     "dialog",
-    /** @brief 未保存入力の破棄確認をキャンセルする。 */ (dialog) => {
+    /** @brief 未保存入力の破棄確認をキャンセルする */ (dialog) => {
       void dialog.dismiss();
     },
   );
@@ -284,7 +307,7 @@ test("ad request failure does not block catalogue and playback controls", /** @b
 }) => {
   await page.route(
     "**/api/public/ad",
-    /** @brief 広告サービスだけの通信失敗を再現する。 */ (route) =>
+    /** @brief 広告サービスだけの通信失敗を再現する */ (route) =>
       route.abort(),
   );
   await page.goto("/");

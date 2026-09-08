@@ -37,8 +37,10 @@ QString startupCommand(bool minimized) {
 
 } // namespace
 
+/** @brief QProcessでゲームを起動して終了を監視するServiceを構築する */
 QtGameProcessService::QtGameProcessService() : QObject(nullptr) {}
 
+/** @brief 実行中processのcallback接続を解除してServiceを破棄する */
 QtGameProcessService::~QtGameProcessService() {
     // 管理中processを保護しながらcallback接続だけを解除
     QMutexLocker lock(&processesMutex_);
@@ -52,6 +54,7 @@ QtGameProcessService::~QtGameProcessService() {
     }
 }
 
+/** @brief 導入済みゲームの実行ファイルを起動する */
 OperationResult QtGameProcessService::launch(const InstalledGame& installed,
                                              const std::string& saveDirectory,
                                              ExitCallback onExit) {
@@ -118,11 +121,13 @@ OperationResult QtGameProcessService::launch(const InstalledGame& installed,
     return OperationResult::success();
 }
 
+/** @brief 指定ゲームのprocessが管理中かを返す */
 bool QtGameProcessService::isRunning(const GameId& gameId) const {
     QMutexLocker lock(&processesMutex_);
     return processes_.contains(gameId.value());
 }
 
+/** @brief OSログイン時起動設定を反映する */
 OperationResult PlatformStartupService::apply(bool enabled, bool minimized) {
 #if defined(Q_OS_WIN)
     // Windowsの利用者単位Run keyへ設定を反映
@@ -145,6 +150,7 @@ OperationResult PlatformStartupService::apply(bool enabled, bool minimized) {
 #endif
 }
 
+/** @brief macOSまたはLinuxの自動起動設定を反映する */
 OperationResult PlatformStartupService::applyFileBasedStartup(bool enabled, bool minimized) {
 #if defined(Q_OS_MACOS)
     // macOS LaunchAgentのplistを構築
@@ -187,8 +193,10 @@ OperationResult PlatformStartupService::applyFileBasedStartup(bool enabled, bool
     return OperationResult::success();
 }
 
+/** @brief Qt IFW Maintenance Tool Serviceを構築する */
 MaintenanceToolService::MaintenanceToolService() = default;
 
+/** @brief Maintenance Toolへ更新確認を委譲する */
 OperationResult MaintenanceToolService::check() {
     // install配置から更新toolを解決
     const auto executable = executablePath();
@@ -207,6 +215,7 @@ OperationResult MaintenanceToolService::check() {
     return OperationResult::success();
 }
 
+/** @brief Maintenance Toolへ更新適用を委譲する */
 OperationResult MaintenanceToolService::apply() {
     // Launcher終了後も継続できる独立processとしてupdaterを起動
     const auto executable = executablePath();
@@ -219,10 +228,12 @@ OperationResult MaintenanceToolService::apply() {
     return OperationResult::success();
 }
 
+/** @brief Application配置からMaintenance Toolの実行pathを解決する */
 QString MaintenanceToolService::executablePath() {
     return executablePathForApplicationDirectory(QCoreApplication::applicationDirPath());
 }
 
+/** @brief Application directoryを基準にOS別Maintenance Tool pathを返す */
 QString
 MaintenanceToolService::executablePathForApplicationDirectory(const QString& applicationDirectory) {
     QDir directory(applicationDirectory);
@@ -243,6 +254,7 @@ MaintenanceToolService::executablePathForApplicationDirectory(const QString& app
 #endif
 }
 
+/** @brief 現在時刻をUTC RFC 3339文字列で返す */
 std::string SystemClock::nowUtc() {
     return QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toStdString();
 }
