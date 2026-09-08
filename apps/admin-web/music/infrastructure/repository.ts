@@ -19,6 +19,7 @@ interface GameRow {
   published: string | null;
   suspended: number;
 }
+
 interface TrackRow {
   id: string;
   game_id: string;
@@ -28,6 +29,7 @@ interface TrackRow {
   draft: string;
   published: string | null;
 }
+
 interface AssetRow {
   id: string;
   game_id: string;
@@ -43,6 +45,7 @@ interface AssetRow {
   height_pixels: number | null;
   created_at: number;
 }
+
 // 保存直前の権限もSQLで再評価し、認可後に担当解除された書き込みを防ぐ。
 const EDIT =
   "EXISTS(SELECT 1 FROM music_accounts a WHERE a.id=? AND (a.admin=1 OR EXISTS(SELECT 1 FROM music_memberships m WHERE m.account_id=a.id AND m.game_id=?)))";
@@ -60,6 +63,7 @@ function decodeGame(row: GameRow): Game {
     suspended: row.suspended === 1,
   };
 }
+
 /** @brief D1行を曲へ変換する。 */
 function decodeTrack(row: TrackRow): Track {
   return {
@@ -74,6 +78,7 @@ function decodeTrack(row: TrackRow): Track {
       : null,
   };
 }
+
 /** @brief 影響行数ゼロを成功として扱わない。 */
 function changed(result: D1Result): void {
   if (Number(result.meta.changes) < 1)
@@ -87,6 +92,7 @@ function changed(result: D1Result): void {
 export class D1MusicRepository implements MusicRepository {
   /** @brief Music専用DBを受け取る。 */
   constructor(readonly db: D1Database) {}
+
   /** @brief 全作品の保存状態を列挙する。 */
   async games(): Promise<Game[]> {
     return (
@@ -95,6 +101,7 @@ export class D1MusicRepository implements MusicRepository {
         .all<GameRow>()
     ).results.map(decodeGame);
   }
+
   /** @brief 主キーで作品を検索する。 */
   async game(id: string): Promise<Game | null> {
     const row = await this.db
@@ -103,6 +110,7 @@ export class D1MusicRepository implements MusicRepository {
       .first<GameRow>();
     return row ? decodeGame(row) : null;
   }
+
   /** @brief 作品内の曲を安定した順で返す。 */
   async tracks(gameId: string): Promise<Track[]> {
     return (
@@ -114,6 +122,7 @@ export class D1MusicRepository implements MusicRepository {
         .all<TrackRow>()
     ).results.map(decodeTrack);
   }
+
   /** @brief 主キーで曲を検索する。 */
   async track(id: string): Promise<Track | null> {
     const row = await this.db
@@ -122,6 +131,7 @@ export class D1MusicRepository implements MusicRepository {
       .first<TrackRow>();
     return row ? decodeTrack(row) : null;
   }
+
   /** @brief バージョンと現在権限を条件に作品を更新する。 */
   async saveGame(
     value: Game,
@@ -148,6 +158,7 @@ export class D1MusicRepository implements MusicRepository {
         .run(),
     );
   }
+
   /** @brief 曲順も公開時に切り替え、下書き編集中の公開順を保つ。 */
   async saveTrack(
     value: Track,
@@ -174,6 +185,35 @@ export class D1MusicRepository implements MusicRepository {
         .run(),
     );
   }
+
+  /** @brief 全曲の版を検査し、曲順を1回のトランザクションで更新する。 */
+  async reorderTracks(
+    gameId: string,
+    tracks: Pick<Track, "id" | "version" | "position">[],
+    actor: Principal,
+  ): Promise<void> {
+    const now = Date.now();
+    const results = await this.db.batch(
+      tracks.map((track) =>
+        this.db
+          .prepare(
+            `UPDATE music_tracks SET position=?,version=version+1,actor=?,action='track.reorder',updated_at=? WHERE id=? AND game_id=? AND version=? AND ${EDIT}`,
+          )
+          .bind(
+            track.position,
+            actor.id,
+            now,
+            track.id,
+            gameId,
+            track.version,
+            actor.id,
+            gameId,
+          ),
+      ),
+    );
+    results.forEach(changed);
+  }
+
   /** @brief 作成時にも運営ロールを検査する。 */
   async createGame(value: Game, actor: Principal): Promise<void> {
     changed(
@@ -192,6 +232,7 @@ export class D1MusicRepository implements MusicRepository {
         .run(),
     );
   }
+
   /** @brief 認可済み作品へ下書きを作成する。 */
   async createTrack(value: Track, actor: Principal): Promise<void> {
     changed(
@@ -213,6 +254,7 @@ export class D1MusicRepository implements MusicRepository {
         .run(),
     );
   }
+
   /** @brief 内部メタデータを取得する。 */
   async asset(id: string): Promise<Asset | null> {
     const row = await this.db
@@ -237,6 +279,7 @@ export class D1MusicRepository implements MusicRepository {
         }
       : null;
   }
+
   /** @brief 検証済みへの一方向遷移に限定し、本文の後付け変更を許さない。 */
   async finishAsset(value: Asset, actor: Principal): Promise<void> {
     const statement = this.db
@@ -264,6 +307,7 @@ export class D1MusicRepository implements MusicRepository {
     ]);
     changed(results[0]);
   }
+
   /** @brief 初期OFFの単一広告設定を取得する。 */
   async advertisement(): Promise<Advertisement> {
     const row = await this.db
@@ -283,6 +327,7 @@ export class D1MusicRepository implements MusicRepository {
       version: row!.version,
     };
   }
+
   /** @brief 運営向けのアカウント一覧を取得する。 */
   async accounts(): Promise<Account[]> {
     return (
@@ -296,6 +341,7 @@ export class D1MusicRepository implements MusicRepository {
       }),
     );
   }
+
   /** @brief 表示名ではなく安定IDで割り当てを取得する。 */
   async memberships(gameId: string): Promise<string[]> {
     return (
@@ -305,6 +351,7 @@ export class D1MusicRepository implements MusicRepository {
         .all<{ account_id: string }>()
     ).results.map(/** @brief 担当IDを抽出する。 */ (row) => row.account_id);
   }
+
   /** @brief 次のAPIから所属変更を反映させる。 */
   async setMembership(
     gameId: string,
@@ -344,6 +391,7 @@ export class D1MusicRepository implements MusicRepository {
         ),
     ]);
   }
+
   /** @brief 最近100件の操作履歴を返す。 */
   async audit(): Promise<AuditEntry[]> {
     return (

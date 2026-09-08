@@ -62,6 +62,7 @@ struct MotionSelection {
     csmInt32 priority;
 };
 
+/** @brief 呼び出し元がQt GUI threadかを返す */
 bool isGuiThread() {
     if (const auto* app = QCoreApplication::instance()) {
         return QThread::currentThread() == app->thread();
@@ -70,8 +71,13 @@ bool isGuiThread() {
     return true;
 }
 
-bool hasCurrentContext() { return QOpenGLContext::currentContext() != nullptr; }
+/** @brief current OpenGL contextの有無を返す */
+bool hasCurrentContext() {
+    // 現在threadのOpenGL contextを確認する
+    return QOpenGLContext::currentContext() != nullptr;
+}
 
+/** @brief current contextごとにGLEWを一度だけ初期化する */
 bool initializeGlew(QString& error) {
     static QPointer<QOpenGLContext> initializedContext;
 
@@ -100,6 +106,7 @@ bool initializeGlew(QString& error) {
     return true;
 }
 
+/** @brief Cubism shader初期化失敗を診断文字列から判定する */
 bool diagnosticsContainShaderFailure(const QString& diagnostics) {
     return diagnostics.contains(QStringLiteral("Shader compile log"), Qt::CaseInsensitive) ||
            diagnostics.contains(QStringLiteral("Program link log"), Qt::CaseInsensitive) ||
@@ -112,6 +119,7 @@ bool diagnosticsContainShaderFailure(const QString& diagnostics) {
            diagnostics.contains(QStringLiteral("File loader is not set"), Qt::CaseInsensitive);
 }
 
+/** @brief modelが指定parameterを保持しているかを返す */
 bool hasModelParameter(CubismModel& model, const CubismId* id) {
     if (!id) {
         return false;
@@ -123,6 +131,7 @@ bool hasModelParameter(CubismModel& model, const CubismId* id) {
 
 class CubismSceneModel final : public CubismUserModel {
   public:
+    /** @brief Cubism scene modelを初期化する */
     CubismSceneModel()
         : modelSetting_(nullptr), motionUpdated_(false), idleGroupUtf8_(), lastRenderWidth_(0),
           lastRenderHeight_(0) {
@@ -133,6 +142,7 @@ class CubismSceneModel final : public CubismUserModel {
         idParamBreath_ = CubismFramework::GetIdManager()->GetId(ParamBreath);
     }
 
+    /** @brief scene modelのmotionとtextureを解放する */
     ~CubismSceneModel() override {
         _motionManager->StopAllMotions();
         releaseTextures();
@@ -141,6 +151,7 @@ class CubismSceneModel final : public CubismUserModel {
         modelSetting_ = nullptr;
     }
 
+    /** @brief 検証済みCPU dataからCubism modelを構築する */
     bool load(const pandd::Live2DModelData& data, QString& error) {
         error.clear();
         // 検証済みmodel3.jsonをCubism設定へ変換して関連資源を構築する
@@ -152,6 +163,7 @@ class CubismSceneModel final : public CubismUserModel {
         return setupModel(data, error);
     }
 
+    /** @brief 指定秒数だけmotionとmodel parameterを更新する */
     void updateModel(float seconds) {
         if (!GetModel() || !std::isfinite(seconds)) {
             return;
@@ -182,6 +194,7 @@ class CubismSceneModel final : public CubismUserModel {
         GetModel()->Update();
     }
 
+    /** @brief 現在のOpenGL targetへscene modelを描画する */
     void drawModel(const DrawParameters& parameters) {
         const auto [pixelWidth, pixelHeight, centerX, centerY, scale] = parameters;
         if (!GetModel()) {
@@ -235,9 +248,14 @@ class CubismSceneModel final : public CubismUserModel {
         renderer->DrawModel();
     }
 
-    QString modelPath() const { return modelJsonPath_; }
+    /** @brief 読み込んだmodel3.json pathを返す */
+    QString modelPath() const {
+        // 表示用に保持しているpathを返す
+        return modelJsonPath_;
+    }
 
   private:
+    /** @brief Cubism modelと補助effectを構築する */
     bool setupModel(const pandd::Live2DModelData& data, QString& error) {
         // Cubismの更新抑止中にCPUとGPU資源を一括構築する
         IsUpdating(true);
@@ -283,6 +301,7 @@ class CubismSceneModel final : public CubismUserModel {
         return true;
     }
 
+    /** @brief Moc bytesからmain modelを読み込む */
     bool loadMainModel(const pandd::Live2DModelData& data, QString& error) {
         LoadModel(reinterpret_cast<const csmByte*>(data.moc.constData()),
                   static_cast<csmSizeInt>(data.moc.size()), true);
@@ -297,6 +316,7 @@ class CubismSceneModel final : public CubismUserModel {
         return true;
     }
 
+    /** @brief Physics bytesをschedulerへ登録する */
     bool loadPhysics(const QByteArray& bytes, QString& error) {
         if (bytes.isEmpty()) {
             return true;
@@ -311,6 +331,7 @@ class CubismSceneModel final : public CubismUserModel {
         return true;
     }
 
+    /** @brief Pose bytesをschedulerへ登録する */
     bool loadPose(const QByteArray& bytes, QString& error) {
         if (bytes.isEmpty()) {
             return true;
@@ -325,6 +346,7 @@ class CubismSceneModel final : public CubismUserModel {
         return true;
     }
 
+    /** @brief model設定のeye blink effectを登録する */
     void setupEyeBlink() {
         if (!modelSetting_ || modelSetting_->GetEyeBlinkParameterCount() <= 0) {
             return;
@@ -343,6 +365,7 @@ class CubismSceneModel final : public CubismUserModel {
             CSM_NEW CubismEyeBlinkUpdater(motionUpdated_, *_eyeBlink));
     }
 
+    /** @brief model parameterへbreath effectを登録する */
     void setupBreath() {
         csmVector<CubismBreath::BreathParameterData> parameters;
 
@@ -370,6 +393,7 @@ class CubismSceneModel final : public CubismUserModel {
         _updateScheduler.AddUpdatableList(CSM_NEW CubismBreathUpdater(*_breath));
     }
 
+    /** @brief model設定からlip sync parameterを収集する */
     void collectLipSyncIds() {
         if (!modelSetting_) {
             return;
@@ -380,6 +404,7 @@ class CubismSceneModel final : public CubismUserModel {
         }
     }
 
+    /** @brief RGBA textureをOpenGLへ登録する */
     bool loadTextures(const QList<QImage>& images, QString& error) {
         auto* renderer = GetRenderer<CubismRenderer_OpenGLES2>();
         textures_.resize(images.size());
@@ -418,6 +443,7 @@ class CubismSceneModel final : public CubismUserModel {
         return true;
     }
 
+    /** @brief idle motionを事前読込してcacheする */
     bool preloadIdleGroup(const QList<QByteArray>& motions, QString& error) {
         // 検証済みidle motionを安定したgroupとindexのkeyで保持する
         for (csmInt32 i = 0; i < motions.size(); ++i) {
@@ -440,6 +466,7 @@ class CubismSceneModel final : public CubismUserModel {
         return true;
     }
 
+    /** @brief groupからrandom motionを一件開始する */
     bool startRandomMotion(const csmChar* group, csmInt32 priority) {
         if (!modelSetting_ || !group) {
             return false;
@@ -456,6 +483,7 @@ class CubismSceneModel final : public CubismUserModel {
         return startMotion(group, {index, priority});
     }
 
+    /** @brief 指定したmotionをpriority付きで開始する */
     bool startMotion(const csmChar* group, const MotionSelection& selection) {
         const auto [index, priority] = selection;
         if (!modelSetting_ || !_motionManager || !group || index < 0) {
@@ -474,6 +502,7 @@ class CubismSceneModel final : public CubismUserModel {
         return true;
     }
 
+    /** @brief preload済みmotionを解放する */
     void releaseMotions() {
         for (auto it = motions_.Begin(); it != motions_.End(); ++it) {
             ACubismMotion::Delete(it->Second);
@@ -481,6 +510,7 @@ class CubismSceneModel final : public CubismUserModel {
         motions_.Clear();
     }
 
+    /** @brief current context上のtextureを解放する */
     void releaseTextures() {
         if (!hasCurrentContext()) {
             const bool hasAnyTexture = std::any_of(textures_.cbegin(), textures_.cend(),
@@ -528,10 +558,13 @@ class Live2DModel::Impl {
     std::unique_ptr<CubismSceneModel> model;
 };
 
+/** @brief 空のLive2D model adapterを構築する */
 Live2DModel::Live2DModel() : impl_(std::make_unique<Impl>()) {}
 
+/** @brief model adapterを破棄する */
 Live2DModel::~Live2DModel() = default;
 
+/** @brief current context上でCPU dataからLive2D modelを構築する */
 bool Live2DModel::load(const Live2DModelData& data, QString& error) {
     error.clear();
 
@@ -580,6 +613,7 @@ bool Live2DModel::load(const Live2DModelData& data, QString& error) {
     return true;
 }
 
+/** @brief animationを指定秒数だけ進める */
 void Live2DModel::update(float seconds) {
     if (!impl_->model) {
         return;
@@ -589,6 +623,7 @@ void Live2DModel::update(float seconds) {
     impl_->model->updateModel(seconds);
 }
 
+/** @brief 現在のOpenGL targetへLive2D modelを描画する */
 void Live2DModel::draw(int pixelWidth, int pixelHeight, float centerX, float centerY, float scale) {
     if (!impl_->model) {
         return;
@@ -604,8 +639,13 @@ void Live2DModel::draw(int pixelWidth, int pixelHeight, float centerX, float cen
     impl_->model->drawModel({pixelWidth, pixelHeight, centerX, centerY, scale});
 }
 
-bool Live2DModel::isLoaded() const noexcept { return impl_->model != nullptr; }
+/** @brief modelが読込済みかを返す */
+bool Live2DModel::isLoaded() const noexcept {
+    // 内部modelの所有状態を返す
+    return impl_->model != nullptr;
+}
 
+/** @brief 現在読込済みのmodel3.json pathを返す */
 QString Live2DModel::loadedModelPath() const {
     return impl_->model ? impl_->model->modelPath() : QString();
 }

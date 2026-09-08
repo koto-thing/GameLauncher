@@ -62,12 +62,22 @@ bool isUnsafeLink(const QFileInfo& info) {
 
 } // namespace
 
+/** @brief ゲーム配置Serviceを初期化する */
 GameInstallationService::GameInstallationService() = default;
 
-void GameInstallationService::pause() { paused_ = true; }
+/** @brief ダウンロードを一時停止する */
+void GameInstallationService::pause() {
+    // workerが現在のchunkを終えるまで停止状態を共有する
+    paused_ = true;
+}
 
-void GameInstallationService::resume() { paused_ = false; }
+/** @brief 一時停止中のダウンロードを再開する */
+void GameInstallationService::resume() {
+    // workerが待機条件を解除できるよう状態を共有する
+    paused_ = false;
+}
 
+/** @brief 検証済みchunkからreleaseを構築して有効化する */
 OperationResult GameInstallationService::install(const GameRelease& release,
                                                  const std::string& gameRootValue,
                                                  std::uint64_t speedLimit,
@@ -306,6 +316,7 @@ OperationResult GameInstallationService::install(const GameRelease& release,
     return result;
 }
 
+/** @brief 既存directoryを検証して管理下のreleaseへ取り込む */
 OperationResult GameInstallationService::importExisting(const GameRelease& release,
                                                         const std::string& sourceDirectory,
                                                         const std::string& gameRootValue,
@@ -421,6 +432,7 @@ OperationResult GameInstallationService::importExisting(const GameRelease& relea
     return activateRelease(release, gameRoot, stagingRoot);
 }
 
+/** @brief active releaseの全ファイルを検証する */
 OperationResult GameInstallationService::verify(const InstalledGame& installed,
                                                 const GameRelease& release) {
     if (installed.gameId != release.gameId || installed.version != release.version) {
@@ -442,6 +454,7 @@ OperationResult GameInstallationService::verify(const InstalledGame& installed,
     return OperationResult::success();
 }
 
+/** @brief active markerとrelease entrypointの整合性を検証する */
 OperationResult GameInstallationService::validateActivation(const InstalledGame& installed) {
     const QFileInfo root(QString::fromStdString(installed.gameRoot));
     const auto launcherRoot = QDir(root.absoluteFilePath()).filePath(".launcher");
@@ -471,6 +484,7 @@ OperationResult GameInstallationService::validateActivation(const InstalledGame&
     return OperationResult::success();
 }
 
+/** @brief save dataを残してゲーム本体を削除する */
 OperationResult GameInstallationService::uninstall(const InstalledGame& installed) {
     const QFileInfo root(QString::fromStdString(installed.gameRoot));
     const auto activeFile = QDir(root.absoluteFilePath()).filePath(".launcher/active.json");
@@ -489,6 +503,7 @@ OperationResult GameInstallationService::uninstall(const InstalledGame& installe
     return OperationResult::success();
 }
 
+/** @brief 失敗したstagingとchunk cacheを削除する */
 OperationResult GameInstallationService::cleanupTemporary(const InstalledGame& installed) {
     const QFileInfo root(QString::fromStdString(installed.gameRoot));
     const QDir launcherRoot(QDir(root.absoluteFilePath()).filePath(".launcher"));
@@ -517,6 +532,7 @@ OperationResult GameInstallationService::cleanupTemporary(const InstalledGame& i
     return OperationResult::success();
 }
 
+/** @brief 一つのchunkをRange再開付きで取得する */
 OperationResult GameInstallationService::downloadChunk(
     // 同じ文字列型でもfilesystem対象と監査操作IDを区別
     // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
@@ -652,6 +668,7 @@ OperationResult GameInstallationService::downloadChunk(
                           "chunk retry limit reached", true);
 }
 
+/** @brief fileを読み込みSHA-256 digestを計算する */
 QByteArray GameInstallationService::sha256(const QString& path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -668,6 +685,7 @@ QByteArray GameInstallationService::sha256(const QString& path) {
     return hash.result();
 }
 
+/** @brief rootからrelative pathまでにunsafe linkがないかを検証する */
 // traversal境界を維持するためrootと相対pathを分離
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 bool GameInstallationService::hasUnsafeLink(const QString& root, const QString& relativePath) {
@@ -683,6 +701,7 @@ bool GameInstallationService::hasUnsafeLink(const QString& root, const QString& 
     return false;
 }
 
+/** @brief active markerへ有効versionを原子的に保存する */
 OperationResult GameInstallationService::writeActiveVersion(const QString& gameRoot,
                                                             const std::string& version) {
     const QString launcherRoot = QDir(gameRoot).filePath(".launcher");
@@ -699,6 +718,7 @@ OperationResult GameInstallationService::writeActiveVersion(const QString& gameR
     return OperationResult::success();
 }
 
+/** @brief staging releaseをrollback可能なactive releaseへ切り替える */
 OperationResult
 GameInstallationService::activateRelease(const GameRelease& release,
                                          // 各pathは異なる配置phaseを表現
@@ -732,6 +752,7 @@ GameInstallationService::activateRelease(const GameRelease& release,
     return OperationResult::success();
 }
 
+/** @brief 現行版と直前版以外のreleaseを削除する */
 // rootとactive versionを異なるdomain値として受け取る
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 void GameInstallationService::cleanOldReleases(const QString& gameRoot,

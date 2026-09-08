@@ -14,6 +14,7 @@
     "test": "node --import tsx --test tests/unit/*.test.ts tests/integration/*.test.ts",
     "test:e2e": "node scripts/e2e.mjs test",
     "build": "vite build && node scripts/check-build.mjs",
+    "deploy": "node scripts/deploy.mjs",
     "build:manager": "vite build --config vite.manager.config.ts",
     "package:rental": "npm run build && node scripts/package-rental.mjs",
     "policy:sync": "node -e \"require('node:fs').copyFileSync('../../contracts/music/policy.json','../../server/music/config/policy.json')\"",

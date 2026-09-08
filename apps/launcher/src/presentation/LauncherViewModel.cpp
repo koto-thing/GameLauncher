@@ -57,6 +57,7 @@ QString localizedError(const OperationError& error, const std::string& language)
 
 } // namespace
 
+/** @brief Application FacadeをQt threadへ接続するViewModelを構築する */
 LauncherViewModel::LauncherViewModel(LauncherService& service, QObject* parent)
     : QObject(parent), service_(service), catalog_(service.catalog()),
       installedGames_(service.installedGames()), announcements_(service.announcements()),
@@ -73,6 +74,7 @@ LauncherViewModel::LauncherViewModel(LauncherService& service, QObject* parent)
         });
 }
 
+/** @brief 実行中taskを停止してViewModelを破棄する */
 LauncherViewModel::~LauncherViewModel() {
     // callback先の破棄より先に実行中taskを停止
     service_.cancel();
@@ -81,24 +83,42 @@ LauncherViewModel::~LauncherViewModel() {
     service_.setStateCallback({});
 }
 
+/** @brief Applicationの初期データを非同期に読み込む */
 void LauncherViewModel::initialize() {
     runAsync([this] { return service_.load(); }, true, true);
 }
 
-const std::vector<GameCatalogEntry>& LauncherViewModel::catalog() const { return catalog_; }
+/** @brief 最新カタログを返す */
+const std::vector<GameCatalogEntry>& LauncherViewModel::catalog() const {
+    // UI用snapshotを返す
+    return catalog_;
+}
 
+/** @brief 導入済みゲーム一覧を返す */
 const std::vector<InstalledGame>& LauncherViewModel::installedGames() const {
+    // UI用snapshotを返す
     return installedGames_;
 }
 
-const std::vector<Announcement>& LauncherViewModel::announcements() const { return announcements_; }
+/** @brief お知らせ一覧を返す */
+const std::vector<Announcement>& LauncherViewModel::announcements() const {
+    // UI用snapshotを返す
+    return announcements_;
+}
 
-const LauncherSettings& LauncherViewModel::settings() const { return settings_; }
+/** @brief 現在設定を返す */
+const LauncherSettings& LauncherViewModel::settings() const {
+    // UI用snapshotを返す
+    return settings_;
+}
 
+/** @brief ランチャー更新履歴を返す */
 const std::vector<LauncherChangelogEntry>& LauncherViewModel::launcherChangelog() const {
+    // UI用snapshotを返す
     return launcherChangelog_;
 }
 
+/** @brief game IDからplatform別save directoryを解決する */
 QString LauncherViewModel::saveDirectory(const QString& gameId) const {
     // 導入記録から対象gameを検索してplatform別save pathへ変換
     const auto iterator = std::find_if(installedGames_.begin(), installedGames_.end(),
@@ -111,6 +131,7 @@ QString LauncherViewModel::saveDirectory(const QString& gameId) const {
                      LauncherService::resolveSaveDirectory(iterator->saveDirectoryName));
 }
 
+/** @brief ゲーム導入または更新を非同期に開始する */
 void LauncherViewModel::installOrUpdate(const QString& gameId) {
     const auto id = gameId.toStdString();
     // 長時間処理と進捗通知をUI threadから分離
@@ -128,6 +149,7 @@ void LauncherViewModel::installOrUpdate(const QString& gameId) {
         true);
 }
 
+/** @brief 既存ゲームの検証と取り込みを非同期に開始する */
 void LauncherViewModel::locateExisting(const QString& gameId, const QString& sourceDirectory) {
     const auto id = gameId.toStdString();
     const auto source = sourceDirectory.toStdString();
@@ -147,6 +169,7 @@ void LauncherViewModel::locateExisting(const QString& gameId, const QString& sou
         true);
 }
 
+/** @brief 必要な更新後にゲームを起動する */
 void LauncherViewModel::launch(const QString& gameId) {
     const auto id = gameId.toStdString();
     // 必要な更新を完了してからgame processを起動
@@ -188,10 +211,12 @@ void LauncherViewModel::launch(const QString& gameId) {
     });
 }
 
+/** @brief ゲームファイル検証を非同期に開始する */
 void LauncherViewModel::verify(const QString& gameId) {
     runAsync([this, id = gameId.toStdString()] { return service_.verify(GameId(id)); });
 }
 
+/** @brief ゲームファイル修復を非同期に開始する */
 void LauncherViewModel::repair(const QString& gameId) {
     const auto id = gameId.toStdString();
     runAsync(
@@ -208,14 +233,17 @@ void LauncherViewModel::repair(const QString& gameId) {
         true);
 }
 
+/** @brief ゲーム本体の削除を非同期に開始する */
 void LauncherViewModel::uninstall(const QString& gameId) {
     runAsync([this, id = gameId.toStdString()] { return service_.uninstall(GameId(id)); }, true);
 }
 
+/** @brief 一時データ削除を非同期に開始する */
 void LauncherViewModel::cleanupTemporary(const QString& gameId) {
     runAsync([this, id = gameId.toStdString()] { return service_.cleanupTemporary(GameId(id)); });
 }
 
+/** @brief 設定を非同期に保存する */
 void LauncherViewModel::saveSettings(LauncherSettings settings) {
     // 保存処理を待たず選択内容を画面へ反映し、失敗時はrunAsyncのsnapshotで元へ戻す
     settings_ = settings;
@@ -224,6 +252,7 @@ void LauncherViewModel::saveSettings(LauncherSettings settings) {
              true);
 }
 
+/** @brief Maintenance Toolで更新を確認する */
 void LauncherViewModel::checkLauncherUpdate() {
     // 公開metadataと更新toolの確認をbackgroundで実行
     operationPool_.start([this] {
@@ -249,6 +278,7 @@ void LauncherViewModel::checkLauncherUpdate() {
     });
 }
 
+/** @brief Maintenance Toolへ更新適用を委譲する */
 void LauncherViewModel::applyLauncherUpdate() {
     // 更新toolの起動がUIを停止させないようbackgroundで実行
     operationPool_.start([this] {
@@ -264,16 +294,23 @@ void LauncherViewModel::applyLauncherUpdate() {
     });
 }
 
-void LauncherViewModel::cancel() { service_.cancel(); }
+/** @brief 実行中処理へキャンセルを要求する */
+void LauncherViewModel::cancel() {
+    // Application Serviceへキャンセルを伝える
+    service_.cancel();
+}
 
+/** @brief 指定ゲームの取得を一時停止する */
 void LauncherViewModel::pause(const QString& gameId) {
     service_.pause(GameId(gameId.toStdString()));
 }
 
+/** @brief 指定ゲームの取得を再開する */
 void LauncherViewModel::resume(const QString& gameId) {
     service_.resume(GameId(gameId.toStdString()));
 }
 
+/** @brief Application操作をworkerへ投入し結果をUIへ反映する */
 void LauncherViewModel::runAsync(std::function<OperationResult()> operation, bool refreshOnSuccess,
                                  bool notifyLoaded) {
     // Application操作を単一workerへ投入

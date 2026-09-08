@@ -29,6 +29,7 @@ export async function musicApi(request: Request): Promise<Response> {
     const method = request.method;
     const user = await readSession(request);
     const enabled = (env as Record<string, unknown>).MUSIC_ENABLED === "true";
+
     if (path === "session" && method === "GET") {
       const principal = enabled ? await musicPrincipal(getD1(), user) : null;
       const publicUrl = String(
@@ -49,15 +50,18 @@ export async function musicApi(request: Request): Promise<Response> {
         user: user ? { login: user.login, gameAccess: user.gameAccess } : null,
       });
     }
+
     if (!enabled) throw new MusicError("UNAVAILABLE", "Music管理は無効です。");
     if (!user)
       throw new MusicError("UNAUTHENTICATED", "ログインしてください。");
+
     const actor = await musicPrincipal(getD1(), user);
     if (!actor)
       throw new MusicError(
         "FORBIDDEN",
         "Musicの担当割り当てがありません。GitHub数値IDをMusic運営に伝えてください。",
       );
+
     if (!["GET", "HEAD"].includes(method)) {
       assertBrowserWrite(request);
       await limitMusic(
@@ -66,10 +70,13 @@ export async function musicApi(request: Request): Promise<Response> {
         MUSIC_RUNTIME.mutationPerMinute,
       );
     }
-    const { music, repository, operations, publications, uploads, storage } =
+
+    const { music, repository, operations, publications, uploads, storage, codes } =
       musicServices();
     const segments = path.split("/");
+
     if (segments[0] === "admin") authorize(actor);
+
     if (path === "publications" && method === "GET")
       return json(
         (await operations.list(actor)).map(
@@ -83,6 +90,7 @@ export async function musicApi(request: Request): Promise<Response> {
           }),
         ),
       );
+
     if (
       segments[0] === "publications" &&
       segments.length === 3 &&
@@ -92,6 +100,7 @@ export async function musicApi(request: Request): Promise<Response> {
       await publications.retry(segments[1], actor);
       return json({ ok: true });
     }
+
     if (
       segments[0] === "assets" &&
       segments.length === 2 &&
@@ -111,6 +120,7 @@ export async function musicApi(request: Request): Promise<Response> {
         });
       return storage.preview(asset, actor);
     }
+
     if (
       segments[0] === "uploads" &&
       segments.length === 2 &&
@@ -129,11 +139,24 @@ export async function musicApi(request: Request): Promise<Response> {
       );
       return json({ id: asset.id, gameId: asset.gameId, kind: asset.kind, mime: asset.mime, bytes: asset.bytes, status: asset.status, durationSeconds: asset.durationSeconds, sampleRateHz: asset.sampleRateHz, channels: asset.channels, widthPixels: asset.widthPixels, heightPixels: asset.heightPixels, createdAt: asset.createdAt });
     }
+
     // JSON管理入力だけを容量制限付きで読み、音源本文はここへ入れない。
     const value = ["POST", "PUT"].includes(method)
       ? record(await readJson(request, MUSIC_RUNTIME.jsonMaxBytes))
       : {};
     const id = segments[2];
+
+    if (segments[0] === "manage" && segments[1] === "tracks" && segments[3] === "command-code" && segments.length === 4 && ["GET", "POST"].includes(method)) {
+      const track = await music.managedTrack(id, actor);
+      const codeId = method === "GET" ? await codes.find(track.id) : await codes.issue(track.id, actor);
+      return json(codeId === null ? null : {version: 1, codeId});
+    }
+
+    if (segments[0] === "manage" && segments[1] === "games" && segments[3] === "command-codes" && segments.length === 4 && method === "POST") {
+      requireValue(typeof value.dryRun === "boolean", "dryRunを指定してください。");
+      return json(await publications.backfill(id, actor, value.dryRun));
+    }
+
     if (path === "uploads" && method === "POST") {
       const gameId = String(value.gameId);
       await music.managedGame(gameId, actor);
@@ -151,11 +174,13 @@ export async function musicApi(request: Request): Promise<Response> {
       );
       return json({ id: upload.id, assetId: upload.asset.id }, 201);
     }
+
     if (path === "manage/games") {
       if (method === "GET") return json(await music.managedGames(actor));
       if (method === "POST")
         return json(await music.createGame(value, actor), 201);
     }
+
     if (segments[0] === "manage" && segments[1] === "games") {
       if (segments.length === 3 && method === "GET") {
         const game = await music.managedGame(id, actor);
@@ -179,6 +204,15 @@ export async function musicApi(request: Request): Promise<Response> {
           201,
         );
       if (
+        segments[3] === "tracks" &&
+        segments.length === 5 &&
+        segments[4] === "order" &&
+        method === "PUT"
+      ) {
+        await music.reorderTracks(id, value.trackIds, actor);
+        return json({ ok: true });
+      }
+      if (
         segments[3] === "publication" &&
         segments.length === 4 &&
         method === "POST"
@@ -196,6 +230,7 @@ export async function musicApi(request: Request): Promise<Response> {
         return json({ ok: true });
       }
     }
+
     if (segments[0] === "manage" && segments[1] === "tracks") {
       if (segments.length === 3 && method === "GET") {
         const track = await music.managedTrack(id, actor);
@@ -242,12 +277,15 @@ export async function musicApi(request: Request): Promise<Response> {
         return json({ ok: true });
       }
     }
+
     if (path === "admin/settings" && method === "GET")
       return json(await music.adminSettings(actor));
+
     if (path === "admin/advertisement" && method === "PUT") {
       await music.saveAdvertisement(value as unknown as Advertisement, actor);
       return json({ ok: true });
     }
+
     if (segments[0] === "admin" && segments[1] === "games") {
       if (
         segments[3] === "members" &&
@@ -279,6 +317,7 @@ export async function musicApi(request: Request): Promise<Response> {
         return json({ ok: true });
       }
     }
+
     throw new MusicError("NOT_FOUND", "管理APIがありません。");
   } catch (error) {
     if (error instanceof Response) return error;
@@ -307,6 +346,7 @@ export async function musicApi(request: Request): Promise<Response> {
     );
   }
 }
+
 /** @brief 管理JSONを常に非キャッシュで返す。 @param value DTO。 @param status HTTP状態。 @returns JSON応答。 */
 function json(value: unknown, status = 200): Response {
   return Response.json(value, {

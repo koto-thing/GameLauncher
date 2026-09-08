@@ -14,10 +14,10 @@ import { signatureHeaders } from "../../../admin-web/music/infrastructure/bridge
 import type { Envelope } from "../../../../contracts/music/bridge-v1.ts";
 import encoded from "../support/encoded-media.json" with { type: "json" };
 
-test("control-plane D1 + actual PHP publication, permissions and recovery", /** @brief 外部GitHub以外の実システム境界を通して検証する。 */ async (t) => {
+test("control-plane D1 + actual PHP publication, permissions and recovery", /** @brief 外部GitHub以外の実システム境界を通して検証する */ async (t) => {
   const runtime = await createRuntime();
   t.after(
-    /** @brief 所有する実行環境を終了する。 */ async () => runtime.dispose(),
+    /** @brief 所有する実行環境を終了する */ async () => runtime.dispose(),
   );
   await seed(runtime);
   const admin = await fixtureClient(runtime);
@@ -26,26 +26,26 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   const outsider = await fixtureClient(runtime, "outsider");
   const gamer = await fixtureClient(runtime, "maintainer");
   const guest = await fixtureClient(runtime, null);
-  /** @brief 公開情報は管理サービスを経由せずPHPから読む。 @returns 公開カタログ。 */
+  /** @brief 公開情報は管理サービスを経由せずPHPから読む @returns 公開カタログ */
   async function catalogue() {
     return (await fetch(`${runtime.php.origin}/api/public/catalogue`)).json();
   }
   const games = await catalogue();
   const game = games.find(
-    /** @brief 担当作品Aを選ぶ。 */ (g: { title: string }) =>
+    /** @brief 担当作品Aを選ぶ */ (g: { title: string }) =>
       g.title.startsWith("DEMO 1"),
   );
   const foreign = games.find(
-    /** @brief 別作品Bを選ぶ。 */ (g: { id: string }) => g.id !== game.id,
+    /** @brief 別作品Bを選ぶ */ (g: { id: string }) => g.id !== game.id,
   );
   const original = game.tracks[0];
-  /** @brief ローカル配信への一般要求を送る。 @param id 素材。 @param options HTTP設定。 @returns HTTP応答。 */
+  /** @brief ローカル配信への一般要求を送る @param id 素材 @param options HTTP設定 @returns HTTP応答 */
   const media = (id: string, options?: RequestInit) =>
     fetch(`${runtime.php.origin}/api/assets/${id}`, options);
 
   await t.test(
     "game, Music-only, unassigned and anonymous permissions remain separate",
-    /** @brief ゲームデータとゲーム書込をMusic Cookieで読めない。 */ async () => {
+    /** @brief ゲームデータとゲーム書込をMusic Cookieで読めない */ async () => {
       assert.equal((await gamer.json("/api/dashboard")).authenticated, true);
       for (const client of [admin, author, other, outsider]) {
         assert.equal((await client.request("/api/dashboard")).status, 403);
@@ -91,7 +91,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   );
   await t.test(
     "scope, admin-only settings and CSRF reject direct API attacks",
-    /** @brief 別作品のIDと同一Cookieでの越権を拒否する。 */ async () => {
+    /** @brief 別作品のIDと同一Cookieでの越権を拒否する */ async () => {
       assert.equal(
         (await author.request(`/manage/games/${foreign.id}`)).status,
         403,
@@ -137,8 +137,61 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
     },
   );
   await t.test(
+    "track order is saved as a complete contiguous list",
+    /** @brief 一覧順の一括更新と不完全な要求の拒否を検証する */ async () => {
+      const before = (await author.json(`/manage/games/${game.id}`)).tracks;
+      assert.equal(
+        (
+          await author.request(`/manage/games/${game.id}/tracks/order`, {
+            method: "PUT",
+            body: { trackIds: [before[0].id] },
+          })
+        ).status,
+        400,
+      );
+      const reversedIds = before
+        .map(
+          /** @brief 現在順をID配列へ変換する */ (track: { id: string }) =>
+            track.id,
+        )
+        .reverse();
+      await author.json(`/manage/games/${game.id}/tracks/order`, {
+        method: "PUT",
+        body: { trackIds: reversedIds },
+      });
+      const reordered = (await author.json(`/manage/games/${game.id}`)).tracks;
+      assert.deepEqual(
+        reordered.map(
+          /** @brief 保存後のID順だけを比較する */ (track: { id: string }) =>
+            track.id,
+        ),
+        reversedIds,
+      );
+      assert.deepEqual(
+        reordered.map(
+          /** @brief 保存後の曲順番号だけを比較する */ (track: {
+            position: number;
+          }) => track.position,
+        ),
+        reordered.map(
+          /** @brief 期待する連番を作る */ (_: unknown, index: number) =>
+            index + 1,
+        ),
+      );
+      await author.json(`/manage/games/${game.id}/tracks/order`, {
+        method: "PUT",
+        body: {
+          trackIds: before.map(
+            /** @brief テスト前の曲順へ戻す */ (track: { id: string }) =>
+              track.id,
+          ),
+        },
+      });
+    },
+  );
+  await t.test(
     "drafts, preview, stale versions and old URLs are protected",
-    /** @brief 下書き編集は公開版を変更せず素材URLも漏れない。 */ async () => {
+    /** @brief 下書き編集は公開版を変更せず素材URLも漏れない */ async () => {
       const audio = await author.upload(game.id, "audio", toneWav(9));
       assert.equal((await media(audio.id)).status, 404);
       assert.equal((await guest.request(`/assets/${audio.id}`)).status, 401);
@@ -170,7 +223,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
       );
       assert.equal(
         (await catalogue()).find(
-          /** @brief 公開対象の作品を照合する。 */ (g: { id: string }) =>
+          /** @brief 公開対象の作品を照合する */ (g: { id: string }) =>
             g.id === game.id,
         ).tracks[0].title,
         original.title,
@@ -179,7 +232,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   );
   await t.test(
     "PHP validates MP3, PCM WAV and image metadata; upload retries are immutable",
-    /** @brief MIME偽装・切断・digest変更・実行ファイルを拒否する。 */ async () => {
+    /** @brief MIME偽装・切断・digest変更・実行ファイルを拒否する */ async () => {
       const bytes = toneWav(4);
       const start = await author.json("/uploads", {
         method: "POST",
@@ -262,7 +315,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   );
   await t.test(
     "GET HEAD suffix Range open Range and invalid ranges have exact headers",
-    /** @brief 公開チェック後にbyte単位の応答を検証する。 */ async () => {
+    /** @brief 公開チェック後にbyte単位の応答を検証する */ async () => {
       const full = await media(original.audioAssetId);
       const bytes = Buffer.from(await full.arrayBuffer());
       assert.equal(full.status, 200);
@@ -304,7 +357,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   );
   await t.test(
     "atomic switch failure leaves old catalogue and blocks competing operations",
-    /** @brief 切替前に停止しても古い公開版を保ち、固定した内容だけ再送する。 */ async () => {
+    /** @brief 切替前に停止しても古い公開版を保ち、固定した内容だけ再送する */ async () => {
       const { track } = await author.json(`/manage/tracks/${original.id}`);
       await runtime.php.fault("before-switch");
       assert.equal(
@@ -318,13 +371,13 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
       );
       assert.equal(
         (await catalogue()).find(
-          /** @brief 公開対象の作品を照合する。 */ (g: { id: string }) =>
+          /** @brief 公開対象の作品を照合する */ (g: { id: string }) =>
             g.id === game.id,
         ).tracks[0].title,
         original.title,
       );
       const pending = (await author.json("/publications")).find(
-        /** @brief 結果不明の元操作を選ぶ。 */ (op: { state: string }) =>
+        /** @brief 結果不明の元操作を選ぶ */ (op: { state: string }) =>
           op.state === "unknown",
       );
       assert.ok(pending);
@@ -353,7 +406,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
       });
       assert.equal(
         (await catalogue()).find(
-          /** @brief 公開対象の作品を照合する。 */ (g: { id: string }) =>
+          /** @brief 公開対象の作品を照合する */ (g: { id: string }) =>
             g.id === game.id,
         ).tracks[0].title,
         "編集中の非公開タイトル",
@@ -362,7 +415,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   );
   await t.test(
     "lost receipt after switch reconciles without republishing; withdrawal stops all new requests",
-    /** @brief 切替直後の応答消失を同じIDで確認し、304/Rangeでも非公開素材を返さない。 */ async () => {
+    /** @brief 切替直後の応答消失を同じIDで確認し、304/Rangeでも非公開素材を返さない */ async () => {
       const { track } = await author.json(`/manage/tracks/${original.id}`);
       await runtime.php.fault("after-switch");
       assert.equal(
@@ -375,7 +428,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
         503,
       );
       const pending = (await author.json("/publications")).find(
-        /** @brief 結果不明の元操作を選ぶ。 */ (op: { state: string }) =>
+        /** @brief 結果不明の元操作を選ぶ */ (op: { state: string }) =>
           op.state === "unknown",
       );
       assert.ok(pending);
@@ -411,7 +464,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
       });
       assert.equal(
         (await catalogue()).find(
-          /** @brief 公開対象の作品を照合する。 */ (g: { id: string }) =>
+          /** @brief 公開対象の作品を照合する */ (g: { id: string }) =>
             g.id === foreign.id,
         ).tracks.length,
         3,
@@ -420,7 +473,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   );
   await t.test(
     "membership revocation takes effect with the existing cookie",
-    /** @brief Cookieを作り直さず次のAPIを拒否する。 */ async () => {
+    /** @brief Cookieを作り直さず次のAPIを拒否する */ async () => {
       await admin.json(`/admin/games/${game.id}/members/900002`, {
         method: "PUT",
         body: { enabled: false },
@@ -441,7 +494,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   );
   await t.test(
     "signature target, nonce, timestamps and idempotency are bound across TS and PHP",
-    /** @brief 認証済みエンベロープへの攻撃を実HTTPで検証する。 */ async () => {
+    /** @brief 認証済みエンベロープへの攻撃を実HTTPで検証する */ async () => {
       const row = await runtime.db
         .prepare(
           "SELECT * FROM music_publications WHERE scope=? AND state='applied' ORDER BY created_at DESC LIMIT 1",
@@ -470,7 +523,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
         kind: null,
         mime: null,
       };
-      /** @brief TypeScript署名をPHPに送る。 @param envelope エンベロープ。 @returns HTTP応答。 */
+      /** @brief TypeScript署名をPHPに送る @param envelope エンベロープ @returns HTTP応答 */
       async function send(envelope: Envelope) {
         return fetch(`${runtime.php.origin}/bridge.php`, {
           method: "POST",
@@ -527,7 +580,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   );
   await t.test(
     "corrupt or missing current pointer fails closed and never revives withdrawn tracks",
-    /** @brief 参照破損時に履歴snapshotへ戻さない。 */ async () => {
+    /** @brief 参照破損時に履歴snapshotへ戻さない */ async () => {
       const file = path.join(runtime.php.config.storageRoot, "current.json");
       const valid = await readFile(file, "utf8");
       await writeFile(file, "broken");
@@ -541,7 +594,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   );
   await t.test(
     "D1 confirmation failure is reconciled without overwriting a newer draft",
-    /** @brief PHP成功後にD1 batchだけを失敗させ同じ操作で追従する。 */ async () => {
+    /** @brief PHP成功後にD1 batchだけを失敗させ同じ操作で追従する */ async () => {
       const { track } = await other.json(
         `/manage/tracks/${foreign.tracks[0].id}`,
       );
@@ -559,7 +612,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
       );
       await runtime.db.exec("DROP TRIGGER test_confirmation_failure;");
       const pending = (await other.json("/publications")).find(
-        /** @brief D1未確定操作を選ぶ。 */ (op: { state: string }) =>
+        /** @brief D1未確定操作を選ぶ */ (op: { state: string }) =>
           op.state === "unknown",
       );
       assert.ok(pending);
@@ -582,7 +635,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   );
   await t.test(
     "different works and advertisement merge concurrently; same work conflicts",
-    /** @brief 最新snapshotへscope単位で合成し同じ作品の競合は拒否する。 */ async () => {
+    /** @brief 最新snapshotへscope単位で合成し同じ作品の競合は拒否する */ async () => {
       const first = (await author.json(`/manage/games/${game.id}`)).game;
       const second = (await other.json(`/manage/games/${foreign.id}`)).game;
       const ad = (await admin.json("/admin/settings")).advertisement;
@@ -615,7 +668,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
       const current = (await author.json(`/manage/games/${game.id}`)).game;
       const responses = await Promise.all(
         [true, true].map(
-          /** @brief 同じ期待版の操作を同時送信する。 */ () =>
+          /** @brief 同じ期待版の操作を同時送信する */ () =>
             author.request(`/manage/games/${game.id}/publication`, {
               method: "POST",
               body: { version: current.version, publish: true },
@@ -625,7 +678,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
       assert.deepEqual(
         responses
           .map(
-            /** @brief 応答順によらず競合を調べる。 */ (response: Response) =>
+            /** @brief 応答順によらず競合を調べる */ (response: Response) =>
               response.status,
           )
           .sort(),
@@ -683,7 +736,7 @@ test("private storage verification, temporary cleanup and two PHP processes", /*
       .all()
   ).results;
   assert.equal(rows.length, 2);
-  /** @brief 同じ私有storeへ別PHPプロセスから署名公開を送る。 @param index scope位置。 @param origin PHP origin。 @returns 応答。 */
+  /** @brief 同じ私有storeへ別PHPプロセスから署名公開を送る @param index scope位置 @param origin PHP origin @returns 応答 */
   async function apply(index: number, origin: string) {
     const row = rows[index];
     const now = Math.floor(Date.now() / 1000);

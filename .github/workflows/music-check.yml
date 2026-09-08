@@ -30,12 +30,12 @@ jobs:
           tools: composer:v2
       - run: composer install --no-dev --prefer-dist --no-interaction
         working-directory: server/music
+      - run: npm run browsers:install -- --with-deps
       - run: npm run check
       - run: npm test
         working-directory: apps/admin-web
       - run: npm run lint
         working-directory: apps/admin-web
-      - run: npm run browsers:install -- --with-deps
       - name: Start virtual audio output
         # Firefoxの実音声出力を検証する。音声APIのモックや再生テストのスキップはしない。
         run: |

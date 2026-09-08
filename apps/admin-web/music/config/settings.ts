@@ -8,6 +8,7 @@ export const MUSIC_RUNTIME = {
   bridgeTimeoutMs: 120000,
   signatureSeconds: 120,
 } as const;
+
 export interface MusicSettings {
   bridgeUrl: string;
   keyId: string;

@@ -2,13 +2,13 @@ import { pathToFileURL } from "node:url";
 import { fixtureClient } from "../tests/support/rental-runtime.mjs";
 import { placeholderPng, toneWav } from "../tests/support/fixtures.mjs";
 
-/** @brief 2作品6曲を実APIで登録し、公開・アップロード経路のseedにもする。 */
+/** @brief 2作品6曲を実APIで登録し、公開・アップロード経路のseedにもする */
 export async function seed(runtime) {
   const client = await fixtureClient(runtime, "music-admin");
   const existing = await client.json("/manage/games");
   if (
     existing.some(
-      /** @brief 実データへデモを混ぜない。 */ (game) =>
+      /** @brief 実データへデモを混ぜない */ (game) =>
         !game.draft.title.startsWith("DEMO "),
     )
   ) {
@@ -27,7 +27,7 @@ export async function seed(runtime) {
     };
     let game =
       existing.find(
-        /** @brief 途中で止まったseedを同じ作品から再開する。 */ (item) =>
+        /** @brief 途中で止まったseedを同じ作品から再開する */ (item) =>
           item.draft.title === draft.title,
       ) ??
       (await client.json("/manage/games", { method: "POST", body: draft }));
@@ -56,7 +56,7 @@ export async function seed(runtime) {
       const title = `DEMO ${index + 1}-${song + 1} / ${["はじまりの音", "繰り返す風景", "帰り道"][song]}`;
       const tracks = (await client.json(`/manage/games/${game.id}`)).tracks;
       let track = tracks.find(
-        /** @brief 完了済みのデモ曲と編集内容を上書きしない。 */ (item) =>
+        /** @brief 完了済みのデモ曲と編集内容を上書きしない */ (item) =>
           item.draft.title === title,
       );
       if (track?.published) continue;
@@ -117,7 +117,8 @@ export async function seed(runtime) {
   }
   console.log("DEMO: 2作品・6曲をローカルcontrol-plane D1/PHPに登録しました。");
 }
-// seedは独立したローカルプロセスで実施し、本番用コマンドやリモート指定を受け付けない。
+
+// seedは独立したローカルプロセスで実施し、本番用コマンドやリモート指定を受け付けない
 if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(process.argv[1]).href
@@ -125,7 +126,7 @@ if (
   const origin = "http://127.0.0.1:8788";
   await seed({
     origin,
-    dispatchFetch: /** @brief 起動中の隔離ローカル環境へだけ送る。 */ (
+    dispatchFetch: /** @brief 起動中の隔離ローカル環境へだけ送る */ (
       ...args
     ) => fetch(...args),
   });

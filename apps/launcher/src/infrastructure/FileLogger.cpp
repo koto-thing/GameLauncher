@@ -15,17 +15,21 @@ namespace {
 QMutex logMutex;
 }
 
+/** @brief Qt全体のmessage handlerをファイルloggerへ切り替える */
 void FileLogger::install() {
     // log directoryを準備してQt全体のmessage handlerを差し替え
     QDir().mkpath(logDirectory());
     qInstallMessageHandler(&FileLogger::messageHandler);
 }
 
+/** @brief ランチャーのlog directoryを返す */
 QString FileLogger::logDirectory() {
+    // OS標準のApplication Data配下へlogを配置する
     return QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
         .filePath("logs");
 }
 
+/** @brief Qt messageをsanitized logへ追記する */
 void FileLogger::messageHandler(QtMsgType type, const QMessageLogContext&, const QString& message) {
     // 複数threadからの追記とrotateを直列化
     QMutexLocker lock(&logMutex);
@@ -45,6 +49,7 @@ void FileLogger::messageHandler(QtMsgType type, const QMessageLogContext&, const
                        << level << ' ' << sanitized << '\n';
 }
 
+/** @brief log size上限を超えた場合に世代を繰り上げる */
 void FileLogger::rotateIfNeeded(const QString& path) {
     // 上限未満のlogはそのまま追記
     constexpr qint64 maximumBytes = qint64{5} * 1024 * 1024;

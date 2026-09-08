@@ -15,6 +15,7 @@ constexpr qint64 maxFileBytes = qint64{64} * 1024 * 1024;
 constexpr qint64 maxTextureBytes = qint64{128} * 1024 * 1024;
 constexpr qint64 maxTotalBytes = qint64{256} * 1024 * 1024;
 
+/** @brief 指定上限内で素材fileを読み込む */
 bool readBytes(const QString& path, qint64 limit, QByteArray& bytes, QString& error) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly) || file.size() <= 0 || file.size() > limit) {
@@ -30,6 +31,7 @@ bool readBytes(const QString& path, qint64 limit, QByteArray& bytes, QString& er
 }
 } // namespace
 
+/** @brief Live2D model参照を検証してCPU用データへ展開する */
 Live2DModelData prepareLive2DModel(const Live2DAsset& asset, const std::atomic_bool& canceled) {
     // 信頼済みroot内のmodel3.jsonだけを読込対象とする
     Live2DModelData data;

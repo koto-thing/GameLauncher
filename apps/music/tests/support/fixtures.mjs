@@ -1,8 +1,8 @@
 import { deflateSync, crc32 } from "node:zlib";
 
-/** @brief 自作検証トーンをPCM16 WAVとして生成する。 @param variant 周波数を区別する番号。 @returns 権利上問題のない検証音源。 */
+/** @brief 自作検証トーンをPCM16 WAVとして生成する @param variant 周波数を区別する番号 @returns 権利上問題のない検証音源 */
 export function toneWav(variant = 0) {
-  // 0〜1秒イントロ、1〜3秒反復区間、3〜4秒アウトロを周波数で区別する。
+  // 0〜1秒イントロ、1〜3秒反復区間、3〜4秒アウトロを周波数で区別する
   const rate = 24000;
   const seconds = 4;
   const samples = rate * seconds;
@@ -29,7 +29,7 @@ export function toneWav(variant = 0) {
   }
   return buffer;
 }
-/** @brief PNGの標準チャンクを構成する。 */
+/** @brief PNGの標準チャンクを構成する */
 function pngChunk(name, data) {
   const type = Buffer.from(name);
   const length = Buffer.alloc(4);
@@ -38,7 +38,7 @@ function pngChunk(name, data) {
   checksum.writeUInt32BE(crc32(Buffer.concat([type, data])));
   return Buffer.concat([length, type, data, checksum]);
 }
-/** @brief 作品素材を捏造せず、単色の検証用プレースホルダーを生成する。 */
+/** @brief 作品素材を捏造せず、単色の検証用プレースホルダーを生成する */
 export function placeholderPng(width = 480, height = 270, variant = 0) {
   const pixels = Buffer.alloc((width * 3 + 1) * height);
   for (let y = 0; y < height; y++)

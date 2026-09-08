@@ -25,9 +25,29 @@ final class Publications {
                 } else $current['advertisement'] = ['enabled' => false];
             } else {
                 demand(!array_key_exists('advertisement', $payload), 403, 'Work scope cannot change advertisement');
-                if ($payload['game'] === null) unset($current['games'][$scope]);
+                if (array_key_exists('commandCodes', $payload)) {
+                    // 既存公開版に予約だけを追記し、管理側の未公開編集を混ぜない。
+                    demand($payload['game'] === null && is_array($payload['commandCodes']), 400, 'Invalid command publication');
+                    demand(isset($current['games'][$scope]), 409, 'Work is not currently published');
+                    $assignments = [];
+                    foreach ($payload['commandCodes'] as $item) {
+                        $trackId = musicId($item['trackId'] ?? null);
+                        demand(!isset($assignments[$trackId]), 400, 'Duplicate track assignment');
+                        $assignments[$trackId] = CommandCodes::assignment($item);
+                    }
+                    foreach ($current['games'][$scope]['tracks'] as &$track) {
+                        if (!isset($assignments[$track['id']])) continue;
+                        demand(!isset($track['commandCode']) || $track['commandCode'] === $assignments[$track['id']], 409, 'Command assignment is immutable');
+                        $track['commandCode'] = $assignments[$track['id']];
+                        unset($assignments[$track['id']]);
+                    }
+                    unset($track);
+                    demand(count($assignments) === 0, 409, 'Track is not currently published');
+                }
+                else if ($payload['game'] === null) unset($current['games'][$scope]);
                 else $current['games'][$scope] = $this->game($payload['game'], $scope);
             }
+            CommandCodes::unique($current['games']);
             $revision = $envelope['expectedRevision'] + 1;
             $receipt = ['operationId' => $id, 'scope' => $scope, 'payloadDigest' => $envelope['payloadDigest'], 'revision' => $revision];
             $current['scopes'][$scope] = $revision;
@@ -72,7 +92,17 @@ final class Publications {
         $result = array_intersect_key($game, array_flip(['id', 'title', 'description', 'imageAssetId', 'imageAlt', 'externalUrl', 'design']));
         $this->image($game['imageAssetId'] ?? null, $scope);
         $this->image($game['design']['backgroundAssetId'] ?? null, $scope);
-        if (isset($game['design'])) $result['design'] = array_intersect_key($game['design'], array_flip(['backgroundColor', 'backgroundAssetId', 'backgroundMode']));
+        if (isset($game['design'])) {
+            $result['design'] = array_intersect_key($game['design'], array_flip(['backgroundColor', 'backgroundAssetId', 'backgroundMode']));
+            if (isset($game['design']['webgl'])) {
+                $shader = $game['design']['webgl'];
+                demand(is_array($shader) && is_string($shader['fragmentShader'] ?? null), 400, 'Invalid background shader');
+                $source = $shader['fragmentShader'];
+                $length = preg_match_all('/./us', $source) + preg_match_all('/[\x{10000}-\x{10FFFF}]/u', $source);
+                demand(trim($source) !== '' && $length <= 16000 && !str_contains($source, "\0"), 400, 'Invalid background shader source');
+                $result['design']['webgl'] = ['fragmentShader' => $source];
+            }
+        }
         $result['tracks'] = [];
         $ids = [];
         foreach ($game['tracks'] as $track) {
@@ -86,6 +116,18 @@ final class Publications {
             if ($loop !== null) demand(is_numeric($loop['startSeconds'] ?? null) && is_numeric($loop['endSeconds'] ?? null) && $loop['startSeconds'] >= 0 && $loop['endSeconds'] <= $audio['durationSeconds'] && $loop['endSeconds'] - $loop['startSeconds'] >= $this->policy['loop']['minimumLengthSeconds'], 400, 'Invalid loop');
             $public = array_intersect_key($track, array_flip(['id', 'gameId', 'title', 'position', 'comment', 'audioAssetId', 'imageAssetId', 'imageAlt']));
             $public['loop'] = $loop === null ? null : array_intersect_key($loop, array_flip(['startSeconds', 'endSeconds']));
+            if (array_key_exists('commandCode', $track)) $public['commandCode'] = CommandCodes::assignment($track['commandCode']);
+            if (array_key_exists('loudness', $track)) {
+                $loudness = $track['loudness'];
+                demand(is_array($loudness) && ($loudness['audioAssetId'] ?? '') === $audio['id'], 400, 'Loudness asset mismatch');
+                foreach (['integratedLufs' => [-70, 10], 'truePeakDbtp' => [-200, 30]] as $metric => [$minimum, $maximum]) {
+                    demand(array_key_exists($metric, $loudness), 400, 'Missing loudness metric');
+                    $value = $loudness[$metric];
+                    demand($value === null || ((is_int($value) || is_float($value)) && is_finite((float)$value) && $value >= $minimum && $value <= $maximum), 400, 'Invalid loudness metric');
+                }
+                demand($loudness['integratedLufs'] === null || $loudness['truePeakDbtp'] !== null, 400, 'True peak required');
+                $public['loudness'] = array_intersect_key($loudness, array_flip(['audioAssetId', 'integratedLufs', 'truePeakDbtp']));
+            }
             $public['credits'] = array_map(static fn(array $credit): array => array_intersect_key($credit, array_flip(['name', 'role'])), $track['credits']);
             $result['tracks'][] = array_merge($public, ['durationSeconds' => $audio['durationSeconds'], 'sampleRateHz' => $audio['sampleRateHz'], 'channels' => $audio['channels'], 'audioBytes' => $audio['bytes']]);
         }

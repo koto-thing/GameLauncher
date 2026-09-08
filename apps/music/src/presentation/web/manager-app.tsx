@@ -6,8 +6,8 @@ import { SiteContext, type SiteConfig } from "./context";
 import { api } from "./api-client";
 import { ThemeToggle } from "./theme-toggle";
 
-/** @brief 既存control-plane Cookieを利用し、ゲームのダッシュボードを取得せずMusicを開く。 @param props 共有プレビューエンジン。 @returns 管理画面。 */
-export function ManagerApp({ player }: { player: Player }) {
+/** @brief 既存control-plane Cookieを利用し、ゲームのダッシュボードを取得せずMusicを開く @param props 共有プレビューエンジン @returns 管理画面 */
+export function ManagerApp({ player, analyzeLoudness }: { player: Player; analyzeLoudness: import("../../application/loudness").AnalyzeLoudness }) {
   const [state, setState] = useState<{
     session: Session | null;
     config: SiteConfig;
@@ -16,7 +16,7 @@ export function ManagerApp({ player }: { player: Player }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const refresh = useCallback(
-    /** @brief 最新のMusic所属だけを再取得する。 */ async () => {
+    /** @brief 最新のMusic所属だけを再取得する */ async () => {
       try {
         setState(await api("/session"));
         setError("");
@@ -31,13 +31,13 @@ export function ManagerApp({ player }: { player: Player }) {
     [],
   );
   useEffect(
-    /** @brief 初回の共通本人確認と保存通知を接続する。 */ () => {
+    /** @brief 初回の共通本人確認と保存通知を接続する */ () => {
       void refresh();
-      /** @brief 保存結果を画面遷移後も表示する。 @param event 通知。 */
+      /** @brief 保存結果を画面遷移後も表示する @param event 通知 */
       const onNotice = (event: Event) =>
         setNotice((event as CustomEvent<string>).detail);
       window.addEventListener("music-notice", onNotice);
-      return /** @brief 終了時に通知購読とプレビューを止める。 */ () => {
+      return /** @brief 終了時に通知購読とプレビューを止める */ () => {
         window.removeEventListener("music-notice", onNotice);
       };
     },
@@ -47,6 +47,7 @@ export function ManagerApp({ player }: { player: Player }) {
     <SiteContext.Provider
       value={{
         player,
+        analyzeLoudness,
         session: state?.session ?? null,
         catalogue: [],
         config: state?.config ?? null,
@@ -90,19 +91,20 @@ export function ManagerApp({ player }: { player: Player }) {
     </SiteContext.Provider>
   );
 }
-/** @brief 管理試聴を同一originの認可済みpreviewだけへ向ける。 @param id 素材ID。 @returns プレビューURL。 */
+
+/** @brief 管理試聴を同一originの認可済みpreviewだけへ向ける @param id 素材ID @returns プレビューURL */
 export function managerAssetUrl(id: string): string {
   return `/api/music/assets/${encodeURIComponent(id)}`;
 }
 
-/** @brief 反映済みと結果不明を区別し、同じ操作IDの再照合・再試行を提供する。 @returns 公開処理一覧。 */
+/** @brief 反映済みと結果不明を区別し、同じ操作IDの再照合・再試行を提供する @returns 公開処理一覧 */
 export function PublicationPage() {
   const [operations, setOperations] = useState<
     { id: string; scope: string; state: string; error: string | null }[]
   >([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  /** @brief 最新状態を取得する。 @returns 取得完了。 */
+  /** @brief 最新状態を取得する @returns 取得完了 */
   const reload = useCallback(async () => {
     try {
       setOperations(await api("/publications"));
@@ -111,12 +113,12 @@ export function PublicationPage() {
     }
   }, []);
   useEffect(
-    /** @brief 一覧を初回取得し定期ポーリングはしない。 */ () => {
+    /** @brief 一覧を初回取得し定期ポーリングはしない */ () => {
       void reload();
     },
     [reload],
   );
-  /** @brief 別操作を作らず元操作を状態照会して再送する。 @param id 操作ID。 @returns 再試行完了。 */
+  /** @brief 別操作を作らず元操作を状態照会して再送する @param id 操作ID @returns 再試行完了 */
   async function retry(id: string) {
     setBusy(true);
     setError("");
@@ -146,7 +148,7 @@ export function PublicationPage() {
       </p>
       <button
         onClick={
-          /** @brief 最新の状態を手動取得する。 */ () => {
+          /** @brief 最新の状態を手動取得する */ () => {
             void reload();
           }
         }
@@ -155,7 +157,7 @@ export function PublicationPage() {
       </button>
       {error && <p role="alert">{error}</p>}
       {operations.map(
-        /** @brief 各操作の確認済み状態を表示する。 */ (op) => (
+        /** @brief 各操作の確認済み状態を表示する */ (op) => (
           <article className="notice" key={op.id}>
             <strong>{labels[op.state]}</strong>
             <p>{op.id}</p>
@@ -164,7 +166,7 @@ export function PublicationPage() {
               <button
                 disabled={busy}
                 onClick={
-                  /** @brief 同一操作の再照合を開始する。 */ () => {
+                  /** @brief 同一操作の再照合を開始する */ () => {
                     void retry(op.id);
                   }
                 }

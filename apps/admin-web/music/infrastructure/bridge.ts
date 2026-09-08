@@ -8,6 +8,7 @@ export async function digest(value: string): Promise<string> {
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)),
   ).toString("hex");
 }
+
 /** @brief TS/PHP共通の改行付き文字列へ署名する。 @param envelope フィールド拘束情報。 @param secret Music専用鍵。 @returns 転送ヘッダー。 */
 export async function signatureHeaders(
   envelope: Envelope,
@@ -37,6 +38,7 @@ export async function signatureHeaders(
 export class RentalBridge {
   /** @brief 認可の外側で検証した固定接続先を受け取る。 @param config 接続設定。 */
   constructor(private readonly config: MusicSettings) {}
+
   /** @brief 毎回新しいnonceで同一論理操作を再送可能にする。 @param input 認可済みの対象。 @param body JSONまたはraw upload stream。 @returns ストリーム応答。 */
   async request(
     input: Pick<
@@ -101,6 +103,7 @@ export class RentalBridge {
     }
     return response;
   }
+
   /** @brief 小さな管理応答だけを上限付きでデコードする。 @param response bridge応答。 @returns 検証用JSON値。 */
   async json<T>(response: Response): Promise<T> {
     const reader = response.body!.getReader();
@@ -120,6 +123,7 @@ export class RentalBridge {
       await reader.cancel();
     }
   }
+
   /** @brief 反映結果を型と元要求へ照合する。 @param value 外部結果。 @param expected 元操作。 @returns 確定receipt。 */
   verifyReceipt(
     value: Receipt,

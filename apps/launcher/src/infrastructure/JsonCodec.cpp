@@ -66,6 +66,7 @@ bool requiredBoolean(const QJsonObject& object, const char* key) {
 
 } // namespace
 
+/** @brief カタログJSONをドメイン型へ変換する */
 std::vector<GameCatalogEntry> JsonCodec::parseCatalog(const QByteArray& data) {
     // root schemaと必須field集合を検証
     const auto root = parseObject(data);
@@ -98,6 +99,7 @@ std::vector<GameCatalogEntry> JsonCodec::parseCatalog(const QByteArray& data) {
     return result;
 }
 
+/** @brief お知らせJSONをドメイン型へ変換する */
 std::vector<Announcement> JsonCodec::parseAnnouncements(const QByteArray& data) {
     // schema検証後に許可categoryだけをdomain型へ変換
     const auto root = parseObject(data);
@@ -120,6 +122,7 @@ std::vector<Announcement> JsonCodec::parseAnnouncements(const QByteArray& data) 
     return result;
 }
 
+/** @brief リリースJSONをドメイン型へ変換する */
 GameRelease JsonCodec::parseRelease(const QByteArray& data) {
     // 署名対象schemaのfield集合を厳密に検証
     const auto root = parseObject(data);
@@ -177,6 +180,7 @@ GameRelease JsonCodec::parseRelease(const QByteArray& data) {
     return release;
 }
 
+/** @brief ランチャーrelease JSONをドメイン型へ変換する */
 LauncherRelease JsonCodec::parseLauncherRelease(const QByteArray& data) {
     const auto root = parseObject(data);
     requireExactKeys(root, {"schemaVersion", "version", "mandatory", "title", "publishedAt",
@@ -194,6 +198,7 @@ LauncherRelease JsonCodec::parseLauncherRelease(const QByteArray& data) {
     return release;
 }
 
+/** @brief ランチャー更新履歴JSONをドメイン型へ変換する */
 std::vector<LauncherChangelogEntry> JsonCodec::parseLauncherChangelog(const QByteArray& data) {
     // release単位の更新履歴を検証してdomain型へ変換
     const auto root = parseObject(data);
@@ -223,6 +228,7 @@ std::vector<LauncherChangelogEntry> JsonCodec::parseLauncherChangelog(const QByt
     return result;
 }
 
+/** @brief signatureを除くCanonical JSONを生成する */
 QByteArray JsonCodec::canonicalReleasePayload(const QByteArray& data) {
     // 署名fieldだけを除外して署名検証対象を生成
     auto root = parseObject(data);
@@ -230,6 +236,7 @@ QByteArray JsonCodec::canonicalReleasePayload(const QByteArray& data) {
     return canonicalize(root);
 }
 
+/** @brief 導入済み一覧をJSON arrayへ変換する */
 QJsonArray JsonCodec::serializeInstalledGames(const std::vector<InstalledGame>& games) {
     // 永続化対象fieldだけをJSON arrayへ変換
     QJsonArray array;
@@ -246,6 +253,7 @@ QJsonArray JsonCodec::serializeInstalledGames(const std::vector<InstalledGame>& 
     return array;
 }
 
+/** @brief 導入済み一覧をJSONから復元する */
 std::vector<InstalledGame> JsonCodec::parseInstalledGames(const QJsonObject& document) {
     // 保存schemaを検証して導入記録を復元
     requireExactKeys(document, {"schemaVersion", "games"});
@@ -266,6 +274,7 @@ std::vector<InstalledGame> JsonCodec::parseInstalledGames(const QJsonObject& doc
     return games;
 }
 
+/** @brief 設定をJSON objectへ変換する */
 QJsonObject JsonCodec::serializeSettings(const LauncherSettings& settings) {
     // 全設定値を現行schemaへ直列化
     return {
@@ -289,6 +298,7 @@ QJsonObject JsonCodec::serializeSettings(const LauncherSettings& settings) {
         {"lastLauncherUpdateCheck", QString::fromStdString(settings.lastLauncherUpdateCheck)}};
 }
 
+/** @brief 設定をJSONから復元する */
 LauncherSettings JsonCodec::parseSettings(const QJsonObject& object, LauncherSettings settings) {
     // 保存objectが現行schemaと完全一致することを検証
     requireExactKeys(object,
@@ -326,6 +336,7 @@ LauncherSettings JsonCodec::parseSettings(const QJsonObject& object, LauncherSet
     return settings;
 }
 
+/** @brief JSON valueをkey順・空白なしで符号化する */
 QByteArray JsonCodec::canonicalize(const QJsonValue& value) {
     // objectはkey順へ並べて再帰的に符号化
     if (value.isObject()) {

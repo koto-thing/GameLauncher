@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-// 実ブラウザー3種で同じ導線を検証し、ローカルの編集データは別ポートで保護する。
+// 実ブラウザー3種で同じ導線を検証し、ローカルの編集データは別ポートで保護する
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: false,
@@ -14,7 +14,19 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "chromium", use: { browserName: "chromium" } },
+    {
+      name: "chromium",
+      use: {
+        browserName: "chromium",
+        launchOptions: {
+          args: [
+            "--autoplay-policy=no-user-gesture-required",
+            "--enable-unsafe-swiftshader",
+            "--use-gl=swiftshader",
+          ],
+        },
+      },
+    },
     { name: "firefox", use: { browserName: "firefox" } },
     { name: "webkit", use: { browserName: "webkit" } },
   ],

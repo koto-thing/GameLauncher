@@ -10,6 +10,7 @@ export interface PublicationPayload {
   scope: string;
   game: PublicGame | null;
   advertisement?: Advertisement;
+  commandCodes?: { trackId: string; version: 1; codeId: number }[];
 }
 export interface Receipt {
   operationId: string;

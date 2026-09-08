@@ -13,6 +13,7 @@ import {
   type ReleasePreview,
 } from "./types.ts";
 
+// ArtifactメタデータとBuildパスに適用する入力規則
 export const VERSION_PATTERN = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 export const GAME_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/;
 export const SAVE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$/;
@@ -20,11 +21,13 @@ export const LOCALE_TAG_PATTERN = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
 export const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 export const SUPPORTED_ENGINES = new Set(["unity", "godot", "siv3d"]);
 
+/** ファイル名から小文字化した拡張子を取得する */
 export function getFileExtension(filename: string): string {
   const idx = filename.lastIndexOf(".");
   return idx >= 0 ? filename.slice(idx).toLowerCase() : "";
 }
 
+/** ロケールタグを正規化し、許可形式であることを検証する */
 export function validateLocaleTag(locale: string): string {
   if (!LOCALE_TAG_PATTERN.test(locale)) {
     throw new ArtifactValidationError(`言語タグが不正です: ${locale}`);
@@ -32,6 +35,7 @@ export function validateLocaleTag(locale: string): string {
   return locale;
 }
 
+/** Artifact内の起動ファイルから実行パスとWorking Directoryを計算する */
 export function computeLaunchPaths(entrypointRelativePath: string): {
   entrypoint: string;
   workingDirectory: string;

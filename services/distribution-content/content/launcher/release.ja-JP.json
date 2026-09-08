@@ -1,6 +1,6 @@
 {
-  "version": "1.1.0",
+  "version": "1.1.1",
   "mandatory": false,
-  "title": "トップ画面のおすすめ表示を刷新",
-  "publishedAt": "2026-08-31T00:00:00Z"
+  "title": "トップ画面のUI配置を修正",
+  "publishedAt": "2026-09-08T00:00:00Z"
 }

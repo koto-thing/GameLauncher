@@ -15,12 +15,16 @@ import xml.etree.ElementTree as ET
 
 def executable(root: Path | None, name: str) -> Path:
     """Resolve a Qt IFW executable from an explicit root or the configured PATH."""
+    # Select the platform executable suffix
     suffix = ".exe" if os.name == "nt" else ""
+
+    # Resolve from the explicit IFW root when provided
     if root is not None:
         path = root / "bin" / f"{name}{suffix}"
         if not path.exists():
             raise FileNotFoundError(path)
         return path
+    # Otherwise resolve the executable from PATH
     discovered = shutil.which(f"{name}{suffix}")
     if not discovered:
         raise FileNotFoundError(f"{name}{suffix} was not found on PATH")
@@ -30,12 +34,14 @@ def executable(root: Path | None, name: str) -> Path:
 def configure_metadata(config: Path, package: Path, version: str,
                        repository_url: str) -> None:
     """Set release-specific version, date, and immutable environment repository URL."""
+    # Update installer-level metadata
     config_tree = ET.parse(config)
     config_root = config_tree.getroot()
     config_root.find("Version").text = version
     config_root.find("RemoteRepositories/Repository/Url").text = repository_url.rstrip("/")
     config_tree.write(config, encoding="utf-8", xml_declaration=True)
 
+    # Update package-level metadata
     package_tree = ET.parse(package)
     package_root = package_tree.getroot()
     package_root.find("Version").text = version
@@ -46,6 +52,7 @@ def configure_metadata(config: Path, package: Path, version: str,
 def build_installer(ifw_root: Path | None, install_tree: Path, output: Path,
                     version: str, repository_url: str) -> Path:
     """Create one platform-native online installer and its matching repository."""
+    # Prepare the disposable build workspace
     root = Path(__file__).resolve().parent
     output.mkdir(parents=True, exist_ok=True)
     repository = output / "repository"
@@ -64,8 +71,11 @@ def build_installer(ifw_root: Path | None, install_tree: Path, output: Path,
                      config_dir / "PandDLogo.png")
         data = packages / "org.pandd.launcher" / "data"
         shutil.copytree(install_tree, data)
+        # Apply release metadata before generating the repository
         configure_metadata(config, packages / "org.pandd.launcher/meta/package.xml",
                            version, repository_url)
+
+        # Generate the repository and online installer
         subprocess.run([executable(ifw_root, "repogen"), "-p", packages, repository],
                        check=True)
         installer = output / "PandD-Game-Launcher-Online-Installer"
@@ -77,6 +87,7 @@ def build_installer(ifw_root: Path | None, install_tree: Path, output: Path,
 
 def main() -> int:
     """Populate package data, run repogen, then create an online installer."""
+    # Parse release build arguments
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ifw-root", type=Path)
     parser.add_argument("--install-tree", type=Path, required=True)
@@ -84,6 +95,7 @@ def main() -> int:
     parser.add_argument("--version", required=True)
     parser.add_argument("--repository-url", required=True)
     arguments = parser.parse_args()
+    # Build the installer from the supplied install tree
     build_installer(arguments.ifw_root, arguments.install_tree, arguments.output,
                     arguments.version, arguments.repository_url)
     return 0

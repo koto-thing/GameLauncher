@@ -35,6 +35,11 @@ function number(value: unknown): number {
   return typeof value === "number" ? value : Number(value);
 }
 
+/**
+ * GitHub Actions OIDCトークンを検証し、許可されたWorkflowの実行主体を返す
+ * @param request Actionsから届いたコールバックリクエスト
+ * @param requireEnvironment 対象環境claimも必須にするか
+ */
 export async function requireActionsIdentity(
   request: Request,
   requireEnvironment: boolean,
@@ -86,6 +91,7 @@ function actionsActor(identity: ActionsIdentity): SessionUser {
   };
 }
 
+/** 実行前に申請・Artifact・権限を確認し、Workflowへ配布情報を返す */
 export async function preflightRequest(
   identity: ActionsIdentity,
   input: { requestId: string; attemptId: string },
@@ -195,6 +201,7 @@ export async function preflightRequest(
   };
 }
 
+/** preflight拒否を実行試行と監査ログへ記録する */
 export async function recordPreflightRejection(
   identity: ActionsIdentity,
   input: { requestId: string; attemptId: string },
@@ -231,6 +238,7 @@ export async function recordPreflightRejection(
 const stages = new Set(["building", "uploading_immutable", "publishing_pointers", "verifying"]);
 const terminalResults = new Set(["succeeded", "failed_retryable", "failed_terminal", "recovery_required"]);
 
+/** Workflowから受け取った実行工程・結果を申請状態と監査ログへ反映する */
 export async function recordActionsStatus(identity: ActionsIdentity, input: {
   requestId: string;
   attemptId: string;

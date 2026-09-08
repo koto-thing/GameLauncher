@@ -5,6 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+// 管理アプリ全体で共有するTypeScript、React、Next.js向けLint設定
 const eslintConfig = defineConfig([
   globalIgnores([
     ".next/**",
