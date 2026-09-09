@@ -41,8 +41,12 @@ jobs:
           node-version: "22.13.0"
           cache: npm
           cache-dependency-path: apps/docs/package-lock.json
-      - name: Install Doxygen
-        run: sudo apt-get update && sudo apt-get install -y doxygen
+      - name: Install the verified Doxygen generator
+        run: |
+          curl --proto '=https' --fail --location https://www.doxygen.nl/files/doxygen-1.18.0.linux.bin.tar.gz -o "$RUNNER_TEMP/doxygen.tar.gz"
+          echo "14fa81bdc34171edb5f1f02b1d60e74802f0439b77fa44e592565d517d72df90  $RUNNER_TEMP/doxygen.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/doxygen.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/doxygen-1.18.0/bin" >> "$GITHUB_PATH"
       - name: Install documentation dependencies
         working-directory: apps/docs
         run: npm ci
