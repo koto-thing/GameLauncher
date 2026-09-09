@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
-from scripts.editions.build import materialize_game, package, download
+from scripts.editions.build import NoRedirect, materialize_game, package, download
 from services.deployment_publisher.publisher import CHUNK_SIZE
 
 
@@ -63,6 +63,30 @@ class PhysicalMediaTests(unittest.TestCase):
         for url in ("http://downloads.koto-thing.com/v1/x", "https://evil.example/v1/x", "file:///etc/passwd"):
             with self.assertRaises(ValueError):
                 download(url, 100)
+
+    def test_download_identifies_publisher_and_limits_response(self):
+        """Use the accepted production client identity for JSON and binary downloads."""
+        for path in ("catalog/ja-JP/windows/x86_64.json", "chunks/sample.bin"):
+            with self.subTest(path=path), patch("scripts.editions.build.urllib.request.build_opener") as opener:
+                response = opener.return_value.open.return_value.__enter__.return_value
+                response.read.return_value = b"data"
+                url = f"https://downloads.koto-thing.com/v1/{path}"
+
+                self.assertEqual(download(url, 4), b"data")
+                request = opener.return_value.open.call_args.args[0]
+                self.assertEqual(request.full_url, url)
+                self.assertEqual(request.get_header("User-agent"), "PandD-Game-Publisher")
+                self.assertIsInstance(opener.call_args.args[0], NoRedirect)
+                response.read.assert_called_once_with(5)
+
+                response.read.return_value = b"large"
+                with self.assertRaisesRegex(ValueError, "size limit"):
+                    download(url, 4)
+
+    def test_download_rejects_redirects(self):
+        """Reject redirects before any redirected request can be sent."""
+        with self.assertRaisesRegex(ValueError, "redirects are forbidden"):
+            NoRedirect().redirect_request(None, None, 302, "Found", {}, "https://evil.example/v1/x")
 
     def test_installer_separates_profile_and_optional_game_ownership(self):
         """The shared updater does not own edition metadata or mutable game files."""
