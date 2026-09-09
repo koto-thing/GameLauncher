@@ -1,5 +1,6 @@
 #include "infrastructure/PlatformServices.h"
 
+#include "infrastructure/EditionProfile.h"
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -31,6 +32,9 @@ QString startupCommand(bool minimized) {
     }
     if (minimized) {
         command += " --minimized";
+    }
+    if (EditionProfile::current().enabled()) {
+        command += " --edition " + EditionProfile::current().id();
     }
     return command;
 }
@@ -134,9 +138,10 @@ OperationResult PlatformStartupService::apply(bool enabled, bool minimized) {
     QSettings registry("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
                        QSettings::NativeFormat);
     if (enabled) {
-        registry.setValue("PandDGameLauncher", startupCommand(minimized));
+        registry.setValue("PandDGameLauncher" + EditionProfile::current().id(),
+                          startupCommand(minimized));
     } else {
-        registry.remove("PandDGameLauncher");
+        registry.remove("PandDGameLauncher" + EditionProfile::current().id());
     }
     registry.sync();
     if (registry.status() != QSettings::NoError) {

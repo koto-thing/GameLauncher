@@ -5,10 +5,34 @@
 #include <atomic>
 #include <functional>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace pandd {
+
+/** @brief 固定収録対象とオフライン媒体を扱うPort */
+class IPhysicalMediaRepository {
+  public:
+    /** @brief 媒体Portを破棄する */
+    virtual ~IPhysicalMediaRepository() = default;
+
+    /** @brief 対象ゲームの収録を検証する */
+    virtual bool allows(const GameId& gameId) const = 0;
+
+    /** @brief 同梱された署名済みreleaseを返す */
+    virtual GameRelease bundledRelease(const GameId& gameId) const = 0;
+
+    /** @brief 媒体識別を検証してゲーム本体の場所を返す */
+    virtual std::string mediaSource(const GameId& gameId, const std::string& media) const = 0;
+};
+
+/** @brief 署名・構造エラーと区別する通信失敗 */
+class NetworkUnavailable : public std::runtime_error {
+  public:
+    /** @brief 通信失敗の診断内容を保持する */
+    using std::runtime_error::runtime_error;
+};
 
 /** @brief カタログ取得Port */
 class IGameCatalogRepository {

@@ -4,6 +4,7 @@
 #include "infrastructure/FileLogger.h"
 #include "presentation/LocalizationManager.h"
 
+#include "infrastructure/EditionProfile.h"
 #include <QApplication>
 #include <QBitmap>
 #include <QBuffer>
@@ -196,9 +197,11 @@ class GameCardDelegate final : public QStyledItemDelegate {
                                                          titleArea.width() - 16);
         painter->drawText(titleArea.adjusted(8, 0, -8, 0), Qt::AlignCenter, title);
         painter->setClipping(false);
-        painter->setPen(
-            QPen(selected || hovered ? QColor("#e60012") : option.palette.color(QPalette::Mid),
-                 selected || hovered ? 3 : 1));
+        const auto& edition = EditionProfile::current();
+        painter->setPen(QPen(selected || hovered
+                                 ? QColor(edition.enabled() ? edition.accent() : "#e60012")
+                                 : option.palette.color(QPalette::Mid),
+                             selected || hovered ? 3 : 1));
         painter->drawRoundedRect(card.adjusted(1, 1, -1, -1), 8, 8);
         painter->restore();
     }
@@ -257,7 +260,10 @@ void LauncherWindow::closeEvent(QCloseEvent* event) {
 void LauncherWindow::buildUi() {
     // windowの基本サイズとthemeを設定する
     setWindowTitle(tr("PandD Game Launcher"));
-    const QIcon logoIcon(QStringLiteral(":/images/PandDLogo.png"));
+    const auto& edition = EditionProfile::current();
+    const auto logoPath =
+        edition.enabled() ? edition.asset("logo.png") : QStringLiteral(":/images/PandDLogo.png");
+    const QIcon logoIcon(logoPath);
     setWindowIcon(logoIcon);
     setMinimumSize(960, 600);
     resize(1280, 720);
@@ -276,7 +282,7 @@ void LauncherWindow::buildUi() {
     sidebarLayout->setContentsMargins(8, 4, 8, 16);
     sidebarLayout->setSpacing(8);
     auto* brand = new QLabel(sidebar);
-    const QPixmap sourceLogo(QStringLiteral(":/images/PandDLogo.png"));
+    const QPixmap sourceLogo(logoPath);
     const auto visibleLogoBounds = QRegion(sourceLogo.mask()).boundingRect();
     const auto visibleLogo =
         visibleLogoBounds.isValid() ? sourceLogo.copy(visibleLogoBounds) : sourceLogo;
@@ -347,6 +353,9 @@ void LauncherWindow::buildUi() {
         libraryList_->setCurrentItem(nullptr);
     });
     navigateTo(0);
+    if (edition.enabled()) {
+        setWindowTitle(edition.name());
+    }
     QTimer::singleShot(0, this, [this] { updateNavigationIndicator(false); });
 }
 
@@ -405,6 +414,16 @@ void LauncherWindow::applyTheme() {
                 "text-align:center;}"
                 "QProgressBar::chunk{background:#e60012;border-radius:5px;}")
             .arg(background, surface, text, muted, border, hover, selected));
+    const auto& edition = EditionProfile::current();
+    if (edition.enabled()) {
+        auto sheet = styleSheet();
+        sheet.replace("#e60012", edition.accent());
+        sheet.replace("#c90010", QColor(edition.accent()).darker(115).name());
+        sheet += QString("QWidget#page{background-image:url(\"%1\");background-position:center;"
+                         "background-repeat:no-repeat;}")
+                     .arg(QDir::fromNativeSeparators(edition.asset("background.png")));
+        setStyleSheet(sheet);
+    }
 }
 
 /** @brief おすすめゲームを表示するhome pageを構築する */
@@ -668,6 +687,20 @@ QWidget* LauncherWindow::createDetailPage() {
     locateButton_->setAccessibleName(tr("既存ゲームの場所を選択"));
     locateButton_->setStyleSheet("background:transparent;color:#c9d7ea;text-decoration:underline;");
     layout->addWidget(locateButton_, 0, Qt::AlignRight);
+    if (EditionProfile::current().enabled()) {
+        auto* mediaButton = new QPushButton(tr("配布媒体からインストール"), page);
+        layout->addWidget(mediaButton, 0, Qt::AlignRight);
+        connect(mediaButton, &QPushButton::clicked, this, [this] {
+            if (mandatoryUpdate_ || selectedGameId_.isEmpty()) {
+                return;
+            }
+            const auto media =
+                QFileDialog::getExistingDirectory(this, tr("配布物の media フォルダーを選択"));
+            if (!media.isEmpty()) {
+                viewModel_.installFromMedia(selectedGameId_, media);
+            }
+        });
+    }
 
     connect(back, &QPushButton::clicked, this,
             [this] { navigateTo(selectedGameInstalled() ? 2 : 0); });

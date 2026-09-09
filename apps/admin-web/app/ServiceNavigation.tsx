@@ -7,6 +7,7 @@ export function ServiceNavigation() {
       <a href="/">ホーム</a>
       <a href="/intake">GameLauncher Uploader</a>
       <a href="/game">公開申請・設定</a>
+      <a href="/editions">物理配布版</a>
       <a href="/music">Music Uploader</a>
     </nav>
   );

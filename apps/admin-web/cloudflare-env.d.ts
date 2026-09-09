@@ -40,6 +40,10 @@ interface R2MultipartUpload {
 }
 
 interface R2Bucket {
+  get(key: string): Promise<(R2Object & { arrayBuffer(): Promise<ArrayBuffer> }) | null>;
+  put(key: string, value: ArrayBuffer | ArrayBufferView | string, options?: {
+    httpMetadata?: { contentType?: string };
+  }): Promise<R2Object | null>;
   createMultipartUpload(key: string, options?: {
     httpMetadata?: { contentType?: string };
     customMetadata?: Record<string, string>;

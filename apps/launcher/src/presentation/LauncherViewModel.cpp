@@ -149,6 +149,25 @@ void LauncherViewModel::installOrUpdate(const QString& gameId) {
         true);
 }
 
+/** @brief 配布媒体の検証と取り込みを非同期で開始する */
+void LauncherViewModel::installFromMedia(const QString& gameId, const QString& mediaDirectory) {
+    const auto id = gameId.toStdString();
+    const auto media = mediaDirectory.toStdString();
+    runAsync(
+        [this, id, media] {
+            return service_.installFromMedia(
+                GameId(id), media, [this, id](const DownloadProgress& value) {
+                    QMetaObject::invokeMethod(this, [this, id, value] {
+                        emit progressChanged(QString::fromStdString(id), value.receivedBytes,
+                                             value.totalBytes, value.bytesPerSecond,
+                                             static_cast<int>(value.completedFiles),
+                                             static_cast<int>(value.totalFiles));
+                    });
+                });
+        },
+        true);
+}
+
 /** @brief 既存ゲームの検証と取り込みを非同期に開始する */
 void LauncherViewModel::locateExisting(const QString& gameId, const QString& sourceDirectory) {
     const auto id = gameId.toStdString();

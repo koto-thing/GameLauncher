@@ -9,6 +9,29 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 // Control PlaneとIntakeの永続化モデル。各テーブルはdb/initialize.tsのDDLと対応する
+export const physicalEditions = sqliteTable("physical_editions", {
+  editionId: text("edition_id").primaryKey(),
+  definitionJson: text("definition_json").notNull(),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+// 固定配布版に対する各ビルドとOIDC実行主体の記録
+export const physicalEditionBuilds = sqliteTable("physical_edition_builds", {
+  buildId: text("build_id").primaryKey(),
+  editionId: text("edition_id").notNull().references(() => physicalEditions.editionId),
+  state: text("state").notNull(),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+  runId: text("run_id"),
+  runAttempt: integer("run_attempt"),
+  workflowSha: text("workflow_sha"),
+  snapshotJson: text("snapshot_json"),
+  artifactId: text("artifact_id"),
+  error: text("error"),
+  finishedAt: text("finished_at"),
+}, (table) => [index("physical_edition_builds_edition").on(table.editionId, table.createdAt)]);
+
 export const users = sqliteTable("users", {
   githubUserId: text("github_user_id").primaryKey(),
   loginSnapshot: text("login_snapshot").notNull(),

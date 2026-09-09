@@ -71,13 +71,13 @@ LauncherService::LauncherService(
     IInstalledGameRepository& installedRepository, ISettingsRepository& settingsRepository,
     IGameInstallationService& installationService, IGameProcessService& processService,
     IStartupService& startupService, ILauncherUpdateService& updateService, IClock& clock,
-    SemanticVersion currentVersion)
+    SemanticVersion currentVersion, const IPhysicalMediaRepository* media)
     : catalogRepository_(catalogRepository), releaseRepository_(releaseRepository),
       launcherReleaseRepository_(launcherReleaseRepository),
       installedRepository_(installedRepository), settingsRepository_(settingsRepository),
       installationService_(installationService), processService_(processService),
       startupService_(startupService), updateService_(updateService), clock_(clock),
-      currentVersion_(std::move(currentVersion)) {}
+      currentVersion_(std::move(currentVersion)), media_(media) {}
 
 /** @brief 設定と導入状態を読み込みcatalogを更新する */
 OperationResult LauncherService::load() {
@@ -90,6 +90,10 @@ OperationResult LauncherService::load() {
         }
         // 有効化markerと一致する導入記録だけを保持
         installed_ = installedRepository_.loadAll();
+        if (media_) {
+            std::erase_if(installed_,
+                          [this](const auto& game) { return !media_->allows(game.gameId); });
+        }
         for (auto iterator = installed_.begin(); iterator != installed_.end();) {
             if (installationService_.validateActivation(*iterator).ok) {
                 ++iterator;
@@ -152,6 +156,9 @@ OperationResult LauncherService::installOrUpdate(const GameId& gameId,
         cancelled_ = false;
         notifyState(gameId, InstallState::Resolving);
         const auto release = releaseRepository_.fetchLatestRelease(entry->latestReleaseUrl);
+        if (release.gameId != gameId) {
+            throw std::runtime_error("Release game does not match the selected game");
+        }
         const auto compatibility = ensureLauncherCompatible(release);
         if (!compatibility.ok) {
             notifyState(gameId, InstallState::Failed, compatibility.error);
@@ -194,6 +201,61 @@ OperationResult LauncherService::installOrUpdate(const GameId& gameId,
     }
 }
 
+/** @brief 物理媒体の同梱releaseを安全に取り込む */
+OperationResult LauncherService::installFromMedia(const GameId& gameId, const std::string& media,
+                                                  const ProgressCallback& progress) {
+    ActiveOperation operation(activeOperations_);
+    if (!media_ || !media_->allows(gameId)) {
+        return OperationResult::failure(
+            {ErrorCode::ManifestInvalid, "収録対象外のゲームです", "edition restriction", false});
+    }
+    if (processService_.isRunning(gameId)) {
+        return OperationResult::failure(
+            {ErrorCode::GameAlreadyRunning, "ゲームを終了してください", "game is running", true});
+    }
+    try {
+        const auto source = media_->mediaSource(gameId, media);
+        const auto release = media_->bundledRelease(gameId);
+        const auto compatibility = ensureLauncherCompatible(release);
+        if (!compatibility.ok) {
+            return compatibility;
+        }
+        if (const auto* current = findInstalled(gameId);
+            current && current->version >= release.version) {
+            return OperationResult::success();
+        }
+
+        const auto gameRoot =
+            (std::filesystem::path(settings_.installRoot) / gameId.value()).string();
+        notifyState(gameId, InstallState::Installing);
+        auto result = installationService_.importExisting(release, source, gameRoot, progress);
+        if (!result.ok) {
+            notifyState(gameId, InstallState::Failed, result.error);
+            return result;
+        }
+        InstalledGame installed{
+            release.gameId,     release.version,          gameRoot,
+            release.entrypoint, release.workingDirectory, release.saveDirectoryName,
+            release.totalSize};
+        result = installedRepository_.save(installed);
+        if (!result.ok) {
+            return result;
+        }
+        if (auto* current = findInstalled(gameId)) {
+            *current = installed;
+        } else {
+            installed_.push_back(installed);
+        }
+        notifyState(gameId, InstallState::Ready);
+        return OperationResult::success();
+    } catch (const std::exception& error) {
+        auto result = OperationResult::failure(
+            {ErrorCode::ManifestInvalid, "配布媒体を確認してください", error.what(), true});
+        notifyState(gameId, InstallState::Failed, result.error);
+        return result;
+    }
+}
+
 /** @brief 既存directoryを検証してゲームとして登録する */
 OperationResult LauncherService::locateExisting(const GameId& gameId,
                                                 const std::string& sourceDirectory,
@@ -210,6 +272,9 @@ OperationResult LauncherService::locateExisting(const GameId& gameId,
         // source directory全体を正規releaseと照合
         notifyState(gameId, InstallState::Verifying);
         const auto release = releaseRepository_.fetchLatestRelease(entry->latestReleaseUrl);
+        if (release.gameId != gameId) {
+            throw std::runtime_error("Release game does not match the selected game");
+        }
         const auto compatibility = ensureLauncherCompatible(release);
         if (!compatibility.ok) {
             notifyState(gameId, InstallState::Failed, compatibility.error);
@@ -263,6 +328,9 @@ OperationResult LauncherService::verify(const GameId& gameId) {
         // 最新manifestを基準にactive releaseを検証
         notifyState(gameId, InstallState::Verifying);
         const auto release = releaseRepository_.fetchLatestRelease(entry->latestReleaseUrl);
+        if (release.gameId != gameId) {
+            throw std::runtime_error("Release game does not match the selected game");
+        }
         const auto compatibility = ensureLauncherCompatible(release);
         if (!compatibility.ok) {
             notifyState(gameId, InstallState::Failed, compatibility.error);
@@ -336,6 +404,10 @@ OperationResult LauncherService::cleanupTemporary(const GameId& gameId) {
 
 /** @brief 導入済みゲームを起動して状態を監視する */
 OperationResult LauncherService::launch(const GameId& gameId) {
+    if (media_ && !media_->allows(gameId)) {
+        return OperationResult::failure(
+            {ErrorCode::ManifestInvalid, "収録対象外のゲームです", "edition restriction", false});
+    }
     // 永続化済みの導入情報を起動契約として使用
     auto* installed = findInstalled(gameId);
     if (installed == nullptr) {
@@ -367,7 +439,20 @@ OperationResult LauncherService::prepareLaunch(const GameId& gameId,
     try {
         // 最新releaseが新しい場合だけ更新を適用
         notifyState(gameId, InstallState::CheckingUpdate);
-        const auto latest = releaseRepository_.fetchLatestRelease(entry->latestReleaseUrl);
+        GameRelease latest;
+        try {
+            latest = releaseRepository_.fetchLatestRelease(entry->latestReleaseUrl);
+        } catch (const NetworkUnavailable&) {
+            // 通信失敗だけは検証済み導入版の起動を妨げない
+            if (media_ && installationService_.validateActivation(*installed).ok) {
+                notifyState(gameId, InstallState::Ready);
+                return OperationResult::success();
+            }
+            throw;
+        }
+        if (latest.gameId != gameId) {
+            throw std::runtime_error("Release game does not match the selected game");
+        }
         const auto compatibility = ensureLauncherCompatible(latest);
         if (!compatibility.ok) {
             notifyState(gameId, InstallState::Failed, compatibility.error);
@@ -538,6 +623,9 @@ void LauncherService::setStateCallback(StateCallback callback) {
 
 /** @brief catalogから指定ゲームを検索する */
 const GameCatalogEntry* LauncherService::findCatalogEntry(const GameId& gameId) const {
+    if (media_ && !media_->allows(gameId)) {
+        return nullptr;
+    }
     const auto iterator =
         std::find_if(catalog_.begin(), catalog_.end(),
                      [&gameId](const auto& value) { return value.gameId == gameId; });
