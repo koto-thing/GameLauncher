@@ -42,7 +42,9 @@ def download(url: str, maximum: int) -> bytes:
     if (parsed.scheme != "https" or parsed.netloc != "downloads.koto-thing.com"
             or parsed.query or parsed.fragment or not parsed.path.startswith("/v1/")):
         raise ValueError("Untrusted production URL")
-    with urllib.request.build_opener(NoRedirect()).open(url, timeout=60) as response:
+    # Use the same client identity as the production publication scripts
+    request = urllib.request.Request(url, headers={"User-Agent": "PandD-Game-Publisher"})
+    with urllib.request.build_opener(NoRedirect()).open(request, timeout=60) as response:
         data = response.read(maximum + 1)
     if len(data) > maximum:
         raise ValueError("Distribution response exceeds its size limit")
