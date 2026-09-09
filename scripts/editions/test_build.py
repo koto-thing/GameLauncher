@@ -104,7 +104,12 @@ class PhysicalMediaTests(unittest.TestCase):
 
             def inspect(command, **_):
                 """Inspect the actual IFW input before its temporary tree disappears."""
-                self.assertIn("--hybrid", command)
+                self.assertIn("--offline-only", command)
+                self.assertNotIn("--hybrid", command)
+                config = ET.parse(command[command.index("-c") + 1])
+                self.assertEqual(config.findtext("RemoteRepositories/Repository/Url"),
+                                 "https://downloads.koto-thing.com/v1/launcher/ifw/windows/x86_64")
+                self.assertEqual(config.findtext("RemoteRepositories/Repository/Enabled"), "1")
                 packages = Path(command[command.index("-p") + 1])
                 self.assertTrue((packages / "org.pandd.edition/data/edition/edition.json").exists())
                 self.assertFalse((packages / "org.pandd.launcher/data/edition").exists())

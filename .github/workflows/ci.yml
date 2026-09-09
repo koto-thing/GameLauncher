@@ -29,6 +29,13 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.13'
+      - name: Use Ubuntu package sources for build dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # Ignore unrelated third-party repositories preinstalled on hosted runners
+          test -f /etc/apt/sources.list.d/ubuntu.sources
+          printf '%s\n' 'Dir::Etc::sourcelist "/etc/apt/sources.list.d/ubuntu.sources";' 'Dir::Etc::sourceparts "-";' | sudo tee /etc/apt/apt.conf.d/99pandd-sources
       - uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4
         with:
           version: '6.10.2'
@@ -90,6 +97,13 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.13'
+      - name: Use Ubuntu package sources for build dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # Ignore unrelated third-party repositories preinstalled on hosted runners
+          test -f /etc/apt/sources.list.d/ubuntu.sources
+          printf '%s\n' 'Dir::Etc::sourcelist "/etc/apt/sources.list.d/ubuntu.sources";' 'Dir::Etc::sourceparts "-";' | sudo tee /etc/apt/apt.conf.d/99pandd-sources
       - uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4
         with:
           version: '6.10.2'
