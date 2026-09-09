@@ -48,7 +48,7 @@ test("staging and production dispatches have independent kill switches", async (
 });
 
 test("Actions OIDC accepts only public or private repository visibility", async () => {
-  const actions = await source("apps/admin-web/lib/actions.ts");
+  const actions = await source("apps/admin-web/lib/actions-identity.ts");
   assert.match(actions, /new Set\(\["private", "public"\]\)/);
   assert.match(actions, /ALLOWED_REPOSITORY_VISIBILITIES\.has\(text\(payload\.repository_visibility\)\)/);
   assert.doesNotMatch(actions, /payload\.repository_visibility !== "private"/);

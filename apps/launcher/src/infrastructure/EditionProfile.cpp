@@ -21,7 +21,7 @@ EditionProfile profile;
 /** @brief サイズを制限して必須ローカルファイルを読む */
 QByteArray readFile(const QString& path) {
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly) || file.size() > 32 * 1024 * 1024) {
+    if (!file.open(QIODevice::ReadOnly) || file.size() > qint64{32} * 1024 * 1024) {
         throw std::runtime_error("Distribution media file is missing or too large");
     }
     return file.readAll();
