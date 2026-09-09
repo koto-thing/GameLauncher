@@ -4,6 +4,10 @@ function Component() {
 
 Component.prototype.createOperations = function() {
     component.createOperations();
+    // 配布版のショートカットは固定情報componentが所有し共通更新から独立させる
+    if (installer.componentByName("org.pandd.edition") || installer.fileExists("@TargetDir@/edition/edition.json")) {
+        return;
+    }
     if (systemInfo.productType === "windows") {
         component.addOperation("Mkdir", "@UserStartMenuProgramsPath@/PandD");
         component.addOperation("CreateShortcut",

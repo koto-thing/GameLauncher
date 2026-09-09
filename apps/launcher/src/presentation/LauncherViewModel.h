@@ -47,6 +47,9 @@ class LauncherViewModel final : public QObject {
     /** @brief 選択directoryの既存ゲームを非同期検証して取り込む */
     void locateExisting(const QString& gameId, const QString& sourceDirectory);
 
+    /** @brief 配布媒体からの導入を非同期で開始する */
+    void installFromMedia(const QString& gameId, const QString& mediaDirectory);
+
     /** @brief ゲームを起動する */
     void launch(const QString& gameId);
 

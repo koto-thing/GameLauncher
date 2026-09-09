@@ -1,6 +1,7 @@
 #include "infrastructure/QtRepositories.h"
 
 #include "application/Localization.h"
+#include "infrastructure/EditionProfile.h"
 #include "infrastructure/JsonCodec.h"
 
 #include <QCoreApplication>
@@ -159,6 +160,9 @@ GameRelease StaticContentRepository::fetchLatestRelease(const std::string& relea
     }
     const auto data = get(url, qsizetype{16} * 1024 * 1024);
     const auto release = JsonCodec::parseRelease(data);
+    if (!EditionProfile::current().allows(release.gameId)) {
+        throw std::runtime_error("Game is not included in this edition");
+    }
 
     // 署名検証後にのみ構造検証済みリリースを返す
     if (!signatureVerifier_.verify(JsonCodec::canonicalReleasePayload(data),
@@ -227,7 +231,7 @@ StaticContentRepository::fetchLauncherChangelog(const std::string& language) {
 /** @brief サイズ制限とretry付きで静的endpointへGETする */
 QByteArray StaticContentRepository::get(const QUrl& url, qsizetype maximumBytes) {
     // 一時障害に対する最大試行回数を固定
-    constexpr int maximumAttempts = 3;
+    const int maximumAttempts = EditionProfile::current().enabled() ? 1 : 3;
     QNetworkAccessManager network;
     QString lastError;
     for (int attempt = 0; attempt < maximumAttempts; ++attempt) {
@@ -235,7 +239,7 @@ QByteArray StaticContentRepository::get(const QUrl& url, qsizetype maximumBytes)
         QNetworkRequest request(url);
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                              QNetworkRequest::ManualRedirectPolicy);
-        request.setTransferTimeout(30000);
+        request.setTransferTimeout(EditionProfile::current().enabled() ? 3000 : 30000);
         auto* reply = network.get(request);
         reply->setReadBufferSize(maximumBytes + 1);
         QEventLoop loop;
@@ -273,7 +277,7 @@ QByteArray StaticContentRepository::get(const QUrl& url, qsizetype maximumBytes)
         // 一時障害は指数的に待機して再試行
         QThread::msleep(100UL * (1UL << static_cast<unsigned int>(attempt)));
     }
-    throw std::runtime_error("HTTP request failed: " + lastError.toStdString());
+    throw NetworkUnavailable("HTTP request failed: " + lastError.toStdString());
 }
 
 /** @brief 配布元hostとschemeが許可範囲かを返す */
@@ -358,6 +362,11 @@ LauncherSettings JsonStateRepository::load() {
         QDir(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation))
             .filePath("PandD_org/Games")
             .toStdString();
+    if (EditionProfile::current().enabled()) {
+        defaults.installRoot = QDir(QString::fromStdString(defaults.installRoot))
+                                   .filePath("editions/" + EditionProfile::current().id())
+                                   .toStdString();
+    }
     const auto locale = QLocale::system().bcp47Name().toStdString();
     defaults.language = isValidLocaleTag(locale) ? locale : "ja-JP";
     const auto path = QDir(dataDirectory_).filePath("settings.json");

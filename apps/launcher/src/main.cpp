@@ -9,6 +9,7 @@
 #include <QImageReader>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QMessageBox>
 #include <QPixmap>
 #include <QStyleHints>
 #include <QTranslator>
@@ -23,6 +24,14 @@ int main(int argc, char* argv[]) {
     QCoreApplication::setOrganizationDomain("pandd.org");
     QCoreApplication::setApplicationName("GameLauncher");
     QCoreApplication::setApplicationVersion(PANDD_LAUNCHER_VERSION);
+    try {
+        pandd::EditionProfile::initialize();
+    } catch (const std::exception& error) {
+        if (!application.arguments().contains("--install-media")) {
+            QMessageBox::critical(nullptr, "配布版ランチャー", QString::fromUtf8(error.what()));
+        }
+        return 3;
+    }
     pandd::FileLogger::install();
 
     // 保存済み言語をwindow構築前に適用
@@ -39,10 +48,16 @@ int main(int argc, char* argv[]) {
     }
 
     // 既存instanceへ表示要求を送り二重操作を防止
-    constexpr auto serverName = "org.pandd.game-launcher.single-instance";
+    const auto serverName =
+        QString("org.pandd.game-launcher.single-instance") +
+        (pandd::EditionProfile::current().enabled() ? "-" + pandd::EditionProfile::current().id()
+                                                    : "");
     QLocalSocket probe;
     probe.connectToServer(serverName);
     if (probe.waitForConnected(250)) {
+        if (application.arguments().contains("--install-media")) {
+            return 4;
+        }
         probe.write("show");
         probe.waitForBytesWritten(250);
         return 0;
@@ -55,6 +70,28 @@ int main(int argc, char* argv[]) {
     }
 
     pandd::AppContainer container;
+    const auto mediaIndex = application.arguments().indexOf("--install-media");
+    if (mediaIndex >= 0) {
+        // インストーラーから同じApplication Serviceを呼び、UIを開かず完了を返す
+        const auto media = application.arguments().value(mediaIndex + 1);
+        const auto gameIndex = application.arguments().indexOf("--game");
+        if (media.isEmpty() || gameIndex < 0 || !container.launcherService().load().ok) {
+            return 5;
+        }
+        try {
+            const auto result = container.launcherService().installFromMedia(
+                pandd::GameId(application.arguments().value(gameIndex + 1).toStdString()),
+                media.toStdString(), {});
+            if (!result.ok) {
+                qCritical() << QString::fromStdString(result.error.userMessage)
+                            << QString::fromStdString(result.error.detail);
+            }
+            return result.ok ? 0 : 6;
+        } catch (const std::exception& error) {
+            qCritical() << error.what();
+            return 7;
+        }
+    }
     pandd::LauncherViewModel viewModel(container.launcherService());
     const auto smokeTest = application.arguments().contains("--smoke-test") ||
                            qEnvironmentVariableIsSet("PANDD_SMOKE_TEST");

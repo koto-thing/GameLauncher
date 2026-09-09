@@ -131,7 +131,13 @@ class FakePorts final : public IGameCatalogRepository,
     std::vector<Announcement> fetchAnnouncements(const std::string&) override { return {}; }
 
     /** @brief 固定game releaseを返す */
-    GameRelease fetchLatestRelease(const std::string&) override { return gameRelease; }
+    GameRelease fetchLatestRelease(const std::string&) override {
+        if (networkOffline)
+            throw NetworkUnavailable("offline fixture");
+        if (invalidSignature)
+            throw std::runtime_error("manifest signature is invalid");
+        return gameRelease;
+    }
 
     /** @brief 固定launcher releaseを返す */
     LauncherRelease fetchLatestLauncherRelease(const std::string&) override {
@@ -230,6 +236,8 @@ class FakePorts final : public IGameCatalogRepository,
     std::vector<LauncherChangelogEntry> changelog;
     std::vector<InstalledGame> installed;
     bool running{false};
+    bool networkOffline{false};
+    bool invalidSignature{false};
     int settingsSaveCount{0};
     int updateCheckCount{0};
     int updateApplyCount{0};
@@ -264,6 +272,11 @@ class LauncherIntegrationTests final : public QObject {
     Q_OBJECT
 
   private slots:
+    /** @brief 媒体からの実導入、再起動、対象外拒否、古い媒体での上書き防止を検証する */
+    void installsPhysicalMediaAndPreservesNewerRelease();
+
+    /** @brief 通信障害だけを許容し不正manifestを起動前に拒否する */
+    void physicalEditionLaunchesOfflineButRejectsInvalidManifest();
     /** @brief RFC 8032の既知vectorを検証する */
     void verifiesEd25519Signature();
 
@@ -1058,6 +1071,86 @@ void LauncherIntegrationTests::launchesEngineFixturesAndReportsCrash() {
                 .ok);
     QTRY_VERIFY_WITH_TIMEOUT(exited, 5000);
     QVERIFY(crashed);
+}
+
+/** @brief 固定配布リリースのテスト用媒体 */
+class FixtureMedia final : public IPhysicalMediaRepository {
+  public:
+    GameRelease release;
+    std::string source;
+
+    /** @copydoc IPhysicalMediaRepository::allows */
+    bool allows(const GameId& id) const override { return id == release.gameId; }
+
+    /** @copydoc IPhysicalMediaRepository::bundledRelease */
+    GameRelease bundledRelease(const GameId&) const override { return release; }
+
+    /** @copydoc IPhysicalMediaRepository::mediaSource */
+    std::string mediaSource(const GameId&, const std::string&) const override { return source; }
+};
+
+/** @brief 実ファイルを媒体から導入して永続状態とダウングレード拒否を検証する */
+void LauncherIntegrationTests::installsPhysicalMediaAndPreservesNewerRelease() {
+    QTemporaryDir temporary;
+    QVERIFY(temporary.isValid());
+    FakePorts ports;
+    ports.settings.installRoot = temporary.filePath("games").toStdString();
+    FixtureMedia media;
+    media.release = fixtureRelease("offline game", QUrl("https://downloads.pandd.org/blob"));
+    media.source = temporary.filePath("media").toStdString();
+    QVERIFY(QDir().mkpath(temporary.filePath("media/bin")));
+    QFile source(temporary.filePath("media/bin/game"));
+    QVERIFY(source.open(QIODevice::WriteOnly));
+    source.write("offline game");
+    source.close();
+    JsonStateRepository state(temporary.filePath("state"));
+    GameInstallationService installation;
+    LauncherService service(ports, ports, ports, state, ports, installation, ports, ports, ports,
+                            ports, SemanticVersion("1.0.0"), &media);
+    QVERIFY(service.load().ok);
+    QVERIFY(!service.installFromMedia(GameId("other-game"), "media", {}).ok);
+    QVERIFY(!service.installOrUpdate(GameId("other-game"), {}).ok);
+    QVERIFY(service.installFromMedia(GameId("sample-game"), "media", {}).ok);
+    QCOMPARE(state.loadAll().size(), std::size_t(1));
+    QVERIFY(installation.validateActivation(state.loadAll().front()).ok);
+    QVERIFY(installation.verify(state.loadAll().front(), media.release).ok);
+
+    // 再起動後も導入済み状態を復元する
+    QVERIFY(service.load().ok);
+    QCOMPARE(service.installedGames().size(), std::size_t(1));
+    media.release.version = SemanticVersion("0.9.0");
+    QVERIFY(service.installFromMedia(GameId("sample-game"), "media", {}).ok);
+    QCOMPARE(state.loadAll().front().version, SemanticVersion("1.0.0"));
+
+    // 媒体上の破損データを新しい版として導入しても現在版を壊さない
+    media.release.version = SemanticVersion("2.0.0");
+    QVERIFY(source.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    source.write("corrupted");
+    source.close();
+    QVERIFY(!service.installFromMedia(GameId("sample-game"), "media", {}).ok);
+    QCOMPARE(state.loadAll().front().version, SemanticVersion("1.0.0"));
+    QVERIFY(installation.validateActivation(state.loadAll().front()).ok);
+}
+
+/** @brief 通信失敗と署名失敗を起動前確認で区別する */
+void LauncherIntegrationTests::physicalEditionLaunchesOfflineButRejectsInvalidManifest() {
+    FakePorts ports;
+    ports.settings.installRoot = QDir::tempPath().toStdString();
+    ports.gameRelease = fixtureRelease("fixture", QUrl("https://downloads.pandd.org/blob"));
+    FixtureMedia media;
+    media.release = ports.gameRelease;
+    ports.installed = {
+        {GameId("sample-game"), SemanticVersion("1.0.0"), "/game", "bin/game", "bin", "sample", 7}};
+    LauncherService service(ports, ports, ports, ports, ports, ports, ports, ports, ports, ports,
+                            SemanticVersion("1.0.0"), &media);
+    QVERIFY(service.load().ok);
+    ports.networkOffline = true;
+    QVERIFY(service.prepareLaunch(GameId("sample-game"), {}).ok);
+    QVERIFY(service.launch(GameId("sample-game")).ok);
+    QVERIFY(!service.launch(GameId("other-game")).ok);
+    ports.networkOffline = false;
+    ports.invalidSignature = true;
+    QVERIFY(!service.prepareLaunch(GameId("sample-game"), {}).ok);
 }
 
 QTEST_GUILESS_MAIN(LauncherIntegrationTests)

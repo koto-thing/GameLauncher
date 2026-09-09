@@ -4,6 +4,27 @@ import { env } from "cloudflare:workers";
 let initialized: Promise<void> | undefined;
 
 const statements = [
+  `CREATE TABLE IF NOT EXISTS physical_editions (
+    edition_id TEXT PRIMARY KEY,
+    definition_json TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS physical_edition_builds (
+    build_id TEXT PRIMARY KEY,
+    edition_id TEXT NOT NULL REFERENCES physical_editions(edition_id),
+    state TEXT NOT NULL CHECK(state IN ('queued','running','succeeded','failed','cancelled')),
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    run_id TEXT,
+    run_attempt INTEGER,
+    workflow_sha TEXT,
+    snapshot_json TEXT,
+    artifact_id TEXT,
+    error TEXT,
+    finished_at TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS physical_edition_builds_edition ON physical_edition_builds(edition_id, created_at)`,
   `CREATE TABLE IF NOT EXISTS users (
     github_user_id TEXT PRIMARY KEY,
     login_snapshot TEXT NOT NULL,
