@@ -128,3 +128,23 @@ export async function dispatchDeploymentWorkflow(
     );
   }
 }
+
+/** @brief 固定配布版のWindowsビルドをGitHub Appで起動する */
+export async function dispatchEditionWorkflow(editionId: string, buildId: string): Promise<void> {
+  const token = await installationToken("production");
+  const response = await fetch(
+    "https://api.github.com/repos/koto-thing/GameLauncher/actions/workflows/build-physical-edition.yml/dispatches",
+    {
+      method: "POST",
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        "x-github-api-version": "2026-03-10",
+        "user-agent": "PandD-Deployment-Control-Plane",
+      },
+      body: JSON.stringify({ ref: "master", inputs: { edition_id: editionId, build_id: buildId } }),
+    },
+  );
+  if (!response.ok) throw new Error(`配布版Actionsを開始できませんでした (HTTP ${response.status})`);
+}

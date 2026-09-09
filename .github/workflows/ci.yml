@@ -166,6 +166,8 @@ jobs:
         run: python -m unittest discover -s services/deployment_publisher -p 'test_*.py' -v
       - name: Installer metadata tests
         run: python -m unittest discover -s apps/launcher/installer -p 'test_*.py' -v
+      - name: Physical edition packaging tests
+        run: python -m unittest discover -s scripts/editions -p 'test_*.py' -v
       - name: Compile check
         run: python -m compileall -q services/deployment_publisher apps/launcher/installer scripts
       - name: SBOM tests

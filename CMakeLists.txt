@@ -202,6 +202,8 @@ add_library(launcher_core STATIC
     apps/launcher/src/infrastructure/JsonCodec.h
     apps/launcher/src/infrastructure/QtRepositories.cpp
     apps/launcher/src/infrastructure/QtRepositories.h
+    apps/launcher/src/infrastructure/EditionProfile.cpp
+    apps/launcher/src/infrastructure/EditionProfile.h
     apps/launcher/src/infrastructure/GameInstallationService.cpp
     apps/launcher/src/infrastructure/GameInstallationService.h
     apps/launcher/src/infrastructure/PlatformServices.cpp
@@ -342,6 +344,7 @@ if(BUILD_TESTING)
     add_test(NAME LauncherIntegrationStateTests COMMAND LauncherIntegrationTests
         verifiesEd25519Signature rejectsLookalikeLocalhost persistsState
         validatesSettingsBeforePersistence reportsInstallStateTransitions
+        installsPhysicalMediaAndPreservesNewerRelease physicalEditionLaunchesOfflineButRejectsInvalidManifest
         checksAndAppliesLauncherUpdate resolvesMaintenanceToolFromInstalledLayout
         parsesLauncherChangelogContract rejectsNonContractJson -o -,txt)
     add_test(NAME LauncherIntegrationDownloadTests COMMAND LauncherIntegrationTests

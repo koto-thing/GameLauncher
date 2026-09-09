@@ -15,15 +15,17 @@ class LauncherService final {
     using StateCallback = std::function<void(const GameId&, InstallState, const OperationError&)>;
 
     /** @brief 必要なPortを借用して構築する */
-    LauncherService(IGameCatalogRepository& catalogRepository,
-                    IGameReleaseRepository& releaseRepository,
-                    ILauncherReleaseRepository& launcherReleaseRepository,
-                    IInstalledGameRepository& installedRepository,
-                    ISettingsRepository& settingsRepository,
-                    IGameInstallationService& installationService,
-                    IGameProcessService& processService, IStartupService& startupService,
-                    ILauncherUpdateService& updateService, IClock& clock,
-                    SemanticVersion currentVersion);
+    LauncherService(
+        IGameCatalogRepository& catalogRepository, IGameReleaseRepository& releaseRepository,
+        ILauncherReleaseRepository& launcherReleaseRepository,
+        IInstalledGameRepository& installedRepository, ISettingsRepository& settingsRepository,
+        IGameInstallationService& installationService, IGameProcessService& processService,
+        IStartupService& startupService, ILauncherUpdateService& updateService, IClock& clock,
+        SemanticVersion currentVersion, const IPhysicalMediaRepository* media = nullptr);
+
+    /** @brief 配布媒体の固定releaseを検証して導入する */
+    OperationResult installFromMedia(const GameId& gameId, const std::string& media,
+                                     const ProgressCallback& progress);
 
     /** @brief 設定、導入状態、カタログ、お知らせを読み込む */
     OperationResult load();
@@ -126,6 +128,7 @@ class LauncherService final {
     ILauncherUpdateService& updateService_;
     IClock& clock_;
     SemanticVersion currentVersion_;
+    const IPhysicalMediaRepository* media_;
     std::optional<LauncherRelease> latestLauncherRelease_;
     std::vector<LauncherChangelogEntry> launcherChangelog_;
     LauncherSettings settings_;

@@ -1,5 +1,27 @@
 @import "tailwindcss";
 
+.edition-manager { max-width: 1080px; margin: 0 auto; padding: 40px 24px; }
+.edition-manager h1 { font-size: 32px; margin: 12px 0; }
+.edition-manager h2 { font-size: 24px; margin: 20px 0; }
+.edition-manager h3 { font-size: 20px; }
+.edition-manager header > p:first-child { color: var(--blue); letter-spacing: .12em; font-size: 12px; }
+.edition-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 24px; margin: 24px 0; }
+.edition-panel label { display: block; margin: 12px 0; }
+.edition-panel input:not([type=checkbox]):not([type=color]) { display: block; width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
+.edition-design { display: grid; grid-template-columns: 1fr 1fr auto; gap: 20px; }
+.edition-panel .edition-game { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); padding: 10px 0; }
+.edition-game input[type=checkbox] { width: 18px; height: 18px; margin: 0; padding: 0; flex: 0 0 18px; accent-color: var(--blue); }
+.edition-game span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.edition-panel input[type=color] { width: 80px; height: 42px; padding: 4px; }
+.edition-game small { display: block; color: var(--muted); }
+.edition-panel button { background: var(--blue); color: white; border-radius: 6px; padding: 10px 18px; margin: 12px 0; cursor: pointer; }
+.edition-panel button:disabled { opacity: .45; cursor: default; }
+.edition-build { border-top: 1px solid var(--line); padding: 16px 0; }
+.edition-build a { color: var(--blue); margin-left: 16px; }
+.edition-build pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.edition-error { color: #b42318; }
+@media (max-width: 700px) { .edition-design { grid-template-columns: 1fr; } }
+
 .service-home { max-width: 1040px; margin: 0 auto; padding: clamp(40px, 8vw, 100px) 24px; }
 .service-home header { margin-bottom: 40px; }
 .service-home h1 { margin: 12px 0; font-size: clamp(28px, 5vw, 48px); letter-spacing: -.04em; }

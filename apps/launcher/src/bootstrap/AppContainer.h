@@ -1,6 +1,7 @@
 #pragma once
 
 #include "application/LauncherService.h"
+#include "infrastructure/EditionProfile.h"
 #include "infrastructure/GameInstallationService.h"
 #include "infrastructure/PlatformServices.h"
 #include "infrastructure/QtRepositories.h"
@@ -23,6 +24,7 @@ class AppContainer final {
 
   private:
     std::unique_ptr<StaticContentRepository> contentRepository_;
+    EditionProfile editionRepository_;
     std::unique_ptr<JsonStateRepository> stateRepository_;
     std::unique_ptr<GameInstallationService> installationService_;
     std::unique_ptr<QtGameProcessService> processService_;

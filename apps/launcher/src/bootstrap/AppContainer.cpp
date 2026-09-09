@@ -5,7 +5,7 @@
 namespace pandd {
 
 /** @brief build固定の具象Serviceを生成してPortへ接続する */
-AppContainer::AppContainer() {
+AppContainer::AppContainer() : editionRepository_(EditionProfile::current()) {
     // テスト配信先はbuild時に固定し利用者設定へ露出しない
     const auto baseUrl = QUrl(QStringLiteral(PANDD_DISTRIBUTION_BASE_URL));
     // 外部I/Oを担当する具象Adapterを生成
@@ -20,9 +20,12 @@ AppContainer::AppContainer() {
 
     // 全PortをApplication Facadeへ注入
     launcherService_ = std::make_unique<LauncherService>(
-        *contentRepository_, *contentRepository_, *contentRepository_, *stateRepository_,
-        *stateRepository_, *installationService_, *processService_, *startupService_,
-        *updateService_, *clock_, SemanticVersion(PANDD_LAUNCHER_VERSION));
+        editionRepository_.enabled() ? static_cast<IGameCatalogRepository&>(editionRepository_)
+                                     : *contentRepository_,
+        *contentRepository_, *contentRepository_, *stateRepository_, *stateRepository_,
+        *installationService_, *processService_, *startupService_, *updateService_, *clock_,
+        SemanticVersion(PANDD_LAUNCHER_VERSION),
+        editionRepository_.enabled() ? &editionRepository_ : nullptr);
 }
 
 /** @brief 所有しているServiceを解放する */
