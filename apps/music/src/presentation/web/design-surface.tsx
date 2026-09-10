@@ -7,7 +7,7 @@ import {
 } from "react";
 import type { GameDesign } from "../../domain/models";
 import { useSite } from "./context";
-import { WebGLBackground } from "./webgl-background";
+import { WebGLBackground, type WebGLSnapshot } from "./webgl-background";
 import { contrastTone } from "./background-contrast";
 
 /** @brief 作品ページ・曲ページ・下書きプレビューで同じ背景表示を使う */
@@ -15,16 +15,36 @@ export function GameDesignSurface({
   design,
   children,
   variant = "page",
+  snapshotFileName,
 }: {
   design?: GameDesign;
   children: ReactNode;
   variant?: "page" | "mini";
+  snapshotFileName?: string;
 }) {
   const { assetUrl } = useSite();
   const [tone, setTone] = useState<"light" | "dark">("dark");
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const sample = useRef<CanvasRenderingContext2D | null>(null);
   const surface = useRef<HTMLDivElement>(null);
+  const snapshot = useRef<WebGLSnapshot>(null);
+  const [snapshotError, setSnapshotError] = useState("");
+
+  /** @brief プレビューのWebGL背景だけを透過PNGとして保存する */
+  function saveSnapshot() {
+    try {
+      if (!snapshot.current) throw new Error("WebGLの描画準備ができていません。");
+
+      const link = document.createElement("a");
+      link.href = snapshot.current.capture();
+      link.download = snapshotFileName ?? "webgl.png";
+      link.click();
+      setSnapshotError("");
+    } catch (error) {
+      setSnapshotError(error instanceof Error ? error.message : "画像を保存できませんでした。");
+    }
+  }
+
   const imageUrl = design?.backgroundAssetId
     ? assetUrl(design.backgroundAssetId)
     : undefined;
@@ -129,9 +149,18 @@ export function GameDesignSurface({
         }}
       />
       {design.webgl && (
-        <WebGLBackground settings={design.webgl} onFrame={onFrame} />
+        <WebGLBackground settings={design.webgl} onFrame={onFrame} snapshotRef={snapshot} />
       )}
-      <div className="game-surface-content">{children}</div>
+      <div className="game-surface-content">
+        {children}
+        {snapshotFileName && design.webgl && (
+          <div>
+            <button type="button" onClick={saveSnapshot}>WebGLのスナップショットを保存</button>
+            <p className="hint">現在のWebGL背景をPNGで保存します。文字・作品画像・背景色は含まず、透過を保持します。</p>
+            <p role="alert">{snapshotError}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

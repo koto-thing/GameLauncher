@@ -58,21 +58,12 @@ test("share export, real image recognition, manual input, lazy loading and no au
       ),
     ).toBe(value);
   }
-  const originalWidth = await page
-    .locator(".command-image")
-    .evaluate(
-      /** @brief 表示調整前の幅を測る */ (e) =>
-        e.getBoundingClientRect().width,
-    );
-  await page.getByLabel(/表示倍率/).fill("50");
-  expect(
-    await page
-      .locator(".command-image")
-      .evaluate(
-        /** @brief 保存データを変えず画面上の幅を半分にする */ (e) =>
-          e.getBoundingClientRect().width,
-      ),
-  ).toBeCloseTo(originalWidth / 2, 0);
+  await page.getByLabel("コードの背景").selectOption("color");
+  await page.getByLabel("背景色", { exact: true }).fill("#336699");
+  const preview = await page.locator(".command-image").getAttribute("src");
+  expect(decodeURIComponent(preview ?? "")).toContain('fill="#336699"');
+  await page.getByLabel("PNG保存幅").selectOption("1200");
+  await expect(page.getByLabel("PNG保存幅")).toHaveValue("1200");
   expect(
     requests.some(
       /** @brief 通常共有では認識器をロードしない */ (url) =>
@@ -192,9 +183,7 @@ test("camera decodes real frames three times and releases stream; late permissio
   const games = await (await page.request.get("/api/public/catalogue")).json(),
     track = games[0].tracks[0];
   await page.addInitScript(
-    /** @brief 映像取得APIだけを差し替え、認識器は差し替えない */ ({
-      svg,
-    }) => {
+    /** @brief 映像取得APIだけを差し替え、認識器は差し替えない */ ({ svg }) => {
       const state = window as unknown as {
         cameraCalls: number;
         cameraStops: number;
@@ -205,36 +194,32 @@ test("camera decodes real frames three times and releases stream; late permissio
       state.cameraStops = 0;
       Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
         configurable: true,
-        value:
-          /** @brief Canvasの実画素をMediaStreamとして返す */ async () => {
-            state.cameraCalls++;
-            const canvas = document.createElement("canvas");
-            canvas.width = 800;
-            canvas.height = 480;
-            const ctx = canvas.getContext("2d")!,
-              img = new Image();
-            img.src = `data:image/svg+xml,${encodeURIComponent(svg)}`;
-            await img.decode();
-            ctx.drawImage(img, 0, 0, 800, 480);
-            const stream = canvas.captureStream(5);
-            for (const track of stream.getTracks()) {
-              const stop = track.stop.bind(track);
-              track.stop =
-                /** @brief 実trackの停止回数だけを記録する */ () => {
-                  state.cameraStops++;
-                  stop();
-                };
-            }
-            if (state.delay)
-              await new Promise<void>(
-                /** @brief 試験操作が許可するまで応答を保留する */ (
-                  resolve,
-                ) => {
-                  state.grant = resolve;
-                },
-              );
-            return stream;
-          },
+        value: /** @brief Canvasの実画素をMediaStreamとして返す */ async () => {
+          state.cameraCalls++;
+          const canvas = document.createElement("canvas");
+          canvas.width = 800;
+          canvas.height = 480;
+          const ctx = canvas.getContext("2d")!,
+            img = new Image();
+          img.src = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+          await img.decode();
+          ctx.drawImage(img, 0, 0, 800, 480);
+          const stream = canvas.captureStream(5);
+          for (const track of stream.getTracks()) {
+            const stop = track.stop.bind(track);
+            track.stop = /** @brief 実trackの停止回数だけを記録する */ () => {
+              state.cameraStops++;
+              stop();
+            };
+          }
+          if (state.delay)
+            await new Promise<void>(
+              /** @brief 試験操作が許可するまで応答を保留する */ (resolve) => {
+                state.grant = resolve;
+              },
+            );
+          return stream;
+        },
       });
     },
     { svg: commandSvg(track.commandCode.codeId) },

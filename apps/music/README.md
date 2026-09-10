@@ -38,5 +38,6 @@ npm run dev
 - [調整値](../../docs/music/parameter-guide.md)
 - [試験結果と未検証事項](../../docs/music/test-report.md)
 - [コマンドコードの仕様・利用・既存曲への適用・実測結果](../../docs/music/command-code.md)
+- [NFCアクキーの書き込み・配布とWebGLスナップショット](../../docs/music/nfc-distribution.md)
 
 `npm run check`、`npm run test:e2e`、`npm run test:public`で検証し、`npm run package:rental`で配布物を準備します。devとE2Eは同じポートを使うため同時起動しないでください。

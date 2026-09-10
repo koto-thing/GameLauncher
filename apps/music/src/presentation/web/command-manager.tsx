@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
+import { DistributionCard } from "./distribution-card";
+import { commandExporter } from "../../composition/command-code";
 import type { CommandCode } from "../../../../../contracts/music/command-code-v1";
-import { commandSvg } from "../../domain/command-art";
+
 import { displayCommand, encodeCommand } from "../../domain/command-code";
 import { api } from "./api-client";
 import { useRemote } from "./editor-common";
@@ -17,20 +18,21 @@ export function CommandManager({
   gameId: string;
   title: string;
 }) {
-  const { session, config } = useSite();
+  const { session, config, catalogue } = useSite();
+  const webgl = catalogue.find(
+    /** @brief 公開作品のシェーダーを配布背景にも使う */ (game) =>
+      game.id === gameId,
+  )?.design?.webgl;
   const remote = useRemote<CommandCode | null>(
     `/manage/tracks/${trackId}/command-code`,
   );
   const [issued, setIssued] = useState<CommandCode | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const printImage = useRef<HTMLImageElement>(null);
+
   const assignment = issued ?? remote.data;
   const code = assignment
     ? displayCommand(encodeCommand(assignment.codeId))
-    : "";
-  const image = assignment
-    ? `data:image/svg+xml,${encodeURIComponent(commandSvg(assignment.codeId))}`
     : "";
   const publicUrl = config?.publicUrl
     ? `${config.publicUrl}tracks/${trackId}`
@@ -86,20 +88,6 @@ export function CommandManager({
     }
   }
 
-  /** @brief SVGの描画完了を待ち、空白のコードを印刷しない */
-  async function print() {
-    setBusy(true);
-    setMessage("");
-    try {
-      await printImage.current?.decode();
-      window.print();
-    } catch {
-      setMessage("印刷を開始できませんでした。再試行してください。");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <section className="command-manager" aria-label="コマンドコード管理">
       <h2>コマンドコード</h2>
@@ -124,22 +112,18 @@ export function CommandManager({
       )}
       {assignment ? (
         <>
-          <img
-            className="command-image"
-            src={image}
-            alt={`コマンドコード ${code}`}
-          />
+          {publicUrl ? (
+            <DistributionCard
+              id={assignment.codeId}
+              url={publicUrl}
+              title={title}
+              exporter={commandExporter}
+              webgl={webgl}
+            />
+          ) : (
+            <p>公開URLを設定すると配布画像を作成できます。</p>
+          )}
           <p className="command-text">{code}</p>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={
-              /** @brief 曲名とコードだけの印刷ダイアログを開く */ () =>
-                void print()
-            }
-          >
-            曲名付きで印刷
-          </button>
           <p className="hint">
             印刷ダイアログからPDF保存もできます。公開版への反映前や、曲・作品の非公開中は読み取っても曲を開けません。
           </p>
@@ -160,20 +144,6 @@ export function CommandManager({
             <a href={publicUrl} target="_blank" rel="noreferrer">
               公開ページで確認 ↗
             </a>
-          )}
-          {createPortal(
-            <article className="command-print-sheet" aria-hidden="true">
-              <p>PandD Music</p>
-              <h1>{title}</h1>
-              <img ref={printImage} src={image} alt="" />
-              <p className="command-text">{code}</p>
-              <p>
-                PandD
-                Musicの「コードを読み取る」で、カメラ・画像・手入力から開けます。
-              </p>
-              {publicUrl && <p className="command-print-url">{publicUrl}</p>}
-            </article>,
-            document.body,
           )}
         </>
       ) : remote.loaded ? (

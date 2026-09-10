@@ -1,16 +1,44 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
 import { createBackgroundProgram } from "./glsl-program";
 import type { GameDesign } from "../../domain/models";
+
+export interface WebGLSnapshot {
+  capture(): string;
+}
 
 /** @brief 装飾用シェーダーを描画し、非表示時の停止とGPU資源の解放を行う */
 export function WebGLBackground({
   settings,
   onFrame,
+  snapshotRef,
 }: {
   settings: NonNullable<GameDesign["webgl"]>;
   onFrame?(canvas: HTMLCanvasElement): void;
+  snapshotRef?: Ref<WebGLSnapshot>;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const capture = useRef<(() => string) | null>(null);
+
+  useImperativeHandle(
+    snapshotRef,
+    /** @brief 描画直後のバッファからPNGを取得する */ () => ({
+      /** @brief 描画できない状態では空画像の保存を防ぐ */
+      capture() {
+        if (!capture.current)
+          throw new Error("WebGLの描画準備ができていません。");
+
+        return capture.current();
+      },
+    }),
+    [],
+  );
+
   const [generation, setGeneration] = useState(0);
   useEffect(
     /** @brief GPUコンテキストの復旧時にプログラムを作り直す */ () => {
@@ -21,9 +49,7 @@ export function WebGLBackground({
       }
       /** @brief 復旧済みコンテキストの描画を再初期化する */
       function restored() {
-        setGeneration(
-          /** @brief 再初期化世代を進める */ (value) => value + 1,
-        );
+        setGeneration(/** @brief 再初期化世代を進める */ (value) => value + 1);
       }
       canvas.addEventListener("webglcontextlost", lost);
       canvas.addEventListener("webglcontextrestored", restored);
@@ -61,6 +87,7 @@ export function WebGLBackground({
       let frame = 0;
       /** @brief 作成済みのGPU資源を破棄する */
       function dispose() {
+        capture.current = null;
         cancelAnimationFrame(frame);
         gl!.deleteBuffer(buffer);
         gl!.deleteProgram(program);
@@ -105,6 +132,17 @@ export function WebGLBackground({
         previous = now;
         gl!.uniform1f(time, motion.matches ? 0 : elapsed);
         gl!.drawArrays(gl!.TRIANGLES, 0, 6);
+        capture.current =
+          /** @brief 現在の時刻とサイズで再描画して破棄前に画像化する */ () => {
+            if (gl!.isContextLost())
+              throw new Error(
+                "WebGLが停止しています。復旧後に再試行してください。",
+              );
+
+            gl!.drawArrays(gl!.TRIANGLES, 0, 6);
+
+            return canvas!.toDataURL("image/png");
+          };
         if (onFrame && now - sampledAt >= 1000) {
           onFrame(canvas!);
           sampledAt = now;
