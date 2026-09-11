@@ -318,7 +318,7 @@ export function TrackPage({ commandExporter }: { commandExporter: () => Promise<
             title={`${displayedTrack.title} / ${game.title}`}
             url={`${window.location.origin}${import.meta.env.BASE_URL}tracks/${displayedTrack.id}`}
           >
-            <CommandShare assignment={displayedTrack.commandCode} url={`${window.location.origin}${import.meta.env.BASE_URL}tracks/${displayedTrack.id}`} exporter={commandExporter} />
+            <CommandShare assignment={displayedTrack.commandCode} url={`${window.location.origin}${import.meta.env.BASE_URL}tracks/${displayedTrack.id}`} title={displayedTrack.title} webgl={game?.design?.webgl} exporter={commandExporter} />
           </ShareButton>
         </div>
       </section>

@@ -36,6 +36,7 @@
     "@vitejs/plugin-react": "6.1.0",
     "esbuild": "0.28.2",
     "eslint": "10.9.1",
+    "jsqr": "^1.4.0",
     "miniflare": "5.20260903.0-alpha",
     "prettier": "3.9.6",
     "tsx": "4.23.13",

@@ -19,7 +19,7 @@
 
 `LauncherService::installFromMedia`は既存のGameInstallationService::importExistingを使用し、検証済みファイルだけをstagingから有効化する。IFWのゲームcomponentはこの処理を呼ぶための選択項目であり、可変ゲームファイルを所有しない。ゲームの追加・削除・更新操作はランチャーから行う
 
-IFWはhybridモードを使用し、初回はネット接続せず、導入後は共通のWindows更新repositoryを使う。`org.pandd.edition`が固定情報と専用ショートカットを所有し、`org.pandd.launcher`が共通エンジンを所有する
+IFW 4.7は`--offline-only`を使用し、初回はネット接続せず、導入後は共通のWindows更新repositoryを使う。4.7のオフライン制限は初回インストーラーにのみ適用され、メンテナンスツールの更新接続は制限しない。`org.pandd.edition`が固定情報と専用ショートカットを所有し、`org.pandd.launcher`が共通エンジンを所有する
 
 Control-Planeの`/editions`は既存の管理者認証で利用する。現行のProduction Actions設定を再利用する。新規テーブルはphysical_editionsとphysical_edition_builds。デザイン画像は非公開INTAKE R2のphysical-editions配下に保存する。各ビルドはOIDCでrepository、master、専用workflow、production environment、run IDとattemptを検証する
 

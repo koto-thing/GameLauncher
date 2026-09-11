@@ -170,7 +170,7 @@ def assemble(work: Path, public_key: str, private_key: Path, version: str) -> No
 
 
 def package(work: Path, install_tree: Path, output: Path, version: str, ifw_root: Path | None) -> Path:
-    """Create a hybrid installer with selectable games sourced from adjacent media."""
+    """Create an offline installer with selectable games and online maintenance updates."""
     definition = json.loads((work / "media/edition/edition.json").read_bytes())
     edition_id = definition["id"]
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,63}", edition_id):
@@ -250,7 +250,9 @@ Component.prototype.createOperations = function() {
 };
 ''', encoding="utf-8")
         installer = output / "Setup.exe"
-        subprocess.run([executable(ifw_root, "binarycreator"), "--hybrid", "-c", config,
+
+        # IFW 4.7 applies offline-only to initial installation, not the maintenance tool
+        subprocess.run([executable(ifw_root, "binarycreator"), "--offline-only", "-c", config,
                         "-p", packages, installer], check=True)
     shutil.copy2(work / "snapshot.json", output / "build-info.json")
     (output / "README.txt").write_text(
