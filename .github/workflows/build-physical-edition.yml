@@ -46,7 +46,7 @@ jobs:
           MANIFEST_PUBLIC_KEY_BASE64: ${{ secrets.MANIFEST_PUBLIC_KEY_BASE64 }}
         run: >-
           & "${{ steps.python.outputs.python-path }}" -m scripts.editions.build freeze
-      - uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4
+      - uses: jurplel/install-qt-action@bcb88e3bed2e992f5f9e24c0f9e364a231d278eb # v4
         with:
           version: '6.10.2'
           arch: win64_msvc2022_64
