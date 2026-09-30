@@ -23,10 +23,10 @@ test("access requests bind identity, isolate services and commit grants exactly 
   assert.equal((await applicant.request(api, { ...write(submit), headers: { Origin: "https://evil.invalid" } })).status, 403);
   const signed = decodeURIComponent(applicant.cookie.split("=")[1]);
   const stale = JSON.parse(Buffer.from(signed.split(".")[0], "base64url").toString());
-  stale.user.authenticatedAt = new Date(Date.now() - 16 * 60000).toISOString();
+  stale.user.authenticatedAt = new Date(Date.now() - (3 * 60 + 1) * 60000).toISOString();
   const payload = Buffer.from(JSON.stringify(stale)).toString("base64url");
   const signature = createHmac("sha256", runtime.sessionSecret).update(payload).digest("base64url");
-  assert.equal((await applicant.request(api, { ...write(submit), headers: { Cookie: `pandd_deploy_session=${payload}.${signature}` } })).status, 403);
+  assert.equal((await applicant.request(api, { ...write(submit), headers: { Cookie: `pandd_deploy_session=${payload}.${signature}` } })).status, 401);
   assert.equal((await applicant.request(api, write({ ...submit, purpose: "x".repeat(1001) }))).status, 400);
 
   // 本人IDの偽装値は無視し、同時送信でも承認待ちを一つに保つ
