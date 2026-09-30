@@ -6,7 +6,7 @@ import { createRuntime, fixtureClient } from "../support/rental-runtime.mjs";
 /** @brief 本物のWorkerとD1で申請・審査・認可境界を確認する */
 test("access requests bind identity, isolate services and commit grants exactly once", async (t) => {
   const runtime = await createRuntime({ php: { origin: "http://127.0.0.1:1", secret: "a".repeat(64) } });
-  t.after(() => runtime.dispose());
+  t.after(/** @brief テスト用ランタイムを終了する */ () => runtime.dispose());
   const admin = await fixtureClient(runtime, "admin");
   const musicAdmin = await fixtureClient(runtime, "music-admin");
   const applicant = await fixtureClient(runtime, "outsider");
@@ -15,6 +15,7 @@ test("access requests bind identity, isolate services and commit grants exactly 
   const anonymous = await fixtureClient(runtime, "");
   const api = "/api/access-requests";
   const submit = { action: "submit", service: "game", displayName: "申請者", purpose: "ゲーム公開を担当します" };
+  /** @brief APIへのPOST入力を組み立てる */
   const write = (body: Record<string, unknown>) => ({ method: "POST", body });
 
   // 匿名・別origin・期限の古い本人確認からは申請できない
@@ -33,7 +34,7 @@ test("access requests bind identity, isolate services and commit grants exactly 
     applicant.request(api, write({ ...submit, applicantId: "1001", githubUserId: "1001" })),
     applicant.request(api, write(submit)),
   ]);
-  assert.deepEqual(duplicates.map((response: Response) => response.status).sort(), [201, 409]);
+  assert.deepEqual(duplicates.map(/** @brief HTTPステータスを取り出す */ (response: Response) => response.status).sort(), [201, 409]);
   const mine = await applicant.json(api);
   const id = mine.requests[0].id;
   assert.equal(mine.requests[0].applicant_id, "900004");
@@ -53,13 +54,13 @@ test("access requests bind identity, isolate services and commit grants exactly 
 
   // Collaboratorの申請を同時審査しても、勝った審査だけが権限を付与する
   const gameRequest = await collaborator.json(api, write(submit));
-  const competing = await Promise.all(["approver", "production_requester"].map((grantType) =>
+  const competing = await Promise.all(["approver", "production_requester"].map(/** @brief 同じ申請を異なる権限で審査する */ (grantType) =>
     admin.request(api, write({ action: "decide", service: "game", id: gameRequest.id, decision: "approved", grantType })),
   ));
-  assert.deepEqual(competing.map((response: Response) => response.status).sort(), [200, 409]);
+  assert.deepEqual(competing.map(/** @brief HTTPステータスを取り出す */ (response: Response) => response.status).sort(), [200, 409]);
   const approved = (await collaborator.json(api)).requests[0];
   const saved = await runtime.db.prepare("SELECT grant_type FROM policy_grants WHERE github_user_id='1002' AND grant_type!='requester'").all();
-  assert.deepEqual(saved.results.map((row: { grant_type: string }) => row.grant_type), [approved.grant_type]);
+  assert.deepEqual(saved.results.map(/** @brief 保存された権限を取り出す */ (row: { grant_type: string }) => row.grant_type), [approved.grant_type]);
   assert.equal((await collaborator.request("/api/dashboard")).status, 200);
 
   // 旧登録経路では未ログインのIDや偽のログイン名からアカウントを作れない
@@ -115,6 +116,7 @@ test("game approval rechecks stable GitHub identity without enabling dispatch", 
   const runtime = await createRuntime({
     php: { origin: "http://127.0.0.1:1", secret: "a".repeat(64) },
     bindings: { GITHUB_APP_ID: "1", GITHUB_APP_INSTALLATION_ID: "2", GITHUB_APP_PRIVATE_KEY: key },
+    /** @brief GitHubの本人照会と権限照会を模擬する */
     github: async (request: Request) => {
       const url = new URL(request.url);
       calls.push(url.pathname);
@@ -129,7 +131,7 @@ test("game approval rechecks stable GitHub identity without enabling dispatch", 
       return Response.json({ permission, role_name: permission, user: { id: mismatchedIdentity ? 1234 : 900004 } });
     },
   });
-  t.after(() => runtime.dispose());
+  t.after(/** @brief テスト用ランタイムを終了する */ () => runtime.dispose());
   const admin = await fixtureClient(runtime, "admin");
   const applicant = await fixtureClient(runtime, "outsider");
 

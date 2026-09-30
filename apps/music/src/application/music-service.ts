@@ -409,7 +409,7 @@ export class MusicService {
       "accountId",
     );
     // 解除はGitHub側で削除済みのアカウントにも実行できるよう、外部照会を要求しない
-    const account = enabled ? (await this.repository.accounts()).find((candidate) => candidate.id === accountId) : null;
+    const account = enabled ? (await this.repository.accounts()).find(/** @brief 対象のGitHubアカウントを照合する */ (candidate) => candidate.id === accountId) : null;
     if (enabled) requireValue(Boolean(account), "新しい担当者は利用申請を行ってください。", "accountId");
     await this.repository.setMembership(
       gameId,
