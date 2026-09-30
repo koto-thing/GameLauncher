@@ -219,7 +219,6 @@ export async function createRuntime({
       {
         config: {
           name: "control-plane-music-test",
-          type: "worker",
           compatibilityDate: "2026-09-02",
           compatibilityFlags: ["nodejs_compat"],
           manifest: {

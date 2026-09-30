@@ -4,7 +4,7 @@ import {Miniflare} from "miniflare";
 const POINTER = "v1/launcher/downloads/windows/x86_64/latest.json";
 const ORIGIN = "https://downloads.koto-thing.com";
 const installerKey = version => `v1/launcher/installers/windows/x86_64/${version}/PandD-Game-Launcher-Online-Installer.exe`;
-const mf = new Miniflare({workers: [{config: {name: "download", type: "worker", compatibilityDate: "2026-09-02", manifest: {mainModule: "index.mjs", modules: {"index.mjs": {type: "esm", contents: await (await import("node:fs/promises")).readFile(new URL("../src/index.mjs", import.meta.url), "utf8")}}}, env: {RELEASES: {type: "r2", name: "test-releases"}}}}]});
+const mf = new Miniflare({workers: [{config: {name: "download", compatibilityDate: "2026-09-02", manifest: {mainModule: "index.mjs", modules: {"index.mjs": {type: "esm", contents: await (await import("node:fs/promises")).readFile(new URL("../src/index.mjs", import.meta.url), "utf8")}}}, env: {RELEASES: {type: "r2", name: "test-releases"}}}}]});
 after(() => mf.dispose());
 const digest = "a".repeat(64);
 const document = version => ({schemaVersion: 1, version, sha256: digest, size: 3});

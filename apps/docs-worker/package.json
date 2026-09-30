@@ -13,12 +13,7 @@
     "db:local": "wrangler d1 migrations apply DOCS_DB --local"
   },
   "devDependencies": {
-    "miniflare": "5.20260826.0-alpha",
-    "wrangler": "4.127.0"
-  },
-  "overrides": {
-    "miniflare": {
-      "sharp": "0.35.4"
-    }
+    "miniflare": "5.20260926.1-alpha",
+    "wrangler": "4.144.0"
   }
 }

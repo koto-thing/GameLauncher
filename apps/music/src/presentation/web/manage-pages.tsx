@@ -18,6 +18,7 @@ import type {
 import { useSite } from "./context";
 import { api, uploadFile } from "./api-client";
 import { Artwork } from "./components";
+import { NfcDistribution } from "./nfc-distribution";
 import { GameDesignEditor, GameDesignSurface } from "./game-design";
 import { GAME_DESIGN_DEFAULTS } from "../../config/game-design.defaults";
 import {
@@ -635,7 +636,7 @@ function GameEditor({
         </form>
         <div>
           <h2>ページデザインのプレビュー</h2>
-          <GameDesignSurface design={draft.design}>
+          <GameDesignSurface design={draft.design} snapshotFileName={`webgl-${game.id}.png`}>
             <h3>{draft.title || "作品名"}</h3>
             <p>
               {draft.description ||
@@ -676,6 +677,7 @@ function GameEditor({
         </p>
       )}
       <TaskNotice task={task} />
+      <NfcDistribution publicUrl={config?.publicUrl} gameId={game.id} published={!!game.published && !game.suspended} />
       <section>
         <div className="section-heading">
           <h2>収録曲の編集</h2>

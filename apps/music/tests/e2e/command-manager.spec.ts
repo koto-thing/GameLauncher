@@ -30,7 +30,17 @@ test("manager confirms permanent code, prints only the sheet and issues unpublis
   await page.emulateMedia({ media: "print" });
   const sheet = page.locator("body > .command-print-sheet");
   await expect(sheet).toBeVisible();
-  await expect(sheet.locator("h1")).toHaveText(track.title);
+  const printedTitle = await sheet.locator("img").evaluate(
+    /** @brief 印刷画像に埋め込まれた曲名を実SVGから検証する */ (image) => {
+      const svg = decodeURIComponent(
+        (image as HTMLImageElement).src.split(",").slice(1).join(","),
+      );
+      return new DOMParser()
+        .parseFromString(svg, "image/svg+xml")
+        .querySelector("text")?.textContent;
+    },
+  );
+  expect(printedTitle).toBe(track.title);
   await expect(panel).not.toBeVisible();
   await expect(sheet.locator("img")).toHaveAttribute("src", imageSource ?? "");
   await page.screenshot({
@@ -42,7 +52,9 @@ test("manager confirms permanent code, prints only the sheet and issues unpublis
   await panel
     .getByRole("button", { name: "作品の公開済み曲へコードだけ反映" })
     .click();
-  await expect(panel.getByRole("status")).toContainText("反映しました");
+  await expect(
+    panel.getByRole("status").filter({ hasText: "反映しました" }),
+  ).toHaveCount(1);
   await page.screenshot({
     path: `build/command-code/manager-${info.project.name}.png`,
     fullPage: true,
