@@ -1,12 +1,22 @@
 import assert from "node:assert/strict";
-import { DatabaseSync } from "node:sqlite";
+import { createTestHarness } from "wrangler";
 import test from "node:test";
 import { pruneRequestHistory } from "../lib/request-retention.ts";
 
-// 本番DDLの外部キー関係を使い、D1の原子的なbatchをSQLiteで実行する
-test("retention removes old completed requests and their logs while preserving active and referenced history", async () => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(`PRAGMA foreign_keys = ON;
+// 本番DDLの外部キー関係とD1を使い、ビルド済みWorkerのCron処理を検証する
+test("retention removes old completed requests and their logs while preserving active and referenced history", async (t) => {
+  const server = createTestHarness({
+    workers: [{ configPath: new URL("../dist/server/wrangler.json", import.meta.url) }],
+  });
+
+  t.after(() => server.close());
+
+  await server.listen();
+
+  const worker = server.getWorker();
+  const { DB: db } = await worker.getEnv();
+
+  await db.exec(`PRAGMA foreign_keys = ON;
     CREATE TABLE deployment_requests (request_id TEXT PRIMARY KEY, source_staging_request_id TEXT, created_at TEXT, state TEXT);
     CREATE TABLE request_approvers (request_id TEXT REFERENCES deployment_requests(request_id));
     CREATE TABLE approval_decisions (request_id TEXT REFERENCES deployment_requests(request_id));
@@ -17,52 +27,33 @@ test("retention removes old completed requests and their logs while preserving a
   const cutoff = new Date(timestamp - 365 * 86400000).toISOString();
   const old = "2024-01-01T00:00:00.000Z";
   const recent = "2026-09-01T00:00:00.000Z";
-  const insert = sqlite.prepare("INSERT INTO deployment_requests VALUES (?, ?, ?, ?)");
+  const insert = db.prepare("INSERT INTO deployment_requests VALUES (?, ?, ?, ?)");
 
   for (const state of ["succeeded", "rejected", "cancelled", "failed_terminal", "ready", "pending_approval", "approved", "dispatched", "running", "failed_retryable", "recovery_required"]) {
-    insert.run(state, null, old, state);
-    sqlite.prepare("INSERT INTO request_approvers VALUES (?)").run(state);
-    sqlite.prepare("INSERT INTO approval_decisions VALUES (?)").run(state);
-    sqlite.prepare("INSERT INTO execution_attempts VALUES (?, ?, NULL, ?)").run(state, old, old);
-    sqlite.prepare("INSERT INTO audit_events VALUES (?, ?)").run(state, old);
+    await insert.bind(state, null, old, state).run();
+    await db.prepare("INSERT INTO request_approvers VALUES (?)").bind(state).run();
+    await db.prepare("INSERT INTO approval_decisions VALUES (?)").bind(state).run();
+    await db.prepare("INSERT INTO execution_attempts VALUES (?, ?, NULL, ?)").bind(state, old, old).run();
+    await db.prepare("INSERT INTO audit_events VALUES (?, ?)").bind(state, old).run();
   }
 
-  insert.run("boundary", null, cutoff, "succeeded");
-  insert.run("source", null, old, "succeeded");
-  insert.run("dependent", "source", recent, "approved");
-  insert.run("updated", null, old, "succeeded");
-  insert.run("executed", null, old, "succeeded");
-  sqlite.prepare("INSERT INTO audit_events VALUES (?, ?)").run("updated", cutoff);
-  sqlite.prepare("INSERT INTO audit_events VALUES (NULL, ?)").run(old);
-  sqlite.prepare("INSERT INTO execution_attempts VALUES (?, ?, ?, ?)").run("executed", old, old, recent);
+  await insert.bind("boundary", null, cutoff, "succeeded").run();
+  await insert.bind("source", null, old, "succeeded").run();
+  await insert.bind("dependent", "source", recent, "approved").run();
+  await insert.bind("updated", null, old, "succeeded").run();
+  await insert.bind("executed", null, old, "succeeded").run();
+  await db.prepare("INSERT INTO audit_events VALUES (?, ?)").bind("updated", cutoff).run();
+  await db.prepare("INSERT INTO audit_events VALUES (NULL, ?)").bind(old).run();
+  await db.prepare("INSERT INTO execution_attempts VALUES (?, ?, ?, ?)").bind("executed", old, old, recent).run();
 
-  const db = {
-    prepare: (sql) => ({ bind: (...parameters) => ({ sql, parameters }) }),
-    batch: async (statements) => {
-      sqlite.exec("BEGIN");
-      try {
-        for (const { sql, parameters } of statements) sqlite.prepare(sql).run(...parameters);
-        sqlite.exec("COMMIT");
-      } catch (error) {
-        sqlite.exec("ROLLBACK");
-        throw error;
-      }
-    },
-  };
+  await worker.scheduled({ scheduledTime: new Date(timestamp) });
+  await pruneRequestHistory(db, timestamp);
 
-  try {
-    const { default: worker } = await import("../dist/server/index.js");
-    await worker.scheduled({ scheduledTime: timestamp }, { DB: db });
-    await pruneRequestHistory(db, timestamp);
-
-    for (const table of ["deployment_requests", "request_approvers", "approval_decisions", "execution_attempts", "audit_events"]) {
-      assert.equal(sqlite.prepare(`SELECT count(*) AS count FROM ${table} WHERE request_id IN ('succeeded','rejected','cancelled','failed_terminal')`).get().count, 0);
-    }
-
-    const remaining = sqlite.prepare("SELECT request_id FROM deployment_requests ORDER BY request_id").all().map((row) => row.request_id);
-    assert.deepEqual(remaining, ["approved", "boundary", "dependent", "dispatched", "executed", "failed_retryable", "pending_approval", "ready", "recovery_required", "running", "source", "updated"]);
-    assert.equal(sqlite.prepare("SELECT count(*) AS count FROM audit_events WHERE request_id IS NULL").get().count, 1);
-  } finally {
-    sqlite.close();
+  for (const table of ["deployment_requests", "request_approvers", "approval_decisions", "execution_attempts", "audit_events"]) {
+    assert.equal(await db.prepare(`SELECT count(*) AS count FROM ${table} WHERE request_id IN ('succeeded','rejected','cancelled','failed_terminal')`).first("count"), 0);
   }
+
+  const remaining = (await db.prepare("SELECT request_id FROM deployment_requests ORDER BY request_id").all()).results.map((row) => row.request_id);
+  assert.deepEqual(remaining, ["approved", "boundary", "dependent", "dispatched", "executed", "failed_retryable", "pending_approval", "ready", "recovery_required", "running", "source", "updated"]);
+  assert.equal(await db.prepare("SELECT count(*) AS count FROM audit_events WHERE request_id IS NULL").first("count"), 1);
 });
