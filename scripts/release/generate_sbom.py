@@ -21,7 +21,7 @@ def generate_document(metadata: dict[str, Any], version: str,
     if set(metadata) != required or not isinstance(metadata["qtModules"], list):
         raise ValueError("build metadata does not match the SBOM contract")
     required_qt_modules = {"Core", "Gui", "Widgets", "Network", "Concurrent",
-                           "Svg", "OpenGL", "OpenGLWidgets"}
+                           "Svg", "OpenGL", "OpenGLWidgets", "WebEngineWidgets", "Quick"}
     if set(metadata["qtModules"]) != required_qt_modules:
         raise ValueError("build metadata must record the full Qt module set")
     try:
@@ -126,6 +126,29 @@ def generate_document(metadata: dict[str, Any], version: str,
             "spdxElementId": "SPDXRef-Package-Launcher",
             "relationshipType": "DEPENDS_ON",
             "relatedSpdxElement": dependency,
+        })
+
+    # Record every runtime package in the locked offline VRM viewer bundle
+    viewer_lock = json.loads((project_root / "apps/launcher/vrm-viewer/package-lock.json").read_text(
+        encoding="utf-8"))
+    for path, package in viewer_lock["packages"].items():
+        if not path or package.get("dev"):
+            continue
+        name = path.removeprefix("node_modules/")
+        package_id = "SPDXRef-Package-npm-" + name.replace("@", "").replace("/", "-")
+        packages.append({
+            "SPDXID": package_id,
+            "name": name,
+            "versionInfo": package["version"],
+            "downloadLocation": package["resolved"],
+            "filesAnalyzed": False,
+            "licenseConcluded": "NOASSERTION",
+            "licenseDeclared": package.get("license", "NOASSERTION"),
+        })
+        relationships.append({
+            "spdxElementId": "SPDXRef-Package-Launcher",
+            "relationshipType": "DEPENDS_ON",
+            "relatedSpdxElement": package_id,
         })
 
     platform = f"{metadata['systemName']}-{metadata['systemProcessor']}"

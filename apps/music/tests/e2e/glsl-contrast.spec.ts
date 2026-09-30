@@ -59,9 +59,44 @@ createRoot(document.getElementById('root')).render(<Harness/>);`,
     "background-color",
     "rgb(255, 255, 255)",
   );
+
+  // 両方向ともボタンの実際の描画色が中間色を通ることを確認する
+  const play = page.getByRole("button", { name: "Play", exact: true });
+  for (const [label, tone, target] of [
+    ["Bright", "light", "rgb(244, 248, 252)"],
+    ["Dark", "dark", "rgb(32, 41, 56)"],
+  ]) {
+    const before = await play.evaluate(
+      /** @brief 切替前のボタン背景色を記録する */ (element) =>
+        getComputedStyle(element).backgroundColor,
+    );
+    await page.getByRole("button", { name: label, exact: true }).click();
+    await expect(surface).toHaveAttribute("data-background-tone", tone);
+    const middle = await play.evaluate(
+      /** @brief 色の遷移を中間地点で止め、補間された描画色を取得する */ (element) => {
+        const transition = element.getAnimations().find(
+          /** @brief 背景色のCSS遷移を選ぶ */ (animation) =>
+            animation instanceof CSSTransition &&
+            animation.transitionProperty === "background-color",
+        );
+        if (!transition) throw new Error("Background color must transition");
+
+        transition.pause();
+        transition.currentTime = Number(transition.effect!.getTiming().duration) / 2;
+        const color = getComputedStyle(element).backgroundColor;
+        transition.finish();
+        return color;
+      },
+    );
+    expect(middle).not.toBe(before);
+    expect(middle).not.toBe(target);
+    await expect(play).toHaveCSS("background-color", target);
+  }
+
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.getByRole("button", { name: "Transparent", exact: true }).click();
   await expect(surface).toHaveAttribute("data-background-tone", "light");
+  await expect(play).toHaveCSS("transition-duration", "0s");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(surface).toHaveAttribute("data-background-tone", "light");
 });

@@ -46,9 +46,13 @@ jobs:
           MANIFEST_PUBLIC_KEY_BASE64: ${{ secrets.MANIFEST_PUBLIC_KEY_BASE64 }}
         run: >-
           & "${{ steps.python.outputs.python-path }}" -m scripts.editions.build freeze
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
       - uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4
         with:
           version: '6.10.2'
+          modules: 'qtwebengine qtwebchannel qtpositioning'
           arch: win64_msvc2022_64
           tools: 'tools_ifw,qt.tools.ifw.47'
           cache: true

@@ -87,9 +87,10 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 include(CTest)
 include(Cubism)
+include(Vrm)
 
 find_package(Qt6 6.10.2 REQUIRED COMPONENTS
-    Core Gui Widgets Network Concurrent Svg OpenGL OpenGLWidgets LinguistTools
+    Core Gui Widgets Network Concurrent Svg OpenGL OpenGLWidgets LinguistTools WebEngineWidgets Quick
 )
 if(BUILD_TESTING)
     find_package(Qt6 6.10.2 REQUIRED COMPONENTS Test)
@@ -132,7 +133,7 @@ set(PANDD_BUILD_METADATA_FILE "${CMAKE_BINARY_DIR}/pandd-build-metadata.json")
 file(CONFIGURE OUTPUT "${PANDD_BUILD_METADATA_FILE}" CONTENT [=[
 {
   "qtVersion": "@Qt6_VERSION@",
-  "qtModules": ["Core", "Gui", "Widgets", "Network", "Concurrent", "Svg", "OpenGL", "OpenGLWidgets"],
+  "qtModules": ["Core", "Gui", "Widgets", "Network", "Concurrent", "Svg", "OpenGL", "OpenGLWidgets", "WebEngineWidgets", "Quick"],
   "opensslVersion": "@OPENSSL_VERSION@",
   "cubismVersion": "@PANDD_CUBISM_VERSION@",
   "glewVersion": "@PANDD_GLEW_VERSION@",
@@ -173,7 +174,7 @@ endfunction()
 function(pandd_add_windows_runtime_copy target_name openssl_debug_runtime openssl_release_runtime)
     add_custom_command(TARGET "${target_name}" POST_BUILD
         COMMAND "${QT_WINDEPLOYQT_EXECUTABLE}"
-            --no-translations
+            --translations en,ja
             --no-system-d3d-compiler
             "$<TARGET_FILE:${target_name}>"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
@@ -235,6 +236,10 @@ add_library(launcher_live2d OBJECT
     apps/launcher/src/presentation/GameDetailPage.h
     apps/launcher/src/presentation/Live2DBackgroundWidget.cpp
     apps/launcher/src/presentation/Live2DBackgroundWidget.h
+    apps/launcher/src/presentation/vrm/VrmAssetCatalog.cpp
+    apps/launcher/src/presentation/vrm/VrmAssetCatalog.h
+    apps/launcher/src/presentation/vrm/VrmBackgroundWidget.cpp
+    apps/launcher/src/presentation/vrm/VrmBackgroundWidget.h
 )
 target_include_directories(launcher_live2d PUBLIC apps/launcher/src)
 target_link_libraries(launcher_live2d
@@ -246,9 +251,12 @@ target_link_libraries(launcher_live2d
         Qt6::OpenGL
         Qt6::OpenGLWidgets
         Qt6::Concurrent
+        Qt6::WebEngineWidgets
+        Qt6::Quick
 )
 pandd_target_platform_compile_options(launcher_live2d)
 pandd_add_live2d_resources(launcher_live2d)
+pandd_add_vrm_resources(launcher_live2d)
 
 qt_add_executable(GameLauncher WIN32 MACOSX_BUNDLE
     apps/launcher/src/main.cpp
@@ -373,7 +381,20 @@ if(BUILD_TESTING)
     )
     target_link_libraries(Live2DTests PRIVATE launcher_live2d Qt6::Test Qt6::Widgets)
     add_test(NAME Live2DTests COMMAND Live2DTests -o -,txt)
-    set_target_properties(LauncherDomainTests LauncherIntegrationTests Live2DTests Live2DPreview
+    qt_add_executable(VrmTests apps/launcher/tests/VrmTests.cpp)
+    target_link_libraries(VrmTests PRIVATE launcher_live2d Qt6::Test)
+    add_test(NAME VrmTests COMMAND VrmTests -o -,txt)
+    add_test(NAME VrmViewerTests COMMAND "${PANDD_NODE_EXECUTABLE}" --test
+        "${CMAKE_SOURCE_DIR}/apps/launcher/vrm-viewer/tests/glb.test.js")
+    qt_add_executable(VrmPreview apps/launcher/tests/VrmPreview.cpp)
+    target_link_libraries(VrmPreview PRIVATE launcher_live2d Qt6::Test)
+    set_target_properties(VrmTests VrmPreview PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    if(WIN32)
+        add_dependencies(VrmTests GameLauncher)
+        add_dependencies(VrmPreview GameLauncher)
+    endif()
+    set_target_properties(LauncherDomainTests LauncherIntegrationTests Live2DTests Live2DPreview VrmTests VrmPreview
         PROPERTIES WIN32_EXECUTABLE OFF MACOSX_BUNDLE OFF)
 
     if(WIN32)
@@ -406,7 +427,7 @@ if(BUILD_TESTING)
         )
         set_tests_properties(
             LauncherDomainTests LauncherIntegrationStateTests LauncherIntegrationDownloadTests
-            LauncherIntegrationProcessTests Live2DTests PROPERTIES
+            LauncherIntegrationProcessTests Live2DTests VrmTests PROPERTIES
             ENVIRONMENT_MODIFICATION "${TEST_PATH_MODIFICATIONS}"
         )
     endif()

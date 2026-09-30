@@ -70,6 +70,7 @@ local-test/
 .venv/
 .venv-uploader-build/
 .pnpm-store/
+node_modules/
 apps/intake-uploader/artifacts/
 apps/intake-uploader/build/
 apps/intake-uploader/src/pandd_intake_uploader/deployment/
@@ -80,8 +81,7 @@ apps/admin-web/public/music-editor/
 .wrangler/
 apps/docs/dist/
 apps/docs/.vitepress/
-apps/docs-worker/node_modules/
-apps/docs/node_modules/
+apps/launcher/vrm-viewer/dist/
 apps/docs-worker/.wrangler/
 apps/docs-worker/.dev.vars
 apps/docs-worker/deploy/

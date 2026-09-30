@@ -1,0 +1,11 @@
+{
+  "name": "pandd-vrm-viewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/viewer.js --bundle --minify --format=iife --target=chrome130 --outfile=dist/viewer.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": { "@pixiv/three-vrm": "3.4.0", "three": "0.180.0" },
+  "devDependencies": { "esbuild": "0.25.10" }
+}

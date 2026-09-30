@@ -25,6 +25,7 @@ type GitHubPermission = { permission: string; role_name: string };
 
 const SESSION_COOKIE = "pandd_deploy_session";
 const STATE_COOKIE = "pandd_github_state";
+const SESSION_LIFETIME_SECONDS = 3 * 60 * 60;
 const textEncoder = new TextEncoder();
 
 function runtimeEnv(): RuntimeEnv {
@@ -77,11 +78,11 @@ async function sign(payload: string): Promise<string> {
 
 /** 認証済みユーザー情報を署名付きHttpOnlyセッションCookieへ変換する */
 export async function createSessionCookie(user: SessionUser, request: Request): Promise<string> {
-  const expiresAt = Date.now() + 8 * 60 * 60 * 1000;
+  const expiresAt = Date.now() + SESSION_LIFETIME_SECONDS * 1000;
   const payload = base64UrlEncode(JSON.stringify({ user, expiresAt }));
   const value = `${payload}.${await sign(payload)}`;
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
-  return `${SESSION_COOKIE}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800${secure}`;
+  return `${SESSION_COOKIE}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_LIFETIME_SECONDS}${secure}`;
 }
 
 /** 現在のセッションCookieを期限切れにするSet-Cookie値を作る */
@@ -109,7 +110,9 @@ export async function readSession(request: Request): Promise<SessionUser | null>
       expiresAt: number;
     };
     // 古いCookieにゲーム許可を補完せず、サービス境界導入後は再ログインする。
-    if (decoded.expiresAt <= Date.now() || typeof decoded.user.gameAccess !== "boolean") return null;
+    const age = Date.now() - Date.parse(decoded.user.authenticatedAt);
+    if (decoded.expiresAt <= Date.now() || !Number.isFinite(age) || age < 0 ||
+        age >= SESSION_LIFETIME_SECONDS * 1000 || typeof decoded.user.gameAccess !== "boolean") return null;
     if (decoded.user.authSource === "local-development" && !localDevAuthAvailable(request)) return null;
     return decoded.user;
   } catch {
@@ -315,7 +318,7 @@ export async function requireSession(request: Request): Promise<SessionUser> {
 export async function requireRecentSession(request: Request): Promise<SessionUser> {
   const user = await requireSession(request);
   const age = Date.now() - Date.parse(user.authenticatedAt);
-  if (!Number.isFinite(age) || age > 15 * 60 * 1000) {
+  if (!Number.isFinite(age) || age < 0 || age >= SESSION_LIFETIME_SECONDS * 1000) {
     throw new Response("GitHub re-authentication is required", { status: 403 });
   }
   return user;

@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QPushButton>
+#include <QQuickWindow>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QtTest>
@@ -14,6 +15,8 @@
 
 /** @brief 開発者指定モデルを本番素材へ登録せず描画する */
 int main(int argc, char* argv[]) {
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QApplication application(argc, argv);
     QCommandLineParser parser;
     parser.setApplicationDescription("Live2D background visual verification (development only)");
@@ -56,9 +59,9 @@ int main(int argc, char* argv[]) {
     QTimer::singleShot(250, &page, [&page, background, baseline, asset] {
         *baseline = background->grabFramebuffer();
         // worker完了前に選択を置換する経路を検証する
-        page.setModel(asset);
-        page.setModel(std::nullopt);
-        page.setModel(asset);
+        page.setModel(asset, std::nullopt);
+        page.setModel(std::nullopt, std::nullopt);
+        page.setModel(asset, std::nullopt);
     });
     QObject::connect(
         background, &pandd::Live2DBackgroundWidget::modelReady, &page,
@@ -124,12 +127,12 @@ int main(int argc, char* argv[]) {
                             return;
                         }
                         // 同じ素材の再選択では読込済みinstanceを維持する
-                        page.setModel(asset);
+                        page.setModel(asset, std::nullopt);
                         if (!background->modelLoaded()) {
                             application.exit(9);
                             return;
                         }
-                        page.setModel(std::nullopt);
+                        page.setModel(std::nullopt, std::nullopt);
                         if (background->modelLoaded() || background->animationRunning()) {
                             application.exit(10);
                             return;
@@ -142,7 +145,7 @@ int main(int argc, char* argv[]) {
                             return;
                         }
                         page.resize(1280, 720);
-                        page.setModel(asset);
+                        page.setModel(asset, std::nullopt);
                     });
                 });
         });
