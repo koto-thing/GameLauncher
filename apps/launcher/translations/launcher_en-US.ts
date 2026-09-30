@@ -206,13 +206,21 @@ Find games from Home or Discover.</translation>
     </message>
     <message>
         <location filename="../src/presentation/LauncherWindow.cpp" line="433"/>
-        <source>Live2D背景を表示できません: %1</source>
-        <translation>Cannot display the Live2D background: %1</translation>
+        <source>モデル背景を表示できません: %1</source>
+        <translation>Cannot display the model background: %1</translation>
     </message>
     <message>
         <location filename="../src/presentation/LauncherWindow.cpp" line="439"/>
         <source>Live2D設定を読み込めません: %1</source>
         <translation>Cannot load Live2D settings: %1</translation>
+    </message>
+    <message>
+        <source>VRM設定を読み込めません: %1</source>
+        <translation>Cannot load VRM settings: %1</translation>
+    </message>
+    <message>
+        <source>Chromiumライセンス</source>
+        <translation>Chromium licenses</translation>
     </message>
     <message>
         <location filename="../src/presentation/LauncherWindow.cpp" line="447"/>
@@ -714,6 +722,13 @@ Continue?</translation>
         <location filename="../src/presentation/Live2DBackgroundWidget.cpp" line="245"/>
         <source>背景のOpenGL描画を初期化できませんでした</source>
         <translation>Could not initialize OpenGL for the background</translation>
+    </message>
+</context>
+<context>
+    <name>pandd::GameDetailPage</name>
+    <message>
+        <source>同じゲームにLive2DとVRMの両方が登録されています</source>
+        <translation>Both Live2D and VRM are registered for the same game</translation>
     </message>
 </context>
 </TS>

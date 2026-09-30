@@ -2,6 +2,7 @@
 
 #include "presentation/LauncherViewModel.h"
 #include "presentation/live2d/Live2DAssetCatalog.h"
+#include "presentation/vrm/VrmAssetCatalog.h"
 
 #include <QHash>
 #include <QMainWindow>
@@ -136,6 +137,7 @@ class LauncherWindow final : public QMainWindow {
     QSystemTrayIcon* trayIcon_{nullptr};
     GameDetailPage* detailPage_{nullptr};
     Live2DAssetCatalog live2dAssets_;
+    VrmAssetCatalog vrmAssets_;
     QSet<QString> runningGames_;
     QNetworkAccessManager* imageNetwork_{nullptr};
     QHash<QString, QPixmap> heroCache_;

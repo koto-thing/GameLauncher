@@ -1,7 +1,7 @@
 # Third-party notices
 
 PandD Game Launcher release metadata tracks Qt 6 modules Core, Gui, Widgets,
-Network, Concurrent, Svg, OpenGL, and OpenGLWidgets, and links to OpenSSL Crypto.
+Network, Concurrent, Svg, OpenGL, OpenGLWidgets, WebEngineWidgets, and Quick, and links to OpenSSL Crypto.
 The Test module is used only by the non-distributed test executables. All client
 CI builds use Live2D Cubism SDK for Native 5-r.5 and vcpkg GLEW 2.3.1 for the
 OpenGL integration. CMake records the resolved versions and modules directly.
@@ -11,6 +11,10 @@ generated SBOM is the authoritative version inventory for each platform release.
 - Qt 6: LGPL-3.0-only or the applicable module-specific license
 - Qt Installer Framework: GPL-3.0 with the Qt Company GPL exception
 - OpenSSL 3.x (required for production artifacts): Apache-2.0
+- Three.js 0.180.0: MIT, `licenses/ThreeJS-LICENSE.txt`
+- @pixiv/three-vrm 3.4.0 and its runtime packages: MIT, `licenses/ThreeVRM-LICENSE.txt`
+- Qt WebEngine includes Chromium and its third-party components under their respective
+  licenses; the installed Qt runtime supplies their notices at `chrome://credits`
 - Live2D Cubism Core: Live2D Proprietary Software License Agreement
 - Live2D Cubism Framework: Live2D Open Software License Agreement
 - GLEW 2.3.1: the complete GLEW, Mesa, and Khronos notices in

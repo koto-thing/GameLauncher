@@ -11,6 +11,7 @@
 #include <QLocalSocket>
 #include <QMessageBox>
 #include <QPixmap>
+#include <QQuickWindow>
 #include <QStyleHints>
 #include <QTranslator>
 
@@ -18,6 +19,9 @@
 
 /** @brief ランチャーを単一instanceで起動するentrypoint */
 int main(int argc, char* argv[]) {
+    // WebEngineとQt WidgetsでOpenGLコンテキストを共有する
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QApplication application(argc, argv);
     QImageReader::setAllocationLimit(128);
     QCoreApplication::setOrganizationName("PandD_org");

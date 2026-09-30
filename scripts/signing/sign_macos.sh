@@ -20,9 +20,16 @@ trap 'rm -rf "$notary_directory"' EXIT
 
 # Sign nested code before the containing bundle
 while IFS= read -r nested; do
-  codesign --force --options runtime --timestamp --sign "$identity" "$nested"
+  if [[ "$nested" == */QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess ]]; then
+    # Use the entitlements shipped with this exact Qt WebEngine runtime
+    entitlements="${nested%/MacOS/QtWebEngineProcess}/Resources/QtWebEngineProcess.entitlements"
+    test -f "$entitlements"
+    codesign --force --options runtime --timestamp --entitlements "$entitlements" --sign "$identity" "$nested"
+  else
+    codesign --force --options runtime --timestamp --sign "$identity" "$nested"
+  fi
 done < <(find "$app_path/Contents" -type f \( -name '*.dylib' -o -perm -111 \) -print)
-codesign --force --deep --options runtime --timestamp --sign "$identity" "$app_path"
+codesign --force --deep --preserve-metadata=entitlements --options runtime --timestamp --sign "$identity" "$app_path"
 codesign --verify --deep --strict --verbose=2 "$app_path"
 
 ditto -c -k --sequesterRsrc --keepParent "$app_path" "$notary_archive"

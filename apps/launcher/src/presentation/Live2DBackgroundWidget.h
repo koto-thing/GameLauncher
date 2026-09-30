@@ -1,5 +1,7 @@
 #pragma once
 
+#include "presentation/BackgroundArtwork.h"
+
 #include "presentation/live2d/Live2DAssetCatalog.h"
 #include "presentation/live2d/Live2DModelData.h"
 
@@ -63,11 +65,7 @@ class Live2DBackgroundWidget final : public QOpenGLWidget {
     void loadPendingModel();
     /** @brief モデル素材の検証と読込をワーカースレッドで開始する */
     void startModelLoad();
-    QPixmap hero_;
-    QPixmap scaledHero_;
-    QSize scaledSize_;
-    double focalX_{0.5};
-    double focalY_{0.5};
+    BackgroundArtwork artwork_;
     std::optional<Live2DAsset> asset_;
     std::unique_ptr<Live2DModel> model_;
     QTimer timer_;

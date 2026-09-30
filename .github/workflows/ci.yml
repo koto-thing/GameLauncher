@@ -36,9 +36,13 @@ jobs:
           # Ignore unrelated third-party repositories preinstalled on hosted runners
           test -f /etc/apt/sources.list.d/ubuntu.sources
           printf '%s\n' 'Dir::Etc::sourcelist "/etc/apt/sources.list.d/ubuntu.sources";' 'Dir::Etc::sourceparts "-";' | sudo tee /etc/apt/apt.conf.d/99pandd-sources
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
       - uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4
         with:
           version: '6.10.2'
+          modules: 'qtwebengine qtwebchannel qtpositioning'
           arch: linux_gcc_64
           cache: true
       - name: Restore vcpkg binary cache
@@ -104,9 +108,13 @@ jobs:
           # Ignore unrelated third-party repositories preinstalled on hosted runners
           test -f /etc/apt/sources.list.d/ubuntu.sources
           printf '%s\n' 'Dir::Etc::sourcelist "/etc/apt/sources.list.d/ubuntu.sources";' 'Dir::Etc::sourceparts "-";' | sudo tee /etc/apt/apt.conf.d/99pandd-sources
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
       - uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4
         with:
           version: '6.10.2'
+          modules: 'qtwebengine qtwebchannel qtpositioning'
           arch: ${{ matrix.qt_arch }}
           tools: 'tools_ifw,qt.tools.ifw.47'
           cache: true
