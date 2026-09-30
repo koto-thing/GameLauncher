@@ -15,7 +15,7 @@ test('OAuth and authenticated requests use workerd-compatible fetch without foll
   let challenge;
   const mf = new Miniflare({ workers: [{
     config: {
-      name: 'auth-fetch-test', type: 'worker', compatibilityDate: '2026-09-02',
+      name: 'auth-fetch-test', compatibilityDate: '2026-09-02',
       manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: `
         export default { async fetch(request) {
           const { url, options } = await request.json();
