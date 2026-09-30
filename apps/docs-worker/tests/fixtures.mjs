@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import worker from '../src/index.mjs';
 import { random, hash, encrypt, base64 } from '../src/crypto.mjs';
@@ -19,7 +19,9 @@ export class GitHub {
     this.user = { id: 42, login: 'collaborator' }; this.permission = 'write'; this.push = true; this.repoId = REPOSITORY_ID;
     this.blobs = new Map(); this.trees = new Map(); this.commits = new Map(); this.refs = new Map(); this.prs = []; this.calls = []; this.ci = 'success'; this.mergeable = true; this.mergeableState = 'clean'; this.published = null;
     const entries = [{ path: 'docs', mode: '040000', type: 'tree' }, { path: 'docs/guide', mode: '040000', type: 'tree' }];
-    for (const path of ['docs/guide/index.md','docs/navigation.json','docs/index.md']) entries.push({ path, mode: '100644', type: 'blob', sha: this.addBlob(readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8')) });
+    // 実際の目次が参照する記事をモックのリポジトリにも揃える
+    const articles = readdirSync(new URL('../../../docs/', import.meta.url), { recursive: true }).map(path => path.replaceAll('\\', '/')).filter(path => path.endsWith('.md'));
+    for (const path of ['docs/navigation.json', ...articles.map(path => `docs/${path}`)]) entries.push({ path, mode: '100644', type: 'blob', sha: this.addBlob(readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8')) });
     const treeSha = sha(entries); this.trees.set(treeSha, entries); this.base = sha('base'); this.commits.set(this.base, { sha: this.base, tree: { sha: treeSha }, parents: [] }); this.refs.set('master', this.base);
   }
   addBlob(content) { const id = sha(content); this.blobs.set(id, content); return id; }

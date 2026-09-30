@@ -33,6 +33,10 @@
           {
             "text": "Admin Web開発",
             "link": "/guide/admin-web-development"
+          },
+          {
+            "text": "利用申請と権限管理",
+            "link": "/guide/access-requests"
           }
         ]
       },

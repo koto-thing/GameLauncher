@@ -20,7 +20,6 @@ import {
   validatePolicy,
 } from "../domain/rules";
 import type {
-  AccountDirectory,
   MusicPublisher,
   Clock,
   IdSource,
@@ -40,7 +39,6 @@ export class MusicService {
       decodedAudioBudgetBytes: number;
       decodeSampleRateHz: number;
     },
-    readonly directory: AccountDirectory,
   ) {
     validatePolicy(policy);
   }
@@ -395,7 +393,7 @@ export class MusicService {
     ]);
     return { advertisement, accounts, audit };
   }
-  /** @brief GitHub数値IDを確認して、未ログインの担当者にも作品編集を手渡す */
+  /** @brief 登録済みの担当者だけに作品編集を付与・解除する */
   async changeMembership(
     gameId: string,
     accountId: string,
@@ -411,13 +409,13 @@ export class MusicService {
       "accountId",
     );
     // 解除はGitHub側で削除済みのアカウントにも実行できるよう、外部照会を要求しない
-    const account = enabled ? await this.directory.findById(accountId) : null;
+    const account = enabled ? (await this.repository.accounts()).find(/** @brief 対象のGitHubアカウントを照合する */ (candidate) => candidate.id === accountId) : null;
+    if (enabled) requireValue(Boolean(account), "新しい担当者は利用申請を行ってください。", "accountId");
     await this.repository.setMembership(
       gameId,
       accountId,
       enabled,
       actor,
-      account?.login ?? null,
     );
   }
 }

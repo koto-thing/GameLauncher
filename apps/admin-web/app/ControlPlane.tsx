@@ -412,6 +412,7 @@ function SignIn({ response }: { response: DashboardResponse }) {
         <p className="eyebrow">IDENTITY REQUIRED</p>
         <h1>GitHubアカウントで<br />公開責任を確認します。</h1>
         <p>個人リポジトリのOwnerと、Adminが許可したCollaboratorだけが操作できます。</p>
+        <a href="/access">利用を申請する・申請状況を確認する</a>
 
         {response.githubAuthConfigured ? (
           <a className="primary-link" href="/api/auth/github/start">GitHubでログイン</a>
@@ -664,7 +665,7 @@ function AccessWorkspace({ dashboard, busy, runAction }: {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
-    await runAction({ action: "set_grant", githubUserId: data.get("githubUserId"), login: data.get("login"), grantType: data.get("grantType"), enabled: true }, "権限を付与しました");
+    await runAction({ action: "set_grant", githubUserId: data.get("githubUserId"), grantType: data.get("grantType"), enabled: true }, "権限を付与しました");
     form.reset();
   }
 
@@ -673,14 +674,14 @@ function AccessWorkspace({ dashboard, busy, runAction }: {
       <div><p className="eyebrow">ACCESS POLICY</p><h2>個別アカウント権限</h2><p className="section-copy">個人所有リポジトリのCollaboratorから、PandDで操作できる人だけを明示的に許可します。</p></div>
 
       <form className="access-form" onSubmit={submit}>
-        <label>GitHub user ID<input name="githubUserId" inputMode="numeric" placeholder="数値ID" required /></label>
-        <label>GitHubログイン名<input name="login" placeholder="octocat" required /></label>
+        <a href="/access">利用申請を審査する →</a>
+        <label>登録済みユーザー<select name="githubUserId" required><option value="">ユーザーを選択</option>{dashboard.users.map((user) => <option key={user.githubUserId} value={user.githubUserId}>@{user.login}</option>)}</select></label>
         <label>付与する権限<select name="grantType"><option value="requester">Maintain相当申請者</option><option value="approver">指名承認者候補</option><option value="production_requester">Production申請者</option></select></label>
         <button className="primary-button" disabled={busy}>権限を付与</button>
       </form>
 
       <div className="user-table">
-        {dashboard.users.map((user) => <div className="user-row" key={user.githubUserId}><span className="avatar small">{user.login.slice(0, 1).toUpperCase()}</span><div><strong>@{user.login}</strong><small>ID {user.githubUserId}</small></div><div className="grant-list">{user.isAdmin && <span>ADMIN</span>}{user.grants.map((grant) => <button type="button" disabled={busy} title={`${grant}を取り消す`} key={grant} onClick={() => runAction({ action: "set_grant", githubUserId: user.githubUserId, login: user.login, grantType: grant, enabled: false }, "権限を取り消しました")}>{grant.replaceAll("_", " ")} ×</button>)}</div></div>)}
+        {dashboard.users.map((user) => <div className="user-row" key={user.githubUserId}><span className="avatar small">{user.login.slice(0, 1).toUpperCase()}</span><div><strong>@{user.login}</strong></div><div className="grant-list">{user.isAdmin && <span>ADMIN</span>}{user.grants.map((grant) => <button type="button" disabled={busy} title={`${grant}を取り消す`} key={grant} onClick={() => runAction({ action: "set_grant", githubUserId: user.githubUserId, grantType: grant, enabled: false }, "権限を取り消しました")}>{grant.replaceAll("_", " ")} ×</button>)}</div></div>)}
       </div>
     </section>
   );

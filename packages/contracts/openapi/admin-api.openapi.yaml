@@ -36,6 +36,77 @@ paths:
             Set-Cookie: { schema: { type: string } }
         "400": { $ref: "#/components/responses/TextBadRequest" }
         "404": { description: ローカル開発認証が無効。 }
+  /api/access-requests:
+    get:
+      operationId: listAccessRequests
+      tags: [Authentication]
+      security: [{}, { cookieAuth: [] }]
+      summary: 本人の利用申請または運営の審査一覧を取得する
+      description: 未認証時はログイン設定とuser=nullを返す。review=trueはサービスの運営だけ。承認待ちを優先して最新100件。
+      parameters:
+        - in: query
+          name: service
+          schema: { type: string, enum: [game, music], default: game }
+        - in: query
+          name: review
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: 本人情報、申請一覧、審査可否。作品候補はMusic運営の審査一覧のみ
+        '403':
+          description: 審査権限がない
+        '503':
+          description: Music無効または接続・設定エラー
+    post:
+      operationId: submitOrDecideAccessRequest
+      tags: [Authentication]
+      summary: 利用申請を提出または審査する
+      description: 同一originのCookieと15分以内の本人確認が必要。本人IDはCookieから取得。承認と権限付与は原子的に確定する。
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [action, service, displayName, purpose]
+                  properties:
+                    action: { const: submit }
+                    service: { type: string, enum: [game, music] }
+                    displayName: { type: string, minLength: 1, maxLength: 80 }
+                    purpose: { type: string, minLength: 1, maxLength: 1000 }
+                    target: { type: string, minLength: 1, maxLength: 120, description: Musicで必須の担当希望作品名 }
+                - type: object
+                  required: [action, service, id, decision]
+                  properties:
+                    action: { const: decide }
+                    service: { type: string, enum: [game, music] }
+                    id: { type: string, maxLength: 100 }
+                    decision: { type: string, enum: [approved, rejected] }
+                    reason: { type: string, maxLength: 1000, description: 却下時に必須 }
+                    grantType: { type: string, enum: [requester, approver, production_requester], description: ゲーム承認時に必須 }
+                    gameId: { type: string, maxLength: 100, description: Music承認時に必須 }
+      responses:
+        '200':
+          description: 審査を確定した
+        '201':
+          description: 申請を作成した
+        '400':
+          description: 入力が不正
+        '401':
+          description: ログインが必要
+        '403':
+          description: CSRF、再認証期限、審査権限不足または自己審査
+        '404':
+          description: 対象サービスの申請が見つからない
+        '409':
+          description: 承認待ちの重複、審査競合、またはGitHubリポジトリ権限不足
+        '413':
+          description: 入力上限を超えた
+        '503':
+          description: Music無効または接続・設定エラー
+
   /api/auth/github/start:
     get:
       tags: [Authentication]
@@ -417,11 +488,10 @@ components:
       discriminator: { propertyName: action }
     SetGrantAction:
       type: object
-      required: [action, githubUserId, login, grantType, enabled]
+      required: [action, githubUserId, grantType, enabled]
       properties:
         action: { const: set_grant }
         githubUserId: { type: string, pattern: "^[0-9]+$" }
-        login: { type: string, maxLength: 39 }
         grantType: { type: string, enum: [requester, approver, production_requester] }
         enabled: { type: boolean }
     CreateRequestAction:

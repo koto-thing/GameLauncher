@@ -274,3 +274,16 @@ input::placeholder { color: #98a2b3; }input[readonly] { color: #344054; backgrou
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
+/* 利用申請は小さい画面でも入力・審査の順序を保つ */
+.access-page { max-width: 960px; }
+.access-toolbar, .access-identity { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; margin: 1.5rem 0; }
+.access-page label { display: grid; gap: .5rem; }
+.access-page input, .access-page select, .access-page textarea { max-width: 100%; padding: .7rem; color: inherit; background: var(--panel); border: 1px solid var(--line); border-radius: .4rem; }
+.access-page .access-form { display: grid; gap: 1rem; margin: 1.5rem 0; }
+.access-request-list { display: grid; gap: 1.5rem; }
+.access-review { display: grid; gap: 1rem; margin-top: 1rem; }
+.access-identity img { border-radius: 50%; }
+.access-identity strong { max-width: 100%; overflow-wrap: anywhere; }
+.access-purpose { white-space: pre-wrap; overflow-wrap: anywhere; }
+.access-page button { padding: .7rem 1rem; cursor: pointer; }
+.access-page button:disabled { cursor: wait; opacity: .6; }

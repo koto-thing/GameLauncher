@@ -3,11 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import ts from "typescript";
 
-// Cloudflare bindingだけ固定して署名付きCookieと管理操作の期限を確認する
+// 外部サービスの読み込みを除外して署名付きCookieと管理操作の期限を確認する
 test("sessions and management actions expire after three hours", async () => {
   const source = (await readFile(new URL("../lib/auth.ts", import.meta.url), "utf8"))
     .replace('import { env } from "cloudflare:workers";', 'const env = { SESSION_SECRET: "test-session-secret-with-32-characters" };')
-    .replace('import { ensureSchema, getD1 } from "@/db/initialize";', "");
+    .replace('import { ensureSchema, getD1 } from "@/db/initialize";', "")
+    .replace('import { githubRepositoryAccess } from "@/lib/github-app";', "");
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext } }).outputText;
   const auth = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
   const originalNow = Date.now;

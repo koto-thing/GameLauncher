@@ -4,6 +4,26 @@ import { env } from "cloudflare:workers";
 let initialized: Promise<void> | undefined;
 
 const statements = [
+  `CREATE TABLE IF NOT EXISTS access_requests (
+    id TEXT PRIMARY KEY,
+    applicant_id TEXT NOT NULL REFERENCES users(github_user_id),
+    service TEXT NOT NULL CHECK(service IN ('game','music')),
+    target TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','approved','rejected')),
+    created_at TEXT NOT NULL,
+    decided_at TEXT,
+    decided_by TEXT REFERENCES users(github_user_id),
+    reason TEXT NOT NULL DEFAULT '',
+    grant_type TEXT,
+    game_id TEXT,
+    decision_token TEXT,
+    repository_access INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS access_requests_pending ON access_requests(applicant_id, service, target) WHERE state='pending'`,
+  `CREATE INDEX IF NOT EXISTS access_requests_review ON access_requests(service, state, created_at)`,
+  `CREATE INDEX IF NOT EXISTS access_requests_applicant ON access_requests(applicant_id, created_at)`,
   `CREATE TABLE IF NOT EXISTS physical_editions (
     edition_id TEXT PRIMARY KEY,
     definition_json TEXT NOT NULL,

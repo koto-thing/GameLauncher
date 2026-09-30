@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { ensureSchema, getD1 } from "@/db/initialize";
+import { githubRepositoryAccess } from "@/lib/github-app";
 
 export type SessionUser = {
   githubUserId: string;
@@ -114,6 +115,16 @@ export async function readSession(request: Request): Promise<SessionUser | null>
     if (decoded.expiresAt <= Date.now() || !Number.isFinite(age) || age < 0 ||
         age >= SESSION_LIFETIME_SECONDS * 1000 || typeof decoded.user.gameAccess !== "boolean") return null;
     if (decoded.user.authSource === "local-development" && !localDevAuthAvailable(request)) return null;
+    // 承認後は既存Cookieでも新しいリポジトリ許可を確認して利用を開始できる
+    if (!decoded.user.gameAccess && decoded.user.authSource === "github") {
+      await ensureSchema();
+      const grant = await getD1().prepare("SELECT 1 FROM policy_grants WHERE github_user_id=? AND revoked_at IS NULL LIMIT 1")
+        .bind(decoded.user.githubUserId).first();
+      if (grant) {
+        try { decoded.user.gameAccess = await githubRepositoryAccess(decoded.user.githubUserId); }
+        catch { decoded.user.gameAccess = false; }
+      }
+    }
     return decoded.user;
   } catch {
     return null;
@@ -193,7 +204,7 @@ export async function verifyGithubIdentity(accessToken: string): Promise<Session
     authenticatedAt: new Date().toISOString(),
     authSource: "github",
   };
-  if (gameAccess) await upsertUser(actor);
+  await upsertUser(actor);
   return actor;
 }
 
@@ -316,7 +327,13 @@ export async function requireSession(request: Request): Promise<SessionUser> {
 
 /** 直近に本人確認されたセッションだけを重要操作へ通す */
 export async function requireRecentSession(request: Request): Promise<SessionUser> {
-  const user = await requireSession(request);
+  return requireGameAccess(await requireRecentIdentity(request));
+}
+
+/** @brief サービス利用権限を要求せず直近の本人確認だけを検証する */
+export async function requireRecentIdentity(request: Request): Promise<SessionUser> {
+  const user = await readSession(request);
+  if (!user) throw new Response("ログインしてください", { status: 401 });
   const age = Date.now() - Date.parse(user.authenticatedAt);
   if (!Number.isFinite(age) || age < 0 || age >= SESSION_LIFETIME_SECONDS * 1000) {
     throw new Response("GitHub re-authentication is required", { status: 403 });
