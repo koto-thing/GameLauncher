@@ -35,7 +35,7 @@ jobs:
             apps/docs-worker/package-lock.json
       - name: Install the verified Doxygen generator
         run: |
-          curl --proto '=https' --fail --location https://www.doxygen.nl/files/doxygen-1.18.0.linux.bin.tar.gz -o "$RUNNER_TEMP/doxygen.tar.gz"
+          curl --proto '=https' --fail --location https://github.com/doxygen/doxygen/releases/download/Release_1_18_0/doxygen-1.18.0.linux.bin.tar.gz -o "$RUNNER_TEMP/doxygen.tar.gz"
           echo "14fa81bdc34171edb5f1f02b1d60e74802f0439b77fa44e592565d517d72df90  $RUNNER_TEMP/doxygen.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/doxygen.tar.gz" -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/doxygen-1.18.0/bin" >> "$GITHUB_PATH"
@@ -85,7 +85,7 @@ jobs:
           name: verified-docs-${{ github.sha }}
           path: verified-docs
       - name: Install the pinned deployment CLI without application lifecycle scripts
-        run: npm install --prefix "$RUNNER_TEMP/docs-cli" --ignore-scripts wrangler@4.127.0
+        run: npm install --prefix "$RUNNER_TEMP/docs-cli" --ignore-scripts wrangler@4.144.0
       - name: Verify trusted commit and prevent overwriting a newer published version
         id: order
         env:

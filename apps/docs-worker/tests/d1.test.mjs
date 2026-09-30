@@ -6,7 +6,7 @@ import { fixture } from './fixtures.mjs';
 import { page, save, owned } from '../src/changes.mjs';
 import { rateLimit } from '../src/http.mjs';
 test('real workerd D1 supports migrations, atomic locks, UPSERT RETURNING and save recovery', async () => {
-  const mf = new Miniflare({ workers: [{ config: { name: 'docs-test', type: 'worker', compatibilityDate: '2026-09-02', manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: 'export default { fetch() { return new Response("test"); } }' } } }, env: { DOCS_DB: { type: 'd1', id: 'docs-test-db' } } } }] });
+  const mf = new Miniflare({ workers: [{ config: { name: 'docs-test', compatibilityDate: '2026-09-02', manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: 'export default { fetch() { return new Response("test"); } }' } } }, env: { DOCS_DB: { type: 'd1', id: 'docs-test-db' } } } }] });
   try {
     const db = await mf.getD1Database('DOCS_DB');
     const sql = await readFile(new URL('../migrations/0001_docs.sql',import.meta.url),'utf8');
