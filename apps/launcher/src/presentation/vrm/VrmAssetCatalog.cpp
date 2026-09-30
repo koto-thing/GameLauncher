@@ -35,7 +35,7 @@ bool VrmAssetCatalog::load(QString& error) {
 bool VrmAssetCatalog::parse(const QByteArray& json, const QString& root, QString& error) {
     assets_.clear();
     error.clear();
-    if (json.size() > 1024 * 1024) {
+    if (json.size() > 1024LL * 1024) {
         error = QStringLiteral("VRM registry exceeds the size limit");
         return false;
     }

@@ -42,9 +42,9 @@ VrmBackgroundWidget::VrmBackgroundWidget(QWidget* parent) : QWidget(parent) {
     // 読込中だけ状態を確認し失敗を通常UIへ通知する
     connect(&poll_, &QTimer::timeout, this, [this] {
         const auto id = requestId_;
-        const QPointer<VrmBackgroundWidget> guard(this);
         view_->page()->runJavaScript(
-            QStringLiteral("window.vrmStatus"), [guard, id](const QVariant& result) {
+            QStringLiteral("window.vrmStatus"),
+            [guard = QPointer<VrmBackgroundWidget>(this), id](const QVariant& result) {
                 if (!guard || guard->requestId_ != id || !guard->poll_.isActive())
                     return;
                 const auto status = result.toMap();
