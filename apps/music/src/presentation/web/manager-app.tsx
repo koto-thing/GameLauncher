@@ -63,6 +63,7 @@ export function ManagerApp({ player, analyzeLoudness }: { player: Player; analyz
         <nav aria-label="管理機能">
           <Link to="/manage">担当作品</Link>
           <Link to="/publications">公開処理</Link>
+          <a href="/access?service=music">利用申請・審査</a>
         </nav>
         <ThemeToggle />
       </header>
@@ -82,7 +83,7 @@ export function ManagerApp({ player, analyzeLoudness }: { player: Player; analyz
         ) : state?.user && !state.session ? (
           <p role="alert">
             {state.user.login}:
-            Musicの担当割り当てがありません。Music運営にGitHub数値IDを伝えてください。
+            Musicの担当割り当てがありません。<a href="/access?service=music">担当作品の利用を申請する</a>
           </p>
         ) : (
           <Outlet />

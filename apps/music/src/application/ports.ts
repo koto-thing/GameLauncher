@@ -42,7 +42,6 @@ export interface MusicRepository {
     accountId: string,
     enabled: boolean,
     actor: Principal,
-    login: string | null,
   ): Promise<void>;
   audit(): Promise<AuditEntry[]>;
 }
@@ -60,9 +59,6 @@ export interface Session {
   principal: Principal;
   csrf: string;
   expiresAt: number;
-}
-export interface AccountDirectory {
-  findById(id: string): Promise<{ id: string; login: string }>;
 }
 export interface Clock {
   now(): number;

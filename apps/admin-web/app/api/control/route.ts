@@ -15,7 +15,7 @@ import {
 
 // action プロパティをIDとして、ペイロードごとの型定義を分ける
 type ControlAction =
-  | { action: "set_grant"; githubUserId: string; login: string; grantType: GrantType; enabled: boolean }
+  | { action: "set_grant"; githubUserId: string; grantType: GrantType; enabled: boolean }
   | { action: "create_request"; artifactId: string; gameId: string; version: string; artifactSha256: string; sizeBytes: number; fileCount: number }
   | { action: "create_production_request"; sourceStagingRequestId: string }
   | { action: "designate_approver"; requestId: string; approverGithubUserId: string }

@@ -358,7 +358,6 @@ export class D1MusicRepository implements MusicRepository {
     accountId: string,
     enabled: boolean,
     actor: Principal,
-    login: string | null,
   ): Promise<void> {
     const statement = enabled
       ? this.db
@@ -372,12 +371,6 @@ export class D1MusicRepository implements MusicRepository {
           )
           .bind(gameId, accountId, actor.id);
     await this.db.batch([
-      // 先行ログインを不要にしつつ、担当割当からadminを作れないよう0で登録する。
-      this.db
-        .prepare(
-          `INSERT INTO music_accounts(id,login,admin) SELECT ?,?,0 WHERE ? IS NOT NULL AND ${ADMIN} ON CONFLICT(id) DO UPDATE SET login=excluded.login`,
-        )
-        .bind(accountId, login ?? "", login, actor.id),
       statement,
       this.db
         .prepare(

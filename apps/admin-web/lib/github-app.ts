@@ -24,9 +24,9 @@ function dispatchEnabled(current: GitHubAppEnv, environment: DeploymentEnvironme
     : current.STAGING_DISPATCH_ENABLED === "true";
 }
 
-function config(environment: DeploymentEnvironment) {
+function config(environment?: DeploymentEnvironment) {
   const current = env as unknown as GitHubAppEnv;
-  if (!dispatchEnabled(current, environment) ||
+  if ((environment && !dispatchEnabled(current, environment)) ||
       !current.GITHUB_APP_ID || !current.GITHUB_APP_INSTALLATION_ID ||
       !current.GITHUB_APP_PRIVATE_KEY) {
     throw new Error("GitHub App dispatch設定が不足しています");
@@ -48,7 +48,7 @@ export function githubAppDispatchConfigured(environment: DeploymentEnvironment):
   );
 }
 
-async function installationToken(environment: DeploymentEnvironment): Promise<string> {
+async function installationToken(environment?: DeploymentEnvironment): Promise<string> {
   const current = config(environment);
   const pkcs8 = createPrivateKey(current.privateKey)
     .export({ format: "pem", type: "pkcs8" })
@@ -65,6 +65,8 @@ async function installationToken(environment: DeploymentEnvironment): Promise<st
     `https://api.github.com/app/installations/${encodeURIComponent(current.installationId)}/access_tokens`,
     {
       method: "POST",
+      redirect: "manual",
+      signal: AbortSignal.timeout(10000),
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${jwt}`,
@@ -74,7 +76,7 @@ async function installationToken(environment: DeploymentEnvironment): Promise<st
       },
       body: JSON.stringify({
         repositories: ["GameLauncher"],
-        permissions: { actions: "write", contents: "read" },
+        permissions: environment ? { actions: "write", contents: "read" } : { metadata: "read" },
       }),
     },
   );
@@ -83,6 +85,35 @@ async function installationToken(environment: DeploymentEnvironment): Promise<st
     throw new Error(result.message ?? "GitHub App installation tokenを取得できませんでした");
   }
   return result.token;
+}
+
+/** @brief 数値IDから現在の本人とリポジトリ権限を再確認する */
+export async function githubRepositoryAccess(id: string): Promise<boolean> {
+  const token = await installationToken();
+  const headers = {
+    accept: "application/vnd.github+json",
+    authorization: `Bearer ${token}`,
+    "x-github-api-version": "2026-03-10",
+    "user-agent": "PandD-Deployment-Control-Plane",
+  };
+
+  // 名前変更や旧ユーザー名の再利用によって別人へ付与しない
+  const identity = await fetch(`https://api.github.com/user/${encodeURIComponent(id)}`, {
+    headers, redirect: "manual", signal: AbortSignal.timeout(10000),
+  });
+  if (identity.status === 404) return false;
+  if (!identity.ok) throw new Error("GitHubの本人情報を確認できません。時間をおいて再試行してください");
+  const user = await identity.json() as { id: number; login: string };
+  if (String(user.id) !== id || typeof user.login !== "string") throw new Error("GitHubの本人情報が一致しません");
+
+  const response = await fetch(`https://api.github.com/repos/koto-thing/GameLauncher/collaborators/${encodeURIComponent(user.login)}/permission`, {
+    headers, redirect: "manual", signal: AbortSignal.timeout(10000),
+  });
+  if (response.status === 404) return false;
+  if (!response.ok) throw new Error("GitHubのリポジトリ権限を確認できません。App設定を確認して再試行してください");
+  const permission = await response.json() as { permission: string; role_name: string; user: { id: number } };
+  return String(permission.user?.id) === id &&
+    (permission.permission === "write" || permission.permission === "admin" || permission.role_name === "maintain");
 }
 
 /**

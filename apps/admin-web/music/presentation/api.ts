@@ -59,7 +59,7 @@ export async function musicApi(request: Request): Promise<Response> {
     if (!actor)
       throw new MusicError(
         "FORBIDDEN",
-        "Musicの担当割り当てがありません。GitHub数値IDをMusic運営に伝えてください。",
+        "Musicの担当割り当てがありません。利用申請から担当作品を申請してください。",
       );
 
     if (!["GET", "HEAD"].includes(method)) {

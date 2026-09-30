@@ -35,7 +35,7 @@ export default function Home() {
         </section>
       </div>
 
-      <p className="service-home-note">各サービスの利用にはGitHubログインと権限が必要です。</p>
+      <p className="service-home-note">各サービスの利用にはGitHubログインと権限が必要です。 <a href="/access">利用申請・申請の審査 →</a></p>
     </main>
   );
 }

@@ -36,7 +36,12 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     // requireGameAccess などが事前に生成した HTTP レスポンスを投げたときはそのまま返す
-    if (error instanceof Response) return error;
+    if (error instanceof Response) return Response.json({
+      authenticated: error.status !== 401,
+      githubAuthConfigured: githubAuthConfigured(),
+      localDevAuthAvailable: localDevAuthAvailable(request),
+      error: error.status === 403 ? "ゲーム管理の利用権限がありません。利用申請から申請してください" : "ログインしてください",
+    }, { status: error.status });
 
     // そのほかは HTTP 500として返す
     const message = error instanceof Error ? error.message : "画面情報を取得できませんでした";

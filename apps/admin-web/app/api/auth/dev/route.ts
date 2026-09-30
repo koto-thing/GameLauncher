@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   // ユーザー情報の準備
   const user = { ...template, authenticatedAt: new Date().toISOString() };
   // セッション発行とリダイレクトを行う
-  if (user.gameAccess) await upsertUser(user);
+  await upsertUser(user);
   return new Response(null, {
     status: 302,
     headers: {
