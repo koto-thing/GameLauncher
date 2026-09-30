@@ -27,7 +27,9 @@ class VrmTests final : public QObject {
         QVERIFY2(catalog.load(error), qPrintable(error));
         QVERIFY(catalog.parse(registry("character/avatar.vrm"), ":/vrm", error));
         const auto asset = catalog.find("test-game");
-        QVERIFY(asset.has_value());
+        if (!asset.has_value()) {
+            QFAIL("Registered VRM model was not found");
+        }
         QCOMPARE(asset->modelPath, ":/vrm/character/avatar.vrm");
         QCOMPARE(asset->centerX, 0.65F);
         QVERIFY(!catalog.find("other-game"));
