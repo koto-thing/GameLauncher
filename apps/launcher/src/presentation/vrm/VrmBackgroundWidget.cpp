@@ -4,7 +4,6 @@
 #include <QHideEvent>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QPointer>
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QWebEnginePage>
@@ -43,20 +42,20 @@ VrmBackgroundWidget::VrmBackgroundWidget(QWidget* parent) : QWidget(parent) {
     connect(&poll_, &QTimer::timeout, this, [this] {
         const auto id = requestId_;
         view_->page()->runJavaScript(
-            QStringLiteral("window.vrmStatus"),
-            [guard = QPointer<VrmBackgroundWidget>(this), id](const QVariant& result) {
-                if (!guard || guard->requestId_ != id || !guard->poll_.isActive())
+            QStringLiteral("window.vrmStatus"), [this, id](const QVariant& result) {
+                // ページ破棄時の無効な結果はメンバーに触れる前に破棄する
+                if (!result.isValid() || requestId_ != id || !poll_.isActive())
                     return;
                 const auto status = result.toMap();
                 const auto state = status.value("state").toString();
                 if (state == "ready") {
-                    guard->poll_.stop();
-                    emit guard->modelReady();
-                } else if (state == "error" || ++guard->polls_ >= 120) {
-                    guard->poll_.stop();
-                    emit guard->backgroundError(state == "error"
-                                                    ? status.value("message").toString()
-                                                    : QStringLiteral("VRM loading timed out"));
+                    poll_.stop();
+                    emit modelReady();
+                } else if (state == "error" || ++polls_ >= 120) {
+                    poll_.stop();
+                    emit backgroundError(state == "error"
+                                             ? status.value("message").toString()
+                                             : QStringLiteral("VRM loading timed out"));
                 }
             });
     });
@@ -66,6 +65,7 @@ VrmBackgroundWidget::VrmBackgroundWidget(QWidget* parent) : QWidget(parent) {
 VrmBackgroundWidget::~VrmBackgroundWidget() {
     ++requestId_;
     poll_.stop();
+    // メンバーが有効な間にページを破棄し保留中のコールバックを完了させる
     delete view_;
 }
 
