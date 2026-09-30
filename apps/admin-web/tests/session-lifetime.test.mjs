@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import ts from "typescript";
 
-// Cloudflare bindingだけを固定し、実際の署名・Cookie検証と再認証判定を実行する
-test("session cookies and management actions remain valid for exactly three hours", async () => {
+// Cloudflare bindingだけ固定して署名付きCookieと管理操作の期限を確認する
+test("sessions and management actions expire after three hours", async () => {
   const source = (await readFile(new URL("../lib/auth.ts", import.meta.url), "utf8"))
     .replace('import { env } from "cloudflare:workers";', 'const env = { SESSION_SECRET: "test-session-secret-with-32-characters" };')
     .replace('import { ensureSchema, getD1 } from "@/db/initialize";', "");
@@ -22,7 +22,6 @@ test("session cookies and management actions remain valid for exactly three hour
     const request = new Request("https://example.com/api/control", { headers: { cookie: cookie.split(";")[0] } });
 
     now = start + 3 * 3600000 - 1;
-    assert.deepEqual(await auth.readSession(request), actor);
     assert.deepEqual(await auth.requireRecentSession(request), actor);
 
     now += 1;

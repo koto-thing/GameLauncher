@@ -444,14 +444,14 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
   const requestListRef = useRef<HTMLDivElement>(null);
   const approvers = dashboard.users.filter((user) => user.grants.includes("approver"));
 
-  // カードの可変高さと画面幅に合わせて、一覧の高さを先頭4件分に制限する
+  // カードの可変高さと画面幅に合わせて一覧を先頭4件分の高さに制限する
   useEffect(() => {
     const list = requestListRef.current;
     if (!list || dashboard.requests.length <= 4) return;
 
     const cards = Array.from(list.children).slice(0, 4) as HTMLElement[];
 
-    // 4件目の下端までを表示し、残りのカードは一覧内でスクロールする
+    // 4件目の下端まで表示し、残りは一覧内でスクロールする
     const updateHeight = () => {
       const first = cards[0].getBoundingClientRect();
       const fourth = cards[3].getBoundingClientRect();
@@ -489,12 +489,7 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
         </article>
       </div>
 
-      <div
-        ref={requestListRef}
-        className={`request-list${dashboard.requests.length > 4 ? " request-list-scrollable" : ""}`}
-        role="region"
-        aria-label="公開申請一覧"
-      >
+      <div ref={requestListRef} className={`request-list${dashboard.requests.length > 4 ? " request-list-scrollable" : ""}`} role="region" aria-label="公開申請一覧">
         {dashboard.requests.length === 0 && <div className="empty-state"><strong>申請はまだありません</strong><span>最初のartifact情報を登録すると、監査記録がここから始まります。</span></div>}
         {dashboard.requests.map((request) => (
           <RequestCard key={request.requestId} request={request} dashboard={dashboard} approvers={approvers} busy={busy} runAction={runAction} />
