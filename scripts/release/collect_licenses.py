@@ -9,6 +9,10 @@ from pathlib import Path
 
 SOURCE_DIRECTORY = Path(__file__).resolve().parents[2] / "licenses"
 LICENSE_SOURCES = {
+    "ThreeJS-LICENSE.txt":
+        "bfe119ea4fd413f5f7ca3fcd63adb0c4a073ed39daa2fe7d3e6b769e21272601",
+    "ThreeVRM-LICENSE.txt":
+        "387a46128d34de9d85ea1e07a5a716dba532dbabca6c10adad447f48a29518d3",
     "LGPL-3.0-only.txt":
         "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
     "GPL-3.0-only.txt":

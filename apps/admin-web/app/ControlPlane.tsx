@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 type Actor = {
   githubUserId: string;
@@ -441,7 +441,32 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
   runAction: (payload: Record<string, unknown>, success: string) => Promise<void>;
 }) {
   const [showForm, setShowForm] = useState(false);
+  const requestListRef = useRef<HTMLDivElement>(null);
   const approvers = dashboard.users.filter((user) => user.grants.includes("approver"));
+
+  // カードの可変高さと画面幅に合わせて、一覧の高さを先頭4件分に制限する
+  useEffect(() => {
+    const list = requestListRef.current;
+    if (!list || dashboard.requests.length <= 4) return;
+
+    const cards = Array.from(list.children).slice(0, 4) as HTMLElement[];
+
+    // 4件目の下端までを表示し、残りのカードは一覧内でスクロールする
+    const updateHeight = () => {
+      const first = cards[0].getBoundingClientRect();
+      const fourth = cards[3].getBoundingClientRect();
+      list.style.setProperty("--request-list-height", `${fourth.bottom - first.top}px`);
+    };
+
+    const observer = new ResizeObserver(updateHeight);
+    cards.forEach((card) => observer.observe(card));
+    updateHeight();
+
+    return () => {
+      observer.disconnect();
+      list.style.removeProperty("--request-list-height");
+    };
+  }, [dashboard.requests]);
 
   return (
     <section className="workspace">
@@ -464,7 +489,12 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
         </article>
       </div>
 
-      <div className="request-list">
+      <div
+        ref={requestListRef}
+        className={`request-list${dashboard.requests.length > 4 ? " request-list-scrollable" : ""}`}
+        role="region"
+        aria-label="公開申請一覧"
+      >
         {dashboard.requests.length === 0 && <div className="empty-state"><strong>申請はまだありません</strong><span>最初のartifact情報を登録すると、監査記録がここから始まります。</span></div>}
         {dashboard.requests.map((request) => (
           <RequestCard key={request.requestId} request={request} dashboard={dashboard} approvers={approvers} busy={busy} runAction={runAction} />

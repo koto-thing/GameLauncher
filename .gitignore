@@ -81,6 +81,8 @@ apps/admin-web/public/music-editor/
 apps/docs/dist/
 apps/docs/.vitepress/
 apps/docs-worker/node_modules/
+apps/launcher/vrm-viewer/node_modules/
+apps/launcher/vrm-viewer/dist/
 apps/docs/node_modules/
 apps/docs-worker/.wrangler/
 apps/docs-worker/.dev.vars

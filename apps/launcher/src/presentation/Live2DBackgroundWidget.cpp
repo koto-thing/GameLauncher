@@ -48,9 +48,7 @@ Live2DBackgroundWidget::~Live2DBackgroundWidget() {
 
 /** @brief ヒーロー画像を設定して表示を更新する */
 void Live2DBackgroundWidget::setHero(const QPixmap& hero) {
-    hero_ = hero;
-    scaledHero_ = {};
-    scaledSize_ = {};
+    artwork_.setHero(hero);
     update();
 }
 
@@ -62,8 +60,7 @@ void Live2DBackgroundWidget::clearHero() {
 
 /** @brief ヒーロー画像の切り抜き焦点を設定する */
 void Live2DBackgroundWidget::setFocalPoint(double x, double y) {
-    focalX_ = std::clamp(x, 0.0, 1.0);
-    focalY_ = std::clamp(y, 0.0, 1.0);
+    artwork_.setFocalPoint(x, y);
     update();
 }
 
@@ -204,18 +201,7 @@ void Live2DBackgroundWidget::paintGL() {
     // CPU側で準備済みの選択モデルを描画開始前にGPUへ転送する
     loadPendingModel();
     QPainter painter(this);
-    painter.fillRect(rect(), QColor(20, 22, 27));
-    // 焦点を保ったcover形式でヒーロー画像を描画する
-    if (!hero_.isNull()) {
-        if (scaledSize_ != size()) {
-            scaledHero_ =
-                hero_.scaled(size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-            scaledSize_ = size();
-        }
-        const QPoint origin(-static_cast<int>((scaledHero_.width() - width()) * focalX_),
-                            -static_cast<int>((scaledHero_.height() - height()) * focalY_));
-        painter.drawPixmap(origin, scaledHero_);
-    }
+    artwork_.paintHero(painter, rect());
     // QPainterからnative OpenGL描画へ切り替えてCubismモデルを合成する
     if (model_ && asset_) {
         painter.beginNativePainting();
@@ -239,11 +225,7 @@ void Live2DBackgroundWidget::paintGL() {
         painter.endNativePainting();
     }
     // 前景操作の可読性を保つため下端へ向けて陰影を強める
-    QLinearGradient gradient(0, 0, 0, height());
-    gradient.setColorAt(0.0, QColor(8, 12, 18, 80));
-    gradient.setColorAt(0.55, QColor(8, 12, 18, 130));
-    gradient.setColorAt(1.0, QColor(8, 12, 18, 245));
-    painter.fillRect(rect(), gradient);
+    BackgroundArtwork::paintShade(painter, rect());
 }
 
 /** @brief 可視性とゲーム実行状態からanimationを更新する */

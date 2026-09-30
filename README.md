@@ -78,6 +78,46 @@ model.jsonにゲームとの対応を入力してください
 }
 ```
 
+## VRMモデルについて
+
+ゲーム詳細画面にはLive2Dに加えてVRM 0.x／1.0モデルを表示できます。
+`apps/launcher/resources/vrm/<モデル名>/` に `.vrm` を配置し、
+`apps/launcher/resources/vrm/models.json` にゲームとの対応を登録してください。
+モデルはテクスチャを内包する128 MiB以下のVRMファイルを使用します。
+
+```json
+{
+  "games": {
+    "対象のgameId": {
+      "model": "モデル名/character.vrm",
+      "centerX": 0.65,
+      "centerY": 0.5,
+      "scale": 1.0
+    }
+  }
+}
+```
+
+`centerX`／`centerY` は画面左上を0、右下を1とするモデル中心位置です。
+`scale` は0.1〜4.0で、1.0ならモデル全体が収まります。
+同じゲームにはLive2DとVRMのどちらか一方を登録してください。
+VRMは自然な腕の姿勢と簡単な呼吸・まばたきで表示し、モデルに含まれる揺れ物を更新します。
+別ファイルのモーション再生や利用者によるモデルインポートは提供しません。
+非表示・最小化・ゲーム実行中はアニメーションを停止します。
+モデルの配布条件を確認したうえで同梱してください。サンプルモデルは製品には同梱していません。
+
+ビルドには既存のQtに加え、Qt WebEngine、Qt WebChannel、Qt PositioningとNode.js 24が必要です。
+`apps/launcher/vrm-viewer/package-lock.json` の固定依存関係をCMakeが取得し、
+Three.jsとthree-vrmをローカルリソースにバンドルするため、実行時の通信は不要です。
+Qt WebEngineのランタイム、リソース、ロケールもQtのデプロイ処理で配布します。
+
+モデルなしでの検証は `ctest` の `VrmTests`／`VrmViewerTests` で実行できます。
+描画確認には `/vrm/test.vrm` を含むテスト用バイナリRCCを作り、
+`VrmPreview <テスト用.rcc>` を実行してください。正常描画時は `vrm-preview.png` を保存します。
+
+実装は [three-vrm](https://github.com/pixiv/three-vrm) と
+[Qt WebEngine](https://doc.qt.io/qt-6/qtwebengine-index.html) を使用しています。
+
 ## ディレクトリ
 
 - `apps/launcher/` — C++ / Qt製ゲームランチャー
