@@ -1,17 +1,18 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after, before } from "node:test";
+import { createTestHarness } from "wrangler";
 import { assertBrowserWrite, assertSameOrigin } from "../lib/request-security.ts";
 
-const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-const workerPromise = import(workerUrl.href);
+const server = createTestHarness({
+  workers: [{ configPath: new URL("../dist/server/wrangler.json", import.meta.url) }],
+});
 
+before(() => server.listen());
+after(() => server.close());
+
+// ビルド済みWorkerを本番と同じランタイムで描画する
 async function render(path = "/") {
-  const { default: worker } = await workerPromise;
-  return worker.fetch(
-    new Request(`http://localhost${path}`, { headers: { accept: "text/html" } }),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
+  return server.fetch(`http://localhost${path}`, { headers: { accept: "text/html" } });
 }
 
 test("server-renders the PandD deployment control plane", async () => {
