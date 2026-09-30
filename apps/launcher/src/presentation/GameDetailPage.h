@@ -1,12 +1,14 @@
 #pragma once
 
 #include "presentation/live2d/Live2DAssetCatalog.h"
+#include "presentation/vrm/VrmAssetCatalog.h"
 
 #include <QWidget>
 
 class QPixmap;
 namespace pandd {
 class Live2DBackgroundWidget;
+class VrmBackgroundWidget;
 
 /** @brief 合成背景の上へゲーム詳細操作を重ねる */
 class GameDetailPage final : public QWidget {
@@ -23,7 +25,7 @@ class GameDetailPage final : public QWidget {
     /** @brief カタログの切り抜き焦点を背景へ渡す */
     void setFocalPoint(double x, double y);
     /** @brief 登録済みモデルまたはモデルなしを選択する */
-    void setModel(std::optional<Live2DAsset> asset);
+    void setModel(std::optional<Live2DAsset> live2d, std::optional<VrmAsset> vrm);
     /** @brief ゲーム実行中の背景更新を停止する */
     void setGameRunning(bool running);
 
@@ -37,6 +39,7 @@ class GameDetailPage final : public QWidget {
 
   private:
     Live2DBackgroundWidget* background_;
+    VrmBackgroundWidget* vrmBackground_;
     QWidget* content_;
 };
 } // namespace pandd

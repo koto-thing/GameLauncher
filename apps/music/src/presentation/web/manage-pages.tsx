@@ -60,7 +60,7 @@ export function ManagePage() {
         <p className="eyebrow">CREATOR STUDIO</p>
         <h1>作品の音楽を、届ける。</h1>
         <p>
-          adminからGitHub数値IDで作品の編集権限を受け取ると、自分の判断で登録・公開できます。
+          利用申請が承認されると、担当作品の楽曲を登録・公開できます。
         </p>
         {config?.oauthConfigured ? (
           <a className="button primary" href="/api/auth/github/start">
@@ -83,8 +83,7 @@ export function ManagePage() {
           <h1>担当作品</h1>
           <p>
             {session.principal.login} ·{" "}
-            {session.principal.admin ? "運営" : "投稿者"} / GitHub ID:{" "}
-            {session.principal.id}
+            {session.principal.admin ? "運営" : "投稿者"}
           </p>
         </div>
         <button
@@ -140,8 +139,7 @@ function ManagedGameList() {
       )}
       {data?.length === 0 && (
         <p className="empty">
-          担当作品がありません。上記GitHub
-          IDを運営に伝えて割り当てを依頼してください。
+          担当作品がありません。利用申請から割り当てを依頼してください。
         </p>
       )}
       <div className="manage-list">
@@ -208,14 +206,14 @@ function AdminPanel() {
         <>
           <h3>GitHubアカウント</h3>
           <p>
-            Music運営は明示登録されたアカウントです。作品の編集権限は各作品の運営設定からGitHub数値IDで付与できます。
+            Music運営は明示登録されたアカウントです。利用申請を審査して作品の編集権限を付与できます。
           </p>
           <ul className="account-list">
             {data.accounts.map(
               /** @brief 名前だけでなく安定IDを併記する */ (account) => (
                 <li key={account.id}>
                   <span>
-                    {account.login} <small>ID {account.id}</small>
+                    {account.login}
                   </span>
                   <small>
                     {account.admin ? "Music運営" : "投稿者"}
@@ -811,65 +809,17 @@ function GameOperations({
   const { session, refresh } = useSite();
   const { data } = useRemote<AdminSettings>("/admin/settings");
   const task = useEditorTask();
-  const [accountId, setAccountId] = useState("");
   return (
     <section className="admin-panel">
       <h2>作品の運営設定</h2>
-      <p>
-        GitHub数値アカウントIDを指定して、この作品の編集・公開権限を渡します。担当者の事前ログインは不要です。
-      </p>
-      <form
-        className="inline-form"
-        onSubmit={
-          /** @brief 未ログインの担当者もGitHub本人IDを検証して割り当てる */ (
-            event,
-          ) => {
-            event.preventDefault();
-            void task.run(
-              async () => /** @brief 付与後に担当一覧を更新する */ {
-                await api(
-                  `/admin/games/${game.id}/members/${accountId.trim()}`,
-                  {
-                    method: "PUT",
-                    body: { enabled: true },
-                    csrf: session!.csrf,
-                  },
-                );
-                setAccountId("");
-                await onSaved();
-              },
-              "作品の編集権限を付与しました。",
-            );
-          }
-        }
-      >
-        <Field label="担当者のGitHub数値ID" name="accountId" error={task.error}>
-          <input
-            inputMode="numeric"
-            pattern="[1-9][0-9]*"
-            maxLength={16}
-            required
-            value={accountId}
-            placeholder="例：12345678"
-            onChange={
-              /** @brief ユーザー名でなく数値IDを入力する */ (event) =>
-                setAccountId(event.target.value)
-            }
-          />
-        </Field>
-        <button
-          className="primary"
-          disabled={task.busy || disabled || !accountId.trim()}
-        >
-          編集権限を付与
-        </button>
-      </form>
+      <p>利用申請を承認して、新しい担当者へ作品の編集・公開権限を付与できます。</p>
+      <a href="/access?service=music">利用申請を審査する →</a>
       <ul className="account-list">
         {data?.accounts.map(
           /** @brief 現在の所属をサーバーの結果から表示する */ (account) => (
             <li key={account.id}>
               <span>
-                {account.login} <small>ID {account.id}</small>
+                {account.login}
               </span>
               <button
                 disabled={task.busy || disabled}

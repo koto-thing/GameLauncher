@@ -57,6 +57,29 @@ export const policyGrants = sqliteTable(
   ],
 );
 
+// 本人が提出した利用申請と審査結果を保存し、権限は既存のサービス別テーブルに置く
+export const accessRequests = sqliteTable("access_requests", {
+  id: text("id").primaryKey(),
+  applicantId: text("applicant_id").notNull().references(() => users.githubUserId),
+  service: text("service", { enum: ["game", "music"] }).notNull(),
+  target: text("target").notNull(),
+  displayName: text("display_name").notNull(),
+  purpose: text("purpose").notNull(),
+  state: text("state", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
+  createdAt: text("created_at").notNull(),
+  decidedAt: text("decided_at"),
+  decidedBy: text("decided_by").references(() => users.githubUserId),
+  reason: text("reason").notNull().default(""),
+  grantType: text("grant_type"),
+  gameId: text("game_id"),
+  decisionToken: text("decision_token"),
+  repositoryAccess: integer("repository_access").notNull().default(0),
+}, (table) => [
+  uniqueIndex("access_requests_pending").on(table.applicantId, table.service, table.target).where(sql`${table.state}='pending'`),
+  index("access_requests_review").on(table.service, table.state, table.createdAt),
+  index("access_requests_applicant").on(table.applicantId, table.createdAt),
+]);
+
 export const artifacts = sqliteTable("artifacts", {
   artifactId: text("artifact_id").primaryKey(),
   intakeObjectKey: text("intake_object_key").notNull().unique(),

@@ -93,7 +93,7 @@ INSERT INTO music_accounts(id, login, admin)
 VALUES ('確認済みGitHub数値ID', '確認済みlogin', 1);
 ```
 
-以後の作品担当はMusic運営画面からGitHub数値IDで割り当てる。解除は次のMusic APIから反映する。全Collaboratorへの一括Music権限付与は行わない。
+以後の新しい作品担当は、本人が管理サイトの `/access?service=music` で利用申請し、Music運営が作品を選んで承認する。数値IDの入力は不要。登録済み担当者の追加割り当て・解除は作品の運営設定から名前で選ぶ。解除は次のMusic APIから反映する。全Collaboratorへの一括Music権限付与は行わない。詳しくは[利用申請と権限管理](../guide/access-requests.md)を参照。
 
 HTTPS証明書、公開origin、CORS不要の同一origin配信、Cookie host-onlyを確認。DNSはレンタルサーバーへ直接向け、Cloudflareを使う場合も公開MusicホストにWorker Route/Pages/画像変換を通さない。media/APIのCDNキャッシュは無効。広告は自前画像＋HTTPSリンクのみ、初期OFF。実広告サービス・解析SDKへの通信は追加していない。
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 type Actor = {
   githubUserId: string;
@@ -412,6 +412,7 @@ function SignIn({ response }: { response: DashboardResponse }) {
         <p className="eyebrow">IDENTITY REQUIRED</p>
         <h1>GitHubアカウントで<br />公開責任を確認します。</h1>
         <p>個人リポジトリのOwnerと、Adminが許可したCollaboratorだけが操作できます。</p>
+        <a href="/access">利用を申請する・申請状況を確認する</a>
 
         {response.githubAuthConfigured ? (
           <a className="primary-link" href="/api/auth/github/start">GitHubでログイン</a>
@@ -441,7 +442,32 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
   runAction: (payload: Record<string, unknown>, success: string) => Promise<void>;
 }) {
   const [showForm, setShowForm] = useState(false);
+  const requestListRef = useRef<HTMLDivElement>(null);
   const approvers = dashboard.users.filter((user) => user.grants.includes("approver"));
+
+  // カードの可変高さと画面幅に合わせて一覧を先頭4件分の高さに制限する
+  useEffect(() => {
+    const list = requestListRef.current;
+    if (!list || dashboard.requests.length <= 4) return;
+
+    const cards = Array.from(list.children).slice(0, 4) as HTMLElement[];
+
+    // 4件目の下端まで表示し、残りは一覧内でスクロールする
+    const updateHeight = () => {
+      const first = cards[0].getBoundingClientRect();
+      const fourth = cards[3].getBoundingClientRect();
+      list.style.setProperty("--request-list-height", `${fourth.bottom - first.top}px`);
+    };
+
+    const observer = new ResizeObserver(updateHeight);
+    cards.forEach((card) => observer.observe(card));
+    updateHeight();
+
+    return () => {
+      observer.disconnect();
+      list.style.removeProperty("--request-list-height");
+    };
+  }, [dashboard.requests]);
 
   return (
     <section className="workspace">
@@ -464,7 +490,7 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
         </article>
       </div>
 
-      <div className="request-list">
+      <div ref={requestListRef} className={`request-list${dashboard.requests.length > 4 ? " request-list-scrollable" : ""}`} role="region" aria-label="公開申請一覧">
         {dashboard.requests.length === 0 && <div className="empty-state"><strong>申請はまだありません</strong><span>最初のartifact情報を登録すると、監査記録がここから始まります。</span></div>}
         {dashboard.requests.map((request) => (
           <RequestCard key={request.requestId} request={request} dashboard={dashboard} approvers={approvers} busy={busy} runAction={runAction} />
@@ -639,7 +665,7 @@ function AccessWorkspace({ dashboard, busy, runAction }: {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
-    await runAction({ action: "set_grant", githubUserId: data.get("githubUserId"), login: data.get("login"), grantType: data.get("grantType"), enabled: true }, "権限を付与しました");
+    await runAction({ action: "set_grant", githubUserId: data.get("githubUserId"), grantType: data.get("grantType"), enabled: true }, "権限を付与しました");
     form.reset();
   }
 
@@ -648,14 +674,14 @@ function AccessWorkspace({ dashboard, busy, runAction }: {
       <div><p className="eyebrow">ACCESS POLICY</p><h2>個別アカウント権限</h2><p className="section-copy">個人所有リポジトリのCollaboratorから、PandDで操作できる人だけを明示的に許可します。</p></div>
 
       <form className="access-form" onSubmit={submit}>
-        <label>GitHub user ID<input name="githubUserId" inputMode="numeric" placeholder="数値ID" required /></label>
-        <label>GitHubログイン名<input name="login" placeholder="octocat" required /></label>
+        <a href="/access">利用申請を審査する →</a>
+        <label>登録済みユーザー<select name="githubUserId" required><option value="">ユーザーを選択</option>{dashboard.users.map((user) => <option key={user.githubUserId} value={user.githubUserId}>@{user.login}</option>)}</select></label>
         <label>付与する権限<select name="grantType"><option value="requester">Maintain相当申請者</option><option value="approver">指名承認者候補</option><option value="production_requester">Production申請者</option></select></label>
         <button className="primary-button" disabled={busy}>権限を付与</button>
       </form>
 
       <div className="user-table">
-        {dashboard.users.map((user) => <div className="user-row" key={user.githubUserId}><span className="avatar small">{user.login.slice(0, 1).toUpperCase()}</span><div><strong>@{user.login}</strong><small>ID {user.githubUserId}</small></div><div className="grant-list">{user.isAdmin && <span>ADMIN</span>}{user.grants.map((grant) => <button type="button" disabled={busy} title={`${grant}を取り消す`} key={grant} onClick={() => runAction({ action: "set_grant", githubUserId: user.githubUserId, login: user.login, grantType: grant, enabled: false }, "権限を取り消しました")}>{grant.replaceAll("_", " ")} ×</button>)}</div></div>)}
+        {dashboard.users.map((user) => <div className="user-row" key={user.githubUserId}><span className="avatar small">{user.login.slice(0, 1).toUpperCase()}</span><div><strong>@{user.login}</strong></div><div className="grant-list">{user.isAdmin && <span>ADMIN</span>}{user.grants.map((grant) => <button type="button" disabled={busy} title={`${grant}を取り消す`} key={grant} onClick={() => runAction({ action: "set_grant", githubUserId: user.githubUserId, grantType: grant, enabled: false }, "権限を取り消しました")}>{grant.replaceAll("_", " ")} ×</button>)}</div></div>)}
       </div>
     </section>
   );

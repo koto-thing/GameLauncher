@@ -55,6 +55,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QWebEngineView>
 #include <QtConcurrentRun>
 
 #include <algorithm>
@@ -614,7 +615,7 @@ QWidget* LauncherWindow::createDetailPage() {
     detailPage_ = new GameDetailPage(this);
     auto* page = detailPage_->contentWidget();
     connect(detailPage_, &GameDetailPage::backgroundError, this, [this](const QString& error) {
-        statusBar()->showMessage(tr("Live2D背景を表示できません: %1").arg(error), 15000);
+        statusBar()->showMessage(tr("モデル背景を表示できません: %1").arg(error), 15000);
     });
     QString registryError;
     if (!live2dAssets_.load(registryError)) {
@@ -622,6 +623,12 @@ QWidget* LauncherWindow::createDetailPage() {
         QTimer::singleShot(0, this, [this, registryError] {
             statusBar()->showMessage(tr("Live2D設定を読み込めません: %1").arg(registryError),
                                      15000);
+        });
+    }
+    if (!vrmAssets_.load(registryError)) {
+        qWarning().noquote() << registryError;
+        QTimer::singleShot(0, this, [this, registryError] {
+            statusBar()->showMessage(tr("VRM設定を読み込めません: %1").arg(registryError), 15000);
         });
     }
     auto* layout = new QVBoxLayout(page);
@@ -1075,7 +1082,7 @@ void LauncherWindow::showGame(const QString& gameId) {
         return;
     }
     selectedGameId_ = gameId;
-    detailPage_->setModel(live2dAssets_.find(gameId));
+    detailPage_->setModel(live2dAssets_.find(gameId), vrmAssets_.find(gameId));
     heroTitle_->setFullText(QString::fromStdString(iterator->name));
     summary_->setText(QString::fromStdString(iterator->summary));
     detailPage_->setFocalPoint(iterator->heroFocalX, iterator->heroFocalY);
@@ -1316,6 +1323,7 @@ void LauncherWindow::showSettingsDialog() {
     detailsForm->addRow(tr("アーキテクチャ"),
                         new QLabel(QSysInfo::currentCpuArchitecture(), details));
     auto* licenses = new QPushButton(tr("ライセンス"), details);
+    auto* chromiumLicenses = new QPushButton(tr("Chromiumライセンス"), details);
     auto* qtReplacement = new QPushButton(tr("Qtライブラリ交換手順"), details);
     auto* changelog = new QPushButton(tr("更新履歴"), details);
     auto* privacy = new QPushButton(tr("プライバシーポリシー"), details);
@@ -1323,6 +1331,7 @@ void LauncherWindow::showSettingsDialog() {
     auto* diagnostics = new QPushButton(tr("診断情報をコピー"), details);
     detailsForm->addRow(changelog);
     detailsForm->addRow(licenses);
+    detailsForm->addRow(chromiumLicenses);
     detailsForm->addRow(qtReplacement);
     detailsForm->addRow(privacy);
     detailsForm->addRow(terms);
@@ -1365,6 +1374,17 @@ void LauncherWindow::showSettingsDialog() {
     // NOLINTEND(bugprone-easily-swappable-parameters)
     connect(licenses, &QPushButton::clicked, &dialog,
             [this] { showTextDocument(tr("ライセンス"), ":/legal/THIRD_PARTY_NOTICES.md"); });
+    connect(chromiumLicenses, &QPushButton::clicked, &dialog, [&dialog, this] {
+        // 同梱Chromium自身が提供する完全な第三者ライセンスを表示する
+        QDialog credits(&dialog);
+        credits.setWindowTitle(tr("Chromiumライセンス"));
+        credits.resize(900, 650);
+        auto* creditsLayout = new QVBoxLayout(&credits);
+        auto* view = new QWebEngineView(&credits);
+        creditsLayout->addWidget(view);
+        view->load(QUrl(QStringLiteral("chrome://credits")));
+        credits.exec();
+    });
     connect(qtReplacement, &QPushButton::clicked, &dialog, [this] {
         showTextDocument(tr("Qtライブラリ交換手順"), ":/legal/QT_LGPL_COMPLIANCE.md");
     });

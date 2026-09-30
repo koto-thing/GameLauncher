@@ -186,6 +186,7 @@ export async function createRuntime({
   php,
   enabled = true,
   github,
+  bindings = {},
 } = {}) {
   const built = await build({
     entryPoints: [path.join(projectRoot, "tests/support/control-worker.ts")],
@@ -245,6 +246,7 @@ export async function createRuntime({
             MUSIC_PUBLIC_URL: text(`${php.origin}/`),
             STAGING_DISPATCH_ENABLED: text("false"),
             PRODUCTION_DISPATCH_ENABLED: text("false"),
+            ...Object.fromEntries(Object.entries(bindings).map(/** @brief テスト用bindingを文字列へ変換する */ ([key, value]) => [key, text(value)])),
           },
         },
         ...(github

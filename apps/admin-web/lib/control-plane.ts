@@ -1,5 +1,6 @@
 import { ensureSchema, getD1 } from "@/db/initialize";
 import type { SessionUser } from "@/lib/auth";
+import { hasRepositoryAccess } from "@/lib/access-requests";
 import {
   dispatchDeploymentWorkflow,
   githubAppDispatchConfigured,
@@ -147,7 +148,7 @@ export async function getDashboard(actor: SessionUser) {
         activeGrant(actor.githubUserId, "production_requester"),
       ]);
   if (!actor.isAdmin && !canRequest && !canApprove && !canRequestProduction) {
-    throw new Error("PandD control planeの利用をAdminから許可されていません");
+    throw new Response("ゲーム管理の利用権限がありません。利用申請から申請してください", { status: 403 });
   }
   const [usersResult, grantsResult, requestsResult, approversResult, decisionsResult, attemptsResult, eventsResult] =
     await Promise.all([
@@ -258,19 +259,21 @@ export async function getDashboard(actor: SessionUser) {
 /** Adminがユーザーのrequester・approver等の権限を付与または取消する */
 export async function setGrant(
   actor: SessionUser,
-  input: { githubUserId: string; login: string; grantType: GrantType; enabled: boolean },
+  input: { githubUserId: string; grantType: GrantType; enabled: boolean },
 ) {
   await ensureSchema();
   await requireAdmin(actor);
   if (!(["requester", "approver", "production_requester"] as string[]).includes(input.grantType)) {
     throw new Error("権限種別が不正です");
   }
+  if (typeof input.githubUserId !== "string" || typeof input.enabled !== "boolean") throw new Error("入力が不正です");
   const githubUserId = input.githubUserId.trim();
-  const login = input.login.trim();
-  if (!/^\d+$/.test(githubUserId)) throw new Error("GitHub user IDは数字で入力してください");
-  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(login)) {
-    throw new Error("GitHubログイン名が不正です");
-  }
+  const user = await getD1().prepare("SELECT login_snapshot FROM users WHERE github_user_id=?")
+    .bind(githubUserId).first<{ login_snapshot: string }>();
+  if (!user) throw new Error("本人の利用申請が必要です");
+  const login = user.login_snapshot;
+  if (input.enabled && !await hasRepositoryAccess(githubUserId, actor)) throw new Error("リポジトリのWrite以上の権限設定が必要です");
+
   const timestamp = now();
   const db = getD1();
   const audit = await auditRecord(null, input.enabled ? "policy_grant_added" : "policy_grant_revoked", actor, {
@@ -279,11 +282,6 @@ export async function setGrant(
     grantType: input.grantType,
   });
   await db.batch([
-    db.prepare(`INSERT INTO users
-      (github_user_id, login_snapshot, avatar_url, is_admin, last_verified_at)
-      VALUES (?, ?, '', 0, ?)
-      ON CONFLICT(github_user_id) DO UPDATE SET login_snapshot = excluded.login_snapshot`)
-      .bind(githubUserId, login, timestamp),
     db.prepare(`INSERT INTO policy_grants
       (github_user_id, grant_type, granted_by_github_user_id, granted_at, revoked_at)
       VALUES (?, ?, ?, ?, ?)
