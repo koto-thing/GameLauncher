@@ -4,6 +4,12 @@ export class ApiError extends Error {
 export function ensure(ok, status, message, details) { if (!ok) throw new ApiError(status, message, details); }
 export async function boundedJson(request, maximum = 210000) {
   ensure(request.headers.get('content-type')?.split(';')[0] === 'application/json', 422, 'JSON形式で送信してください。');
+  const bytes = await boundedBytes(request, maximum);
+  try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { throw new ApiError(422, 'JSONが不正です。'); }
+}
+
+// Bound streamed bodies before allocating the complete request buffer
+export async function boundedBytes(request, maximum) {
   const reader = request.body?.getReader(); ensure(reader, 422, '入力がありません。');
   const chunks = []; let size = 0;
   while (true) {
@@ -11,7 +17,7 @@ export async function boundedJson(request, maximum = 210000) {
     size += value.length; if (size > maximum) { await reader.cancel(); throw new ApiError(413, '入力サイズが上限を超えています。'); } chunks.push(value);
   }
   const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { throw new ApiError(422, 'JSONが不正です。'); }
+  return bytes;
 }
 export async function rateLimit(db, key, limit = 20) {
   const window = Math.floor(Date.now() / 60000);
