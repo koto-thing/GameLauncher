@@ -15,13 +15,15 @@ export async function navigationAt(api, snapshot) {
   const content = await readBlob(api, entry); const value = validateNavigation(JSON.parse(content));
   return { entry, content, value };
 }
-export async function page(api, id, branch = 'master') {
-  const branchHead = await head(api, branch), snapshot = await tree(api, branchHead), navigation = await navigationAt(api, snapshot);
+
+// Read saved changes by immutable commit so deleting a merged branch does not lose the draft
+export async function page(api, id, commitSha) {
+  const documentHead = commitSha ?? await head(api), snapshot = await tree(api, documentHead), navigation = await navigationAt(api, snapshot);
   let path; try { path = id === '$navigation' ? 'docs/navigation.json' : documentPath(id, navigation.value); } catch { throw new ApiError(404, '編集対象が見つかりません。'); }
   const entry = regularFile(snapshot.entries, path);
   const content = await readBlob(api, entry);
   let reason = null; try { validateFile(path, content); } catch (error) { reason = error.message; }
-  return { documentId: id, path, content, sha: entry.sha, head: branchHead, editable: !reason, reason, navigation: { content: navigation.content, sha: navigation.entry.sha } };
+  return { documentId: id, path, content, sha: entry.sha, head: documentHead, editable: !reason, reason, navigation: { content: navigation.content, sha: navigation.entry.sha } };
 }
 async function validateInput(api, snapshot, files) {
   ensure(Array.isArray(files) && files.length > 0 && files.length <= MAX_FILES, 422, '1変更は1〜3ファイルです。');
