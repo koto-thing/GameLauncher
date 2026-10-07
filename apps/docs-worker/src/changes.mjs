@@ -147,7 +147,17 @@ export async function readiness(api, change) {
   if (!change.pr) return { state: 'saved', message: '保存処理を同じ内容で再試行してください。' };
   const pr = await api(`${REPO}/pulls/${change.pr}`);
   ensure(pr.base.repo.id === REPOSITORY_ID && pr.head.repo.id === REPOSITORY_ID && pr.base.ref === 'master' && pr.head.ref === change.branch && pr.head.sha === change.head_sha, 409, 'PRの対象またはheadが変更されています。');
-  if (pr.merged) return { state: 'publishing', mergeSha: pr.merge_commit_sha };
+  if (pr.merged) {
+    // REST 2026-03-10 removed merge_commit_sha; query the actual merged commit explicitly
+    const result = await api('/graphql', 'POST', {
+      query: 'query($number:Int!){repository(owner:"koto-thing",name:"GameLauncher"){pullRequest(number:$number){merged headRefOid mergeCommit{oid}}}}',
+      variables: { number: change.pr }
+    });
+    const merged = result.data?.repository?.pullRequest;
+    ensure(!result.errors?.length && merged?.merged && shaPattern.test(merged.mergeCommit?.oid), 502, 'GitHubのマージ結果を確認できません。時間をおいて再試行してください。');
+    ensure(merged.headRefOid === change.head_sha, 409, 'PRのheadが変更されています。');
+    return { state: 'publishing', mergeSha: merged.mergeCommit.oid };
+  }
   if (pr.state !== 'open') return { state: 'conflict', message: 'PRが閉じられています。' };
   const base = await head(api);
   if (base !== change.base_sha || pr.base.sha !== base) return { state: 'conflict', message: 'masterが更新されました。最新版と比較し、新しい変更として保存・検証してください。' };
