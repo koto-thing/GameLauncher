@@ -4,7 +4,7 @@ description: ゲームランチャーにゲームを配信する方法
 ---
 # ゲームを配信する
 ![WebUploader\_Intaker01](/images/uploads/a1b0ca22437f6bbbc68b1afe746afa6d3a006a4a.png)
-ここでは、Web Uploader / Intakerの使い方を解説していきます
+ここでは、Web Uploader / Intakerの使い方を説明しています
 
 ## Web Uploader
 ゲームランチャーで配信するには、ゲームをインターネットにアップロードする必要があります。
@@ -16,7 +16,7 @@ description: ゲームランチャーにゲームを配信する方法
 * ゲームのタイトルと説明文
 
 ## STEP 1
-
+![WebUploader\_Intaker02](/images/uploads/71debba8be63974bf0ffdb0cc8d2956156c03e99.png)
 ゲームの基本的な情報やランチャーが使用する情報を入力していきます
 
 * ゲームID
@@ -33,6 +33,7 @@ description: ゲームランチャーにゲームを配信する方法
     * 初回・更新時：セーブに使用されるディレクトリ名を入力してください
 
 ## STEP 2
+![WebUploader\_Intaker03](/images/uploads/e9303da4a53dfb7f527a574ee0b7280537ef2c0d.png)
 ランチャーに表示する、ゲームタイトルや説明文を入力していきます
 
 * 言語別表示テキスト
@@ -43,12 +44,15 @@ description: ゲームランチャーにゲームを配信する方法
     * 初回・更新時：ゲーム一覧にて表示される画像です
 
 ## STEP 3
+![WebUploader\_Intaker04](/images/uploads/b39737f2ce7e748613f1dfb8258bde18c3ff1d8a.png)
+![WebUploader\_Intaker05](/images/uploads/0504290f4c703981a2d676dfdbba5e85081df3d1.png)
 ゲームのビルドフォルダをアップロードします
 
 * 初回・更新時：ゲームの実行に必要なファイルをまとめたフォルダをアップロードしてください
 * 初回・更新時：ゲームを起動するための実行ファイルを選択してください
 
 ## STEP 4
+![WebUploader\_Intaker06](/images/uploads/1cbbae4a28905cf68dcc369accf67537787a3d14.png)
 ゲームをインターネット上にアップロードします
 
 * 初回・更新時：プレビューを確認して問題がない場合は、アップロードを開始してください
