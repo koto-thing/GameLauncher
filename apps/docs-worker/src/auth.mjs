@@ -86,7 +86,8 @@ export async function session(request, env, mutation = false) {
   const row = await env.DOCS_DB.prepare('SELECT * FROM sessions WHERE id_hash=? AND expires_at>?').bind(idHash, Date.now()).first();
   ensure(row, 401, 'セッションが失効しました。再ログインしてください。');
   if (mutation) {
-    ensure(request.headers.get('Origin') === env.DOCS_ORIGIN && request.headers.get('content-type')?.split(';')[0] === 'application/json' && await equal(request.headers.get('X-CSRF-Token'), row.csrf), 403, '操作元を確認できません。ページを再読み込みしてください。');
+    // Authenticate the caller independently of the route's JSON or binary payload
+    ensure(request.headers.get('Origin') === env.DOCS_ORIGIN && await equal(request.headers.get('X-CSRF-Token'), row.csrf), 403, '操作元を確認できません。ページを再読み込みしてください。');
   }
   let token; try { token = await decrypt(row.token, env.DOCS_TOKEN_KEY, `${idHash}:${row.user_id}`); } catch { throw new ApiError(401, 'セッションが失効しました。再ログインしてください。'); }
   return { ...row, api: github(token) };
