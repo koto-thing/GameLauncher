@@ -1,6 +1,7 @@
 import MarkdownIt from 'markdown-it';
 import { parseDocument, stringify } from 'yaml';
 import manifest from './editor-manifest.json' with { type: 'json' };
+import { uploadedImage, MAX_IMAGES } from './editor-images.mjs';
 
 export const MAX_DOCUMENT_BYTES = 16384;
 export const MAX_FILES = 3;
@@ -89,13 +90,31 @@ export function validateMarkdown(source, home = false) {
       if (['inline', 'text'].includes(token.type)) requireValue(!/\{\{|\}\}|<!--\s*@include|(?:^|\n)\s*(?:<<<|import\s|export\s)/.test(token.type === 'inline' ? '' : token.content), 'テンプレート式・include・importは使用できません。');
       for (const [name, value] of token.attrs || []) if (['href', 'src'].includes(name)) {
         requireValue(!/[\x00-\x20\\]|^\/\//.test(value) && !/^(?!https?:|mailto:)[a-z][a-z0-9+.-]*:/i.test(value), '危険なリンクです。');
-        if (name === 'src') requireValue(manifest.$images.paths.includes(value), '画像は既存の許可済み画像のみ参照できます。');
+        if (name === 'src') requireValue(manifest.$images.paths.includes(value) || uploadedImage(value), '画像はアップロードした画像または許可済み画像を参照してください。');
       }
       if (token.children) inspect(token.children);
     }
   };
   inspect(syntax.parse(body, {}));
+  requireValue(markdownImages(source).length <= MAX_IMAGES, '原稿内のアップロード画像は10枚までです。');
   return { data, body };
+}
+
+// Collect actual image tokens, excluding examples in fenced or inline code
+export function markdownImages(source) {
+  const images = new Map();
+  const visit = tokens => {
+    for (const token of tokens) {
+      if (token.type === 'image') {
+        const image = uploadedImage(token.attrGet('src'));
+        if (image) images.set(image.path, image);
+      }
+      if (token.children) visit(token.children);
+    }
+  };
+
+  visit(markdown.parse(splitMarkdown(source).body, {}));
+  return [...images.values()];
 }
 export function composeMarkdown(data, body) { return `---\n${stringify(data)}---\n${body}`; }
 export function validateFile(path, content) {
