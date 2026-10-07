@@ -22,6 +22,13 @@ export default {
       else {
         const mutation = ['POST','PATCH','DELETE'].includes(request.method);
         const current = await session(request, env, mutation);
+
+        // Only the image upload route accepts binary bodies; other mutations require JSON
+        if (mutation) {
+          const binary = path === '/api/docs/images' && request.method === 'POST';
+          ensure(request.headers.get('content-type')?.split(';')[0] === (binary ? 'application/octet-stream' : 'application/json'), 422, binary ? '画像はバイナリ形式で送信してください。' : 'JSON形式で送信してください。');
+        }
+
         if (path === '/api/docs/logout' && request.method === 'POST') {
           await env.DOCS_DB.prepare('DELETE FROM sessions WHERE id_hash=?').bind(current.id_hash).run();
           response = json({ ok: true }); response.headers.set('Set-Cookie', setCookie(env, 'session', '', 0));

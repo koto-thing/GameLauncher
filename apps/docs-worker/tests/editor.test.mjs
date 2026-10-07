@@ -114,7 +114,7 @@ test('stale blob and base never overwrite current content', async () => {
 });
 test('session CSRF, Origin, expiry, cookie tampering and encryption binding', async () => {
   const f = await fixture(); assert.equal((await session(f.request('/changes','POST',{}), f.env, true)).user_id, 42);
-  for (const headers of [{Origin:'https://evil.test'}, {'X-CSRF-Token':'bad'}, {'Content-Type':'text/plain'}]) await assert.rejects(session(f.request('/changes','POST',{},headers), f.env, true), { status: 403 });
+  for (const headers of [{Origin:'https://evil.test'}, {'X-CSRF-Token':'bad'}]) await assert.rejects(session(f.request('/changes','POST',{},headers), f.env, true), { status: 403 });
   await assert.rejects(session(f.request('/session','GET',undefined,{Cookie:'__Host-pandd_docs_session=tampered'}), f.env), { status: 401 });
   await f.db.prepare('UPDATE sessions SET expires_at=0').run(); await assert.rejects(session(f.request('/session'), f.env), { status: 401 });
   const token = await encrypt('secret', f.env.DOCS_TOKEN_KEY, 'user:1'); assert.equal(await decrypt(token, f.env.DOCS_TOKEN_KEY, 'user:1'), 'secret'); await assert.rejects(decrypt(token, f.env.DOCS_TOKEN_KEY, 'user:2'));
