@@ -35,9 +35,9 @@ test('saved document API reopens a merged change after its branch is deleted', a
   f.gh.published = merged.mergeSha;
   f.gh.calls = [];
 
-  t.mock.method(globalThis, 'fetch', async url => {
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
     const path = new URL(url).pathname + new URL(url).search;
-    return Response.json(path === `${REPO}/pulls/${saved.pr}` ? pr : await f.gh.api(path));
+    return Response.json(path === `${REPO}/pulls/${saved.pr}` ? pr : await f.gh.api(path, options.method, options.body && JSON.parse(options.body)));
   });
 
   const response = await f.worker.fetch(f.request(`/changes/${saved.id}?documentId=guide%2Findex`), f.env);
@@ -68,6 +68,28 @@ test('saved document API uses the recorded commit when the branch changes', asyn
   assert.equal(document.head, saved.head);
   assert.equal(document.content, body.files[0].content);
   await assert.rejects(publish(f.env, f.session, saved.id, saved.head), { status: 409 });
+});
+
+// An incomplete GraphQL response must never produce a comparison against an undefined commit
+for (const invalid of ['errors', 'missing', 'invalid-sha', 'wrong-head']) test(`merged status rejects ${invalid} from GraphQL`, async () => {
+  const f = await fixture(), saved = await save(f.env, f.session, await input(f));
+  const merged = await publish(f.env, f.session, saved.id, saved.head);
+  f.gh.published = merged.mergeSha;
+  assert.equal(Object.hasOwn(f.gh.pull(f.gh.prs[0]), 'merge_commit_sha'), false);
+  const api = f.session.api;
+  f.session.api = async (path, method, body) => {
+    const result = await api(path, method, body);
+    if (path !== '/graphql') return result;
+    if (invalid === 'errors') result.errors = [{ message: 'private-provider-detail' }];
+    if (invalid === 'missing') result.data.repository.pullRequest = null;
+    if (invalid === 'invalid-sha') result.data.repository.pullRequest.mergeCommit.oid = 'undefined';
+    if (invalid === 'wrong-head') result.data.repository.pullRequest.headRefOid = 'a'.repeat(40);
+    return result;
+  };
+
+  f.gh.calls = [];
+  await assert.rejects(status(f.env, f.session, saved.id), { status: invalid === 'wrong-head' ? 409 : 502 });
+  assert.equal(f.gh.calls.some(call => call.path.includes('/compare/')), false);
 });
 
 test('sidebar edits and article content save together, then new content retains the section in the same PR', async () => {

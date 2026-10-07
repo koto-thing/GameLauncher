@@ -26,7 +26,7 @@ export class GitHub {
   }
   addBlob(content) { const bytes = Buffer.from(content); const id = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex'); this.blobs.set(id, content); return id; }
   repository() { return { id: this.repoId, full_name: REPOSITORY, permissions: { push: this.push } }; }
-  pull(pr) { return { ...pr, base: { repo: this.repository(), ref: 'master', sha: this.refs.get('master') }, head: { repo: this.repository(), ref: pr.branch, sha: this.refs.get(pr.branch) }, mergeable: this.mergeable, mergeable_state: this.mergeableState, changed_files: this.files(pr).length }; }
+  pull(pr) { const { mergeSha, mergedHeadSha, ...fields } = pr; return { ...fields, base: { repo: this.repository(), ref: 'master', sha: this.refs.get('master') }, head: { repo: this.repository(), ref: pr.branch, sha: pr.merged ? mergedHeadSha : this.refs.get(pr.branch) }, mergeable: this.mergeable, mergeable_state: this.mergeableState, changed_files: this.files(pr).length }; }
   files(pr) {
     const original = new Map(this.trees.get(this.commits.get(this.base).tree.sha).map(e => [e.path,e]));
     return this.trees.get(this.commits.get(this.refs.get(pr.branch)).tree.sha).filter(e => e.type === 'blob' && e.sha !== original.get(e.path)?.sha).map(e => ({ filename: e.path, status: original.has(e.path) ? 'modified' : 'added' }));
@@ -34,6 +34,12 @@ export class GitHub {
   api = async (path, method = 'GET', body) => {
     this.calls.push({ path, method, body });
     if (this.failure && path.includes(this.failure.path)) { const e = new Error('upstream failure'); e.status = this.failure.status; throw e; }
+    // Match the current GitHub API: the merge SHA is available through GraphQL, not REST PR payloads
+    if (path === '/graphql' && method === 'POST') {
+      const pr = this.prs[body.variables.number - 1];
+      return { data: { repository: { pullRequest: { merged: pr.merged, headRefOid: pr.mergedHeadSha, mergeCommit: pr.merged ? { oid: pr.mergeSha } : null } } } };
+    }
+
     if (path === '/user') return this.user;
     if (path === REPO) return this.repository();
     if (path.includes('/rules/branches/')) return this.noStrictRule ? [] : [{ type: 'required_status_checks', parameters: { strict_required_status_checks_policy: true, required_status_checks: [{ context: 'Docs validation' }] } }];
@@ -63,7 +69,7 @@ export class GitHub {
     if (path.startsWith(`${REPO}/pulls/`)) {
       const number = Number(path.split('/pulls/')[1].split('/')[0]), pr = this.prs[number - 1];
       if (path.includes('/files?')) return this.extraFiles || this.files(pr);
-      if (path.endsWith('/merge')) { if (body.sha !== this.refs.get(pr.branch)) { const e = new Error('head mismatch'); e.status = 409; throw e; } pr.merged = true; pr.state = 'closed'; pr.merge_commit_sha = sha('merge:' + body.sha); this.commits.set(pr.merge_commit_sha, this.commits.get(body.sha)); this.refs.set('master', pr.merge_commit_sha); if (this.cutMerge) { this.cutMerge = false; throw new Error('response lost'); } return { merged: true, sha: pr.merge_commit_sha }; }
+      if (path.endsWith('/merge')) { if (body.sha !== this.refs.get(pr.branch)) { const e = new Error('head mismatch'); e.status = 409; throw e; } pr.merged = true; pr.mergedHeadSha = body.sha; pr.state = 'closed'; pr.mergeSha = sha('merge:' + body.sha); this.commits.set(pr.mergeSha, this.commits.get(body.sha)); this.refs.set('master', pr.mergeSha); if (this.cutMerge) { this.cutMerge = false; throw new Error('response lost'); } return { merged: true, sha: pr.mergeSha }; }
       return this.pull(pr);
     }
     if (path === `${REPO}/actions/workflows/${WORKFLOW}`) return { id: 123 };
