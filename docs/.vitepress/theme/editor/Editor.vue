@@ -3,9 +3,10 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, toRaw, nextTick } fro
 import { withBase, useData } from 'vitepress';
 import DOMPurify from '../../../../apps/docs/node_modules/dompurify/dist/purify.es.mjs';
 import { diffLines } from '../../../../apps/docs/node_modules/diff/libesm/index.js';
-import { documents, splitMarkdown, composeMarkdown, validateMarkdown, validateNavigation, navigationLinks, markdown } from '../../../../apps/docs/editor-policy.mjs';
+import { documents, splitMarkdown, composeMarkdown, validateMarkdown, validateNavigation, navigationLinks, markdown, markdownImages } from '../../../../apps/docs/editor-policy.mjs';
 import NavItems from './NavItems.vue';
 import { navigationText, navigationChanged, documentIdForLink, sectionAt, withNewPage } from '../../../../apps/docs/editor-navigation.mjs';
+import { IMAGE_ACCEPT, MAX_IMAGE_BYTES, MAX_IMAGES, imageFormat, imageMarkdown, uploadedImage } from '../../../../apps/docs/editor-images.mjs';
 
 const session = ref(null), loaded = ref(null), source = ref(''), original = ref(''), selected = ref('index');
 const picker = ref('index');
@@ -13,7 +14,14 @@ const busy = ref(false), error = ref(''), notice = ref(''), change = ref(null), 
 const status = ref('unsaved'), statusMessage = ref(''), review = ref(false), acknowledged = ref(false), logoutChoice = ref(false);
 const isNew = ref(false), slug = ref(''), newTitle = ref(''), sectionTarget = ref(null), textArea = ref(null);
 const home = ref(null), nav = ref(null), conflict = ref(null), preview = ref(''), differences = ref([]);
+const editableSource = computed({
+  get: () => home.value ? splitMarkdown(source.value).body : source.value,
+  set: value => { source.value = home.value ? composeMarkdown(home.value, value) : value; }
+});
 const reviewDialog = ref(null);
+const imagePicker = ref(null), draggingImage = ref(false), uploadProgress = ref('');
+const imagePreviews = new Map();
+let previewRevision = 0;
 watch(review, async value => { await nextTick(); if (value && review.value) reviewDialog.value?.showModal(); });
 const { isDark } = useData();
 watch(isDark, () => { if (view.value === 'preview') renderPreview(); });
@@ -35,7 +43,7 @@ function splitTitle() { return source.value.match(/^# (.+)$/m)?.[1] || selected.
 function resetReview() { review.value = false; acknowledged.value = false; clearTimeout(draftTimer); draftTimer = setTimeout(remember, 700); }
 function editNav() { if (selected.value === '$navigation') { source.value = navigationText(nav.value); if (view.value === 'preview') renderPreview(); } resetReview(); }
 function openLink(link) { if (locked.value || documentIdForLink(link) === selected.value) return; picker.value = documentIdForLink(link); loadDocument(); }
-function setView(value) { view.value = value; if (value === 'preview') renderPreview(); }
+function setView(value) { view.value = value; ++previewRevision; if (value === 'preview') renderPreview(); }
 
 let draftTimer, pollTimer, polls = 0;
 const choices = computed(() => { const result = Object.fromEntries(Object.entries(documents).filter(([,doc]) => doc.path)); if (loaded.value?.navigation) for (const route of navigationLinks(JSON.parse(loaded.value.navigation.content))) { const id = route.slice(1); if (/^guide\/[a-z0-9-]+$/.test(id) && !result[id]) result[id] = {path: 'docs/' + id + '.md',route}; } return result; });
@@ -47,7 +55,8 @@ const loginUrl = computed(() => `/api/docs/auth/start?returnTo=${encodeURICompon
 const publicUrl = computed(() => withBase(selected.value === '$navigation' || isNew.value ? '/guide/' : documents[selected.value]?.route || `/${selected.value}`));
 
 async function api(path, method = 'GET', body) {
-  const response = await fetch(`/api/docs${path}`, { method, headers: { ...(body ? { 'Content-Type': 'application/json', 'X-CSRF-Token': session.value?.csrf || '' } : {}) }, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', cache: 'no-store' });
+  const binary = body instanceof Blob;
+  const response = await fetch(`/api/docs${path}`, { method, headers: { ...(body ? { 'Content-Type': binary ? 'application/octet-stream' : 'application/json', 'X-CSRF-Token': session.value?.csrf || '' } : {}) }, body: binary ? body : body ? JSON.stringify(body) : undefined, credentials: 'same-origin', cache: 'no-store' });
   if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('この公開先には編集APIがありません。管理者によるCloudflare設定待ちです。');
   const value = await response.json();
   if (!response.ok) { const error = new Error(`${value.error}（照会ID: ${value.requestId || '取得不可'}）`); error.status = response.status; error.details = value.details; throw error; }
@@ -78,6 +87,7 @@ function discardDraft() { localStorage.removeItem(draftKey()); draft.value = nul
 async function loadDocument() {
   if (dirty.value && !confirm('未保存の文章を端末に残して、別の原稿を開きますか？')) return;
   remember(); selected.value = picker.value; clearTimeout(pollTimer); change.value = null; pending.value = null; conflict.value = null; draft.value = null; isNew.value = false; review.value = false; statusMessage.value = '';
+  ++previewRevision; imagePreviews.clear(); preview.value = '';
   await run(async () => {
     loaded.value = null;
     let savedDraft;
@@ -111,9 +121,72 @@ function insert(before, after = '') {
   const area = textArea.value; if (!area) return; area.focus();
   // Native editing commands preserve the textarea's Undo/Redo history, including IME text.
   const selectedText = area.value.slice(area.selectionStart, area.selectionEnd);
-  document.execCommand('insertText', false, before + selectedText + after); source.value = area.value;
+  document.execCommand('insertText', false, before + selectedText + after);
+  editableSource.value = area.value;
 }
-function renderPreview() {
+
+// Upload each dropped file and insert successful images at the original cursor position
+async function addImages(files) {
+  if (locked.value || !textArea.value || !files.length) return;
+  const area = textArea.value, position = area.selectionStart;
+  const snippets = [];
+  await run(async () => {
+    if (files.length + markdownImages(source.value).length > MAX_IMAGES) throw new Error('原稿内のアップロード画像は10枚までです。');
+    for (const file of files) {
+      if (file.size > MAX_IMAGE_BYTES) throw new Error(`${file.name}：画像は1枚2MiBまでです。`);
+      imageFormat(new Uint8Array(await file.arrayBuffer()));
+    }
+
+    for (const [index, file] of files.entries()) {
+      uploadProgress.value = `画像をアップロード中… ${index + 1} / ${files.length}`;
+      const result = await api('/images', 'POST', file);
+      snippets.push(imageMarkdown(file.name, result.url));
+    }
+  });
+
+  uploadProgress.value = '';
+  await nextTick();
+  if (snippets.length) {
+    area.setSelectionRange(position, position);
+    insert(`\n${snippets.join('\n\n')}\n`);
+    notice.value = `${snippets.length}枚の画像を原稿に挿入しました。差分を確認して保存してください。`;
+    remember();
+    if (view.value === 'preview') renderPreview();
+  }
+}
+
+// Accept file drops without allowing the browser to navigate to the dropped file
+function dropImages(event) {
+  draggingImage.value = false;
+  addImages(Array.from(event.dataTransfer?.files || []));
+}
+
+// Reset the picker so the same file can be selected again after an error
+function pickImages(event) {
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
+  addImages(files);
+}
+
+// Fetch preview bytes with the editor session before embedding them into the sandbox
+async function imagePreview(image) {
+  if (imagePreviews.has(image.url)) return imagePreviews.get(image.url);
+  const response = await fetch(`/api/docs/images/${image.sha}.${image.extension}`, { credentials: 'same-origin', cache: 'no-store' });
+  if (!response.ok) throw new Error('画像のプレビューを取得できません。再ログインまたは再試行してください。');
+  const blob = await response.blob();
+  const data = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('画像の読み込みに失敗しました。'));
+    reader.readAsDataURL(blob);
+  });
+  imagePreviews.set(image.url, data);
+  return data;
+}
+
+// Render only the latest preview and resolve unpublished images with authenticated requests
+async function renderPreview() {
+  const revision = ++previewRevision;
   error.value = '';
   try {
     if (selected.value === '$navigation') validateNavigation(JSON.parse(source.value)); else validateMarkdown(source.value, selected.value === 'index');
@@ -131,10 +204,15 @@ function renderPreview() {
         html = `<h1>${escape(manual.title)}</h1><p>${escape(manual.description)}</p><ol>${manual.entries.map(entry => `<li><a href="${escape(withBase(entry.link))}">${escape(entry.title)}</a><p>${escape(entry.description)}</p></li>`).join('')}</ol>` + html;
       }
     }
-    const safe = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+    const safe = DOMPurify.sanitize(html, { USE_PROFILES: { html: true }, RETURN_DOM: true });
+    for (const element of safe.querySelectorAll('img')) {
+      const url = element.getAttribute('src'), image = uploadedImage(url);
+      element.setAttribute('src', image ? await imagePreview(image) : withBase(url));
+    }
+    if (revision !== previewRevision) return;
     const base = new URL(publicUrl.value, location.origin).href.replaceAll('&','&amp;').replaceAll('"','&quot;');
-    preview.value = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https:; base-uri ${location.origin}; form-action 'none'"><base href="${base}"><style>body{font:16px/1.95 system-ui,sans-serif;color:${isDark.value ? '#f5f5f7' : '#303034'};background:${isDark.value ? '#242426' : '#fafafb'};padding:24px;overflow-wrap:anywhere}pre,table{display:block;overflow:auto}pre{background:#8882;padding:16px}h2{border-top:1px solid #8885;padding-top:24px;margin-top:36px}h2:before{content:'// ';color:#ff6777}img{max-width:100%}a{color:${isDark.value ? '#ff8290' : '#b52f48'}}h1{font-size:26px}</style></head><body>${safe}</body></html>`;
-  } catch (e) { preview.value = ''; error.value = e.message; }
+    preview.value = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:; base-uri ${location.origin}; form-action 'none'"><base href="${base}"><style>body{font:16px/1.95 system-ui,sans-serif;color:${isDark.value ? '#f5f5f7' : '#303034'};background:${isDark.value ? '#242426' : '#fafafb'};padding:24px;overflow-wrap:anywhere}pre,table{display:block;overflow:auto}pre{background:#8882;padding:16px}h2{border-top:1px solid #8885;padding-top:24px;margin-top:36px}h2:before{content:'// ';color:#ff6777}img{max-width:100%}a{color:${isDark.value ? '#ff8290' : '#b52f48'}}h1{font-size:26px}</style></head><body>${safe.innerHTML}</body></html>`;
+  } catch (e) { if (revision === previewRevision) { preview.value = ''; error.value = e.message; } }
 }
 function showReview() {
   error.value = '';
@@ -217,7 +295,7 @@ onBeforeUnmount(() => { clearTimeout(draftTimer); clearTimeout(pollTimer); remem
 </script>
 
 <template>
-  <section class="editor editor-workspace" :aria-busy="busy">
+  <section class="editor editor-workspace" :aria-busy="busy" @dragover.prevent @drop.prevent>
     <div v-if="!session?.authenticated" class="editor-login panel">
       <div class="document-label"><span>// PANDD_DOCUMENTATION</span><span>READ MODE</span></div>
       <h1>ドキュメントを編集</h1>
@@ -247,7 +325,7 @@ onBeforeUnmount(() => { clearTimeout(draftTimer); clearTimeout(pollTimer); remem
       <template v-if="loaded">
         <p v-if="!loaded.editable" class="notice error">この原稿はWeb編集できません：{{ loaded.reason }}</p>
         <div class="editor-command-bar">
-          <div class="editor-tabs" role="group" aria-label="本文の表示切り替え"><button :aria-pressed="view === 'edit'" @click="setView('edit')">EDIT</button><button :aria-pressed="view === 'preview'" @click="setView('preview')">PREVIEW</button></div>
+          <div class="editor-tabs" role="group" aria-label="本文の表示切り替え"><button :disabled="busy" :aria-pressed="view === 'edit'" @click="setView('edit')">EDIT</button><button :disabled="busy" :aria-pressed="view === 'preview'" @click="setView('preview')">PREVIEW</button></div>
           <button :disabled="busy || !loaded.editable || Boolean(draft)" @click="showReview">差分を確認して保存</button>
         </div>
         <div v-if="view === 'preview'" class="editor-preview"><iframe title="原稿プレビュー" sandbox="" :srcdoc="preview"></iframe></div>
@@ -266,12 +344,17 @@ onBeforeUnmount(() => { clearTimeout(draftTimer); clearTimeout(pollTimer); remem
           <template v-else>
             <details class="page-metadata"><summary>ページ設定</summary><label>ページタイトル<input :value="meta('title')" @change="metadata('title', $event)"></label><label>説明<input :value="meta('description')" @change="metadata('description', $event)"></label></details>
             <template v-if="!home">
-              <div class="toolbar" role="group" aria-label="Markdown整形"><button @click="insert('## ')">見出し</button><button @click="insert('**', '**')">太字</button><button @click="insert('[', '](/guide/)')">リンク</button><button @click="insert('\n| 項目 | 説明 |\n| --- | --- |\n| 値 | 内容 |\n')">表</button><button @click="insert('\n```text\n', '\n```\n')">コード</button><button @click="insert('![説明](/images/pandd-logo.png)')">画像参照</button></div>
-              <label for="docs-source">Markdown原稿</label><textarea id="docs-source" ref="textArea" v-model="source" rows="24" spellcheck="false" autocapitalize="off"></textarea>
+              <div class="toolbar" role="group" aria-label="Markdown整形"><button @click="insert('## ')">見出し</button><button @click="insert('**', '**')">太字</button><button @click="insert('[', '](/guide/)')">リンク</button><button @click="insert('\n| 項目 | 説明 |\n| --- | --- |\n| 値 | 内容 |\n')">表</button><button @click="insert('\n```text\n', '\n```\n')">コード</button></div>
             </template>
-            <template v-else><label>ホーム本文<textarea :value="splitMarkdown(source).body" rows="8" @input="source = composeMarkdown(home, $event.target.value)"></textarea></label></template>
+            <div class="toolbar"><button @click="imagePicker.click()">画像をアップロード</button><input ref="imagePicker" type="file" :accept="IMAGE_ACCEPT" multiple hidden @change="pickImages"></div>
+            <p id="image-drop-help" class="image-drop-help">原稿に画像をドラッグ＆ドロップすると、カーソル位置に挿入します。PNG・JPEG・GIF・WebP、1枚2MiB・10枚まで。画像はアップロード時に公開リポジトリへ送信されます。</p>
+            <div class="image-drop-zone" :class="{ 'is-dragging': draggingImage }" @dragover.prevent="draggingImage = !locked && $event.dataTransfer.types.includes('Files')" @dragleave="draggingImage = false" @drop.prevent.stop="dropImages">
+              <label for="docs-source">{{ home ? 'ホーム本文' : 'Markdown原稿' }}</label>
+              <textarea id="docs-source" ref="textArea" v-model="editableSource" :rows="home ? 8 : 24" spellcheck="false" autocapitalize="off" aria-describedby="image-drop-help"></textarea>
+            </div>
           </template>
         </fieldset>
+        <p v-if="uploadProgress" role="status">{{ uploadProgress }}</p>
         <p class="state" role="status">{{ dirty && status !== 'unsaved' ? '未保存 · ' : '' }}{{ labels[status] }} <span>{{ statusMessage }}</span></p>
         <div class="toolbar"><button v-if="change" :disabled="busy || status !== 'ready' || dirty" @click="publish">公開</button><button v-if="change" :disabled="busy" @click="run(refreshStatus)">検証・配信状態を更新</button><a v-if="change?.prUrl" :href="change.prUrl" target="_blank" rel="noopener">PR詳細</a></div>
         <dialog v-if="review" ref="reviewDialog" class="panel review-dialog" aria-label="保存する変更" @cancel="review = false">

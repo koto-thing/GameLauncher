@@ -24,7 +24,7 @@ export class GitHub {
     for (const path of ['docs/navigation.json', ...articles.map(path => `docs/${path}`)]) entries.push({ path, mode: '100644', type: 'blob', sha: this.addBlob(readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8')) });
     const treeSha = sha(entries); this.trees.set(treeSha, entries); this.base = sha('base'); this.commits.set(this.base, { sha: this.base, tree: { sha: treeSha }, parents: [] }); this.refs.set('master', this.base);
   }
-  addBlob(content) { const id = sha(content); this.blobs.set(id, content); return id; }
+  addBlob(content) { const bytes = Buffer.from(content); const id = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex'); this.blobs.set(id, content); return id; }
   repository() { return { id: this.repoId, full_name: REPOSITORY, permissions: { push: this.push } }; }
   pull(pr) { return { ...pr, base: { repo: this.repository(), ref: 'master', sha: this.refs.get('master') }, head: { repo: this.repository(), ref: pr.branch, sha: this.refs.get(pr.branch) }, mergeable: this.mergeable, mergeable_state: this.mergeableState, changed_files: this.files(pr).length }; }
   files(pr) {
@@ -41,11 +41,23 @@ export class GitHub {
     if (path.startsWith(`${REPO}/git/ref/heads/`)) { const id = this.refs.get(path.split('/heads/')[1]); if (!id) { const e = new Error('not found'); e.status = 404; throw e; } return { object: { sha: id } }; }
     if (path === `${REPO}/git/refs`) { const branch = body.ref.slice(11); if (this.refs.has(branch)) { const e = new Error('already exists'); e.status = 422; throw e; } this.refs.set(branch, body.sha); if (this.cutRef) { this.cutRef = false; throw new Error('response lost'); } return {}; }
     if (path.startsWith(`${REPO}/git/refs/heads/`)) { const branch = path.split('/heads/')[1]; if (body.force || this.commits.get(body.sha).parents[0].sha !== this.refs.get(branch)) { const e = new Error('non-fast-forward'); e.status = 422; throw e; } this.refs.set(branch, body.sha); return {}; }
-    if (path === `${REPO}/git/trees`) { const entries = new Map(this.trees.get(body.base_tree).map(e => [e.path,e])); for (const entry of body.tree) entries.set(entry.path, { path: entry.path, type: entry.type, mode: entry.mode, sha: this.addBlob(entry.content) }); const list = [...entries.values()], id = sha(list); this.trees.set(id, list); return { sha: id }; }
+    if (path === `${REPO}/git/trees`) {
+      const entries = new Map(this.trees.get(body.base_tree).map(e => [e.path,e]));
+      for (const entry of body.tree) {
+        entries.set(entry.path, { path: entry.path, type: entry.type, mode: entry.mode, sha: entry.sha || this.addBlob(entry.content) });
+        const parts = entry.path.split('/');
+        for (let i = 1; i < parts.length; i++) {
+          const parent = parts.slice(0, i).join('/');
+          if (!entries.has(parent)) entries.set(parent, { path: parent, type: 'tree', mode: '040000' });
+        }
+      }
+      const list = [...entries.values()], id = sha(list); this.trees.set(id, list); return { sha: id };
+    }
     if (path.startsWith(`${REPO}/git/trees/`)) return { tree: this.trees.get(path.split('/trees/')[1].split('?')[0]), truncated: this.truncated || false };
     if (path === `${REPO}/git/commits`) { const id = sha(body); const value = { sha: id, tree: { sha: body.tree }, parents: body.parents.map(sha => ({ sha })) }; this.commits.set(id, value); return value; }
     if (path.startsWith(`${REPO}/git/commits/`)) return this.commits.get(path.split('/commits/')[1]);
-    if (path.startsWith(`${REPO}/git/blobs/`)) { const content = this.blobs.get(path.split('/blobs/')[1]); return { encoding: 'base64', size: Buffer.byteLength(content), content: Buffer.from(content).toString('base64') }; }
+    if (path === `${REPO}/git/blobs`) return { sha: this.addBlob(Buffer.from(body.content, body.encoding === 'base64' ? 'base64' : 'utf8')) };
+    if (path.startsWith(`${REPO}/git/blobs/`)) { const content = this.blobs.get(path.split('/blobs/')[1]); if (content === undefined) { const error = new Error('not found'); error.status = 404; throw error; } return { encoding: 'base64', size: Buffer.byteLength(content), content: Buffer.from(content).toString('base64') }; }
     if (path === `${REPO}/pulls`) { const pr = { number: this.prs.length + 1, branch: body.head, state: 'open', merged: false }; this.prs.push(pr); if (this.cutPr) { this.cutPr = false; throw new Error('response lost'); } return this.pull(pr); }
     if (path.startsWith(`${REPO}/pulls?`)) return this.prs.filter(pr => path.includes(pr.branch)).map(pr => this.pull(pr));
     if (path.startsWith(`${REPO}/pulls/`)) {
