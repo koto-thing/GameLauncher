@@ -12,7 +12,7 @@ async function input(f, source = '# 日本語の編集\n\n本文です。\n') { 
 test('a non-owner write collaborator saves, verifies content, and publishes using expected SHA', async () => {
   const f = await fixture(), body = await input(f), result = await save(f.env, f.session, body);
   assert.equal(f.gh.prs.length, 1); assert.equal(result.state, 'saved');
-  const actual = await page(f.gh.api, 'guide/index', f.gh.prs[0].branch); assert.equal(actual.content, body.files[0].content);
+  const actual = await page(f.gh.api, 'guide/index', f.gh.refs.get(f.gh.prs[0].branch)); assert.equal(actual.content, body.files[0].content);
   assert.equal((await readiness(f.gh.api, await owned(f.db, result.id, 42))).state, 'ready');
   const merged = await publish(f.env, f.session, result.id, result.head); assert.equal(merged.state, 'publishing');
   const call = f.gh.calls.find(call => call.path.endsWith('/merge')); assert.equal(call.body.sha, result.head); assert.equal(call.body.merge_method, 'squash');
@@ -26,6 +26,50 @@ test('new page and navigation are a single commit', async () => {
   assert.equal(f.gh.files(f.gh.prs[0]).length, 2);
 });
 
+// Reopening a saved change must not depend on a branch that GitHub can delete after merge
+test('saved document API reopens a merged change after its branch is deleted', async t => {
+  const f = await fixture(), body = await input(f), saved = await save(f.env, f.session, body);
+  const merged = await publish(f.env, f.session, saved.id, saved.head);
+  const pr = f.gh.pull(f.gh.prs[0]);
+  f.gh.refs.delete(f.gh.prs[0].branch);
+  f.gh.published = merged.mergeSha;
+  f.gh.calls = [];
+
+  t.mock.method(globalThis, 'fetch', async url => {
+    const path = new URL(url).pathname + new URL(url).search;
+    return Response.json(path === `${REPO}/pulls/${saved.pr}` ? pr : await f.gh.api(path));
+  });
+
+  const response = await f.worker.fetch(f.request(`/changes/${saved.id}?documentId=guide%2Findex`), f.env);
+  assert.equal(response.status, 200);
+  const document = await response.json();
+  assert.equal(document.head, saved.head);
+  assert.equal(document.content, body.files[0].content);
+  assert.ok(document.navigation.content);
+
+  const state = await f.worker.fetch(f.request(`/changes/${saved.id}`), f.env);
+  assert.equal((await state.json()).state, 'published');
+  assert.equal(f.gh.calls.some(call => call.path === `${REPO}/git/ref/heads/${f.gh.prs[0].branch}` && call.method === 'GET'), false);
+
+  f.gh.user = { id: 99, login: 'another-user' };
+  const denied = await f.worker.fetch(f.request(`/changes/${saved.id}?documentId=guide%2Findex`), f.env);
+  assert.equal(denied.status, 403);
+});
+
+// The document shown to the editor must be the recorded save, not another writer's branch head
+test('saved document API uses the recorded commit when the branch changes', async t => {
+  const f = await fixture(), body = await input(f), saved = await save(f.env, f.session, body);
+  f.gh.refs.set(f.gh.prs[0].branch, f.gh.base);
+  t.mock.method(globalThis, 'fetch', async url => Response.json(await f.gh.api(new URL(url).pathname + new URL(url).search)));
+
+  const response = await f.worker.fetch(f.request(`/changes/${saved.id}?documentId=guide%2Findex`), f.env);
+  assert.equal(response.status, 200);
+  const document = await response.json();
+  assert.equal(document.head, saved.head);
+  assert.equal(document.content, body.files[0].content);
+  await assert.rejects(publish(f.env, f.session, saved.id, saved.head), { status: 409 });
+});
+
 test('sidebar edits and article content save together, then new content retains the section in the same PR', async () => {
   const f = await fixture(), doc = await page(f.gh.api, 'guide/index');
   const nav = JSON.parse(doc.navigation.content);
@@ -34,7 +78,7 @@ test('sidebar edits and article content save together, then new content retains 
     { documentId: 'guide/index', content: '# 本文も変更\n', sha: doc.sha },
     { documentId: '$navigation', content: navigationText(nav), sha: doc.navigation.sha },
   ] });
-  const saved = await page(f.gh.api, 'guide/index', f.gh.prs[0].branch);
+  const saved = await page(f.gh.api, 'guide/index', f.gh.refs.get(f.gh.prs[0].branch));
   assert.equal(saved.content, '# 本文も変更\n');
   assert.equal(JSON.parse(saved.navigation.content).sidebar['/guide/'][0].text, '新しいセクション');
   const next = withNewPage(JSON.parse(saved.navigation.content), '/guide/', [0], 'guide/new-content', '新しい本文');
@@ -43,14 +87,14 @@ test('sidebar edits and article content save together, then new content retains 
     { documentId: '$navigation', content: navigationText(next), sha: saved.navigation.sha },
   ] }, first.id);
   assert.equal(f.gh.prs.length, 1);
-  const article = await page(f.gh.api, 'guide/new-content', f.gh.prs[0].branch);
+  const article = await page(f.gh.api, 'guide/new-content', f.gh.refs.get(f.gh.prs[0].branch));
   assert.equal(article.content, '# 新しい本文\n');
   assert.equal(JSON.parse(article.navigation.content).sidebar['/guide/'][0].items[0].link, '/guide/new-content');
   assert.equal((await readiness(f.gh.api, await owned(f.db, first.id, 42))).state, 'ready');
 });
 test('updates an owned PR and does not create a second PR', async () => {
   const f = await fixture(), body = await input(f), first = await save(f.env, f.session, body);
-  const latest = await page(f.gh.api, 'guide/index', f.gh.prs[0].branch);
+  const latest = await page(f.gh.api, 'guide/index', f.gh.refs.get(f.gh.prs[0].branch));
   const second = await save(f.env, f.session, { key: crypto.randomUUID(), head: first.head, files: [{ documentId: 'guide/index', sha: latest.sha, content: '# 二回目\n' }] }, first.id);
   assert.notEqual(second.head, first.head); assert.equal(f.gh.prs.length, 1);
   await assert.rejects(save(f.env, f.session, { ...body, key: crypto.randomUUID() }, first.id), { status: 409 });
@@ -229,7 +273,7 @@ test('missing strict rules, source injection, incomplete tree and operation key 
   const f = await fixture(), body = await input(f), result = await save(f.env, f.session, body);
   f.gh.noStrictRule = true; await assert.rejects(publish(f.env, f.session, result.id, result.head), {status:409});
   await assert.rejects(save(f.env, f.session, {...body, files:[{...body.files[0],content:'# other'}]}), {status:409});
-  const latest = await page(f.gh.api,'guide/index', f.gh.prs[0].branch);
+  const latest = await page(f.gh.api,'guide/index', f.gh.refs.get(f.gh.prs[0].branch));
   await assert.rejects(save(f.env,f.session,{key:crypto.randomUUID(),head:latest.head,files:[{documentId:'guide/index',sha:latest.sha,content:'<script>bad</script>'}]},result.id),{status:422});
   f.gh.truncated = true; await assert.rejects(page(f.gh.api,'guide/index'),{status:422});
 });

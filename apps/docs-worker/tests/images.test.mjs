@@ -42,7 +42,7 @@ test('binary upload, authenticated preview, save and publish preserve identical 
   const result = await save(f.env, f.session, input);
   assert.equal(f.gh.files(f.gh.prs[0]).length, 2);
   assert.deepEqual(Buffer.from(await readImage(f.gh.api, image)), png);
-  assert.equal((await page(f.gh.api, 'guide/index', f.gh.prs[0].branch)).content, input.files[0].content);
+  assert.equal((await page(f.gh.api, 'guide/index', f.gh.refs.get(f.gh.prs[0].branch))).content, input.files[0].content);
   assert.equal((await publish(f.env, f.session, result.id, result.head)).state, 'publishing');
 });
 

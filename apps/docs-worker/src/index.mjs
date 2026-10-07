@@ -41,7 +41,7 @@ export default {
           else if (image && request.method === 'GET') response = new Response(await readImage(current.api, image), { headers: { 'Content-Type': image.type } });
           else if (path === '/api/docs/changes' && request.method === 'POST') response = json(await save(env, current, await boundedJson(request)));
           else if (route && !route[2] && request.method === 'PATCH') response = json(await save(env, current, await boundedJson(request), route[1]));
-          else if (route && !route[2] && request.method === 'GET') response = json(url.searchParams.has('documentId') ? await page(current.api, url.searchParams.get('documentId'), (await owned(env.DOCS_DB, route[1], current.user_id)).branch) : await status(env, current, route[1]));
+          else if (route && !route[2] && request.method === 'GET') response = json(url.searchParams.has('documentId') ? await page(current.api, url.searchParams.get('documentId'), (await owned(env.DOCS_DB, route[1], current.user_id)).head_sha) : await status(env, current, route[1]));
           else if (route?.[2] && request.method === 'POST') response = json(await publish(env, current, route[1], (await boundedJson(request, 2000)).head));
           else throw new ApiError(405, 'この操作方法は許可されていません。');
         }
