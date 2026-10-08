@@ -1,13 +1,59 @@
-# ゲームArtifactとデプロイ
+---
+title: Web Uploader / Intakerの使い方
+description: Web Uploader / Intakerを使用して、オンラインのストレージにゲームをアップロードする方法を説明します
+---
+# ゲームを配信する
+![WebUploader\_Intaker01](/images/uploads/a1b0ca22437f6bbbc68b1afe746afa6d3a006a4a.png)
+ここでは、Web Uploader / Intakerの使い方を説明しています
 
-ゲーム配信は、Artifact作成、非公開Intake、Staging検証、Production承認の順で進めます。ブラウザーやデスクトップUploaderへ署名秘密鍵・R2書き込み資格情報を渡しません。
+## Web Uploader
+ゲームランチャーで配信するには、ゲームをインターネットにアップロードする必要があります。
 
-1. Admin Webでゲームフォルダーとrelease metadataを選び、ZIP64 Artifactとdescriptorを作成する。
-2. Artifactを非公開Intakeへmultipart uploadし、sealする。
-3. Staging申請を作り、指名された別アカウントが承認する。
-4. PublisherがArtifactを検証・署名し、Stagingへ公開する。
-5. Launcherで起動、更新、保存データを確認する。
-6. 成功したStaging申請と同一Artifact/SHA-256から、期限内にProduction申請を作る。
-7. Production専用承認とPublisherで公開し、公開カタログとLauncher起動を確認する。
+**準備するもの**
+* ゲーム本体
+* Hero画像(比率は16:9推奨)
+* Thumbnail画像(比率は16:9推奨)
+* ゲームのタイトルと説明文
 
-再試行は既存のArtifact IDとdescriptorが一致する場合にuploadを再開します。Productionへ進められるのはStaging成功後7日以内です。詳細とゲームエンジン別要件は [ゲーム作品をランチャーへデプロイする手順](../GAME_DEPLOYMENT_JA.md) を参照してください。
+## STEP 1
+![WebUploader\_Intaker02](/images/uploads/71debba8be63974bf0ffdb0cc8d2956156c03e99.png)
+ゲームの基本的な情報やランチャーが使用する情報を入力していきます
+
+* ゲームID
+    * 初回：ゲームのタイトル名を小文字かつ単語間をハイフンでつないだものを入力してください（例：pixel-pile）
+    * 更新時：初回で設定したIDを再度入力してください
+* バージョン
+    * 初回・更新時：ゲームのバージョンを入力してください
+    * 備考：前回バージョンより低い、もしくは同じだとランチャーで配信されるゲームが更新されません
+* 最小ランチャーバージョン
+    * 初回・更新時：基本的にはそのまま
+* ゲームエンジン
+    * 初回・更新時：使用しているゲームエンジン・フレームワークを選択してください
+* セーブディレクトリ名
+    * 初回・更新時：セーブに使用されるディレクトリ名を入力してください
+
+## STEP 2
+![WebUploader\_Intaker03](/images/uploads/e9303da4a53dfb7f527a574ee0b7280537ef2c0d.png)
+ランチャーに表示する、ゲームタイトルや説明文を入力していきます
+
+* 言語別表示テキスト
+    * 初回・更新時：言語タグごとに、ゲームタイトルと簡単な説明文を入力してください
+* Hero画像
+    * 初回・更新時：ゲームの起動画面にて表示される画像です
+* Thumbnail画像
+    * 初回・更新時：ゲーム一覧にて表示される画像です
+
+## STEP 3
+![WebUploader\_Intaker04](/images/uploads/b39737f2ce7e748613f1dfb8258bde18c3ff1d8a.png)
+![WebUploader\_Intaker05](/images/uploads/0504290f4c703981a2d676dfdbba5e85081df3d1.png)
+ゲームのビルドフォルダをアップロードします
+
+* 初回・更新時：ゲームの実行に必要なファイルをまとめたフォルダをアップロードしてください
+* 初回・更新時：ゲームを起動するための実行ファイルを選択してください
+
+## STEP 4
+![WebUploader\_Intaker06](/images/uploads/1cbbae4a28905cf68dcc369accf67537787a3d14.png)
+ゲームをインターネット上にアップロードします
+
+* 初回・更新時：プレビューを確認して問題がない場合は、アップロードを開始してください
+* 注意：アップロード終了時に生成したArtifactの情報を.json形式 or .zip形式のどちらかを保存してください
