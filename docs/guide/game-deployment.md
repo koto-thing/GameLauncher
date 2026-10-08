@@ -1,6 +1,6 @@
 ---
-title: ゲームを配信する
-description: ゲームランチャーにゲームを配信する方法
+title: Web Uploader / Intakerの使い方
+description: Web Uploader / Intakerを使用して、オンラインのストレージにゲームをアップロードする方法を説明します
 ---
 # ゲームを配信する
 ![WebUploader\_Intaker01](/images/uploads/a1b0ca22437f6bbbc68b1afe746afa6d3a006a4a.png)
