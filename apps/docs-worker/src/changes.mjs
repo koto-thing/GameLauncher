@@ -2,6 +2,8 @@ import { documents, documentPath, newDocumentPath, validateFile, validateNavigat
 import { ApiError, ensure, rateLimit } from './http.mjs';
 import { hash, random } from './crypto.mjs';
 import { REPO, REPOSITORY_ID, WORKFLOW, head, tree, regularFile, readBlob, authorize } from './github.mjs';
+import { MAX_IMAGES } from '../../docs/editor-images.mjs';
+import { resolveImages, imageAtPath, readImage } from './images.mjs';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 export async function owned(db, id, userId) {
@@ -13,13 +15,15 @@ export async function navigationAt(api, snapshot) {
   const content = await readBlob(api, entry); const value = validateNavigation(JSON.parse(content));
   return { entry, content, value };
 }
-export async function page(api, id, branch = 'master') {
-  const branchHead = await head(api, branch), snapshot = await tree(api, branchHead), navigation = await navigationAt(api, snapshot);
+
+// Read saved changes by immutable commit so deleting a merged branch does not lose the draft
+export async function page(api, id, commitSha) {
+  const documentHead = commitSha ?? await head(api), snapshot = await tree(api, documentHead), navigation = await navigationAt(api, snapshot);
   let path; try { path = id === '$navigation' ? 'docs/navigation.json' : documentPath(id, navigation.value); } catch { throw new ApiError(404, '編集対象が見つかりません。'); }
   const entry = regularFile(snapshot.entries, path);
   const content = await readBlob(api, entry);
   let reason = null; try { validateFile(path, content); } catch (error) { reason = error.message; }
-  return { documentId: id, path, content, sha: entry.sha, head: branchHead, editable: !reason, reason, navigation: { content: navigation.content, sha: navigation.entry.sha } };
+  return { documentId: id, path, content, sha: entry.sha, head: documentHead, editable: !reason, reason, navigation: { content: navigation.content, sha: navigation.entry.sha } };
 }
 async function validateInput(api, snapshot, files) {
   ensure(Array.isArray(files) && files.length > 0 && files.length <= MAX_FILES, 422, '1変更は1〜3ファイルです。');
@@ -55,6 +59,13 @@ async function lock(db, change) {
 }
 async function unlock(db, change, id) { await db.prepare('UPDATE changes SET lock_until=0, lock_id=NULL WHERE id=? AND lock_id=?').bind(change.id, id).run(); }
 async function audit(db, userId, change, operation, sha) { await db.prepare('INSERT INTO audit VALUES(?,?,?,?,?,?)').bind(crypto.randomUUID(), userId, change.id, operation, sha, Date.now()).run(); }
+
+// Keep document and image limits separate across the entire pull request
+function validateChangeCount(paths) {
+  const images = paths.filter(path => imageAtPath(path)).length;
+  ensure(images <= MAX_IMAGES && paths.length - images <= MAX_FILES, 422, '1変更は原稿・目次3ファイルと画像10枚までです。');
+}
+
 export async function save(env, session, input, id) {
   const db = env.DOCS_DB, api = session.api;
   ensure(input && uuid.test(input.key) && shaPattern.test(input.head) && Object.keys(input).every(key => ['key','head','files'].includes(key)), 422, '保存要求が不正です。');
@@ -81,13 +92,20 @@ export async function save(env, session, input, id) {
     ensure(!change.merge_sha && (change.head_sha === input.head || operation?.commit_sha === change.head_sha), 409, '保存元のheadが古いか、既に公開操作済みです。');
     if (change.pr) { const pr = await api(`${REPO}/pulls/${change.pr}`); ensure(pr.state === 'open' && !pr.merged, 409, 'PRが閉じられています。新しい変更を開始してください。'); }
     const snapshot = await tree(api, input.head), files = await validateInput(api, snapshot, input.files);
+    const images = await resolveImages(api, snapshot, files);
+    const base = await tree(api, change.base_sha);
+    const changedPaths = new Set([...snapshot.entries.values()].filter(entry => entry.type === 'blob' && entry.sha !== base.entries.get(entry.path)?.sha).map(entry => entry.path));
+    for (const file of [...files, ...images]) changedPaths.add(file.path);
+    validateChangeCount([...changedPaths]);
     if (!operation) {
       await db.prepare('INSERT INTO operations(id,user_id,change_id,digest,expected_head,created_at) VALUES(?,?,?,?,?,?)').bind(input.key, session.user_id, id, digest, input.head, Date.now()).run();
       operation = { expected_head: input.head, commit_sha: null };
     }
     // Persist the commit before changing refs; retries can reconcile an ambiguous ref response.
     if (!operation.commit_sha) {
-      const nextTree = await api(`${REPO}/git/trees`, 'POST', { base_tree: snapshot.sha, tree: files.map(file => ({ path: file.path, mode: '100644', type: 'blob', content: file.content })) });
+      const entries = files.map(file => ({ path: file.path, mode: '100644', type: 'blob', content: file.content }));
+      entries.push(...images.map(image => ({ path: image.path, mode: '100644', type: 'blob', sha: image.sha })));
+      const nextTree = await api(`${REPO}/git/trees`, 'POST', { base_tree: snapshot.sha, tree: entries });
       const commit = await api(`${REPO}/git/commits`, 'POST', { message: `docs: web edit ${id}\n\nOperation: ${input.key}`, tree: nextTree.sha, parents: [input.head] });
       operation.commit_sha = commit.sha;
       await db.prepare('UPDATE operations SET commit_sha=? WHERE user_id=? AND id=?').bind(commit.sha, session.user_id, input.key).run();
@@ -99,6 +117,7 @@ export async function save(env, session, input, id) {
     ensure(await head(api, change.branch) === operation.commit_sha, 409, '保存後のheadが一致しません。');
     const savedTree = await tree(api, operation.commit_sha);
     for (const file of files) ensure(await readBlob(api, regularFile(savedTree.entries, file.path)) === file.content, 502, '保存内容の再取得が一致しません。');
+    for (const image of images) ensure(regularFile(savedTree.entries, image.path).sha === image.sha, 502, '保存した画像が一致しません。');
     let pr = change.pr;
     if (!pr) {
       const prs = await api(`${REPO}/pulls?state=all&head=koto-thing:${change.branch}&base=master&per_page=100`);
@@ -128,7 +147,17 @@ export async function readiness(api, change) {
   if (!change.pr) return { state: 'saved', message: '保存処理を同じ内容で再試行してください。' };
   const pr = await api(`${REPO}/pulls/${change.pr}`);
   ensure(pr.base.repo.id === REPOSITORY_ID && pr.head.repo.id === REPOSITORY_ID && pr.base.ref === 'master' && pr.head.ref === change.branch && pr.head.sha === change.head_sha, 409, 'PRの対象またはheadが変更されています。');
-  if (pr.merged) return { state: 'publishing', mergeSha: pr.merge_commit_sha };
+  if (pr.merged) {
+    // REST 2026-03-10 removed merge_commit_sha; query the actual merged commit explicitly
+    const result = await api('/graphql', 'POST', {
+      query: 'query($number:Int!){repository(owner:"koto-thing",name:"GameLauncher"){pullRequest(number:$number){merged headRefOid mergeCommit{oid}}}}',
+      variables: { number: change.pr }
+    });
+    const merged = result.data?.repository?.pullRequest;
+    ensure(!result.errors?.length && merged?.merged && shaPattern.test(merged.mergeCommit?.oid), 502, 'GitHubのマージ結果を確認できません。時間をおいて再試行してください。');
+    ensure(merged.headRefOid === change.head_sha, 409, 'PRのheadが変更されています。');
+    return { state: 'publishing', mergeSha: merged.mergeCommit.oid };
+  }
   if (pr.state !== 'open') return { state: 'conflict', message: 'PRが閉じられています。' };
   const base = await head(api);
   if (base !== change.base_sha || pr.base.sha !== base) return { state: 'conflict', message: 'masterが更新されました。最新版と比較し、新しい変更として保存・検証してください。' };
@@ -147,11 +176,24 @@ export async function readiness(api, change) {
 }
 async function inspectPull(api, change) {
   const pr = await api(`${REPO}/pulls/${change.pr}`);
-  ensure(pr.changed_files > 0 && pr.changed_files <= MAX_FILES, 422, '変更ファイル数が許可範囲を超えています。');
+  ensure(pr.changed_files > 0 && pr.changed_files <= MAX_FILES + MAX_IMAGES, 422, '変更ファイル数が許可範囲を超えています。');
   const files = await api(`${REPO}/pulls/${change.pr}/files?per_page=100`);
   ensure(files.length === pr.changed_files, 422, 'PR差分全体を取得できません。');
+  validateChangeCount(files.map(file => file.filename));
   const snapshot = await tree(api, change.head_sha);
-  for (const file of files) { ensure(['added','modified'].includes(file.status) && !file.previous_filename, 422, '削除・移動は公開できません。'); const entry = regularFile(snapshot.entries, file.filename); try { validateFile(file.filename, await readBlob(api, entry)); } catch (error) { throw new ApiError(422, error.message); } }
+  for (const file of files) {
+    ensure(['added','modified'].includes(file.status) && !file.previous_filename, 422, '削除・移動は公開できません。');
+    const entry = regularFile(snapshot.entries, file.filename);
+    const image = imageAtPath(file.filename);
+    if (image) {
+      ensure(file.status === 'added' && entry.sha === image.sha, 422, 'アップロード画像の上書きはできません。');
+      await readImage(api, image);
+    } else {
+      const content = await readBlob(api, entry);
+      try { validateFile(file.filename, content); } catch (error) { throw new ApiError(422, error.message); }
+      ensure((await resolveImages(api, snapshot, [{ path: file.filename, content }])).length === 0, 422, '原稿の画像が保存されていません。');
+    }
+  }
 }
 export async function publish(env, session, id, expectedHead) {
   const db = env.DOCS_DB, api = session.api;

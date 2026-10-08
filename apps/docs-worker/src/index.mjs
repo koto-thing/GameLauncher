@@ -2,6 +2,8 @@ import { ApiError, ensure, boundedJson, json, rateLimit } from './http.mjs';
 import { configured, start, callback, session, setCookie } from './auth.mjs';
 import { authorize } from './github.mjs';
 import { page, save, publish, status, owned } from './changes.mjs';
+import { uploadImage, readImage } from './images.mjs';
+import { uploadedImage } from '../../docs/editor-images.mjs';
 export default {
   async fetch(request, env) {
     const url = new URL(request.url), path = url.pathname, requestId = crypto.randomUUID();
@@ -9,7 +11,8 @@ export default {
     let response;
     try {
       const route = /^\/api\/docs\/changes\/([0-9a-f-]+)(\/publish)?$/.exec(path);
-      const known = ['/api/docs/auth/start','/api/docs/auth/callback','/api/docs/session','/api/docs/logout','/api/docs/page','/api/docs/changes'].includes(path) || route;
+      const image = uploadedImage(path.replace(/^\/api\/docs\/images\//, '/images/uploads/'));
+      const known = ['/api/docs/auth/start','/api/docs/auth/callback','/api/docs/session','/api/docs/logout','/api/docs/page','/api/docs/changes','/api/docs/images'].includes(path) || route || image;
       ensure(known, 404, 'APIが見つかりません。');
       if (!configured(env)) {
         if (path === '/api/docs/session' && request.method === 'GET') response = json({ configured: false, authenticated: false, message: '管理者による設定待ちです。公開資料はログインなしで閲覧できます。' });
@@ -19,6 +22,13 @@ export default {
       else {
         const mutation = ['POST','PATCH','DELETE'].includes(request.method);
         const current = await session(request, env, mutation);
+
+        // Only the image upload route accepts binary bodies; other mutations require JSON
+        if (mutation) {
+          const binary = path === '/api/docs/images' && request.method === 'POST';
+          ensure(request.headers.get('content-type')?.split(';')[0] === (binary ? 'application/octet-stream' : 'application/json'), 422, binary ? '画像はバイナリ形式で送信してください。' : 'JSON形式で送信してください。');
+        }
+
         if (path === '/api/docs/logout' && request.method === 'POST') {
           await env.DOCS_DB.prepare('DELETE FROM sessions WHERE id_hash=?').bind(current.id_hash).run();
           response = json({ ok: true }); response.headers.set('Set-Cookie', setCookie(env, 'session', '', 0));
@@ -27,9 +37,11 @@ export default {
           await rateLimit(env.DOCS_DB, `read:${user.id}`, 60);
           if (path === '/api/docs/session' && request.method === 'GET') response = json({ configured: true, authenticated: true, user, csrf: current.csrf, expiresAt: current.expires_at });
           else if (path === '/api/docs/page' && request.method === 'GET') response = json(await page(current.api, url.searchParams.get('documentId')));
+          else if (path === '/api/docs/images' && request.method === 'POST') response = json(await uploadImage(request, env, current), 201);
+          else if (image && request.method === 'GET') response = new Response(await readImage(current.api, image), { headers: { 'Content-Type': image.type } });
           else if (path === '/api/docs/changes' && request.method === 'POST') response = json(await save(env, current, await boundedJson(request)));
           else if (route && !route[2] && request.method === 'PATCH') response = json(await save(env, current, await boundedJson(request), route[1]));
-          else if (route && !route[2] && request.method === 'GET') response = json(url.searchParams.has('documentId') ? await page(current.api, url.searchParams.get('documentId'), (await owned(env.DOCS_DB, route[1], current.user_id)).branch) : await status(env, current, route[1]));
+          else if (route && !route[2] && request.method === 'GET') response = json(url.searchParams.has('documentId') ? await page(current.api, url.searchParams.get('documentId'), (await owned(env.DOCS_DB, route[1], current.user_id)).head_sha) : await status(env, current, route[1]));
           else if (route?.[2] && request.method === 'POST') response = json(await publish(env, current, route[1], (await boundedJson(request, 2000)).head));
           else throw new ApiError(405, 'この操作方法は許可されていません。');
         }
