@@ -10,7 +10,7 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 
 // Send real binary request bodies through the existing authenticated API route
 function request(f, bytes = png, headers = {}) {
-  const base = f.request('/images', 'POST', undefined, headers);
+  const base = f.request('/images', 'POST', undefined, { 'Content-Type': 'application/octet-stream', ...headers });
   return new Request(base, { body: bytes });
 }
 
@@ -42,18 +42,36 @@ test('binary upload, authenticated preview, save and publish preserve identical 
   const result = await save(f.env, f.session, input);
   assert.equal(f.gh.files(f.gh.prs[0]).length, 2);
   assert.deepEqual(Buffer.from(await readImage(f.gh.api, image)), png);
-  assert.equal((await page(f.gh.api, 'guide/index', f.gh.prs[0].branch)).content, input.files[0].content);
+  assert.equal((await page(f.gh.api, 'guide/index', f.gh.refs.get(f.gh.prs[0].branch))).content, input.files[0].content);
   assert.equal((await publish(f.env, f.session, result.id, result.head)).state, 'publishing');
 });
 
 test('upload authentication, CSRF, Origin and collaborator rights are enforced before writing blobs', async t => {
   const f = await fixture(); mockGitHub(t, f);
-  for (const [headers, status] of [[{ Cookie: '' }, 401], [{ 'X-CSRF-Token': '' }, 403], [{ Origin: 'https://other.test' }, 403]]) {
+  for (const [headers, status] of [[{ Cookie: '' }, 401], [{ 'X-CSRF-Token': '' }, 403], [{ 'X-CSRF-Token': 'bad' }, 403], [{ Origin: '' }, 403], [{ Origin: 'https://other.test' }, 403]]) {
     assert.equal((await f.worker.fetch(request(f, png, headers), f.env)).status, status);
   }
   f.gh.permission = 'read';
   assert.equal((await f.worker.fetch(request(f), f.env)).status, 403);
   assert.equal(f.gh.calls.filter(call => call.method !== 'GET').length, 0);
+});
+
+test('binary bodies are exclusive to image uploads and unsupported media types never cause writes', async t => {
+  const f = await fixture(); mockGitHub(t, f);
+  for (const type of ['', 'text/plain', 'multipart/form-data', 'application/json']) {
+    const result = await f.worker.fetch(request(f, png, { 'Content-Type': type }), f.env);
+    assert.equal(result.status, 422);
+    assert.match((await result.json()).error, /バイナリ形式/);
+  }
+  for (const [path, method] of [['/changes', 'POST'], ['/changes/00000000-0000-4000-8000-000000000001', 'PATCH'], ['/changes/00000000-0000-4000-8000-000000000001/publish', 'POST'], ['/logout', 'POST']]) {
+    for (const type of ['application/octet-stream', 'text/plain', '']) {
+      const result = await f.worker.fetch(f.request(path, method, {}, { 'Content-Type': type }), f.env);
+      assert.equal(result.status, 422);
+      assert.match((await result.json()).error, /JSON形式/);
+    }
+  }
+  assert.equal(f.gh.calls.filter(call => call.method !== 'GET').length, 0);
+  assert.equal((await f.db.prepare('SELECT count(*) AS n FROM sessions').first()).n, 1);
 });
 
 test('reject oversized or disguised uploads and previews of non-image blobs', async t => {

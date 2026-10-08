@@ -21,7 +21,7 @@ createServer(async (request, response) => {
       const chunks = []; let size = 0;
       for await (const chunk of request) { size += chunk.length; if (size > (binary ? MAX_IMAGE_BYTES : 210000)) throw new Error('too large'); chunks.push(chunk); }
       const body = Buffer.concat(chunks);
-      const base = f.request(request.url.slice('/api/docs'.length), request.method, !binary && body.length ? JSON.parse(body.toString()) : undefined, { 'X-CSRF-Token': request.headers['x-csrf-token'] || '' });
+      const base = f.request(request.url.slice('/api/docs'.length), request.method, !binary && body.length ? JSON.parse(body.toString()) : undefined, { 'Content-Type': request.headers['content-type'] || '', 'X-CSRF-Token': request.headers['x-csrf-token'] || '' });
       const result = await f.worker.fetch(binary ? new Request(base, { body }) : base, f.env);
       response.writeHead(result.status, Object.fromEntries(result.headers)); response.end(Buffer.from(await result.arrayBuffer())); return;
     }
