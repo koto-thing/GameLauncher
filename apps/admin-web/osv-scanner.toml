@@ -1,0 +1,8 @@
+# Reviewed and accepted on 2026-10-10 for this application's development tooling only
+# Advisory: https://osv.dev/vulnerability/GHSA-vfj7-8cjw-p6xm
+# Paths: @next/eslint-plugin-next -> fast-glob -> micromatch -> braces
+#        vinext -> vite-plugin-commonjs -> vite-plugin-dynamic-import -> fast-glob -> micromatch -> braces
+# Reassess if glob patterns can originate from HTTP requests/uploads or these dependency paths change
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+reason = "braces 3.0.3 has no published fix. Its recursive-pattern DoS affects development-time globbing of repository-controlled ESLint configuration and source imports; no application request or uploaded artifact is passed to these globbers. This exception applies only to apps/admin-web, not other advisories or all development dependencies."

@@ -4,7 +4,11 @@
 Cloudflare Workersアプリケーションです。
 
 Phase 2のartifact作成、非公開intakeへのmultipart upload、再開、sealまで実装済みです。
-StagingとProductionの申請、別アカウント承認、GitHub Actions起動、結果通知まで実装済みです。
+Maintain相当（requester）またはAdminは申請作成時に承認なしでGitHub Actionsを起動します。
+既存の準備中・承認待ち申請も、申請者本人またはAdminが「公開する」で直接実行できます。
+Adminは他のユーザーの申請も実行でき、実行ごとの監査記録とAdmin権限をpreflightで確認します。
+Production申請権限と成功済みStagingの有効期限は引き続き必要です。
+Production申請権限だけを持つユーザーは指名承認を必要とします。
 外部設定が揃うまでは環境別のkill switchにより実workflowを起動できません。
 
 ## ローカル起動
@@ -59,7 +63,7 @@ StagingとProductionの申請、別アカウント承認、GitHub Actions起動�
 4. STEP 2: 多言語表示情報とHero / Thumbnail画像を選択（焦点位置を指定）
 5. STEP 3: Buildフォルダを選択し、起動EXEを確認
 6. STEP 4: プレビュー内容を確認し、「Artifactを作成してアップロード」を実行
-7. 完了後、Control Planeの申請画面（`/game`）で公開申請を作成・承認・実行
+7. 完了後、Control Planeの申請画面（`/game`）で公開申請を作成（Maintain相当以上はそのまま公開処理を開始）
 
 ルート（`/`）はサービス選択画面です。GameLauncherのWeb Uploader / Intaker（`/intake`）、公開申請・設定（`/game`）、Music Uploader（`/music`）へ移動できます。
 

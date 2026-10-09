@@ -58,6 +58,10 @@
           {
             "text": "運用と障害対応",
             "link": "/guide/operations"
+          },
+          {
+            "text": "ゲーム公開申請",
+            "link": "/guide/game-release-application"
           }
         ]
       }
