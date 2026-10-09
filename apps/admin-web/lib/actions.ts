@@ -1,7 +1,7 @@
 import type { ActionsIdentity } from "@/lib/actions-identity";
 export { requireActionsIdentity, type ActionsIdentity } from "@/lib/actions-identity";
 import { ensureSchema, getD1 } from "@/db/initialize";
-import { auditRecord } from "@/lib/control-plane";
+import { auditRecord, canPublishWithoutApproval } from "@/lib/control-plane";
 import { issueArtifactDownloadUrl } from "@/lib/intake";
 import type { SessionUser } from "@/lib/auth";
 
@@ -62,37 +62,26 @@ export async function preflightRequest(
         Date.parse(text(source.production_eligible_until)) <= Date.now()) {
       throw new Error("有効なstaging成功記録を確認できません");
     }
-    if (number(row.requester_is_admin) === 1) {
-      const bypass = await db.prepare(`SELECT 1 AS found FROM audit_events
-        WHERE request_id = ? AND event_type = 'admin_bypass' LIMIT 1`)
-        .bind(input.requestId).first<{ found: number }>();
-      if (!bypass) throw new Error("Admin bypass監査記録が見つかりません");
-    } else {
-      const requesterGrant = await db.prepare(`SELECT 1 AS allowed FROM policy_grants
-        WHERE github_user_id = ? AND grant_type = 'production_requester' AND revoked_at IS NULL`)
-        .bind(text(row.requester_github_user_id)).first<{ allowed: number }>();
-      if (!requesterGrant) throw new Error("production requester grantが現在有効ではありません");
-      const approval = await db.prepare(`SELECT 1 AS allowed
-        FROM approval_decisions d
-        JOIN request_approvers ra ON ra.request_id = d.request_id
-          AND ra.approver_github_user_id = d.approver_github_user_id
-        JOIN policy_grants g ON g.github_user_id = d.approver_github_user_id
-          AND g.grant_type = 'approver' AND g.revoked_at IS NULL
-        WHERE d.request_id = ? AND d.decision = 'approved'
-          AND d.approver_github_user_id != ? LIMIT 1`)
-        .bind(input.requestId, text(row.requester_github_user_id)).first<{ allowed: number }>();
-      if (!approval) throw new Error("Production用の有効な指名承認を確認できません");
-    }
-  } else if (number(row.requester_is_admin) === 1) {
-    const bypass = await db.prepare(`SELECT 1 AS found FROM audit_events
-      WHERE request_id = ? AND event_type = 'admin_bypass' LIMIT 1`)
-      .bind(input.requestId).first<{ found: number }>();
-    if (!bypass) throw new Error("Admin bypass監査記録が見つかりません");
-  } else {
+  }
+
+  // 今回の実行を開始したAdminの監査記録と現在の権限を確認する
+  const adminDispatch = await db.prepare(`SELECT 1 AS allowed FROM audit_events a
+    JOIN users u ON u.github_user_id = a.actor_github_user_id AND u.is_admin = 1
+    WHERE a.request_id = ? AND a.event_type = 'workflow_dispatch_requested'
+      AND json_extract(a.payload_json, '$.attemptId') = ?
+      AND json_extract(a.payload_json, '$.authority') = 'admin' LIMIT 1`)
+    .bind(input.requestId, input.attemptId).first<{ allowed: number }>();
+
+  // Adminによる実行、または実行時点の申請者権限に基づいて認可する
+  if (!adminDispatch && number(row.requester_is_admin) !== 1) {
+    const requiredGrant = identity.deploymentEnvironment === "production" ? "production_requester" : "requester";
     const requesterGrant = await db.prepare(`SELECT 1 AS allowed FROM policy_grants
-      WHERE github_user_id = ? AND grant_type = 'requester' AND revoked_at IS NULL`)
-      .bind(text(row.requester_github_user_id)).first<{ allowed: number }>();
-    if (!requesterGrant) throw new Error("requester grantが現在有効ではありません");
+      WHERE github_user_id = ? AND grant_type = ? AND revoked_at IS NULL`)
+      .bind(text(row.requester_github_user_id), requiredGrant).first<{ allowed: number }>();
+    if (!requesterGrant) throw new Error(`${requiredGrant} grantが現在有効ではありません`);
+  }
+
+  if (!adminDispatch && !await canPublishWithoutApproval(text(row.requester_github_user_id), number(row.requester_is_admin) === 1)) {
     const approval = await db.prepare(`SELECT 1 AS allowed
       FROM approval_decisions d
       JOIN request_approvers ra ON ra.request_id = d.request_id

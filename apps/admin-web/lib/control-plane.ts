@@ -88,6 +88,11 @@ async function activeGrant(userId: string, grantType: GrantType): Promise<boolea
   return row?.allowed === 1;
 }
 
+/** Maintain相当の申請者またはAdminの承認省略権限を確認する */
+export async function canPublishWithoutApproval(userId: string, isAdmin: boolean): Promise<boolean> {
+  return isAdmin || await activeGrant(userId, "requester");
+}
+
 /** 申請作成に必要なrequester権限を検証する */
 export async function requireRequester(actor: SessionUser): Promise<void> {
   await ensureSchema();
@@ -355,6 +360,15 @@ export async function createRequest(actor: SessionUser, input: {
         metadataSha256, actor.githubUserId, timestamp),
     audit,
   ]);
+  // 申請作成と同じ操作で、権限に応じて公開処理を開始する
+  if (await canPublishWithoutApproval(actor.githubUserId, actor.isAdmin)) {
+    try {
+      await submitRequest(actor, { requestId, reason: "" });
+    } catch (error) {
+      return { requestId, dispatchError: error instanceof Error ? error.message : "公開処理を開始できませんでした" };
+    }
+  }
+
   return { requestId };
 }
 
@@ -409,6 +423,15 @@ export async function createProductionRequest(
       ),
     audit,
   ]);
+  // 申請作成と同じ操作で、権限に応じて公開処理を開始する
+  if (await canPublishWithoutApproval(actor.githubUserId, actor.isAdmin)) {
+    try {
+      await submitRequest(actor, { requestId, reason: "" });
+    } catch (error) {
+      return { requestId, dispatchError: error instanceof Error ? error.message : "公開処理を開始できませんでした" };
+    }
+  }
+
   return { requestId };
 }
 
@@ -442,38 +465,43 @@ export async function designateApprover(
   ]);
 }
 
-/** 下書き申請を承認フローへ提出する */
+/** 申請を提出し、Maintain相当以上なら既存の承認待ちも直接公開する */
 export async function submitRequest(
   actor: SessionUser,
   input: { requestId: string; reason: string },
 ) {
   await ensureSchema();
   const request = await requestRow(input.requestId);
-  if (request.requester_github_user_id !== actor.githubUserId) {
-    throw new Error("申請者本人だけが提出できます");
+  if (!actor.isAdmin && request.requester_github_user_id !== actor.githubUserId) {
+    throw new Error("申請者本人またはAdminだけが提出できます");
   }
-  if (request.state !== "ready") throw new Error("この申請は提出できません");
+  const skipApproval = await canPublishWithoutApproval(actor.githubUserId, actor.isAdmin);
+  const allowedStates = skipApproval ? ["ready", "pending_approval"] : ["ready"];
+  if (!allowedStates.includes(asString(request.state))) throw new Error("この申請は提出できません");
+
+  // 環境ごとの申請権限は承認省略時にも検証する
+  if (request.environment === "production") {
+    await requireProductionRequester(actor);
+  } else {
+    await requireRequester(actor);
+  }
+
   const timestamp = now();
   const db = getD1();
-  if (actor.isAdmin) {
-    const reason = input.reason.trim();
-    if (reason.length < 3 || reason.length > 500) {
-      throw new Error("Admin bypassの理由を3～500文字で入力してください");
-    }
-    const audit = await auditRecord(input.requestId, "admin_bypass", actor, {
-      reason,
+  if (skipApproval) {
+    const audit = await auditRecord(input.requestId, "approval_waived", actor, {
       environment: asString(request.environment),
+      authority: actor.isAdmin ? "admin" : "requester",
+      previousState: asString(request.state),
     });
     await db.batch([
-      db.prepare(`UPDATE deployment_requests SET state = 'approved', submitted_at = ?
-        WHERE request_id = ? AND state = 'ready'`).bind(timestamp, input.requestId),
+      db.prepare(`UPDATE deployment_requests SET state = 'approved', submitted_at = COALESCE(submitted_at, ?)
+        WHERE request_id = ? AND state IN ('ready', 'pending_approval')`).bind(timestamp, input.requestId),
       audit,
     ]);
+
+    await dispatchRequest(actor, input);
     return;
-  }
-  const requiredGrant = request.environment === "production" ? "production_requester" : "requester";
-  if (!actor.isAdmin && !await activeGrant(actor.githubUserId, requiredGrant)) {
-    throw new Error(`${request.environment}申請者allowlistから外れています`);
   }
   const approver = await db.prepare("SELECT 1 AS found FROM request_approvers WHERE request_id = ? LIMIT 1")
     .bind(input.requestId).first<{ found: number }>();
@@ -616,6 +644,7 @@ export async function dispatchRequest(actor: SessionUser, input: { requestId: st
   const audit = await auditRecord(input.requestId, "workflow_dispatch_requested", actor, {
     attemptId,
     attemptNumber,
+    authority: actor.isAdmin ? "admin" : "requester",
     environment,
     artifactSha256: asString(request.artifact_sha256),
   });
