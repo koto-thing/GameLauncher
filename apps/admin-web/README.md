@@ -5,7 +5,8 @@ Cloudflare Workersアプリケーションです。
 
 Phase 2のartifact作成、非公開intakeへのmultipart upload、再開、sealまで実装済みです。
 Maintain相当（requester）またはAdminは申請作成時に承認なしでGitHub Actionsを起動します。
-既存の準備中・承認待ち申請も、申請者本人が「公開する」で直接実行できます。
+既存の準備中・承認待ち申請も、申請者本人またはAdminが「公開する」で直接実行できます。
+Adminは他のユーザーの申請も実行でき、実行ごとの監査記録とAdmin権限をpreflightで確認します。
 Production申請権限と成功済みStagingの有効期限は引き続き必要です。
 Production申請権限だけを持つユーザーは指名承認を必要とします。
 外部設定が揃うまでは環境別のkill switchにより実workflowを起動できません。

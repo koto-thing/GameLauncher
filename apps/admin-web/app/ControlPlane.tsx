@@ -590,7 +590,7 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
 
   const isOwner = request.requesterGithubUserId === dashboard.actor.githubUserId;
   const requester = dashboard.users.find((user) => user.githubUserId === request.requesterGithubUserId);
-  const skipApproval = Boolean(requester?.isAdmin || requester?.grants.includes("requester"));
+  const skipApproval = Boolean(dashboard.actor.isAdmin || requester?.isAdmin || requester?.grants.includes("requester"));
   const isDesignated = request.approvers.some((item) => item.githubUserId === dashboard.actor.githubUserId);
   const canDispatch = dashboard.actor.isAdmin || isOwner;
   const canCancel = (dashboard.actor.isAdmin || isOwner) &&
@@ -614,7 +614,7 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
         <div className="fingerprint"><span>SHA-256</span><code title={request.artifactSha256}>{shortHash(request.artifactSha256)}</code><small>artifact {request.artifactId.slice(0, 8)}</small></div>
 
         <div className="approval-line">
-          <span>{skipApproval ? "承認不要（Maintain相当以上）" : "指名承認者"}</span>
+          <span>{skipApproval ? "承認不要（Admin／Maintain相当）" : "指名承認者"}</span>
           {skipApproval ? null : request.approvers.length ? request.approvers.map((item) => <b key={item.githubUserId}>@{item.login}</b>) : <em>未指名</em>}
           {request.decisions.map((decision) => <span className={`decision ${decision.decision}`} key={decision.githubUserId}>{decision.decision === "approved" ? "承認済み" : "却下"}</span>)}
         </div>
@@ -629,7 +629,7 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
           <div className="inline-action"><select aria-label="指名承認者" value={selectedApprover} onChange={(event) => setSelectedApprover(event.target.value)}>{approvers.map((user) => <option key={user.githubUserId} value={user.githubUserId}>@{user.login}</option>)}</select><button disabled={busy || !selectedApprover} onClick={() => runAction({ action: "designate_approver", requestId: request.requestId, approverGithubUserId: selectedApprover }, "承認者を指名しました")}>指名</button></div>
         )}
 
-        {isOwner && (request.state === "ready" || (skipApproval && request.state === "pending_approval")) && (
+        {canDispatch && (request.state === "ready" || (skipApproval && request.state === "pending_approval")) && (
           <div className="submit-request-action">
             <button className="primary-button submit-request-button" disabled={busy} onClick={() => runAction({ action: "submit_request", requestId: request.requestId, reason }, skipApproval ? "公開処理を開始しました" : "指名承認を申請しました")}>
               <span>{skipApproval ? "公開する" : "提出する"}</span>

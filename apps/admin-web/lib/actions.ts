@@ -64,8 +64,16 @@ export async function preflightRequest(
     }
   }
 
-  // 実行時点の申請権限を確認し、Maintain相当以上は他者承認を不要とする
-  if (number(row.requester_is_admin) !== 1) {
+  // 今回の実行を開始したAdminの監査記録と現在の権限を確認する
+  const adminDispatch = await db.prepare(`SELECT 1 AS allowed FROM audit_events a
+    JOIN users u ON u.github_user_id = a.actor_github_user_id AND u.is_admin = 1
+    WHERE a.request_id = ? AND a.event_type = 'workflow_dispatch_requested'
+      AND json_extract(a.payload_json, '$.attemptId') = ?
+      AND json_extract(a.payload_json, '$.authority') = 'admin' LIMIT 1`)
+    .bind(input.requestId, input.attemptId).first<{ allowed: number }>();
+
+  // Adminによる実行、または実行時点の申請者権限に基づいて認可する
+  if (!adminDispatch && number(row.requester_is_admin) !== 1) {
     const requiredGrant = identity.deploymentEnvironment === "production" ? "production_requester" : "requester";
     const requesterGrant = await db.prepare(`SELECT 1 AS allowed FROM policy_grants
       WHERE github_user_id = ? AND grant_type = ? AND revoked_at IS NULL`)
@@ -73,7 +81,7 @@ export async function preflightRequest(
     if (!requesterGrant) throw new Error(`${requiredGrant} grantが現在有効ではありません`);
   }
 
-  if (!await canPublishWithoutApproval(text(row.requester_github_user_id), number(row.requester_is_admin) === 1)) {
+  if (!adminDispatch && !await canPublishWithoutApproval(text(row.requester_github_user_id), number(row.requester_is_admin) === 1)) {
     const approval = await db.prepare(`SELECT 1 AS allowed
       FROM approval_decisions d
       JOIN request_approvers ra ON ra.request_id = d.request_id

@@ -472,8 +472,8 @@ export async function submitRequest(
 ) {
   await ensureSchema();
   const request = await requestRow(input.requestId);
-  if (request.requester_github_user_id !== actor.githubUserId) {
-    throw new Error("申請者本人だけが提出できます");
+  if (!actor.isAdmin && request.requester_github_user_id !== actor.githubUserId) {
+    throw new Error("申請者本人またはAdminだけが提出できます");
   }
   const skipApproval = await canPublishWithoutApproval(actor.githubUserId, actor.isAdmin);
   const allowedStates = skipApproval ? ["ready", "pending_approval"] : ["ready"];
@@ -644,6 +644,7 @@ export async function dispatchRequest(actor: SessionUser, input: { requestId: st
   const audit = await auditRecord(input.requestId, "workflow_dispatch_requested", actor, {
     attemptId,
     attemptNumber,
+    authority: actor.isAdmin ? "admin" : "requester",
     environment,
     artifactSha256: asString(request.artifact_sha256),
   });

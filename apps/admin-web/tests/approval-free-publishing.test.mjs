@@ -163,3 +163,49 @@ test("failed dispatch preserves the request for retry", async (t) => {
   f.sql.prepare("UPDATE deployment_requests SET state='succeeded',production_eligible_until='2020-01-01T00:00:00Z' WHERE request_id=?").run(requestId);
   await assert.rejects(f.control.createProductionRequest(f.actor, { sourceStagingRequestId: requestId }), /期限を過ぎています/);
 });
+
+// Adminは他者の既存申請を実行でき、実行試行ごとに権限を確認する
+for (const state of ["ready", "pending_approval"]) {
+  test(`admin publishes another user's ${state} request without requester grants`, async (t) => {
+    const f = await fixture(t);
+    f.dispatch.enabled = false;
+    const { requestId } = await f.control.createRequest(f.actor, f.input);
+    f.sql.prepare("UPDATE deployment_requests SET state=? WHERE request_id=?").run(state, requestId);
+    f.sql.exec("DELETE FROM policy_grants; INSERT INTO users VALUES ('2','admin','',1,'now')");
+    const admin = { githubUserId: "2", login: "admin", isAdmin: true };
+    f.dispatch.enabled = true;
+    await f.control.submitRequest(admin, { requestId, reason: "" });
+    await f.preflight(requestId);
+    assert.equal(f.state(requestId), "running");
+    const event = f.sql.prepare("SELECT actor_github_user_id,payload_json FROM audit_events WHERE event_type='workflow_dispatch_requested'").get();
+    assert.equal(event.actor_github_user_id, "2");
+    assert.equal(JSON.parse(event.payload_json).authority, "admin");
+  });
+}
+
+test("admin can publish another user's production request while staging conditions remain enforced", async (t) => {
+  const f = await fixture(t, { production: true });
+  const source = await f.control.createRequest(f.actor, f.input);
+  f.sql.prepare("UPDATE deployment_requests SET state='succeeded',production_eligible_until=? WHERE request_id=?").run(new Date(Date.now() + 86400000).toISOString(), source.requestId);
+  f.sql.exec("DELETE FROM policy_grants WHERE grant_type='requester'; INSERT INTO users VALUES ('2','admin','',1,'now')");
+  const { requestId } = await f.control.createProductionRequest(f.actor, { sourceStagingRequestId: source.requestId });
+  const admin = { githubUserId: "2", login: "admin", isAdmin: true };
+  await f.control.submitRequest(admin, { requestId, reason: "" });
+  f.sql.prepare("UPDATE deployment_requests SET production_eligible_until='2020-01-01T00:00:00Z' WHERE request_id=?").run(source.requestId);
+  await assert.rejects(f.preflight(requestId, "production"), /有効なstaging/);
+  f.sql.prepare("UPDATE deployment_requests SET production_eligible_until=? WHERE request_id=?").run(new Date(Date.now() + 86400000).toISOString(), source.requestId);
+  await f.preflight(requestId, "production");
+  assert.equal(f.state(requestId), "running");
+});
+
+test("revoked admin privileges cannot authorize a queued execution", async (t) => {
+  const f = await fixture(t);
+  f.dispatch.enabled = false;
+  const { requestId } = await f.control.createRequest(f.actor, f.input);
+  f.sql.prepare("UPDATE deployment_requests SET state='ready' WHERE request_id=?").run(requestId);
+  f.sql.exec("DELETE FROM policy_grants; INSERT INTO users VALUES ('2','admin','',1,'now')");
+  f.dispatch.enabled = true;
+  await f.control.submitRequest({ githubUserId: "2", login: "admin", isAdmin: true }, { requestId, reason: "" });
+  f.sql.exec("UPDATE users SET is_admin=0 WHERE github_user_id='2'");
+  await assert.rejects(f.preflight(requestId), /現在有効ではありません/);
+});
