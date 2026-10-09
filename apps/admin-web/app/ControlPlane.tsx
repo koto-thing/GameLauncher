@@ -95,7 +95,7 @@ const eventText: Record<string, string> = {
   request_approved: "申請を承認",
   request_rejected: "申請を却下",
   request_cancelled: "申請をキャンセル",
-  admin_bypass: "Admin bypassで承認",
+  approval_waived: "申請権限により承認を省略",
   policy_grant_added: "権限を付与",
   policy_grant_revoked: "権限を取消",
   workflow_dispatch_requested: "Actions実行を要求",
@@ -132,7 +132,8 @@ function shortHash(value: string): string {
 }
 
 /** 申請状態と環境から利用者向けの次の操作説明を作る */
-function nextStepText(request: DeploymentRequest): string {
+function nextStepText(request: DeploymentRequest, skipApproval: boolean): string {
+  if (skipApproval && ["ready", "pending_approval"].includes(request.state)) return "「公開する」で承認なしに公開処理を開始できます";
   if (request.state === "ready") return "次: Adminが承認者を指名し、申請者が提出します";
   if (request.state === "pending_approval") return "次: 指名された別アカウントが内容を確認して承認します";
   if (request.state === "approved") return `次: ${request.environment === "production" ? "Production" : "Staging"}へ実行します`;
@@ -221,11 +222,14 @@ export function ControlPlane() {
         showSignIn();
         return;
       }
-      const body = await result.json() as { error?: string };
+      const body = await result.json() as { error?: string; dispatchError?: string };
       if (!result.ok) throw new Error(body.error ?? "操作を完了できませんでした");
-      setNotice({ tone: "success", text: success });
+      setNotice(body.dispatchError
+        ? { tone: "error", text: `申請は保存済みです。${body.dispatchError}。申請一覧から実行できます` }
+        : { tone: "success", text: success });
       await refresh();
     } catch (error) {
+      await refresh();
       setNotice({ tone: "error", text: error instanceof Error ? error.message : "操作に失敗しました" });
     } finally {
       setBusy(false);
@@ -472,7 +476,7 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
   return (
     <section className="workspace">
       <div className="section-heading">
-        <div><p className="eyebrow">DEPLOYMENT REQUESTS</p><h2>Staging / Production 公開申請</h2><p className="section-copy">カード内の「次にすること」を上から順に進めてください。Production申請は成功したStagingからだけ作成できます。</p></div>
+        <div><p className="eyebrow">DEPLOYMENT REQUESTS</p><h2>Staging / Production 公開申請</h2><p className="section-copy">カード内の「次にすること」を上から順に進めてください。Maintain相当以上は申請と同時に公開処理を開始します。Production申請は成功したStagingからだけ作成できます。</p></div>
 
         {dashboard.permissions.canRequest && <button className="primary-button" onClick={() => setShowForm((value) => !value)}>{showForm ? "閉じる" : "新しい申請"}</button>}
       </div>
@@ -482,11 +486,11 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
       <div className="readiness-grid" aria-label="公開環境の準備状況">
         <article className={dashboard.system.dispatchConfigured.staging ? "ready" : "locked"}>
           <span>STAGING</span>
-          <div><strong>{dashboard.system.dispatchConfigured.staging ? "実行できます" : "安全停止中"}</strong><p>{dashboard.system.dispatchConfigured.staging ? "申請承認後、テスト公開を開始できます。" : "Environmentと秘密情報を設定してからAdminが有効化します。"}</p></div>
+          <div><strong>{dashboard.system.dispatchConfigured.staging ? "実行できます" : "安全停止中"}</strong><p>{dashboard.system.dispatchConfigured.staging ? "Maintain相当以上は承認なしでテスト公開できます。" : "Environmentと秘密情報を設定してからAdminが有効化します。"}</p></div>
         </article>
         <article className={dashboard.system.dispatchConfigured.production ? "ready" : "locked"}>
           <span>PRODUCTION</span>
-          <div><strong>{dashboard.system.dispatchConfigured.production ? "実行できます" : "安全停止中"}</strong><p>{dashboard.system.dispatchConfigured.production ? "成功済みStagingから承認付きで本番公開できます。" : "Production設定が揃うまで、本番実行ボタンは表示されません。"}</p></div>
+          <div><strong>{dashboard.system.dispatchConfigured.production ? "実行できます" : "安全停止中"}</strong><p>{dashboard.system.dispatchConfigured.production ? "成功済みStagingから本番公開できます。Maintain相当以上は承認不要です。" : "Production設定が揃うまで、本番実行ボタンは表示されません。"}</p></div>
         </article>
       </div>
 
@@ -545,7 +549,7 @@ function RequestForm({ busy, runAction, onDone }: {
       artifactSha256: sha,
       sizeBytes,
       fileCount,
-    }, "ステージング申請を作成しました");
+    }, "ステージング申請を作成し、公開処理を開始しました");
     onDone();
   }
 
@@ -567,7 +571,7 @@ function RequestForm({ busy, runAction, onDone }: {
       <label>容量（bytes）<input name="sizeBytes" type="number" value={sizeBytes || ""} readOnly required /></label>
       <label>ファイル数<input name="fileCount" type="number" value={fileCount || ""} readOnly required /></label>
 
-      <div className="form-actions wide"><button className="primary-button" disabled={busy || !artifactId}>申請を作成</button></div>
+      <div className="form-actions wide"><button className="primary-button" disabled={busy || !artifactId}>申請してStagingへ公開</button></div>
     </form>
   );
 }
@@ -585,6 +589,8 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
   const [safetyReason, setSafetyReason] = useState("");
 
   const isOwner = request.requesterGithubUserId === dashboard.actor.githubUserId;
+  const requester = dashboard.users.find((user) => user.githubUserId === request.requesterGithubUserId);
+  const skipApproval = Boolean(requester?.isAdmin || requester?.grants.includes("requester"));
   const isDesignated = request.approvers.some((item) => item.githubUserId === dashboard.actor.githubUserId);
   const canDispatch = dashboard.actor.isAdmin || isOwner;
   const canCancel = (dashboard.actor.isAdmin || isOwner) &&
@@ -608,32 +614,31 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
         <div className="fingerprint"><span>SHA-256</span><code title={request.artifactSha256}>{shortHash(request.artifactSha256)}</code><small>artifact {request.artifactId.slice(0, 8)}</small></div>
 
         <div className="approval-line">
-          <span>指名承認者</span>
-          {request.approvers.length ? request.approvers.map((item) => <b key={item.githubUserId}>@{item.login}</b>) : <em>未指名</em>}
+          <span>{skipApproval ? "承認不要（Maintain相当以上）" : "指名承認者"}</span>
+          {skipApproval ? null : request.approvers.length ? request.approvers.map((item) => <b key={item.githubUserId}>@{item.login}</b>) : <em>未指名</em>}
           {request.decisions.map((decision) => <span className={`decision ${decision.decision}`} key={decision.githubUserId}>{decision.decision === "approved" ? "承認済み" : "却下"}</span>)}
         </div>
 
         {latestAttempt && <div className="approval-line"><span>実行 #{latestAttempt.attemptNumber}</span><b>{latestAttempt.stage}</b><em>{latestAttempt.result}</em>{latestAttempt.githubRunId && <span>run {latestAttempt.githubRunId}</span>}</div>}
-        <p className="next-step"><strong>次にすること</strong>{nextStepText(request)}</p>
+        <p className="next-step"><strong>次にすること</strong>{nextStepText(request, skipApproval)}</p>
       </div>
       <div className="request-actions">
         {request.environment === "production" && <div className="production-warning"><strong>本番公開</strong><span>公開URLの内容が更新されます。Stagingで動作確認した同じSHA-256か確認してください。</span></div>}
 
-        {dashboard.permissions.canAdminister && request.state === "ready" && approvers.length > 0 && (
+        {!skipApproval && dashboard.permissions.canAdminister && request.state === "ready" && approvers.length > 0 && (
           <div className="inline-action"><select aria-label="指名承認者" value={selectedApprover} onChange={(event) => setSelectedApprover(event.target.value)}>{approvers.map((user) => <option key={user.githubUserId} value={user.githubUserId}>@{user.login}</option>)}</select><button disabled={busy || !selectedApprover} onClick={() => runAction({ action: "designate_approver", requestId: request.requestId, approverGithubUserId: selectedApprover }, "承認者を指名しました")}>指名</button></div>
         )}
 
-        {isOwner && request.state === "ready" && (
+        {isOwner && (request.state === "ready" || (skipApproval && request.state === "pending_approval")) && (
           <div className="submit-request-action">
-            {dashboard.actor.isAdmin && <label>Admin bypassの理由<input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="例: 緊急パッチ" /></label>}
-            <button className="primary-button submit-request-button" disabled={busy} onClick={() => runAction({ action: "submit_request", requestId: request.requestId, reason }, dashboard.actor.isAdmin ? "Admin bypassを記録しました" : "指名承認を申請しました")}>
-              <span>提出する</span>
-              <small>{dashboard.actor.isAdmin ? "Admin bypassで承認" : "指名承認へ送信"}</small>
+            <button className="primary-button submit-request-button" disabled={busy} onClick={() => runAction({ action: "submit_request", requestId: request.requestId, reason }, skipApproval ? "公開処理を開始しました" : "指名承認を申請しました")}>
+              <span>{skipApproval ? "公開する" : "提出する"}</span>
+              <small>{skipApproval ? "承認なしで公開処理を開始" : "指名承認へ送信"}</small>
             </button>
           </div>
         )}
 
-        {isDesignated && request.state === "pending_approval" && (
+        {!skipApproval && isDesignated && request.state === "pending_approval" && (
           <div className="decision-actions"><input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="却下時は理由が必須" /><button disabled={busy} onClick={() => runAction({ action: "decide_request", requestId: request.requestId, decision: "rejected", reason }, "申請を却下しました")}>却下</button><button className="approve-button" disabled={busy} onClick={() => runAction({ action: "decide_request", requestId: request.requestId, decision: "approved", reason }, "申請を承認しました")}>承認</button></div>
         )}
 
