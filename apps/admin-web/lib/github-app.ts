@@ -13,6 +13,25 @@ type GitHubAppEnv = {
 
 export type DeploymentEnvironment = "staging" | "production";
 
+/** @brief GitHubに保存された実行状態と再実行番号を取得する */
+export async function deploymentWorkflowRun(environment: DeploymentEnvironment, runId: string) {
+  const token = await installationToken(environment);
+  const response = await fetch(`https://api.github.com/repos/koto-thing/GameLauncher/actions/runs/${encodeURIComponent(runId)}`, {
+    headers: {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${token}`,
+      "x-github-api-version": "2026-03-10",
+      "user-agent": "PandD-Deployment-Control-Plane",
+    },
+    redirect: "manual",
+    signal: AbortSignal.timeout(10000),
+  });
+
+  // 通信失敗をキャンセルとして扱わない
+  if (!response.ok) throw new Error(`Actionsの状態を確認できませんでした (HTTP ${response.status})`);
+  return await response.json() as { status: string; conclusion: string | null; run_attempt: number };
+}
+
 const workflowByEnvironment: Record<DeploymentEnvironment, string> = {
   staging: "deploy-game-staging.yml",
   production: "deploy-game-production.yml",

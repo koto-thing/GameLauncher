@@ -46,13 +46,14 @@ async function fixture(t, { admin = false, requester = true, production = false 
   const initialize = loadModule("../db/initialize.ts", { "cloudflare:workers": { env: { DB: db } } });
   await initialize.ensureSchema();
   const sent = [];
-  const dispatch = { enabled: true, fail: false };
+  const dispatch = { enabled: true, fail: false, run: { status: "completed", conclusion: "cancelled", run_attempt: 1 } };
   const control = loadModule("../lib/control-plane.ts", {
     "@/db/initialize": initialize,
     "@/lib/access-requests": {},
     "@/lib/artifact-limits": { MAX_ARTIFACT_BYTES: 5 * 1024 ** 3, MAX_ARTIFACT_FILES: 50000 },
     "@/lib/github-app": {
       githubAppDispatchConfigured: () => dispatch.enabled,
+      deploymentWorkflowRun: async () => dispatch.run,
       dispatchDeploymentWorkflow: async (...args) => {
         if (dispatch.fail) throw new Error("dispatch failed");
         sent.push(args);
@@ -209,3 +210,39 @@ test("revoked admin privileges cannot authorize a queued execution", async (t) =
   f.sql.exec("UPDATE users SET is_admin=0 WHERE github_user_id='2'");
   await assert.rejects(f.preflight(requestId), /現在有効ではありません/);
 });
+
+// 公開段階に応じてキャンセルからの再試行を制御する
+for (const stage of ["preflight", "uploading_immutable", "publishing_pointers", "verifying"]) {
+  test(`cancelled Actions at ${stage} respects publication boundary`, async (t) => {
+    const f = await fixture(t);
+    const { requestId } = await f.control.createRequest(f.actor, f.input);
+    await f.preflight(requestId);
+    f.sql.prepare("UPDATE execution_attempts SET stage=? WHERE request_id=?").run(stage, requestId);
+    await f.control.reconcileCancelledRun(f.actor, { requestId });
+    const recovery = ["publishing_pointers", "verifying"].includes(stage);
+    assert.equal(f.state(requestId), recovery ? "recovery_required" : "failed_retryable");
+    if (recovery) {
+      await assert.rejects(f.control.dispatchRequest(f.actor, { requestId }));
+    } else {
+      await f.control.dispatchRequest(f.actor, { requestId });
+      assert.equal(f.sent.length, 2);
+      assert.notEqual(f.sent[0][2], f.sent[1][2]);
+      assert.equal(f.state(requestId), "dispatched");
+    }
+  });
+}
+
+// 実行中や別の再実行、無権限の操作では状態を変更しない
+for (const condition of ["running", "succeeded", "rerun", "unauthorized"]) {
+  test(`cancellation reconciliation rejects ${condition}`, async (t) => {
+    const f = await fixture(t);
+    const { requestId } = await f.control.createRequest(f.actor, f.input);
+    await f.preflight(requestId);
+    if (condition === "running") f.dispatch.run.status = "in_progress";
+    if (condition === "succeeded") f.dispatch.run.conclusion = "success";
+    if (condition === "rerun") f.dispatch.run.run_attempt = 2;
+    const actor = condition === "unauthorized" ? { ...f.actor, githubUserId: "other" } : f.actor;
+    await assert.rejects(f.control.reconcileCancelledRun(actor, { requestId }));
+    assert.equal(f.state(requestId), "running");
+  });
+}

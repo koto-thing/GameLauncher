@@ -8,6 +8,7 @@ import {
   decideRequest,
   designateApprover,
   dispatchRequest,
+  reconcileCancelledRun,
   setGrant,
   submitRequest,
   type GrantType,
@@ -23,7 +24,8 @@ type ControlAction =
   | { action: "decide_request"; requestId: string; decision: "approved" | "rejected"; reason: string }
   | { action: "cancel_request"; requestId: string; reason: string }
   | { action: "authorize_recovery"; requestId: string; reason: string }
-  | { action: "dispatch_request"; requestId: string };
+  | { action: "dispatch_request"; requestId: string }
+  | { action: "reconcile_cancelled_run"; requestId: string };
 
 /**
  * 異常系レスポンス
@@ -99,6 +101,10 @@ export async function POST(request: Request) {
       // 承認された申請を実行エンジンへディスパッチ
       case "dispatch_request":
         return Response.json({ ok: true, ...(await dispatchRequest(actor, payload)) });
+      // GitHub側で確定したキャンセルを反映する
+      case "reconcile_cancelled_run":
+        await reconcileCancelledRun(actor, payload);
+        break;
       default:
         return Response.json({ error: "不明な操作です" }, { status: 400 });
     }
