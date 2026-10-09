@@ -89,8 +89,9 @@ export async function save(env, session, input, id) {
     operation = await db.prepare('SELECT * FROM operations WHERE user_id=? AND id=?').bind(session.user_id, input.key).first();
     ensure(!operation || operation.digest === digest, 409, '再試行キーが一致しません。');
     if (operation?.completed) return savedResult(change);
-    ensure(!change.merge_sha && (change.head_sha === input.head || operation?.commit_sha === change.head_sha), 409, '保存元のheadが古いか、既に公開操作済みです。');
-    if (change.pr) { const pr = await api(`${REPO}/pulls/${change.pr}`); ensure(pr.state === 'open' && !pr.merged, 409, 'PRが閉じられています。新しい変更を開始してください。'); }
+    ensure(!change.merge_sha, 409, 'このPRはマージ済みです。新しい変更として保存してください。', { changeClosed: true });
+    ensure(change.head_sha === input.head || operation?.commit_sha === change.head_sha, 409, '保存元のheadが古くなっています。');
+    if (change.pr) { const pr = await api(`${REPO}/pulls/${change.pr}`); ensure(pr.state === 'open' && !pr.merged, 409, 'PRが閉じられています。新しい変更を開始してください。', { changeClosed: true }); }
     const snapshot = await tree(api, input.head), files = await validateInput(api, snapshot, input.files);
     const images = await resolveImages(api, snapshot, files);
     const base = await tree(api, change.base_sha);
@@ -156,9 +157,9 @@ export async function readiness(api, change) {
     const merged = result.data?.repository?.pullRequest;
     ensure(!result.errors?.length && merged?.merged && shaPattern.test(merged.mergeCommit?.oid), 502, 'GitHubのマージ結果を確認できません。時間をおいて再試行してください。');
     ensure(merged.headRefOid === change.head_sha, 409, 'PRのheadが変更されています。');
-    return { state: 'publishing', mergeSha: merged.mergeCommit.oid };
+    return { state: 'publishing', mergeSha: merged.mergeCommit.oid, changeClosed: true };
   }
-  if (pr.state !== 'open') return { state: 'conflict', message: 'PRが閉じられています。' };
+  if (pr.state !== 'open') return { state: 'conflict', message: 'PRが閉じられています。新しい変更として編集を続けられます。', changeClosed: true };
   const base = await head(api);
   if (base !== change.base_sha || pr.base.sha !== base) return { state: 'conflict', message: 'masterが更新されました。最新版と比較し、新しい変更として保存・検証してください。' };
   if (pr.mergeable === false) return { state: 'conflict', message: 'PRに競合があります。' };
@@ -224,7 +225,7 @@ export async function status(env, session, id) {
     const version = await response.json();
     if (shaPattern.test(version.commit)) {
       const comparison = await session.api(`${REPO}/compare/${result.mergeSha}...${version.commit}`);
-      if (['ahead','identical'].includes(comparison.status)) return { ...savedResult(change), state: 'published', message: 'この変更を含む版が公開されています。', version: version.commit };
+      if (['ahead','identical'].includes(comparison.status)) return { ...savedResult(change), state: 'published', changeClosed: true, message: 'この変更を含む版が公開されています。', version: version.commit };
     }
   }
   const runs = await session.api(`${REPO}/actions/workflows/${WORKFLOW}/runs?event=push&head_sha=${result.mergeSha}&per_page=100`);

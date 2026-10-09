@@ -77,11 +77,13 @@ function remember() {
 }
 watch(source, resetReview);
 watch([slug, newTitle, section, newPrefix], resetReview);
-function restore() {
+// Restore the local draft before checking whether its PR can still accept edits
+async function restore() {
   const value = draft.value;
   source.value = value.source; original.value = value.original; loaded.value = value.loaded; change.value = value.change; pending.value = value.pending;
   isNew.value = value.isNew; slug.value = value.slug; newTitle.value = value.newTitle;
   refreshForms(); nav.value = value.nav; newPrefix.value = value.newPrefix; section.value = value.section; draft.value = null; notice.value = '端末の下書きを復旧しました。古い原稿が基準の場合、保存時に競合を検出します。';
+  await run(prepareChange);
 }
 function discardDraft() { localStorage.removeItem(draftKey()); draft.value = null; }
 async function loadDocument() {
@@ -102,14 +104,15 @@ async function loadDocument() {
     if (draft.value?.source === source.value && !draft.value?.pending && !navigationChanged(draft.value?.nav, loaded.value.navigation.content)) draft.value = null;
     const version = await fetch(withBase('/version.json'), { cache: 'no-store' }).then(response => response.ok ? response.json() : null).catch(() => null);
     notice.value = version?.commit === loaded.value.head ? 'GitHubの最新原稿を取得しました。' : 'GitHubの最新原稿を取得しました。表示中の公開版とは版が異なる可能性があります。';
-    if (change.value) { notice.value = '保存済みの編集原稿を開きました。'; await refreshStatus(); }
+    if (change.value) { notice.value = '保存済みの編集原稿を開きました。'; await refreshStatus(); if (!draft.value) await prepareChange(); }
   });
 }
 async function createPage(path) {
   if (dirty.value && !confirm('現在の本文を端末に残して新規ページを作りますか？目次の変更は引き継ぎます。')) return;
   remember();
-  const navigation = toRaw(nav.value), base = loaded.value, previousChange = change.value;
   await run(async () => {
+    if (!await prepareChange()) return;
+    const navigation = toRaw(nav.value), base = loaded.value, previousChange = change.value;
     loaded.value = { ...base, sha: null, content: '' };
     selected.value = '$new'; picker.value = '$new'; isNew.value = true; slug.value = ''; newTitle.value = ''; source.value = '# 新しいページ\n\n'; original.value = ''; change.value = previousChange; pending.value = null; home.value = null; nav.value = navigation; review.value = false;
     newPrefix.value = prefix.value; section.value = path; view.value = 'edit';
@@ -214,7 +217,13 @@ async function renderPreview() {
     preview.value = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:; base-uri ${location.origin}; form-action 'none'"><base href="${base}"><style>body{font:16px/1.95 system-ui,sans-serif;color:${isDark.value ? '#f5f5f7' : '#303034'};background:${isDark.value ? '#242426' : '#fafafb'};padding:24px;overflow-wrap:anywhere}pre,table{display:block;overflow:auto}pre{background:#8882;padding:16px}h2{border-top:1px solid #8885;padding-top:24px;margin-top:36px}h2:before{content:'// ';color:#ff6777}img{max-width:100%}a{color:${isDark.value ? '#ff8290' : '#b52f48'}}h1{font-size:26px}</style></head><body>${safe.innerHTML}</body></html>`;
   } catch (e) { if (revision === previewRevision) { preview.value = ''; error.value = e.message; } }
 }
-function showReview() {
+// Refresh a completed change before presenting the save diff
+async function showReview() {
+  await run(async () => { if (await prepareChange()) buildReview(); });
+}
+
+// Build the confirmation only after resolving the editable base
+function buildReview() {
   error.value = '';
   try {
     const body = payload();
@@ -230,7 +239,7 @@ function showReview() {
   } catch (e) { error.value = e.message; }
 }
 function payload() {
-  const files = [{ documentId: id.value, content: source.value, sha: loaded.value.sha, ...(isNew.value ? { create: true } : {}) }];
+  const files = [{ documentId: id.value, content: source.value, sha: loaded.value.sha, ...(isNew.value || loaded.value.sha === null ? { create: true } : {}) }];
   let navigation = toRaw(nav.value);
   if (isNew.value) {
     if (!slug.value || !newTitle.value.trim()) throw new Error('slugと目次の表示名を入力してください。');
@@ -242,12 +251,26 @@ function payload() {
   }
   return { key: crypto.randomUUID(), head: loaded.value.head, files };
 }
+// Save or reconcile the exact pending operation and recover confirmed closed-PR rejections
 async function save() {
   await run(async () => {
     if (!pending.value) pending.value = { changeId: change.value?.id, body: payload() };
     remember();
     const operation = pending.value;
-    const result = await api(operation.changeId ? `/changes/${operation.changeId}` : '/changes', operation.changeId ? 'PATCH' : 'POST', operation.body);
+    let result;
+    try {
+      result = await api(operation.changeId ? `/changes/${operation.changeId}` : '/changes', operation.changeId ? 'PATCH' : 'POST', operation.body);
+    } catch (error) {
+      // Only a confirmed rejection may release an ambiguous save operation
+      if (error.details?.changeClosed && error.details?.discardOperation) {
+        pending.value = null;
+        await prepareChange();
+        review.value = false;
+        remember();
+        return;
+      }
+      throw error;
+    }
     change.value = result; status.value = 'saved';
     const savedId = id.value;
     const latest = await api(`/changes/${result.id}?documentId=${encodeURIComponent(savedId)}`);
@@ -258,9 +281,54 @@ async function save() {
     remember(); polls = 0; schedulePoll();
   });
 }
+
+// Detach completed PRs while retaining local edits and requiring review of concurrent changes
+async function prepareChange() {
+  if (!change.value) return true;
+  const state = await api(`/changes/${change.value.id}`);
+  if (!state.changeClosed) return true;
+  change.value = { ...change.value, ...state };
+  // An unknown save outcome must be reconciled with its original idempotency key
+  if (pending.value) return true;
+  const latest = await latestDocument();
+  const sectionPath = section.value;
+  const sourceChanged = source.value !== original.value || (state.state === 'conflict' && source.value !== latest.content);
+  const navigationEdited = navDirty.value || (state.state === 'conflict' && navigationChanged(nav.value, latest.navigation.content));
+  const contentConflict = sourceChanged && latest.content !== original.value && latest.content !== source.value;
+  const navigationConflict = navigationEdited && navigationChanged(nav.value, latest.navigation.content) && latest.navigation.content !== loaded.value.navigation.content;
+  if (contentConflict || navigationConflict) {
+    status.value = 'conflict';
+    conflict.value = { current: latest.content, latest };
+    review.value = false;
+    notice.value = 'PRは終了しています。本文・目次と最新版を比較してから、新しい変更として保存してください。';
+    return false;
+  }
+  if (!sourceChanged) source.value = latest.content;
+  if (!navigationEdited) nav.value = JSON.parse(latest.navigation.content);
+  loaded.value = latest; original.value = latest.content;
+  change.value = null; conflict.value = null; status.value = 'unsaved'; statusMessage.value = '';
+  section.value = sectionPath;
+  clearTimeout(pollTimer);
+  notice.value = '終了したPRから切り替えました。編集内容は新しいPRに保存されます。';
+  remember();
+  return true;
+}
+
+// New pages use the current navigation snapshot without requesting the internal $new identifier
+async function latestDocument() {
+  if (!isNew.value) {
+    try { return await api(`/page?documentId=${encodeURIComponent(selected.value)}`); }
+    catch (error) { if (error.status !== 404 || !/^guide\/[a-z0-9-]+$/.test(selected.value)) throw error; }
+  }
+  const latest = await api('/page?documentId=%24navigation');
+  return { ...latest, content: '', sha: null };
+}
+
+// Refresh publication status and detach idle editors from completed changes
 async function refreshStatus() {
   if (!change.value) return;
   const result = await api(`/changes/${change.value.id}`); status.value = result.state; statusMessage.value = result.message; change.value = { ...change.value, ...result };
+  if (result.changeClosed && !busy.value && !draft.value && !pending.value) await prepareChange();
 }
 function schedulePoll() {
   clearTimeout(pollTimer);
@@ -268,11 +336,16 @@ function schedulePoll() {
   pollTimer = setTimeout(async () => { if (document.visibilityState !== 'visible') return; try { await refreshStatus(); schedulePoll(); } catch (e) { error.value = e.message; } }, 15000);
 }
 async function publish() { await run(async () => { const result = await api(`/changes/${change.value.id}/publish`, 'POST', { head: change.value.head }); status.value = result.state; statusMessage.value = 'masterへ反映しました。ビルド・配信結果を確認しています。'; polls = 0; schedulePoll(); }); }
+// Load a comparison snapshot for existing articles and unsaved new pages
 async function compareLatest() {
-  await run(async () => { const latest = await api(`/page?documentId=${encodeURIComponent(selected.value)}`); conflict.value = { current: latest.content, latest }; });
+  await run(async () => { const latest = await latestDocument(); conflict.value = { current: latest.content, latest }; });
 }
+// Retain the reviewed draft while switching its save target to current master
 function useLatestBase() {
+  const sectionPath = section.value;
+  if (!navDirty.value && !change.value?.changeClosed) nav.value = JSON.parse(conflict.value.latest.navigation.content);
   loaded.value = conflict.value.latest; original.value = loaded.value.content; change.value = null; pending.value = null; conflict.value = null; status.value = 'unsaved'; review.value = false;
+  section.value = sectionPath; remember();
   notice.value = '自分の文章を残して最新版を比較元にしました。差分を調整し、新しい変更として保存してください。';
 }
 async function logout(keep) {
@@ -365,7 +438,7 @@ onBeforeUnmount(() => { clearTimeout(draftTimer); clearTimeout(pollTimer); remem
           <div class="toolbar"><button class="primary" :disabled="busy || !acknowledged || !dirty || Boolean(pending)" @click="save">変更を保存</button></div>
         </dialog>
         <div v-if="pending" class="notice"><p>保存結果の確認が必要です。内容を変えずに同じ操作を再試行してください。</p><button :disabled="busy" @click="save">保存結果を照合・再試行</button><button v-if="canCorrect" @click="pending = null; canCorrect = false; review = false">未保存を確認済み：入力を修正</button></div>
-        <div v-if="status === 'conflict'" class="panel"><h3>競合の比較</h3><p>元の内容と自分の文章を残しています。最新の内容を確認してから差分を調整してください。</p><button @click="compareLatest">最新原稿を取得して比較</button><div class="split"><details><summary>編集開始時の内容</summary><pre>{{ original }}</pre></details><details><summary>自分の編集</summary><pre>{{ source }}</pre></details></div><details v-if="conflict?.current" open><summary>最新の内容</summary><pre>{{ conflict.current }}</pre></details><button v-if="conflict?.latest" @click="useLatestBase">自分の文章を残し、最新版を比較元にする</button></div>
+        <div v-if="status === 'conflict'" class="panel"><h3>競合の比較</h3><p>元の内容と自分の文章を残しています。最新の内容を確認してから差分を調整してください。</p><button @click="compareLatest">最新原稿を取得して比較</button><div class="split"><details><summary>編集開始時の内容</summary><pre>{{ original }}</pre></details><details><summary>自分の編集</summary><pre>{{ source }}</pre></details></div><details v-if="conflict?.current" open><summary>最新の内容</summary><pre>{{ conflict.current }}</pre></details><details v-if="conflict?.latest"><summary>最新の目次</summary><pre>{{ conflict.latest.navigation.content }}</pre></details><details v-if="conflict?.latest"><summary>自分の目次</summary><pre>{{ navigationText(nav) }}</pre></details><button v-if="conflict?.latest && !pending" @click="useLatestBase">自分の文章を残し、最新版を比較元にする</button></div>
       </template>
       </div>
     </template>

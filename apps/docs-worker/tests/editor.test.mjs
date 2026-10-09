@@ -326,3 +326,17 @@ for (const code of [401,403,429,500]) test(`GitHub ${code} is safe and stops aut
   t.mock.method(globalThis, 'fetch', async () => new Response('private-upstream-secret', { status: code }));
   await assert.rejects(authorize(github('ghu_fixture'), 42), e => e.status === (code === 500 ? 502 : code) && !e.message.includes('private-upstream-secret'));
 });
+
+// Closed PRs reject new writes before mutation and expose a recoverable editor transition
+for (const merged of [false, true]) test(`closed PR recovery metadata with merged=${merged}`, async () => {
+  const f = await fixture(), first = await input(f), saved = await save(f.env, f.session, first);
+  if (merged) await publish(f.env, f.session, saved.id, saved.head);
+  else f.gh.prs[0].state = 'closed';
+  assert.equal((await status(f.env, f.session, saved.id)).changeClosed, true);
+  const document = await page(f.gh.api, 'guide/index', saved.head);
+  const body = { key: crypto.randomUUID(), head: saved.head, files: [{ documentId: 'guide/index', sha: document.sha, content: '# 次の編集\n' }] };
+  f.gh.calls = [];
+  await assert.rejects(save(f.env, f.session, body, saved.id), error => error.status === 409 && error.details.changeClosed && error.details.discardOperation);
+  assert.equal(f.gh.calls.some(call => call.method !== 'GET'), false);
+  assert.equal((await save(f.env, f.session, first, saved.id)).id, saved.id);
+});
