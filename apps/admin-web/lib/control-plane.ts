@@ -3,6 +3,7 @@ import type { SessionUser } from "@/lib/auth";
 import { hasRepositoryAccess } from "@/lib/access-requests";
 import {
   dispatchDeploymentWorkflow,
+  deploymentWorkflowRun,
   githubAppDispatchConfigured,
   type DeploymentEnvironment,
 } from "@/lib/github-app";
@@ -600,6 +601,46 @@ export async function authorizeRecovery(
   await getD1().batch([
     getD1().prepare(`UPDATE deployment_requests SET state = 'failed_retryable'
       WHERE request_id = ? AND state IN ('recovery_required', 'failed_terminal')`).bind(input.requestId),
+    audit,
+  ]);
+}
+
+/** @brief キャンセル済みActionsを確認し、公開段階に応じて再試行または復旧確認へ進める */
+export async function reconcileCancelledRun(actor: SessionUser, input: { requestId: string }) {
+  await ensureSchema();
+  const request = await requestRow(input.requestId);
+  if (!actor.isAdmin && request.requester_github_user_id !== actor.githubUserId) {
+    throw new Error("申請者本人またはAdminだけが確認できます");
+  }
+
+  // 最新の実行だけを確認し、終了済みの申請を上書きしない
+  const db = getD1();
+  const attempt = await db.prepare(`SELECT * FROM execution_attempts WHERE request_id = ?
+    ORDER BY attempt_number DESC LIMIT 1`).bind(input.requestId).first<Row>();
+  if (!attempt || attempt.result !== "queued" || !attempt.github_run_id ||
+      !["dispatched", "running", "publishing_pointers", "verifying"].includes(asString(request.state))) {
+    throw new Error("状態確認できる実行がありません。画面を更新してください");
+  }
+  const run = await deploymentWorkflowRun(request.environment as DeploymentEnvironment, asString(attempt.github_run_id));
+  if (run.status !== "completed" || run.conclusion !== "cancelled") {
+    throw new Error("Actionsはキャンセル済みではありません。GitHubの実行状況を確認してください");
+  }
+  if (run.run_attempt !== asNumber(attempt.github_run_attempt)) {
+    throw new Error("GitHubで再実行されています。現在の実行の状態更新を待ってください");
+  }
+
+  // 公開先切り替え開始後は既存の復旧確認を必須にする
+  const result = ["publishing_pointers", "verifying"].includes(asString(attempt.stage))
+    ? "recovery_required" : "failed_retryable";
+  const audit = await auditRecord(input.requestId, "actions_cancellation_confirmed", actor, {
+    attemptId: attempt.attempt_id, runId: attempt.github_run_id, runAttempt: run.run_attempt, result,
+  });
+  await db.batch([
+    db.prepare(`UPDATE execution_attempts SET result = ?, finished_at = ?
+      WHERE attempt_id = ? AND result = 'queued' AND stage = ? AND github_run_attempt = ?`)
+      .bind(result, now(), attempt.attempt_id, attempt.stage, run.run_attempt),
+    db.prepare(`UPDATE deployment_requests SET state = ? WHERE request_id = ? AND changes() = 1`)
+      .bind(result, input.requestId),
     audit,
   ]);
 }

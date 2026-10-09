@@ -99,6 +99,7 @@ const eventText: Record<string, string> = {
   policy_grant_added: "権限を付与",
   policy_grant_revoked: "権限を取消",
   workflow_dispatch_requested: "Actions実行を要求",
+  actions_cancellation_confirmed: "Actionsのキャンセルを確認",
   actions_preflight_passed: "Actions preflight成功",
   actions_preflight_rejected: "Actions preflight拒否",
   execution_stage: "実行工程を更新",
@@ -647,6 +648,8 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
         {canDispatch && !dispatchConfigured && request.state === "approved" && <div className="phase-block"><span>○</span><p><strong>{environmentLabel} Actions設定待ち</strong><small>GitHub Environmentと秘密情報の設定後にAdminが有効化します。</small></p></div>}
 
         {["dispatched", "running", "publishing_pointers", "verifying"].includes(request.state) && <div className="phase-block"><span>↻</span><p><strong>GitHub Actionsで実行中</strong><small>状態は監査callbackから更新されます。</small></p></div>}
+
+        {canDispatch && latestAttempt?.githubRunId && ["dispatched", "running", "publishing_pointers", "verifying"].includes(request.state) && <button className="secondary-button" disabled={busy} onClick={() => runAction({ action: "reconcile_cancelled_run", requestId: request.requestId }, "キャンセルを確認しました。次の操作を選んでください")}>Actionsの状態を確認</button>}
 
         {canCreateProduction && <button className="danger-outline-button" disabled={busy} onClick={() => runAction({ action: "create_production_request", sourceStagingRequestId: request.requestId }, "Production申請を作成しました。承認者を指名してください")}>Production申請を作成</button>}
 
