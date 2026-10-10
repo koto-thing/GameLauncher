@@ -235,14 +235,15 @@ struct PlayStatisticsService::State {
 
     /** @brief 休止を除いた単調時計の差分を累積し、日付ごとに配分する */
     void observe(ActiveSession& session) const {
-        qint64 delta = session.timer.restart();
 #if defined(Q_OS_WIN)
         // Windowsの標準単調時計は休止を含むためOSのawake clockを使用
         const qint64 awake = awakeMilliseconds();
-        delta = awake >= 0 && session.lastAwakeMilliseconds >= 0
-                    ? std::max<qint64>(0, awake - session.lastAwakeMilliseconds)
-                    : 0;
+        const qint64 delta = awake >= 0 && session.lastAwakeMilliseconds >= 0
+                                 ? std::max<qint64>(0, awake - session.lastAwakeMilliseconds)
+                                 : 0;
         session.lastAwakeMilliseconds = awake;
+#else
+        const qint64 delta = session.timer.restart();
 #endif
 
         // OS時計が後退してもAPI上の観測日時と累積時間の順序を維持
