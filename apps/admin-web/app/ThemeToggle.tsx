@@ -29,6 +29,7 @@ export function ThemeToggle() {
   /** @brief 配色を即時反映し、保存が許可されているブラウザーでは選択を記憶する */
   function toggle(): void {
     const next = dark ? "light" : "dark";
+    document.documentElement.dataset.themePreference = next;
     document.documentElement.dataset.theme = next;
 
     try {
