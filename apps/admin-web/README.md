@@ -66,7 +66,8 @@ npm.cmd run deploy:cloudflare -- --skip-build
   - インクリメンタル SHA-256 計算
   - descriptor（`deployment-artifact-descriptor.schema.json` 準拠）の自動構築
   - 非公開Intakeへの64 MiB part分割アップロード（最大4並列、自動リトライ、キャンセル、Seal）
-  - デバッグ用 Descriptor / Artifact ZIP のダウンロード保存機能
+  - Upload・Seal成功時にdescriptorを自動ダウンロード（失敗・キャンセル時は自動保存しません）
+  - Descriptorの手動再保存とArtifact ZIPのダウンロード保存機能
   - ※ブラウザ制約: 現行ブラウザAPI上、生成した最終ZIPはSHA-256検証およびアップロード用に単一Blob/Fileとして保持されます。圧縮処理中のJSヒープ消費は最小化されますが、ブラウザ全体のメモリ/Blobストレージとして成果物ZIP容量（上限5 GiB）を保持します。
 - **既存Artifactアップロードモード（互換用途）**:
   - 既存の `*.pandd-artifact.json` と `*.zip` をドラッグ&ドロップまたは選択してアップロード
@@ -78,9 +79,11 @@ npm.cmd run deploy:cloudflare -- --skip-build
 4. STEP 2: 多言語表示情報とHero / Thumbnail画像を選択（焦点位置を指定）
 5. STEP 3: Buildフォルダを選択し、起動EXEを確認
 6. STEP 4: プレビュー内容を確認し、「Artifactを作成してアップロード」を実行
-7. 完了後、Control Planeの申請画面（`/game`）で公開申請を作成（Maintain相当以上はそのまま公開処理を開始）
+7. 完了時に自動ダウンロードされる `*.pandd-artifact.json` を使い、Control Planeの申請画面（`/game`）で公開申請を作成（Maintain相当以上はそのまま公開処理を開始）。ブラウザが保存を制限した場合は「Descriptorを保存 (.json)」から保存します。
 
 ルート（`/`）はサービス選択画面です。GameLauncherのWeb Uploader / Intaker（`/intake`）、公開申請・設定（`/game`）、Music Uploader（`/music`）へ移動できます。
+
+ヘッダーのボタンでライト／ダークモードを切り替えられます。初回は端末の配色設定を使い、明示した選択は管理画面全体で記憶します。
 
 ### R2 direct-r2 用 CORS 設定
 

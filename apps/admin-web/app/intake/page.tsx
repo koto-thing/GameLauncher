@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { IntakeUploader } from "./IntakeUploader";
-import { ServiceNavigation } from "../ServiceNavigation";
 
 // Intake画面のタイトルと、受け付ける成果物の責務を検索・ブラウザへ伝える
 export const metadata: Metadata = {
@@ -10,13 +9,8 @@ export const metadata: Metadata = {
 
 /**
  * Intakeアップローダー画面のルートコンポーネント
- * @returns サービスナビゲーションとアーティファクト受付画面
+ * @returns アーティファクト受付画面
  */
 export default function IntakePage() {
-  return (
-    <>
-      <ServiceNavigation />
-      <IntakeUploader />
-    </>
-  );
+  return <IntakeUploader />;
 }

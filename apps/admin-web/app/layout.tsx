@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { ServiceNavigation } from "./ServiceNavigation";
 import "./globals.css";
 
 // 管理画面全体で共有するフォント設定
@@ -20,8 +22,12 @@ export const metadata: Metadata = {
  */
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ja">
+    <html lang="ja" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        <ServiceNavigation />
         {children}
       </body>
     </html>
