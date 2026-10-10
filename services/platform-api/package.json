@@ -1,0 +1,32 @@
+{
+  "name": "pandd-platform-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.0.0" },
+  "scripts": {
+    "schema:generate": "node scripts/generate-validator.js",
+    "predev": "npm run schema:generate",
+    "pretypecheck": "npm run schema:generate",
+    "pretest": "npm run schema:generate && node scripts/build-test-worker.js",
+    "predeploy": "npm run schema:generate",
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts test/*.test.mjs",
+    "check": "npm run typecheck && npm test && wrangler deploy --dry-run --env production",
+    "db:local": "wrangler d1 migrations apply ANALYTICS_DB --local",
+    "db:remote": "wrangler d1 migrations apply ANALYTICS_DB --remote",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261010.1",
+    "@types/node": "^26.6.3",
+    "miniflare": "5.20261006.1-alpha",
+    "typescript": "^6.0.3",
+    "wrangler": "4.149.0"
+  }
+}

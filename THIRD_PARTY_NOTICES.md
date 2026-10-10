@@ -1,7 +1,7 @@
 # Third-party notices
 
 PandD Game Launcher release metadata tracks Qt 6 modules Core, Gui, Widgets,
-Network, Concurrent, Svg, OpenGL, OpenGLWidgets, WebEngineWidgets, and Quick, and links to OpenSSL Crypto.
+Network, Concurrent, Sql, Svg, OpenGL, OpenGLWidgets, WebEngineWidgets, and Quick, and links to OpenSSL Crypto.
 The Test module is used only by the non-distributed test executables. All client
 CI builds use Live2D Cubism SDK for Native 5-r.5 and vcpkg GLEW 2.3.1 for the
 OpenGL integration. CMake records the resolved versions and modules directly.

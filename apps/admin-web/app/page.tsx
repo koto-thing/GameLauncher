@@ -26,6 +26,7 @@ export default function Home() {
 
           <a className="primary-link" href="/intake">Web Uploader / Intaker を開く →</a>
           <a className="service-settings" href="/game">公開申請・設定を開く →</a>
+          <a className="service-settings" href="/analytics">ゲーム利用統計を開く →</a>
         </section>
 
         <section className="service-card" aria-labelledby="music-service">

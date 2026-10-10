@@ -1,6 +1,7 @@
 #include "infrastructure/PlatformServices.h"
 
 #include "infrastructure/EditionProfile.h"
+#include "infrastructure/PlayStatistics.h"
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -46,6 +47,11 @@ QtGameProcessService::QtGameProcessService() : QObject(nullptr) {}
 
 /** @brief 実行中processのcallback接続を解除してServiceを破棄する */
 QtGameProcessService::~QtGameProcessService() {
+    // ランチャー終了時点の観測だけを中断として保存
+    if (playStatistics_) {
+        playStatistics_->interruptAll();
+    }
+
     // 管理中processを保護しながらcallback接続だけを解除
     QMutexLocker lock(&processesMutex_);
     for (auto& [key, process] : processes_) {
@@ -56,6 +62,13 @@ QtGameProcessService::~QtGameProcessService() {
             [[maybe_unused]] auto* detachedProcess = process.release();
         }
     }
+}
+
+/** @brief ゲーム監視と同じQObject所有threadの統計Serviceを登録する */
+void QtGameProcessService::setPlayStatisticsService(PlayStatisticsService* service) {
+    Q_ASSERT(QThread::currentThread() == thread());
+    Q_ASSERT(service == nullptr || service->thread() == thread());
+    playStatistics_ = service;
 }
 
 /** @brief 導入済みゲームの実行ファイルを起動する */
@@ -82,6 +95,11 @@ OperationResult QtGameProcessService::launch(const InstalledGame& installed,
             .filePath("releases/" + QString::fromStdString(installed.version.value())));
     const QString executable = releaseRoot.filePath(QString::fromStdString(installed.entrypoint));
     if (!QFileInfo::exists(executable)) {
+        if (playStatistics_) {
+            playStatistics_->recordLaunchFailure(QString::fromStdString(installed.gameId.value()),
+                                                 QString::fromStdString(installed.version.value()));
+        }
+
         return platformFailure(ErrorCode::LaunchExecutableMissing,
                                "ゲーム実行ファイルがありません。修復を実行してください",
                                executable);
@@ -98,23 +116,44 @@ OperationResult QtGameProcessService::launch(const InstalledGame& installed,
     environment.insert("PANDD_SAVE_DIR", QString::fromStdString(saveDirectory));
     process->setProcessEnvironment(environment);
     const auto key = installed.gameId.value();
-    // 終了結果を通知して次のevent loopで所有権を解放
+
+    // 瞬時に終了するゲームもstarted通知から必ず一度だけ観測
+    const auto statisticsSession = std::make_shared<QString>();
+    const auto gameVersion = QString::fromStdString(installed.version.value());
     QObject::connect(
-        process.get(), &QProcess::finished,
-        [this, key, callback = std::move(onExit)](int exitCode, QProcess::ExitStatus status) {
-            if (callback) {
-                callback(exitCode, status == QProcess::CrashExit || exitCode != 0);
+        process.get(), &QProcess::started, this, [this, key, gameVersion, statisticsSession] {
+            if (playStatistics_) {
+                *statisticsSession =
+                    playStatistics_->startSession(QString::fromStdString(key), gameVersion);
             }
-            QTimer::singleShot(0, [this, key] {
-                QMutexLocker lock(&processesMutex_);
-                // finished signal完了後に送信元を破棄
-                // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
-                processes_.erase(key);
-            });
         });
+
+    // 終了結果を通知して次のevent loopで所有権を解放
+    QObject::connect(process.get(), &QProcess::finished, this,
+                     [this, key, statisticsSession,
+                      callback = std::move(onExit)](int exitCode, QProcess::ExitStatus status) {
+                         if (playStatistics_ && !statisticsSession->isEmpty()) {
+                             playStatistics_->finishSession(*statisticsSession, exitCode,
+                                                            status == QProcess::CrashExit);
+                         }
+
+                         if (callback) {
+                             callback(exitCode, status == QProcess::CrashExit || exitCode != 0);
+                         }
+                         QTimer::singleShot(0, this, [this, key] {
+                             QMutexLocker lock(&processesMutex_);
+                             // finished signal完了後に送信元を破棄
+                             // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
+                             processes_.erase(key);
+                         });
+                     });
     // 起動完了を確認してから管理mapへ登録
     process->start();
     if (!process->waitForStarted(5000)) {
+        if (playStatistics_ && statisticsSession->isEmpty()) {
+            playStatistics_->recordLaunchFailure(QString::fromStdString(key), gameVersion);
+        }
+
         return platformFailure(ErrorCode::LaunchExecutableMissing, "ゲームを起動できませんでした",
                                process->errorString());
     }

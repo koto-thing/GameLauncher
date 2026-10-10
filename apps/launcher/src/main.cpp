@@ -12,6 +12,7 @@
 #include <QMessageBox>
 #include <QPixmap>
 #include <QQuickWindow>
+#include <QSqlDatabase>
 #include <QStyleHints>
 #include <QTranslator>
 
@@ -96,12 +97,29 @@ int main(int argc, char* argv[]) {
             return 7;
         }
     }
-    pandd::LauncherViewModel viewModel(container.launcherService());
+    pandd::LauncherViewModel viewModel(container.launcherService(), container.playStatistics());
     const auto smokeTest = application.arguments().contains("--smoke-test") ||
                            qEnvironmentVariableIsSet("PANDD_SMOKE_TEST");
     if (smokeTest) {
         // platform plugin・resource・composition rootを外部通信なしで検証
-        return QPixmap(":/images/launcher_background_placeholder.png").isNull() ? 2 : 0;
+        if (QPixmap(":/images/launcher_background_placeholder.png").isNull()) {
+            return 2;
+        }
+
+        // 配布されたSQLiteドライバーが実際に接続できることを検証
+        bool sqliteAvailable = false;
+        {
+            auto database = QSqlDatabase::addDatabase("QSQLITE", "smoke-sql");
+            database.setDatabaseName(":memory:");
+            sqliteAvailable = database.open();
+        }
+        QSqlDatabase::removeDatabase("smoke-sql");
+        if (!sqliteAvailable) {
+            qCritical() << "Cannot load the deployed SQLite driver";
+            return 8;
+        }
+
+        return 0;
     }
     pandd::LauncherWindow window(viewModel);
     QObject::connect(&server, &QLocalServer::newConnection, &window, [&] {

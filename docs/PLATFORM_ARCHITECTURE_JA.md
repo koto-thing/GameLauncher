@@ -14,6 +14,7 @@ PandDは1つのモノレポで管理する。ソースコードの配置と実�
 
 - 対象: `apps/store-web`、`apps/community-web`、`services/platform-api`
 - 保持可能: 一般ユーザーセッション、Platform DB、Community DB、UGC用R2への限定Binding
+- プレイ統計の受付・集計はPlatform API内のAnalyticsモジュールが所有し、専用Analytics D1を使用する
 - 禁止: Intake、公開先R2、署名鍵、GitHub Actions実行権限へのアクセス
 - 認証: PandDアカウント。運営者用GitHub認証を流用しない
 
@@ -46,6 +47,7 @@ Musicの公開UIはdistribution、管理API・認証・D1は既存`apps/admin-we
 | Community | 投稿、コメント、リアクション、フォロー | 公開投稿と関係情報 |
 | Moderation | 通報、制裁、削除判断、監査 | 可視性と利用制限 |
 | Notifications | 通知、配信状態 | ユーザー向け通知 |
+| Analytics | 任意送信のプレイセッション、識別情報を除いた日別集計 | ゲーム別利用統計、再訪率 |
 
 各モジュールだけが自身のテーブルを更新する。他モジュールのテーブルを直接更新しない。
 同期処理は公開インターフェース、非同期処理はバージョン付きイベントを使う。
@@ -64,6 +66,7 @@ Musicの公開UIはdistribution、管理API・認証・D1は既存`apps/admin-we
 - Deployment DB: 運営申請、承認、監査。既存D1を継続利用する
 - Platform DB: Identity、Catalog、Commerce、Entitlements
 - Community DB: Community、Moderation、Notifications
+- Analytics D1: プレイ統計専用。詳細90日、識別IDを含まない日別集計は長期保存
 - R2: ゲーム、OST、商品画像、UGC。用途ごとにBucketとBindingを分離する
 
 Platform DBとCommunity DBを同じ物理PostgreSQLから開始してもよいが、論理スキーマ、

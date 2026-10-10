@@ -4,6 +4,7 @@
 #include "infrastructure/EditionProfile.h"
 #include "infrastructure/GameInstallationService.h"
 #include "infrastructure/PlatformServices.h"
+#include "infrastructure/PlayStatistics.h"
 #include "infrastructure/QtRepositories.h"
 
 #include <memory>
@@ -22,11 +23,15 @@ class AppContainer final {
     /** @brief UIへApplication Facadeを貸し出す */
     [[nodiscard]] LauncherService& launcherService();
 
+    /** @brief ローカル統計と任意送信を管理するServiceを貸し出す */
+    [[nodiscard]] PlayStatisticsService& playStatistics();
+
   private:
     std::unique_ptr<StaticContentRepository> contentRepository_;
     EditionProfile editionRepository_;
     std::unique_ptr<JsonStateRepository> stateRepository_;
     std::unique_ptr<GameInstallationService> installationService_;
+    std::unique_ptr<PlayStatisticsService> playStatistics_;
     std::unique_ptr<QtGameProcessService> processService_;
     std::unique_ptr<PlatformStartupService> startupService_;
     std::unique_ptr<MaintenanceToolService> updateService_;

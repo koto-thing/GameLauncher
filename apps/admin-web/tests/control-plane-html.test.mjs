@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import test, { after, before } from "node:test";
-import { createTestHarness } from "wrangler";
+import { createAdminTestHarness } from "./helpers/admin-worker-harness.mjs";
 import { assertBrowserWrite, assertSameOrigin } from "../lib/request-security.ts";
 
-const server = createTestHarness({
-  workers: [{ configPath: new URL("../dist/server/wrangler.json", import.meta.url) }],
-});
+const server = createAdminTestHarness();
 
 before(() => server.listen());
 after(() => server.close());
@@ -44,6 +42,21 @@ test("server-renders game management at its dedicated route", async () => {
   assert.match(html, /GameLauncher 公開申請・設定/);
   assert.match(html, /href="\/"/);
   assert.match(html, /href="\/intake"/);
+});
+
+// 統計画面をログイン前に開いても集計や読み取り資格を公開しない
+test("analytics page and API enforce authentication in the built Worker", async () => {
+  const page = await render("/analytics");
+  assert.equal(page.status, 200);
+  const html = await page.text();
+  assert.match(html, /ゲーム利用統計/);
+  assert.match(html, /統計を見るにはGitHubでログインしてください/);
+  assert.doesNotMatch(html, /ANALYTICS_READ_TOKEN|installationToken/);
+
+  const response = await server.fetch("http://localhost/api/analytics/games");
+  assert.equal(response.status, 401);
+  assert.match(response.headers.get("cache-control"), /no-store/);
+  assert.deepEqual(await response.json(), { error: "GitHubでログインしてください" });
 });
 
 test("server-renders the PandD intake uploader page without eval or 500 errors", async () => {

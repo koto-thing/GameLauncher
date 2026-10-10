@@ -1,13 +1,11 @@
 import assert from "node:assert/strict";
-import { createTestHarness } from "wrangler";
+import { createAdminTestHarness } from "./helpers/admin-worker-harness.mjs";
 import test from "node:test";
 import { pruneRequestHistory } from "../lib/request-retention.ts";
 
 // 本番DDLの外部キー関係とD1を使い、ビルド済みWorkerのCron処理を検証する
 test("retention removes old completed requests and their logs while preserving active and referenced history", async (t) => {
-  const server = createTestHarness({
-    workers: [{ configPath: new URL("../dist/server/wrangler.json", import.meta.url) }],
-  });
+  const server = createAdminTestHarness();
 
   t.after(() => server.close());
 

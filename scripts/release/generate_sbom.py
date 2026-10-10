@@ -20,7 +20,7 @@ def generate_document(metadata: dict[str, Any], version: str,
                 "cubismVersion", "glewVersion"}
     if set(metadata) != required or not isinstance(metadata["qtModules"], list):
         raise ValueError("build metadata does not match the SBOM contract")
-    required_qt_modules = {"Core", "Gui", "Widgets", "Network", "Concurrent",
+    required_qt_modules = {"Core", "Gui", "Widgets", "Network", "Concurrent", "Sql",
                            "Svg", "OpenGL", "OpenGLWidgets", "WebEngineWidgets", "Quick"}
     if set(metadata["qtModules"]) != required_qt_modules:
         raise ValueError("build metadata must record the full Qt module set")

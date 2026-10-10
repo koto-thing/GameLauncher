@@ -32,6 +32,21 @@ Production申請権限だけを持つユーザーは指名承認を必要とし�
 デプロイ前の検証には `npm test` を使用します。秘密値は実行構成へ追加せず、
 本番用Worker secretは `npx wrangler secret put <NAME>` で設定してください。
 
+新しいcheckoutから公開するときは、Admin Webに加えてMusic管理画面の依存関係も導入します。
+
+```powershell
+# apps/admin-webで実行
+npm ci
+npm ci --prefix ../music
+npm run lint
+npm test
+npm.cmd run deploy:cloudflare -- --skip-build
+```
+
+最後の`--skip-build`は、直前の`npm test`で検証した`dist`を公開します。PowerShellでnpmへ`--`以降の引数を渡すときは、`npm.ps1`による引数の欠落を避けるため`npm.cmd`を指定します。通常の`npm run deploy:cloudflare`やCLion実行ではビルドも行います。どちらも`predeploy:cloudflare`が既存の`prebuild`を呼び、SchemaバリデーターとMusic管理画面の生成を済ませます。`vinext-cloudflare`自身のビルドはnpmの`prebuild`を呼ばないため、この準備をnpmの公開コマンドに含めています。
+
+専用の自動公開workflowはなく、GitHub Actionsの`Music validation`でAdmin WebのテストとLintを検証します。PRの全チェック成功とマージを確認し、マージ済みcommitのcheckoutから上記コマンドを実行します。Cloudflareへの設定・公開には既存のWranglerログイン、または対象アカウントへの権限を持つ`CLOUDFLARE_API_TOKEN`が必要です。
+
 `LOCAL_DEV_AUTH=true`はlocalhostでだけ有効です。Admin、申請者、承認者を切り替えて、
 申請から指名承認までを確認できます。
 
@@ -189,3 +204,49 @@ Artifact、公開済みゲーム、システム全体の監査ログは削除対
 
 D1の論理bindingは`DB`、非公開R2の論理bindingは`INTAKE`です。ローカル開発では起動時に不足テーブルを作成します。
 正式なschema変更では`npm run db:generate`でDrizzle migrationを生成して保存します。
+
+## ゲーム利用統計
+
+ホームの「ゲーム利用統計」から`/analytics`を開きます。GitHubログイン済みの運営Adminだけが閲覧でき、ページと`GET /api/analytics/games`の両方で権限を確認します。requesterやapproverへ統計閲覧権限は付与しません。ランチャーで統計送信に同意したインストールの集計を表示し、人数としては扱いません。
+
+日付は日本時間、初期表示はProductionの直近30日です。環境・期間・ゲームID・バージョンで絞り込み、起動回数、実行時間、終了結果、時間分布、翌日・7日後の再訪、計測中断率を確認できます。各グラフには日別の表があり、現在表示しているゲーム別・日別集計をCSVへ保存できます。再訪率は分母を表示し、再訪判定の日が終わっていないインストールを分母から除外します。基準日は保存中の直近90日の詳細で最初に観測した起動成功日で、90日より前からの継続利用と新規利用を区別できません。バージョン指定時はそのバージョンの初回観測を使います。日別集計は最大366日、インストール数・中央値・再訪率は直近90日です。詳細保存期間を過ぎた記録の集計が含まれる場合は、詳細項目を「保存期間外」と表示します。
+
+接続設定は次の順で準備します。統計用DBとWorkerは、既存の申請・認証DBから独立しています。
+
+1. `services/platform-api`でStagingとProductionそれぞれのD1を作成し、`wrangler.jsonc`の各`ANALYTICS_DB.database_id`へ実IDを設定します。各環境の`ALLOWED_GAME_IDS`に対象ゲームIDをカンマ区切りで登録し、各DBへmigrationを適用します。環境名とDBを混在させません
+2. Platform APIのStaging Worker（`pandd-platform-api-staging`）とProduction Worker（`pandd-platform-api`）を準備し、それぞれに異なる`ANALYTICS_READ_TOKEN`をWorker secretとして登録します。ProductionはPlatform APIの`--env production`を使います
+3. Admin Webの`PLATFORM_API`をProduction Worker、`PLATFORM_API_STAGING`をStaging Workerへ接続します。名前は`wrangler.jsonc`に定義済みです
+4. Admin WebへProductionの読み取りtokenを`ANALYTICS_READ_TOKEN`、Stagingの読み取りtokenを`ANALYTICS_READ_TOKEN_STAGING`として登録し、ビルドを検証してAdmin Webをデプロイします
+5. ランチャーの環境ごとの統計URLを設定し、統計送信を有効にしたテスト用インストールで起動・終了・再送を確認します。Adminとしてログインし、Stagingの集計とProductionの集計が分離されていることを確認します
+
+Admin Webのsecretは、`apps/admin-web`で次を実行して入力します。APIに設定した対応環境のtokenと同じ値を入力し、秘密値をソースや公開環境変数へ追加しません。
+
+```powershell
+npx wrangler secret put ANALYTICS_READ_TOKEN
+npx wrangler secret put ANALYTICS_READ_TOKEN_STAGING
+```
+
+Admin WebはService Bindingを通して集計を取得し、ブラウザには読み取りtoken、インストールID、セッションIDを返しません。接続やsecretが未設定なら「統計サービスが未設定です」、上流の障害なら取得失敗を表示します。Staging接続の不備をProduction接続で補完しません。
+
+インストール数と再訪は、当日の起動成功または正の実行時間を記録した利用を数えます。日をまたぐ継続実行も含みます。計測中のセッションで状態更新が10分を超えて途切れた場合は中断として暫定表示し、後から受信した記録で集計を更新します。
+
+ローカル検証では、Platform APIの`.dev.vars`にStaging用、`.dev.vars.production`にProduction用の`ANALYTICS_READ_TOKEN`を設定し、Admin Webの`.dev.vars`へ対応する`ANALYTICS_READ_TOKEN_STAGING`と`ANALYTICS_READ_TOKEN`を設定します。ローカル専用の異なるtokenを使い、本番の秘密値をコピーしません。
+
+別々のターミナルで次を起動します。DBの保存先とHTTP・Inspectorのポートも分け、未設定のD1 IDを使ったローカル検証でも環境が混在しないようにします。
+
+```powershell
+# ターミナル1: services/platform-apiでStagingを起動
+npm.cmd run db:local -- --persist-to .wrangler/state/analytics-staging
+npm.cmd run dev -- --port 8787 --inspector-port 9230 --persist-to .wrangler/state/analytics-staging
+
+# ターミナル2: services/platform-apiでProductionを起動
+npm.cmd run db:local -- --env production --persist-to .wrangler/state/analytics-production
+npm.cmd run dev -- --env production --port 8788 --inspector-port 9231 --persist-to .wrangler/state/analytics-production
+
+# ターミナル3: apps/admin-webで管理画面を起動
+npm run dev
+```
+
+ViteとWranglerの別プロセスは、設定済みのWorker名でService Bindingを接続します。[Cloudflareの複数Worker開発手順](https://developers.cloudflare.com/workers/local-development/multi-workers/#multiple-dev-commands)に対応し、`vite.config.ts`への補助Worker追加は不要です。API側の各環境で`ALLOWED_GAME_IDS`を設定し、管理画面の起動ログで両方のService Bindingが`connected`になっていることを確認します。
+
+接続やtokenが未設定の場合はAPIが503を返し、起動していない接続先や上流エラーは取得失敗として表示します。通常の開発・本番で代替Workerやテスト用集計を挿入しません。独立した管理画面のWorkerテストだけが、無関係な統計呼び出しに503を返すテスト用Workerを登録します。

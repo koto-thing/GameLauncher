@@ -7,7 +7,7 @@
         "apps/community-web",
         "services/platform-api"
       ],
-      "data": ["platform-db", "community-db", "ugc-r2"],
+      "data": ["platform-db", "community-db", "ugc-r2", "analytics-db"],
       "deniedCapabilities": ["intake-r2", "distribution-r2-write", "manifest-signing-key"]
     },
     "distribution": {

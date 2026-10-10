@@ -4,7 +4,7 @@ if(CMAKE_HOST_WIN32)
     list(APPEND VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/triplets")
 endif()
 
-project(PandDGameLauncher VERSION 1.1.1 LANGUAGES CXX)
+project(PandDGameLauncher VERSION 1.2.0 LANGUAGES CXX)
 
 option(PANDD_DOCS_ONLY "Configure only the Launcher Doxygen target" OFF)
 
@@ -56,11 +56,17 @@ set(PANDD_DISTRIBUTION_ENV "staging" CACHE STRING "Static content environment")
 set(PANDD_DISTRIBUTION_BASE_URL "https://pub-1ada658d7c4f46b1bf109646a4a68bcb.r2.dev/" CACHE STRING
     "Static distribution base URL")
 set(PANDD_BUILD_NUMBER "local" CACHE STRING "Reproducible CI build identifier")
+set(PANDD_PLATFORM_API_BASE_URL "" CACHE STRING "Optional HTTPS play statistics API base URL")
 set_property(CACHE PANDD_DISTRIBUTION_ENV PROPERTY STRINGS staging production)
 set(PANDD_MANIFEST_PUBLIC_KEY_BASE64 "" CACHE STRING "Pinned Ed25519 manifest public key")
 
 if(NOT PANDD_DISTRIBUTION_ENV MATCHES "^(staging|production)$")
     message(FATAL_ERROR "PANDD_DISTRIBUTION_ENV must be staging or production")
+endif()
+
+if(NOT PANDD_PLATFORM_API_BASE_URL STREQUAL "" AND
+   NOT PANDD_PLATFORM_API_BASE_URL MATCHES "^https://[^/?#]+/?$")
+    message(FATAL_ERROR "PANDD_PLATFORM_API_BASE_URL must be an HTTPS origin")
 endif()
 
 if(NOT PANDD_DISTRIBUTION_BASE_URL MATCHES "/$")
@@ -90,7 +96,7 @@ include(Cubism)
 include(Vrm)
 
 find_package(Qt6 6.10.2 REQUIRED COMPONENTS
-    Core Gui Widgets Network Concurrent Svg OpenGL OpenGLWidgets LinguistTools WebEngineWidgets Quick
+    Core Gui Widgets Network Concurrent Sql Svg OpenGL OpenGLWidgets LinguistTools WebEngineWidgets Quick
 )
 if(BUILD_TESTING)
     find_package(Qt6 6.10.2 REQUIRED COMPONENTS Test)
@@ -133,7 +139,7 @@ set(PANDD_BUILD_METADATA_FILE "${CMAKE_BINARY_DIR}/pandd-build-metadata.json")
 file(CONFIGURE OUTPUT "${PANDD_BUILD_METADATA_FILE}" CONTENT [=[
 {
   "qtVersion": "@Qt6_VERSION@",
-  "qtModules": ["Core", "Gui", "Widgets", "Network", "Concurrent", "Svg", "OpenGL", "OpenGLWidgets", "WebEngineWidgets", "Quick"],
+  "qtModules": ["Core", "Gui", "Widgets", "Network", "Concurrent", "Sql", "Svg", "OpenGL", "OpenGLWidgets", "WebEngineWidgets", "Quick"],
   "opensslVersion": "@OPENSSL_VERSION@",
   "cubismVersion": "@PANDD_CUBISM_VERSION@",
   "glewVersion": "@PANDD_GLEW_VERSION@",
@@ -211,14 +217,17 @@ add_library(launcher_core STATIC
     apps/launcher/src/infrastructure/PlatformServices.h
     apps/launcher/src/infrastructure/FileLogger.cpp
     apps/launcher/src/infrastructure/FileLogger.h
+    apps/launcher/src/infrastructure/PlayStatistics.cpp
+    apps/launcher/src/infrastructure/PlayStatistics.h
 )
 target_include_directories(launcher_core PUBLIC apps/launcher/src)
-target_link_libraries(launcher_core PUBLIC Qt6::Core Qt6::Network Qt6::Concurrent OpenSSL::Crypto)
+target_link_libraries(launcher_core PUBLIC Qt6::Core Qt6::Network Qt6::Concurrent Qt6::Sql OpenSSL::Crypto)
 target_compile_definitions(launcher_core PUBLIC
     PANDD_LAUNCHER_VERSION="${PROJECT_VERSION}"
     PANDD_DISTRIBUTION_ENV="${PANDD_DISTRIBUTION_ENV}"
     PANDD_DISTRIBUTION_BASE_URL="${PANDD_DISTRIBUTION_BASE_URL}"
     PANDD_BUILD_NUMBER="${PANDD_BUILD_NUMBER}"
+    PANDD_PLATFORM_API_BASE_URL="${PANDD_PLATFORM_API_BASE_URL}"
     PANDD_MANIFEST_PUBLIC_KEY_BASE64="${PANDD_MANIFEST_PUBLIC_KEY_BASE64}"
 )
 pandd_target_platform_compile_options(launcher_core)
@@ -334,6 +343,15 @@ qt_generate_deploy_app_script(
 install(SCRIPT "${deploy_script}")
 
 if(BUILD_TESTING)
+    qt_add_executable(PlayStatisticsTests apps/launcher/tests/PlayStatisticsTests.cpp)
+    target_link_libraries(PlayStatisticsTests PRIVATE launcher_core Qt6::Test)
+    add_test(NAME PlayStatisticsTests COMMAND PlayStatisticsTests -o -,txt)
+    set_tests_properties(PlayStatisticsTests PROPERTIES TIMEOUT 60)
+    if(WIN32)
+        set_target_properties(PlayStatisticsTests PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/runtime/PlayStatisticsTests")
+    endif()
+
     qt_add_executable(LauncherDomainTests
         apps/launcher/tests/LauncherDomainTests.cpp
     )
@@ -345,6 +363,9 @@ if(BUILD_TESTING)
     )
     target_link_libraries(LauncherIntegrationTests PRIVATE launcher_core Qt6::Test Qt6::Network)
     add_executable(GameProcessFixture apps/launcher/tests/GameProcessFixture.cpp)
+    add_dependencies(PlayStatisticsTests GameProcessFixture)
+    target_compile_definitions(PlayStatisticsTests PRIVATE
+        PANDD_PROCESS_FIXTURE_PATH="$<TARGET_FILE:GameProcessFixture>")
     add_dependencies(LauncherIntegrationTests GameProcessFixture GameLauncher)
     target_compile_definitions(LauncherIntegrationTests PRIVATE
         PANDD_PROCESS_FIXTURE_PATH="$<TARGET_FILE:GameProcessFixture>"
@@ -394,7 +415,7 @@ if(BUILD_TESTING)
         add_dependencies(VrmTests GameLauncher)
         add_dependencies(VrmPreview GameLauncher)
     endif()
-    set_target_properties(LauncherDomainTests LauncherIntegrationTests Live2DTests Live2DPreview VrmTests VrmPreview
+    set_target_properties(LauncherDomainTests LauncherIntegrationTests PlayStatisticsTests Live2DTests Live2DPreview VrmTests VrmPreview
         PROPERTIES WIN32_EXECUTABLE OFF MACOSX_BUNDLE OFF)
 
     if(WIN32)
@@ -421,13 +442,15 @@ if(BUILD_TESTING)
     if(WIN32)
         get_target_property(QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
         get_filename_component(QT_BINARY_DIRECTORY "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
+        # Qt DLLとpluginを同じSDKから読み込むため最後のprependでSDKを先頭にする
         set(TEST_PATH_MODIFICATIONS
-            "PATH=path_list_prepend:${QT_BINARY_DIRECTORY}"
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:GameLauncher>"
+            "PATH=path_list_prepend:${QT_BINARY_DIRECTORY}"
+            "QT_PLUGIN_PATH=path_list_prepend:${QT_BINARY_DIRECTORY}/../plugins"
         )
         set_tests_properties(
             LauncherDomainTests LauncherIntegrationStateTests LauncherIntegrationDownloadTests
-            LauncherIntegrationProcessTests Live2DTests VrmTests PROPERTIES
+            LauncherIntegrationProcessTests Live2DTests VrmTests PlayStatisticsTests PROPERTIES
             ENVIRONMENT_MODIFICATION "${TEST_PATH_MODIFICATIONS}"
         )
     endif()
