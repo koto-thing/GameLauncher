@@ -34,6 +34,9 @@
 namespace pandd {
 namespace {
 
+// 統計APIから受け取る応答の最大byte数
+constexpr qint64 maximumResponseBytes = 128LL * 1024;
+
 /** @brief UTC日時をAPI契約のRFC 3339文字列に変換する */
 QString utcText(const QDateTime& time) { return time.toUTC().toString(Qt::ISODateWithMs); }
 
@@ -164,7 +167,7 @@ struct PlayStatisticsService::State {
     }
 
     /** @brief 指定されたmetadataを原子的に更新する */
-    bool setMetadata(const QString& key, const QString& value) const {
+    bool setMetadata(const char* key, const QString& value) const {
         if (!database.isOpen()) {
             return false;
         }
@@ -172,7 +175,7 @@ struct PlayStatisticsService::State {
         QSqlQuery query(database);
         query.prepare("INSERT INTO metadata(key,value) VALUES(?,?) "
                       "ON CONFLICT(key) DO UPDATE SET value=excluded.value");
-        query.addBindValue(key);
+        query.addBindValue(QString::fromLatin1(key));
         query.addBindValue(value);
         return query.exec();
     }
@@ -322,7 +325,7 @@ struct PlayStatisticsService::State {
         reply->disconnect(owner);
         reply->abort();
         reply->deleteLater();
-        reply = nullptr;
+        reply.clear();
     }
 
     /** @brief 保存故障時は今回の送信を停止し、保存できなかったことを一度通知する */
@@ -725,24 +728,24 @@ void PlayStatisticsService::uploadPending() {
     auto* reply =
         state_->network.post(request, QJsonDocument(envelope).toJson(QJsonDocument::Compact));
     state_->reply = reply;
-    reply->setReadBufferSize(128 * 1024 + 1);
+    reply->setReadBufferSize(maximumResponseBytes + 1);
 
     // 不正に大きい応答は読み取りbufferの上限で中止
     connect(reply, &QNetworkReply::readyRead, this, [reply] {
-        if (reply->bytesAvailable() > 128 * 1024) {
+        if (reply->bytesAvailable() > maximumResponseBytes) {
             reply->abort();
         }
     });
 
     // 再送中に保存された新revisionを古い受理応答で消さない
     connect(reply, &QNetworkReply::finished, this, [this, reply, sentRevisions] {
-        state_->reply = nullptr;
+        state_->reply.clear();
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const auto body = reply->readAll();
         QJsonParseError parse;
         const auto document = QJsonDocument::fromJson(body, &parse);
         const bool successful = reply->error() == QNetworkReply::NoError && status >= 200 &&
-                                status < 300 && body.size() <= 128 * 1024 &&
+                                status < 300 && body.size() <= maximumResponseBytes &&
                                 parse.error == QJsonParseError::NoError && document.isObject() &&
                                 document.object()["accepted"].isArray();
         bool acknowledged = false;
@@ -834,16 +837,16 @@ void PlayStatisticsService::requestRemoteDeletion() {
     auto* reply = state_->network.deleteResource(request);
     state_->reply = reply;
     state_->deleting = true;
-    reply->setReadBufferSize(128 * 1024 + 1);
+    reply->setReadBufferSize(maximumResponseBytes + 1);
     connect(reply, &QNetworkReply::readyRead, this, [reply] {
-        if (reply->bytesAvailable() > 128 * 1024) {
+        if (reply->bytesAvailable() > maximumResponseBytes) {
             reply->abort();
         }
     });
 
     // 削除失敗時は資格を残し、利用者が再試行できる状態を維持
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        state_->reply = nullptr;
+        state_->reply.clear();
         state_->deleting = false;
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const bool success =

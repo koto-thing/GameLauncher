@@ -40,7 +40,7 @@ Qt SQLとSQLiteドライバーが必要です。Windowsの配布では `windeplo
 GitHub Actionsでは、Releaseと物理配布は `production`、Stagingは `staging` のGitHub Environmentに
 同名のVariableを設定して、それぞれの統計APIのURLを使います。
 未設定のビルドはローカル記録のみで、送信チェックボックスは無効になります。
-サービスの作成・secret・allowlist・D1初期化は [Platform API](../../services/platform-api/README.md) を参照してください。
+サービスの作成・secret・allowlist・D1初期化は [Platform APIのセットアップ](https://github.com/koto-thing/GameLauncher/blob/master/services/platform-api/README.md#セットアップ) を参照してください。
 
 ゲームのentrypointが別プロセスを起動してすぐ終了する場合は、その終了までしか観測できません。
 ランチャーの完全終了後やゲームEXEの直接起動は対象外です。30秒ごとのcheckpointまでを保存し、
