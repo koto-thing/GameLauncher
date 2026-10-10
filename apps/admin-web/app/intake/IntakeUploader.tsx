@@ -749,6 +749,9 @@ export function IntakeUploader() {
       setDetailText(`artifact ${uploadRes.artifactId} を正常にsealしました。`);
       setProgressPercent(100);
       setSealedArtifactId(uploadRes.artifactId);
+
+      // Sealに成功した受付票だけを、今回生成した結果から一度だけ保存する
+      downloadGeneratedDescriptor(buildRes);
     } catch (err) {
       if (err instanceof ArtifactBuildCancelledError || err instanceof IntakeCancelledError) {
         setStage("cancelled");
@@ -870,17 +873,28 @@ export function IntakeUploader() {
     }
   }
 
-  /** 生成済みdescriptorをローカルファイルとして保存する */
-  function downloadGeneratedDescriptor() {
-    if (!builtResult) return;
-    const jsonStr = JSON.stringify(builtResult.descriptor, null, 2) + "\n";
-    const blob = new Blob([jsonStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${builtResult.artifactId}.pandd-artifact.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  /** @brief 指定した生成結果のdescriptorを保存し、保存失敗をUpload失敗として扱わない */
+  function downloadGeneratedDescriptor(result: ArtifactBuildResult) {
+    try {
+      const jsonStr = JSON.stringify(result.descriptor, null, 2) + "\n";
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${result.artifactId}.pandd-artifact.json`;
+
+      try {
+        document.body.appendChild(anchor);
+        anchor.click();
+      } finally {
+        anchor.remove();
+
+        // ブラウザーがファイルを取得する前にObject URLを無効化しない
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch {
+      setErrorMessage("Descriptorのダウンロードを開始できませんでした。「Descriptorを保存 (.json)」から再度保存してください。");
+    }
   }
 
   /** 生成済みArtifact ZIPをローカルファイルとして保存する */
@@ -974,33 +988,9 @@ export function IntakeUploader() {
         </div>
       </header>
 
-      <section className="hero" id="top" style={{ paddingBottom: "24px" }}>
-        <div>
-          <p className="eyebrow">INTAKE / ARTIFACT BUILDER & UPLOADER</p>
-          <h1>
-            Buildフォルダから、<br />
-            <em>ブラウザで一括公開</em>へ。
-          </h1>
-          <p className="hero-copy">
-            ゲームのビルドフォルダと情報を選択するだけで、ブラウザ上で release.json・ZIP64 artifact・descriptor
-            を自動生成し、非公開intakeへ直接アップロードしてsealします。
-          </p>
-        </div>
-        <div className="hero-stats" aria-label="Intake 仕様">
-          <div>
-            <span>ZIP64</span>
-            <small>決定論的ZIP64生成</small>
-          </div>
-          <div>
-            <span>64 MB</span>
-            <small>Part分割転送</small>
-          </div>
-          <div>
-            <span>SHA-256</span>
-            <small>インクリメンタル完全性検証</small>
-          </div>
-        </div>
-      </section>
+      <div className="page-heading" id="top">
+        <h1>Web Uploader / Intaker</h1>
+      </div>
 
       {/* Artifact新規作成と既存Artifact送信を切り替えるタブ */}
       <div className="intake-mode-switcher" role="tablist">
@@ -1224,7 +1214,7 @@ export function IntakeUploader() {
               {/* 言語別のゲーム名・概要入力 */}
               <div className="form-field-group" style={{ marginBottom: "22px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "12px", fontWeight: 680, color: "#344054" }}>言語別表示テキスト *</span>
+                  <span style={{ fontSize: "12px", fontWeight: 680, color: "var(--ink)" }}>言語別表示テキスト *</span>
                   <span className="field-tip">ja-JPは必須です。必要に応じて言語行を追加できます。</span>
                 </div>
 
@@ -1317,7 +1307,7 @@ export function IntakeUploader() {
                   onDrop={(event) => handleImageDrop(event, setIsHeroDragOver, handleHeroSelected)}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: "12px", fontWeight: 680, color: "#344054" }}>Hero画像 *</span>
+                    <span style={{ fontSize: "12px", fontWeight: 680, color: "var(--ink)" }}>Hero画像 *</span>
                     <span className="field-tip">PNG / JPEG / WebP</span>
                   </div>
 
@@ -1417,7 +1407,7 @@ export function IntakeUploader() {
                   onDrop={(event) => handleImageDrop(event, setIsThumbnailDragOver, handleThumbnailSelected)}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: "12px", fontWeight: 680, color: "#344054" }}>Thumbnail画像 *</span>
+                    <span style={{ fontSize: "12px", fontWeight: 680, color: "var(--ink)" }}>Thumbnail画像 *</span>
                     <span className="field-tip">PNG / JPEG / WebP</span>
                   </div>
 
@@ -1646,10 +1636,10 @@ export function IntakeUploader() {
                   </>
                 )}
 
-                {/* 生成物のローカル保存（確認用） */}
+                {/* 自動ダウンロードした受付票の再保存と生成ZIPの保存 */}
                 {builtResult && (
                   <div style={{ display: "flex", gap: "10px", marginLeft: "auto" }}>
-                    <button type="button" className="secondary-button" onClick={downloadGeneratedDescriptor}>
+                    <button type="button" className="secondary-button" onClick={() => downloadGeneratedDescriptor(builtResult)}>
                       Descriptorを保存 (.json)
                     </button>
                     <button type="button" className="secondary-button" onClick={downloadGeneratedZip}>

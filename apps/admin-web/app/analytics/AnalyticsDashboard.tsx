@@ -32,11 +32,11 @@ function DailyChart({ daily, title, field }: { daily: GameAnalytics["daily"]; ti
   return <figure className="analytics-chart">
     <figcaption>{title}</figcaption>
     {unavailable ? <p>詳細の保存期間外です</p> : daily.length ? <svg viewBox="0 0 510 190" role="img" aria-label={`${title}、最大 ${format(peak)}。日別の値は下の表で確認できます`}>
-      <line x1="40" y1="25" x2="490" y2="25" stroke="#d0d5dd" />
-      <line x1="40" y1="150" x2="490" y2="150" stroke="#d0d5dd" />
+      <line x1="40" y1="25" x2="490" y2="25" stroke="var(--line)" />
+      <line x1="40" y1="150" x2="490" y2="150" stroke="var(--line)" />
       <text x="40" y="17">{format(peak)}</text><text x="20" y="153">0</text>
-      <polyline fill="none" stroke="#175cd3" strokeWidth="2" points={points} />
-      {daily.length === 1 && <circle cx="265" cy={150 - (daily[0][field] ?? 0) / peak * 125} r="3" fill="#175cd3" />}
+      <polyline fill="none" stroke="var(--accent-ink)" strokeWidth="2" points={points} />
+      {daily.length === 1 && <circle cx="265" cy={150 - (daily[0][field] ?? 0) / peak * 125} r="3" fill="var(--accent-ink)" />}
       <text x="40" y="178">{daily[0].date}</text><text x="490" y="178" textAnchor="end">{daily[daily.length - 1].date}</text>
     </svg> : <p>日別の記録はありません</p>}
     <details><summary>日別の値を表で確認</summary><div className="analytics-table-scroll"><table>

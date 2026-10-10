@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { MusicHost } from "./MusicHost";
-import { ServiceNavigation } from "../ServiceNavigation";
 
 export const metadata: Metadata = { title: "PandD Music 管理" };
 
@@ -10,7 +9,6 @@ export default function MusicPage() {
   return (
     <>
       <link rel="stylesheet" href="/music-editor/manager.css" />
-      <ServiceNavigation />
       <MusicHost />
     </>
   );

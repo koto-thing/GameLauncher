@@ -2,24 +2,24 @@
 .analytics-page { max-width: 1320px; margin: 0 auto; padding: 40px 24px 80px; }
 .analytics-page > header h1 { margin: 0 0 16px; font-size: clamp(32px, 5vw, 48px); letter-spacing: -.04em; }
 .analytics-page p { line-height: 1.7; }
-.analytics-note { padding: 16px 20px; color: #344054; background: #eaf1ff; border: 1px solid #b2ccff; border-radius: 8px; font-size: 13px; }
+.analytics-note { padding: 16px 20px; color: var(--ink); background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 8px; font-size: 13px; }
 .analytics-explanation { color: var(--muted); font-size: 12px; }
 .analytics-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 16px; margin-top: 28px; }
-.analytics-error { color: #912018; background: #fef3f2; border: 1px solid #fecdca; border-radius: 8px; padding: 16px; }
+.analytics-error { color: var(--red); background: var(--error-surface); border: 1px solid var(--error-line); border-radius: 8px; padding: 16px; }
 .analytics-summary { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin: 28px 0; }
 .analytics-summary p { margin: 6px 0; }
 .analytics-game { padding: 28px; margin-top: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
 .analytics-game h2 { margin: 0; overflow-wrap: anywhere; font-size: 28px; }
 .analytics-game > header p { color: var(--muted); }
 .analytics-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; margin: 28px 0; }
-.analytics-metrics dt { color: #475467; font-size: 12px; }
+.analytics-metrics dt { color: var(--muted); font-size: 12px; }
 .analytics-metrics dd { margin: 8px 0; font-size: 25px; font-weight: 700; }
 .analytics-metrics small { color: var(--muted); display: block; line-height: 1.7; }
 .analytics-charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 24px; }
 .analytics-chart { margin: 0; min-width: 0; }
 .analytics-chart figcaption { font-size: 14px; font-weight: 700; }
 .analytics-chart svg { width: 100%; height: auto; margin-top: 12px; }
-.analytics-chart text { fill: #475467; font-size: 12px; }
+.analytics-chart text { fill: var(--muted); font-size: 12px; }
 .analytics-chart summary { cursor: pointer; font-size: 12px; }
 .analytics-table-scroll { max-height: 320px; overflow: auto; margin-top: 12px; }
 .analytics-page table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -29,7 +29,7 @@
 .analytics-breakdown h3 { font-size: 16px; }
 .analytics-outcomes > div { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid var(--line); font-size: 12px; }
 .analytics-outcomes dd { margin: 0; }
-.analytics-page :focus-visible { outline: 3px solid #175cd3; outline-offset: 3px; }
+.analytics-page :focus-visible { outline: 3px solid var(--accent-ink); outline-offset: 3px; }
 
 /* 狭い画面では統計カードとグラフを縦に並べる */
 @media (max-width: 900px) {

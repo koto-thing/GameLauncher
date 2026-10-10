@@ -4,7 +4,6 @@ import type { Player } from "../../application/player";
 import type { Session } from "../../application/ports";
 import { SiteContext, type SiteConfig } from "./context";
 import { api } from "./api-client";
-import { ThemeToggle } from "./theme-toggle";
 
 /** @brief 既存control-plane Cookieを利用し、ゲームのダッシュボードを取得せずMusicを開く @param props 共有プレビューエンジン @returns 管理画面 */
 export function ManagerApp({ player, analyzeLoudness }: { player: Player; analyzeLoudness: import("../../application/loudness").AnalyzeLoudness }) {
@@ -65,7 +64,6 @@ export function ManagerApp({ player, analyzeLoudness }: { player: Player; analyz
           <Link to="/publications">公開処理</Link>
           <a href="/access?service=music">利用申請・審査</a>
         </nav>
-        <ThemeToggle />
       </header>
       <main id="main">
         {error && (

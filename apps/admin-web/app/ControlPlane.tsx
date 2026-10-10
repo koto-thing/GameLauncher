@@ -257,8 +257,6 @@ export function ControlPlane() {
   }
 
   const dashboard = response.dashboard;
-  const pending = dashboard.requests.filter((request) => request.state === "pending_approval").length;
-  const approved = dashboard.requests.filter((request) => request.state === "approved").length;
   const anyDispatchConfigured = dashboard.system.dispatchConfigured.staging ||
     dashboard.system.dispatchConfigured.production;
 
@@ -284,20 +282,19 @@ export function ControlPlane() {
         </div>
       </header>
 
-      <section className="hero" id="top">
-        <div>
-          <p className="eyebrow">CONTROL PLANE / STAGING → PRODUCTION</p>
-          <h1>公開を、<br /><em>許可された順序</em>で。</h1>
-          <p className="hero-copy">ビルドの指紋、申請者、指名承認者、すべての判断を一つの記録に固定します。</p>
-        </div>
-        <div className="hero-stats" aria-label="現在の申請状況">
-          <div><span>{pending.toString().padStart(2, "0")}</span><small>承認待ち</small></div>
-          <div><span>{approved.toString().padStart(2, "0")}</span><small>承認済み</small></div>
-          <div><span>{dashboard.events.length.toString().padStart(2, "0")}</span><small>監査イベント</small></div>
+      <section className="page-heading" id="top" aria-labelledby="control-plane-title">
+        <h1 id="control-plane-title">公開申請</h1>
+
+        <div className="uploader-actions" aria-label="Uploaderを開く">
+          <a className="download-button" href="/intake">
+            Web版 Uploader を開く（推奨） <span>ブラウザ完結</span>
+          </a>
+
+          <a className="download-button secondary" href={UPLOADER_DOWNLOAD_URL}>
+            Windows版 exe をダウンロード <span>28.3 MB</span>
+          </a>
         </div>
       </section>
-
-      <BeginnerGuide />
 
       <nav className="tabs" aria-label="control planeセクション">
         <button className={tab === "requests" ? "active" : ""} onClick={() => setTab("requests")}>申請</button>
@@ -328,82 +325,6 @@ export function ControlPlane() {
         </aside>
       )}
     </main>
-  );
-}
-
-/** 初回利用者向けに公開フローの概要を表示する */
-function BeginnerGuide() {
-  return (
-    <section className="beginner-guide" aria-labelledby="beginner-guide-title">
-      <div className="guide-heading">
-        <div>
-          <p className="eyebrow">QUICK START / はじめての方へ</p>
-          <h2 id="beginner-guide-title">公開まで、この5ステップです。</h2>
-        </div>
-
-        <p>最初にStagingで安全に確認し、同じArtifactだけをProductionへ進めます。秘密鍵やR2認証情報を入力する場面はありません。</p>
-      </div>
-
-      <div className="uploader-download">
-        <div>
-          <p className="eyebrow">WEB & WINDOWS UPLOADER</p>
-          <h3>ゲーム成果物を非公開受付へアップロードします。</h3>
-          <p>Windows Defender誤検知を回避できるブラウザ版（推奨）と、従来のWindows exe版のどちらでもアップロードできます。</p>
-        </div>
-
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <a className="download-button" href="/intake" style={{ background: "var(--blue)" }}>
-            Web版 Uploader を開く（推奨） <span>ブラウザ完結</span>
-          </a>
-          <a className="download-button" href={UPLOADER_DOWNLOAD_URL} style={{ background: "#475467" }}>
-            Windows版 exe をダウンロード <span>28.3 MB</span>
-          </a>
-        </div>
-      </div>
-
-      <ol className="guide-steps deploy-roadmap">
-        <li>
-          <span>01</span>
-          <div><strong>Uploaderを起動</strong><p><a href="/intake" style={{ color: "var(--blue)", textDecoration: "underline" }}>Web版 Uploader</a> または <code>PandDIntakeUploader.exe</code> を開きます。</p></div>
-        </li>
-
-        <li>
-          <span>02</span>
-          <div><strong>ゲームを受付へ送る</strong><p>descriptor JSON と ZIP を選択し、SHA-256検証と非公開intakeへのupload・sealを完了します。</p></div>
-        </li>
-
-        <li>
-          <span>03</span>
-          <div><strong>Staging申請</strong><p><code>*.pandd-artifact.json</code> を「新しい申請」で選び、承認後にStagingへ実行します。</p></div>
-        </li>
-
-        <li>
-          <span>04</span>
-          <div><strong>Stagingを確認</strong><p>公開完了後、ゲームを起動して表示・更新・保存データを確認します。問題があればProductionへ進めません。</p></div>
-        </li>
-
-        <li>
-          <span>05</span>
-          <div><strong>Productionへ進める</strong><p>成功したStagingカードから本番申請を作り、別アカウントの承認後にProductionへ実行します。</p></div>
-        </li>
-      </ol>
-
-      <div className="guide-terms" aria-label="用語の説明">
-        <article>
-          <span aria-hidden="true">FILE</span>
-          <div><h3>PandD artifact descriptorとは？</h3><p>ゲーム本体ではなく、アップロードした成果物のID、ゲームID、バージョン、容量、ファイル数、SHA-256を記録した小さなJSONファイルです。内容は自分で書き換えず、uploaderが出力したものをそのまま使います。</p></div>
-        </article>
-
-        <article>
-          <span aria-hidden="true">HASH</span>
-          <div><h3>Artifact SHA-256とは？</h3><p>アップロードしたファイルにつく、長い英数字の「指紋」です。同じファイルなら同じ値になり、1文字でも内容が変わると別の値になります。申請したものと公開するものが同一か確認するために使います。</p></div>
-        </article>
-        <article>
-          <span aria-hidden="true">TIP</span>
-          <div><h3>保存先が分からないときは</h3><p>既定では「ドキュメント → PandD → Intake Artifacts」にZIPとdescriptorが保存されます。ゲーム内容を直した場合は、古いdescriptorを再利用せずアップロードからやり直してください。</p></div>
-        </article>
-      </div>
-    </section>
   );
 }
 
@@ -556,7 +477,7 @@ function RequestForm({ busy, runAction, onDone }: {
 
   return (
     <form className="request-form" onSubmit={submit}>
-      <div className="form-intro"><span>01</span><div><strong>Artifactを固定</strong><small>Web版またはデスクトップ版のUploaderが生成した受付票（descriptor）を読み込みます。未アップロードの場合は先に <a href="/intake" style={{ color: "var(--blue)", textDecoration: "underline" }}>Web版 Intake Uploader</a> でZIPを送信してください。</small></div></div>
+      <div className="form-intro"><span>01</span><div><strong>Artifactを固定</strong><small>Web版またはデスクトップ版のUploaderが生成した受付票（descriptor）を読み込みます。未アップロードの場合は先に <a href="/intake" style={{ color: "var(--accent-ink)", textDecoration: "underline" }}>Web版 Intake Uploader</a> でZIPを送信してください。</small></div></div>
 
       <label className="wide">PandD artifact descriptor<input type="file" accept=".json,.pandd-artifact.json" onChange={(event) => loadDescriptor(event.target.files?.[0]).catch((error: unknown) => setDescriptorError(error instanceof Error ? error.message : "descriptorを読み込めませんでした"))} required /><small className="input-help">uploaderの完了画面で保存した <code>*.pandd-artifact.json</code> を選んでください。ゲーム本体を選ぶ場所ではありません。</small></label>
 
