@@ -52,9 +52,9 @@ void withStatisticsDatabase(const QString& directory,
 }
 
 /** @brief 保存済みセッションの契約payloadを取得する */
-QJsonObject storedSession(const QString& directory, const QString& id) {
+QJsonObject storedSession(const QTemporaryDir& directory, const QString& id) {
     QJsonObject result;
-    withStatisticsDatabase(directory, [&](QSqlDatabase& database) {
+    withStatisticsDatabase(directory.path(), [&](QSqlDatabase& database) {
         QSqlQuery query(database);
         query.prepare("SELECT payload FROM sessions WHERE session_id=?");
         query.addBindValue(id);
@@ -67,9 +67,9 @@ QJsonObject storedSession(const QString& directory, const QString& id) {
 }
 
 /** @brief 保存済みセッションの未送信フラグを取得する */
-int pendingSession(const QString& directory, const QString& id) {
+int pendingSession(const QTemporaryDir& directory, const QString& id) {
     int result = -1;
-    withStatisticsDatabase(directory, [&](QSqlDatabase& database) {
+    withStatisticsDatabase(directory.path(), [&](QSqlDatabase& database) {
         QSqlQuery query(database);
         query.prepare("SELECT pending FROM sessions WHERE session_id=?");
         query.addBindValue(id);
@@ -102,7 +102,7 @@ class StatisticsHttpServer final : public QTcpServer {
     QUrl endpoint() const { return QUrl("http://127.0.0.1:" + QString::number(serverPort())); }
 
     /** @brief 捕捉した要求へ指定statusとJSONを応答する */
-    void respond(int index, int status, const QJsonObject& document = {}) {
+    void respond(int index, const QJsonObject& document, int status = 200) {
         auto socket = requests.at(static_cast<std::size_t>(index)).socket;
         if (!socket) {
             return;
@@ -126,7 +126,7 @@ class StatisticsHttpServer final : public QTcpServer {
                                         {"revision", session["revision"]}});
         }
 
-        respond(index, 200, {{"accepted", accepted}});
+        respond(index, {{"accepted", accepted}});
     }
 
   protected:
@@ -191,7 +191,7 @@ class PlayStatisticsTests final : public QObject {
         QCOMPARE(summary.launchFailureCount, 1);
         QCOMPARE(summary.interruptedCount, 0);
         QVERIFY(!summary.lastPlayedAt.isEmpty());
-        const auto payload = storedSession(directory.path(), id);
+        const auto payload = storedSession(directory, id);
         QCOMPARE(payload["outcome"].toString(), "normal");
         QCOMPARE(payload["exitCode"].toInt(), 0);
         QCOMPARE(payload["crashed"].toBool(), false);
@@ -201,7 +201,7 @@ class PlayStatisticsTests final : public QObject {
         }
 
         QCOMPARE(dailyTotal, payload["durationSeconds"].toInteger());
-        QCOMPARE(pendingSession(directory.path(), id), 0);
+        QCOMPARE(pendingSession(directory, id), 0);
         statistics.clearLocalHistory();
         QCOMPARE(statistics.localSummary("sample-game").launchCount, 0);
         QCOMPARE(statistics.localSummary("sample-game").launchFailureCount, 0);
@@ -240,7 +240,7 @@ class PlayStatisticsTests final : public QObject {
             QCOMPARE(token.size(), 64);
             QVERIFY(!QUuid(installationId).isNull());
             server.acknowledge(0);
-            QTRY_COMPARE(pendingSession(directory.path(), afterConsent), 0);
+            QTRY_COMPARE(pendingSession(directory, afterConsent), 0);
         }
 
         {
@@ -261,7 +261,7 @@ class PlayStatisticsTests final : public QObject {
             QCOMPARE(envelope["sessions"].toArray().first().toObject()["sessionId"].toString(),
                      enabled);
             statistics.setSharingEnabled(false);
-            QCOMPARE(pendingSession(directory.path(), enabled), 0);
+            QCOMPARE(pendingSession(directory, enabled), 0);
         }
 
         PlayStatisticsService statistics(directory.path(), server.endpoint());
@@ -287,7 +287,7 @@ class PlayStatisticsTests final : public QObject {
                      .toInt(),
                  1);
         statistics.checkpoint();
-        QCOMPARE(storedSession(directory.path(), id)["revision"].toInt(), 2);
+        QCOMPARE(storedSession(directory, id)["revision"].toInt(), 2);
         server.acknowledge(0);
 
         QTRY_COMPARE_WITH_TIMEOUT(server.requests.size(), 2U, 4000);
@@ -295,18 +295,18 @@ class PlayStatisticsTests final : public QObject {
             server.requests.back().document["sessions"].toArray().first().toObject();
         QCOMPARE(second["sessionId"].toString(), id);
         QCOMPARE(second["revision"].toInt(), 2);
-        QCOMPARE(pendingSession(directory.path(), id), 1);
+        QCOMPARE(pendingSession(directory, id), 1);
         server.acknowledge(1);
-        QTRY_COMPARE(pendingSession(directory.path(), id), 0);
+        QTRY_COMPARE(pendingSession(directory, id), 0);
         statistics.finishSession(id, 0, false);
-        QCOMPARE(pendingSession(directory.path(), id), 1);
+        QCOMPARE(pendingSession(directory, id), 1);
         statistics.uploadPending();
         QTRY_COMPARE(server.requests.size(), 3U);
         const auto third = server.requests.back().document["sessions"].toArray().first().toObject();
         QCOMPARE(third["revision"].toInt(), 3);
         QCOMPARE(third["outcome"].toString(), "normal");
         server.acknowledge(2);
-        QTRY_COMPARE(pendingSession(directory.path(), id), 0);
+        QTRY_COMPARE(pendingSession(directory, id), 0);
     }
 
     /** @brief 起動時の回復は最後に保存された時間を推測で増やさない */
@@ -319,7 +319,7 @@ class PlayStatisticsTests final : public QObject {
             statistics.interruptAll();
         }
 
-        auto payload = storedSession(directory.path(), id);
+        auto payload = storedSession(directory, id);
         payload["outcome"] = "running";
         payload["endedAt"] = QJsonValue::Null;
         payload["durationSeconds"] = 123;
@@ -335,7 +335,7 @@ class PlayStatisticsTests final : public QObject {
 
         QTest::qWait(100);
         PlayStatisticsService statistics(directory.path(), {});
-        const auto recovered = storedSession(directory.path(), id);
+        const auto recovered = storedSession(directory, id);
         QCOMPARE(recovered["outcome"].toString(), "interrupted");
         QCOMPARE(recovered["durationSeconds"].toInt(), 123);
         QCOMPARE(recovered["revision"].toInt(), revision + 1);
@@ -352,8 +352,8 @@ class PlayStatisticsTests final : public QObject {
         statistics.finishSession(nonzero, 42, false);
         const auto crash = statistics.startSession("sample-game", "1.0.0");
         statistics.finishSession(crash, 9, true);
-        const auto cleanAbnormal = storedSession(directory.path(), nonzero);
-        const auto crashed = storedSession(directory.path(), crash);
+        const auto cleanAbnormal = storedSession(directory, nonzero);
+        const auto crashed = storedSession(directory, crash);
         QCOMPARE(cleanAbnormal["outcome"].toString(), "abnormal");
         QCOMPARE(cleanAbnormal["exitCode"].toInt(), 42);
         QCOMPARE(cleanAbnormal["crashed"].toBool(), false);
@@ -376,7 +376,7 @@ class PlayStatisticsTests final : public QObject {
         const auto installation = server.requests.front().document["installationId"].toString();
         const auto token = server.requests.front().document["installationToken"].toString();
         server.acknowledge(0);
-        QTRY_COMPARE(pendingSession(directory.path(), id), 0);
+        QTRY_COMPARE(pendingSession(directory, id), 0);
         QSignalSpy deleted(&statistics, &PlayStatisticsService::remoteDeletionFinished);
         statistics.requestRemoteDeletion();
         QVERIFY(!statistics.sharingEnabled());
@@ -384,13 +384,13 @@ class PlayStatisticsTests final : public QObject {
         QVERIFY(server.requests.back().headers.startsWith("DELETE /v1/installations/" +
                                                           installation.toLatin1() + " HTTP/1.1"));
         QVERIFY(server.requests.back().headers.contains("Bearer " + token.toLatin1()));
-        server.respond(1, 503);
+        server.respond(1, {}, 503);
         QTRY_COMPARE(deleted.count(), 1);
         QCOMPARE(deleted.first().first().toBool(), false);
         statistics.requestRemoteDeletion();
         QTRY_COMPARE(server.requests.size(), 3U);
         QVERIFY(server.requests.back().headers.contains("Bearer " + token.toLatin1()));
-        server.respond(2, 204);
+        server.respond(2, {}, 204);
         QTRY_COMPARE(deleted.count(), 2);
         QCOMPARE(deleted.last().first().toBool(), true);
         statistics.setSharingEnabled(true);
@@ -414,13 +414,13 @@ class PlayStatisticsTests final : public QObject {
         statistics.finishSession(first, 0, false);
         statistics.uploadPending();
         QTRY_COMPARE(server.requests.size(), 1U);
-        server.respond(0, 503);
+        server.respond(0, {}, 503);
         QTRY_COMPARE_WITH_TIMEOUT(server.requests.size(), 2U, 5000);
         QCOMPARE(server.requests.front().document["sessions"],
                  server.requests.back().document["sessions"]);
-        QCOMPARE(pendingSession(directory.path(), first), 1);
-        server.respond(1, 400);
-        QTRY_COMPARE(pendingSession(directory.path(), first), 0);
+        QCOMPARE(pendingSession(directory, first), 1);
+        server.respond(1, {}, 400);
+        QTRY_COMPARE(pendingSession(directory, first), 0);
         QCOMPARE(statistics.localSummary("sample-game").launchCount, 1);
 
         const auto next = statistics.startSession("sample-game", "1.0.0");
@@ -435,9 +435,9 @@ class PlayStatisticsTests final : public QObject {
                      .toObject()["sessionId"]
                      .toString(),
                  next);
-        server.respond(2, 401);
+        server.respond(2, {}, 401);
         QTRY_VERIFY(!statistics.sharingEnabled());
-        QCOMPARE(pendingSession(directory.path(), next), 0);
+        QCOMPARE(pendingSession(directory, next), 0);
     }
 
     /** @brief ローカル履歴の消去が送信済みデータの削除要求を中断しない */
@@ -454,7 +454,7 @@ class PlayStatisticsTests final : public QObject {
         QTRY_COMPARE(server.requests.size(), 1U);
         statistics.clearLocalHistory();
         QCOMPARE(statistics.localSummary("sample-game").launchCount, 0);
-        server.respond(0, 204);
+        server.respond(0, {}, 204);
         QTRY_COMPARE(deleted.count(), 1);
         QVERIFY(deleted.first().first().toBool());
         statistics.setSharingEnabled(true);
@@ -468,7 +468,7 @@ class PlayStatisticsTests final : public QObject {
         statistics.setSharingEnabled(true);
         const auto id = statistics.startSession("sample-game", "1.0.0");
         statistics.finishSession(id, 0, false);
-        const auto templatePayload = storedSession(directory.path(), id);
+        const auto templatePayload = storedSession(directory, id);
         const auto stale = statistics.startSession("sample-game", "1.0.0");
         statistics.finishSession(stale, 0, false);
         withStatisticsDatabase(directory.path(), [&](QSqlDatabase& database) {
@@ -510,8 +510,8 @@ class PlayStatisticsTests final : public QObject {
         });
 
         statistics.checkpoint();
-        QCOMPARE(pendingSession(directory.path(), id), -1);
-        QCOMPARE(pendingSession(directory.path(), stale), 0);
+        QCOMPARE(pendingSession(directory, id), -1);
+        QCOMPARE(pendingSession(directory, stale), 0);
         QCOMPARE(statistics.localSummary("sample-game").launchCount, 10004);
         int pending = -1;
         withStatisticsDatabase(directory.path(), [&](QSqlDatabase& database) {
@@ -568,7 +568,7 @@ class PlayStatisticsTests final : public QObject {
             }
 
             statistics.setSharingEnabled(false);
-            QCOMPARE(pendingSession(directory.path(), id), 0);
+            QCOMPARE(pendingSession(directory, id), 0);
             QVERIFY(statistics.uploadAvailable());
         }
 
