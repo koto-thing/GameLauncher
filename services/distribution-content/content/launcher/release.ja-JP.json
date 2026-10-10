@@ -1,6 +1,6 @@
 {
-  "version": "1.1.1",
+  "version": "1.2.0",
   "mandatory": false,
-  "title": "トップ画面のUI配置を修正",
-  "publishedAt": "2026-09-08T00:00:00Z"
+  "title": "ゲームごとのプレイ統計を追加",
+  "publishedAt": "2026-10-10T21:40:00Z"
 }

@@ -42,6 +42,16 @@
       "bucket_name": "pandd-launcher-intake"
     }
   ],
+  "services": [
+    {
+      "binding": "PLATFORM_API",
+      "service": "pandd-platform-api"
+    },
+    {
+      "binding": "PLATFORM_API_STAGING",
+      "service": "pandd-platform-api-staging"
+    }
+  ],
   "observability": {
     "enabled": true
   }

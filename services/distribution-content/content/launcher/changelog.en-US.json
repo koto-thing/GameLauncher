@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.2.0",
+      "title": "Added play statistics for each game",
+      "publishedAt": "2026-10-10T21:40:00Z",
+      "changes": [
+        "Game details now show launches, running time, and the last played date from the past 90 days.",
+        "Added optional statistics sharing and controls to delete local history and uploaded records.",
+        "Sharing is disabled by default and only includes play started after consent."
+      ]
+    },
+    {
       "version": "1.1.1",
       "title": "Fixed the home screen layout",
       "publishedAt": "2026-09-08T00:00:00Z",

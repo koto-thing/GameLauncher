@@ -1,6 +1,7 @@
 #pragma once
 
 #include "application/LauncherService.h"
+#include "infrastructure/PlayStatistics.h"
 
 #include <QObject>
 #include <QThreadPool>
@@ -15,7 +16,8 @@ class LauncherViewModel final : public QObject {
 
   public:
     /** @brief Application Facadeを借用して構築する */
-    explicit LauncherViewModel(LauncherService& service, QObject* parent = nullptr);
+    explicit LauncherViewModel(LauncherService& service, PlayStatisticsService& statistics,
+                               QObject* parent = nullptr);
 
     /** @brief 実行中taskをcancelして完了まで待機する */
     ~LauncherViewModel() override;
@@ -34,6 +36,27 @@ class LauncherViewModel final : public QObject {
 
     /** @brief 現在設定を返す */
     [[nodiscard]] const LauncherSettings& settings() const;
+
+    /** @brief 指定ゲームの直近90日のローカル統計を返す */
+    [[nodiscard]] PlayStatisticsSummary playStatistics(const QString& gameId) const;
+
+    /** @brief 統計の任意送信が有効かを返す */
+    [[nodiscard]] bool statisticsSharingEnabled() const;
+
+    /** @brief このビルドで統計送信先が設定済みかを返す */
+    [[nodiscard]] bool statisticsUploadAvailable() const;
+
+    /** @brief 送信済み統計の削除処理が進行中かを返す */
+    [[nodiscard]] bool statisticsDeletionInProgress() const;
+
+    /** @brief 利用者が選択した統計送信設定を保存する */
+    void setStatisticsSharingEnabled(bool enabled);
+
+    /** @brief 端末内の統計履歴を削除する */
+    void clearPlayHistory();
+
+    /** @brief 送信を停止してサーバーの識別可能な統計を削除する */
+    void deleteSharedStatistics();
 
     /** @brief 取得済みランチャー更新履歴を返す */
     [[nodiscard]] const std::vector<LauncherChangelogEntry>& launcherChangelog() const;
@@ -90,6 +113,12 @@ class LauncherViewModel final : public QObject {
     /** @brief 表示データが変化したことを通知する */
     void dataChanged();
 
+    /** @brief プレイ統計が更新されたことを通知する */
+    void playStatisticsChanged();
+
+    /** @brief サーバー統計の削除結果を通知する */
+    void sharedStatisticsDeleted(bool success);
+
     /** @brief 利用者向けエラーを通知する */
     void errorOccurred(const QString& message, bool retryable);
 
@@ -114,6 +143,7 @@ class LauncherViewModel final : public QObject {
                   bool notifyLoaded = false);
 
     LauncherService& service_;
+    PlayStatisticsService& statistics_;
     QThreadPool operationPool_;
     std::vector<GameCatalogEntry> catalog_;
     std::vector<InstalledGame> installedGames_;

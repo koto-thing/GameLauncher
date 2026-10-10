@@ -11,6 +11,7 @@
     "prebuild": "npm run schema:generate && npm run music:build",
     "dev": "vinext dev",
     "build": "vinext build",
+    "predeploy:cloudflare": "npm run prebuild",
     "deploy:cloudflare": "vinext-cloudflare deploy",
     "start": "vinext start",
     "test": "npm run build && node --test",

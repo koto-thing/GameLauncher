@@ -58,12 +58,21 @@ QString localizedError(const OperationError& error, const std::string& language)
 } // namespace
 
 /** @brief Application FacadeをQt threadへ接続するViewModelを構築する */
-LauncherViewModel::LauncherViewModel(LauncherService& service, QObject* parent)
-    : QObject(parent), service_(service), catalog_(service.catalog()),
+LauncherViewModel::LauncherViewModel(LauncherService& service, PlayStatisticsService& statistics,
+                                     QObject* parent)
+    : QObject(parent), service_(service), statistics_(statistics), catalog_(service.catalog()),
       installedGames_(service.installedGames()), announcements_(service.announcements()),
       launcherChangelog_(service.launcherChangelog()), settings_(service.settings()) {
     // 状態を直列更新するためbackground処理を一つに制限
     operationPool_.setMaxThreadCount(1);
+
+    // 統計I/Oは所有するUI threadで扱い、ゲーム操作のbackground処理から分離する
+    connect(&statistics_, &PlayStatisticsService::statisticsChanged, this,
+            &LauncherViewModel::playStatisticsChanged);
+    connect(&statistics_, &PlayStatisticsService::remoteDeletionFinished, this,
+            &LauncherViewModel::sharedStatisticsDeleted);
+    connect(&statistics_, &PlayStatisticsService::persistenceError, this,
+            [this](const QString& message) { emit errorOccurred(message, true); });
 
     // Application層の状態変更をUI thread上のsignalへ変換
     service_.setStateCallback(
@@ -111,6 +120,33 @@ const LauncherSettings& LauncherViewModel::settings() const {
     // UI用snapshotを返す
     return settings_;
 }
+
+/** @brief 指定ゲームのローカル統計を返す */
+PlayStatisticsSummary LauncherViewModel::playStatistics(const QString& gameId) const {
+    return statistics_.localSummary(gameId);
+}
+
+/** @brief 統計送信への同意状態を返す */
+bool LauncherViewModel::statisticsSharingEnabled() const { return statistics_.sharingEnabled(); }
+
+/** @brief ビルドに統計APIが設定されているかを返す */
+bool LauncherViewModel::statisticsUploadAvailable() const { return statistics_.uploadAvailable(); }
+
+/** @brief 送信済み統計の削除処理状態を返す */
+bool LauncherViewModel::statisticsDeletionInProgress() const {
+    return statistics_.remoteDeletionInProgress();
+}
+
+/** @brief 統計送信設定を専用ストアに保存する */
+void LauncherViewModel::setStatisticsSharingEnabled(bool enabled) {
+    statistics_.setSharingEnabled(enabled);
+}
+
+/** @brief ローカルのプレイ履歴を削除する */
+void LauncherViewModel::clearPlayHistory() { statistics_.clearLocalHistory(); }
+
+/** @brief サーバーのプレイ記録削除を非同期で要求する */
+void LauncherViewModel::deleteSharedStatistics() { statistics_.requestRemoteDeletion(); }
 
 /** @brief ランチャー更新履歴を返す */
 const std::vector<LauncherChangelogEntry>& LauncherViewModel::launcherChangelog() const {

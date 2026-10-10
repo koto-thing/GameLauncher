@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pandd-platform-api-staging",
+  "account_id": "1c34406f20cb851b272ae8d8a6d33780",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-08",
+  "workers_dev": true,
+  "vars": { "ALLOWED_GAME_IDS": "beattery,fishing-rule,pixel-pile,plan-chaotic-developers,precursor,slime-hero,space-yakuza,space-yakuza-gaiden,sweet-step,tacti-tank", "PLAY_ENVIRONMENT": "staging" },
+  "d1_databases": [
+    {
+      "binding": "ANALYTICS_DB",
+      "database_name": "pandd-play-analytics-staging",
+      "database_id": "914d4741-9a5f-4f94-b1c6-34d32dd8adf2",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ratelimits": [
+    { "name": "INGEST_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }
+  ],
+  "triggers": { "crons": ["0 18 * * *"] },
+  "observability": { "enabled": false },
+  "env": {
+    "production": {
+      "name": "pandd-platform-api",
+      "vars": { "ALLOWED_GAME_IDS": "beattery,fishing-rule,pixel-pile,plan-chaotic-developers,precursor,slime-hero,space-yakuza,space-yakuza-gaiden,sweet-step,tacti-tank", "PLAY_ENVIRONMENT": "production" },
+      "d1_databases": [
+        {
+          "binding": "ANALYTICS_DB",
+          "database_name": "pandd-play-analytics",
+          "database_id": "5c96db6e-6eef-4957-aa39-36e8581e44d8",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "ratelimits": [
+        { "name": "INGEST_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 60, "period": 60 } }
+      ]
+    }
+  }
+}

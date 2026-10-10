@@ -715,6 +715,84 @@ Continue?</translation>
         <source>個人パスを除外した診断情報をコピーしました</source>
         <translation>Diagnostics were copied without personal paths.</translation>
     </message>
+    <message>
+        <source>この端末のプレイ記録</source>
+        <translation>Play history on this device</translation>
+    </message>
+    <message>
+        <source>この端末・直近90日: %1回起動 / 実行時間 %2時間%3分
+最終起動: %4 / 計測中断: %5回</source>
+        <translation>This device, last 90 days: %1 launches / Runtime: %2h %3m
+Last launch: %4 / Tracking interruptions: %5</translation>
+    </message>
+    <message>
+        <source>記録なし</source>
+        <translation>No records</translation>
+    </message>
+    <message>
+        <source>ランチャーで監視できた時間です。メニューや放置時間を含みます。ランチャーの完全終了後やゲーム本体の直接起動は計測できません</source>
+        <translation>Runtime observed by the launcher, including menus and idle time. Tracking stops when the launcher quits completely. Games launched directly are not tracked.</translation>
+    </message>
+    <message>
+        <source>プレイ統計を運営へ送信する（任意）</source>
+        <translation>Share play statistics with the operator (optional)</translation>
+    </message>
+    <message>
+        <source>ゲームID、バージョン、起動日時、実行時間、終了結果とランダムな端末識別IDを送信します。初期状態はOFFです。有効化する前の履歴は送信しません。
+
+この端末の履歴は90日、送信待ちは最大30日保存します。サーバーの詳細記録は90日で削除し、識別IDを含まない集計は保持します。送信をOFFにすると未送信データを削除します。送信済み記録の削除には下のボタンを使えます。
+
+削除操作は保存・キャンセルに関係なく直ちに適用されます</source>
+        <translation>Shares the game ID, version, launch time, runtime, exit result, and a randomly generated installation ID. Sharing is OFF by default. History recorded before enabling sharing is not sent.
+
+History on this device is kept for 90 days. Pending uploads are kept for up to 30 days. Detailed server records are deleted after 90 days; aggregates without installation IDs are retained. Turning sharing OFF removes pending uploads. Use the button below to delete records already shared.
+
+Deletion takes effect immediately, regardless of Save or Cancel.</translation>
+    </message>
+    <message>
+        <source>このビルドでは統計送信先が設定されていません</source>
+        <translation>This build has no statistics server configured.</translation>
+    </message>
+    <message>
+        <source>この端末のプレイ履歴を削除</source>
+        <translation>Delete play history on this device</translation>
+    </message>
+    <message>
+        <source>送信を停止して送信済み記録を削除</source>
+        <translation>Stop sharing and delete shared records</translation>
+    </message>
+    <message>
+        <source>削除を要求しています…</source>
+        <translation>Requesting deletion…</translation>
+    </message>
+    <message>
+        <source>プレイ統計</source>
+        <translation>Play Statistics</translation>
+    </message>
+    <message>
+        <source>プレイ履歴の削除</source>
+        <translation>Delete Play History</translation>
+    </message>
+    <message>
+        <source>この端末のプレイ履歴を削除します。続行しますか？</source>
+        <translation>Delete play history on this device?</translation>
+    </message>
+    <message>
+        <source>送信済み記録の削除</source>
+        <translation>Delete Shared Records</translation>
+    </message>
+    <message>
+        <source>統計送信を停止し、サーバーのこの端末に対応する詳細記録を削除します。識別IDを含まない集計は残ります。続行しますか？</source>
+        <translation>Stop sharing and delete the detailed server records associated with this installation? Aggregates without installation IDs will remain.</translation>
+    </message>
+    <message>
+        <source>送信済みの詳細記録を削除しました</source>
+        <translation>Shared detailed records have been deleted.</translation>
+    </message>
+    <message>
+        <source>削除できませんでした。接続を確認して再試行してください</source>
+        <translation>Could not delete the records. Check your connection and try again.</translation>
+    </message>
 </context>
 <context>
     <name>pandd::Live2DBackgroundWidget</name>
@@ -729,6 +807,17 @@ Continue?</translation>
     <message>
         <source>同じゲームにLive2DとVRMの両方が登録されています</source>
         <translation>Both Live2D and VRM are registered for the same game</translation>
+    </message>
+</context>
+<context>
+    <name>PlayStatisticsService</name>
+    <message>
+        <source>統計情報を保存できませんでした。この起動中の送信は停止しました。設定を保存できないため、再起動後に送信が再開する場合があります。保存先の空き容量と書き込み権限を確認してください</source>
+        <translation>Statistics could not be saved. Sharing is paused for this launcher session. The setting could not be saved, so sharing may resume after restarting. Check the free disk space and write permissions for the storage location.</translation>
+    </message>
+    <message>
+        <source>統計情報を保存できなかったため、今回の送信を停止しました。保存先の空き容量と書き込み権限を確認してください</source>
+        <translation>Statistics could not be saved, so sharing is paused for this launcher session. Check the free disk space and write permissions for the storage location.</translation>
     </message>
 </context>
 </TS>

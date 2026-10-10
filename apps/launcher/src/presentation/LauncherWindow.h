@@ -82,6 +82,9 @@ class LauncherWindow final : public QMainWindow {
     /** @brief 指定ゲームの詳細ページを表示する */
     void showGame(const QString& gameId);
 
+    /** @brief 選択ゲームの直近90日のプレイ記録を表示する */
+    void refreshPlayStatistics();
+
     /** @brief 選択ゲームが導入済みかを返す */
     [[nodiscard]] bool selectedGameInstalled() const;
 
@@ -128,6 +131,7 @@ class LauncherWindow final : public QMainWindow {
     QPropertyAnimation* navigationIndicatorAnimation_{nullptr};
     ElidedLabel* heroTitle_{nullptr};
     QLabel* summary_{nullptr};
+    QLabel* playStatisticsLabel_{nullptr};
     QLabel* stagingBadge_{nullptr};
     QListWidget* announcements_{nullptr};
     QPushButton* primaryButton_{nullptr};

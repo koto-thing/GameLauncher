@@ -14,7 +14,7 @@ class SbomTests(unittest.TestCase):
 
     metadata = {
         "qtVersion": "6.10.2",
-        "qtModules": ["Core", "Gui", "Widgets", "Network", "Concurrent", "Svg",
+        "qtModules": ["Core", "Gui", "Widgets", "Network", "Concurrent", "Sql", "Svg",
                       "OpenGL", "OpenGLWidgets", "WebEngineWidgets", "Quick"],
         "opensslVersion": "3.5.4",
         "compilerId": "GNU",
@@ -34,6 +34,7 @@ class SbomTests(unittest.TestCase):
         self.assertEqual(versions["Qt6 OpenGL"], "6.10.2")
         self.assertEqual(versions["Qt6 OpenGLWidgets"], "6.10.2")
         self.assertEqual(versions["Qt6 Svg"], "6.10.2")
+        self.assertEqual(versions["Qt6 Sql"], "6.10.2")
         self.assertEqual(versions["Qt6 WebEngineWidgets"], "6.10.2")
         self.assertEqual(versions["@pixiv/three-vrm"], "3.4.0")
         self.assertEqual(versions["three"], "0.180.0")

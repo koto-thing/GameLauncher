@@ -63,6 +63,8 @@ jobs:
         run: python -m scripts.release.validate_release_version "$env:STAGING_VERSION"
       - name: Configure staging launcher
         shell: pwsh
+        env:
+          PANDD_PLATFORM_API_BASE_URL: ${{ vars.PANDD_PLATFORM_API_BASE_URL }}
         run: >-
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
@@ -70,6 +72,7 @@ jobs:
           -DPANDD_DISTRIBUTION_ENV=staging
           -DPANDD_DISTRIBUTION_BASE_URL=${{ env.STAGING_BASE_URL }}/
           -DPANDD_BUILD_NUMBER=${{ github.run_number }}
+          "-DPANDD_PLATFORM_API_BASE_URL=$env:PANDD_PLATFORM_API_BASE_URL"
           "-DPANDD_CUBISM_SDK_ROOT=$env:PANDD_CUBISM_SDK_ROOT"
           -DPANDD_MANIFEST_PUBLIC_KEY_BASE64=${{ secrets.MANIFEST_PUBLIC_KEY_BASE64 }}
           -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake

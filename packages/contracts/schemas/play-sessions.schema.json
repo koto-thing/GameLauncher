@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pandd.org/packages/contracts/v1/play-sessions.schema.json",
+  "title": "PandD opted-in play session snapshots",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "installationId", "installationToken", "sessions"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "installationId": { "type": "string", "format": "uuid" },
+    "installationToken": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sessions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/session" }
+    }
+  },
+  "$defs": {
+    "utcTimestamp": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,3})?Z$" },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sessionId", "revision", "gameId", "gameVersion", "launcherVersion", "environment", "startedAt", "lastObservedAt", "endedAt", "durationSeconds", "outcome", "exitCode", "crashed", "dailyDurations"],
+      "properties": {
+        "sessionId": { "type": "string", "format": "uuid" },
+        "revision": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "gameId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$" },
+        "gameVersion": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9.+_-]+$" },
+        "launcherVersion": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9.+_-]+$" },
+        "environment": { "enum": ["staging", "production"] },
+        "startedAt": { "$ref": "#/$defs/utcTimestamp" },
+        "lastObservedAt": { "$ref": "#/$defs/utcTimestamp" },
+        "endedAt": { "anyOf": [{ "$ref": "#/$defs/utcTimestamp" }, { "type": "null" }] },
+        "durationSeconds": { "type": "integer", "minimum": 0, "maximum": 2592000 },
+        "outcome": { "enum": ["running", "normal", "abnormal", "interrupted", "launch_failed"] },
+        "exitCode": { "type": ["integer", "null"], "minimum": -2147483648, "maximum": 2147483647 },
+        "crashed": { "type": ["boolean", "null"] },
+        "dailyDurations": {
+          "type": "array",
+          "maxItems": 91,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["date", "durationSeconds"],
+            "properties": {
+              "date": { "type": "string", "format": "date" },
+              "durationSeconds": { "type": "integer", "minimum": 0, "maximum": 86400 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

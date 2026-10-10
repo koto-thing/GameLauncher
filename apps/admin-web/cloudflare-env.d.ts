@@ -53,5 +53,12 @@ interface R2Bucket {
 }
 
 declare module "cloudflare:workers" {
-  export const env: Record<string, unknown> & { DB?: D1Database; INTAKE?: R2Bucket };
+  export const env: Record<string, unknown> & {
+    DB?: D1Database;
+    INTAKE?: R2Bucket;
+    PLATFORM_API?: Fetcher;
+    PLATFORM_API_STAGING?: Fetcher;
+    ANALYTICS_READ_TOKEN?: string;
+    ANALYTICS_READ_TOKEN_STAGING?: string;
+  };
 }

@@ -12,6 +12,7 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QComboBox>
+#include <QDateTime>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -670,6 +671,11 @@ QWidget* LauncherWindow::createDetailPage() {
     summary_->setMaximumWidth(650);
     summary_->setStyleSheet("font-size:15px;color:#d5dce8;");
     layout->addWidget(summary_);
+    playStatisticsLabel_ = new QLabel(page);
+    playStatisticsLabel_->setWordWrap(true);
+    playStatisticsLabel_->setStyleSheet("font-size:13px;color:#d5dce8;");
+    playStatisticsLabel_->setAccessibleName(tr("この端末のプレイ記録"));
+    layout->addWidget(playStatisticsLabel_);
     announcements_ = new QListWidget(page);
     announcements_->setMaximumHeight(140);
     announcements_->setAccessibleName(tr("お知らせ"));
@@ -731,6 +737,8 @@ QWidget* LauncherWindow::createDetailPage() {
 void LauncherWindow::connectViewModel() {
     // snapshot変更と初期読込を画面へ接続する
     connect(&viewModel_, &LauncherViewModel::dataChanged, this, &LauncherWindow::refreshData);
+    connect(&viewModel_, &LauncherViewModel::playStatisticsChanged, this,
+            &LauncherWindow::refreshPlayStatistics);
     connect(&viewModel_, &LauncherViewModel::loaded, this, [this] {
         refreshData();
         statusBar()->showMessage(tr("最新情報を読み込みました"), 3000);
@@ -1085,6 +1093,7 @@ void LauncherWindow::showGame(const QString& gameId) {
     detailPage_->setModel(live2dAssets_.find(gameId), vrmAssets_.find(gameId));
     heroTitle_->setFullText(QString::fromStdString(iterator->name));
     summary_->setText(QString::fromStdString(iterator->summary));
+    refreshPlayStatistics();
     detailPage_->setFocalPoint(iterator->heroFocalX, iterator->heroFocalY);
 
     // 取得中は空背景とし、取得失敗時にだけplaceholderを表示
@@ -1154,6 +1163,28 @@ void LauncherWindow::showGame(const QString& gameId) {
     progressBar_->setVisible(false);
     transferLabel_->clear();
     navigateTo(3);
+}
+
+/** @brief 観測できた実行時間と成功起動回数を表示する */
+void LauncherWindow::refreshPlayStatistics() {
+    if (selectedGameId_.isEmpty() || playStatisticsLabel_ == nullptr) {
+        return;
+    }
+
+    const auto statistics = viewModel_.playStatistics(selectedGameId_);
+    const auto seconds = statistics.totalDurationSeconds;
+    const auto lastPlayed = QDateTime::fromString(statistics.lastPlayedAt, Qt::ISODateWithMs);
+    playStatisticsLabel_->setText(
+        tr("この端末・直近90日: %1回起動 / 実行時間 %2時間%3分\n最終起動: %4 / 計測中断: %5回")
+            .arg(statistics.launchCount)
+            .arg(seconds / 3600)
+            .arg((seconds % 3600) / 60)
+            .arg(lastPlayed.isValid() ? lastPlayed.toLocalTime().toString("yyyy/MM/dd HH:mm")
+                                      : tr("記録なし"))
+            .arg(statistics.interruptedCount));
+    playStatisticsLabel_->setToolTip(
+        tr("ランチャーで監視できた時間です。メニューや放置時間を含みます。"
+           "ランチャーの完全終了後やゲーム本体の直接起動は計測できません"));
 }
 
 /** @brief 選択ゲームが導入済みかを返す */
@@ -1265,6 +1296,75 @@ void LauncherWindow::showSettingsDialog() {
     downloadForm->addRow(checkBefore);
     downloadForm->addRow(continueDownloads);
     tabs->addTab(downloads, tr("ダウンロード"));
+
+    // 任意送信の説明と端末・サーバーそれぞれの削除操作を構築する
+    auto* statisticsPage = new QWidget(tabs);
+    auto* statisticsLayout = new QVBoxLayout(statisticsPage);
+    auto* shareStatistics = new QCheckBox(tr("プレイ統計を運営へ送信する（任意）"), statisticsPage);
+    const bool initialStatisticsSharing = viewModel_.statisticsSharingEnabled();
+    shareStatistics->setChecked(initialStatisticsSharing);
+    shareStatistics->setEnabled(viewModel_.statisticsUploadAvailable() &&
+                                !viewModel_.statisticsDeletionInProgress());
+    statisticsLayout->addWidget(shareStatistics);
+    auto* statisticsDescription = new QLabel(
+        tr("ゲームID、バージョン、起動日時、実行時間、終了結果とランダムな端末識別IDを送信します。"
+           "初期状態はOFFです。有効化する前の履歴は送信しません。\n\n"
+           "この端末の履歴は90日、送信待ちは最大30日保存します。"
+           "サーバーの詳細記録は90日で削除し、識別IDを含まない集計は保持します。"
+           "送信をOFFにすると未送信データを削除します。送信済み記録の削除には下のボタンを使えます。"
+           "\n\n"
+           "削除操作は保存・キャンセルに関係なく直ちに適用されます"),
+        statisticsPage);
+    statisticsDescription->setWordWrap(true);
+    statisticsLayout->addWidget(statisticsDescription);
+    if (!viewModel_.statisticsUploadAvailable()) {
+        auto* unavailable =
+            new QLabel(tr("このビルドでは統計送信先が設定されていません"), statisticsPage);
+        unavailable->setWordWrap(true);
+        statisticsLayout->addWidget(unavailable);
+    }
+    auto* clearHistory = new QPushButton(tr("この端末のプレイ履歴を削除"), statisticsPage);
+    auto* deleteShared = new QPushButton(tr("送信を停止して送信済み記録を削除"), statisticsPage);
+    deleteShared->setEnabled(viewModel_.statisticsUploadAvailable() &&
+                             !viewModel_.statisticsDeletionInProgress());
+    auto* deletionStatus = new QLabel(statisticsPage);
+    deletionStatus->setWordWrap(true);
+    if (viewModel_.statisticsDeletionInProgress()) {
+        deletionStatus->setText(tr("削除を要求しています…"));
+    }
+    statisticsLayout->addWidget(clearHistory);
+    statisticsLayout->addWidget(deleteShared);
+    statisticsLayout->addWidget(deletionStatus);
+    statisticsLayout->addStretch();
+    tabs->addTab(statisticsPage, tr("プレイ統計"));
+    connect(clearHistory, &QPushButton::clicked, &dialog, [this, &dialog] {
+        if (QMessageBox::question(&dialog, tr("プレイ履歴の削除"),
+                                  tr("この端末のプレイ履歴を削除します。続行しますか？")) ==
+            QMessageBox::Yes) {
+            viewModel_.clearPlayHistory();
+        }
+    });
+    connect(deleteShared, &QPushButton::clicked, &dialog,
+            [this, &dialog, deleteShared, shareStatistics, deletionStatus] {
+                if (QMessageBox::question(
+                        &dialog, tr("送信済み記録の削除"),
+                        tr("統計送信を停止し、サーバーのこの端末に対応する詳細記録を削除します。"
+                           "識別IDを含まない集計は残ります。続行しますか？")) == QMessageBox::Yes) {
+                    shareStatistics->setChecked(false);
+                    shareStatistics->setEnabled(false);
+                    deleteShared->setEnabled(false);
+                    deletionStatus->setText(tr("削除を要求しています…"));
+                    viewModel_.deleteSharedStatistics();
+                }
+            });
+    connect(&viewModel_, &LauncherViewModel::sharedStatisticsDeleted, &dialog,
+            [this, deleteShared, shareStatistics, deletionStatus](bool success) {
+                deleteShared->setEnabled(viewModel_.statisticsUploadAvailable());
+                shareStatistics->setEnabled(viewModel_.statisticsUploadAvailable());
+                deletionStatus->setText(
+                    success ? tr("送信済みの詳細記録を削除しました")
+                            : tr("削除できませんでした。接続を確認して再試行してください"));
+            });
 
     // launcher更新と通知設定を構築する
     auto* update = new QWidget(tabs);
@@ -1397,6 +1497,11 @@ void LauncherWindow::showSettingsDialog() {
     // dialog確定後に設定値をViewModelへ渡す
     if (dialog.exec() != QDialog::Accepted) {
         return;
+    }
+
+    // 変更していない送信設定は背景処理で停止された状態を上書きしない
+    if (shareStatistics->isChecked() != initialStatisticsSharing) {
+        viewModel_.setStatisticsSharingEnabled(shareStatistics->isChecked());
     }
 
     settings.language = language->currentData().toString().toStdString();

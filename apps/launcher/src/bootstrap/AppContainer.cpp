@@ -1,5 +1,7 @@
 #include "bootstrap/AppContainer.h"
 
+#include <QDir>
+#include <QStandardPaths>
 #include <QUrl>
 
 namespace pandd {
@@ -13,7 +15,12 @@ AppContainer::AppContainer() : editionRepository_(EditionProfile::current()) {
         baseUrl, QByteArray(PANDD_MANIFEST_PUBLIC_KEY_BASE64));
     stateRepository_ = std::make_unique<JsonStateRepository>();
     installationService_ = std::make_unique<GameInstallationService>();
+    playStatistics_ = std::make_unique<PlayStatisticsService>(
+        QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
+            .filePath("play-statistics/" + QStringLiteral(PANDD_DISTRIBUTION_ENV)),
+        QUrl(QStringLiteral(PANDD_PLATFORM_API_BASE_URL)));
     processService_ = std::make_unique<QtGameProcessService>();
+    processService_->setPlayStatisticsService(playStatistics_.get());
     startupService_ = std::make_unique<PlatformStartupService>();
     updateService_ = std::make_unique<MaintenanceToolService>();
     clock_ = std::make_unique<SystemClock>();
@@ -35,5 +42,8 @@ LauncherService& AppContainer::launcherService() {
     // UIへApplication Facadeを返す
     return *launcherService_;
 }
+
+/** @brief UIへ統計Serviceを返す */
+PlayStatisticsService& AppContainer::playStatistics() { return *playStatistics_; }
 
 } // namespace pandd

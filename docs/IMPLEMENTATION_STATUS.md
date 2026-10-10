@@ -7,6 +7,13 @@ hardware-backed identities, or clean machines remains a release gate.
 
 ## Implemented
 
+- Local 90-day play sessions in SQLite, opt-in asynchronous statistics submission,
+  authenticated deletion, checkpoint recovery, and separate crash/exit-code records
+- Platform API analytics Worker with isolated staging/production D1, idempotent
+  cumulative snapshots, anonymous daily archives, and administrator-only aggregate reads
+- Admin Web game analytics at `/analytics`, JST date/version filters, execution-time
+  charts, completed-day D1/D7 return cohorts, interruption rates, and aggregate CSV export
+
 - `apps/launcher/` clean architecture with one composition root and no legacy `src/` route
 - Portable CMake/CTest, presets, warnings, formatting, clang-tidy, Doxygen, Qt
   Deployment API, a valid pinned vcpkg baseline, production OpenSSL 3 enforcement,
@@ -45,6 +52,12 @@ hardware-backed identities, or clean machines remains a release gate.
   four-target release workflow, rollback/stop procedures, prerequisites, and checklist
 
 ## Verified locally
+
+- Windows MSVC Debug with Qt 6.10.2: play statistics tests, existing launcher
+  state/download/process tests, and resource/SQLite driver startup verification
+- Platform API: 14 tests including SQLite and bundled workerd/D1; captured Qt
+  upload accepted, deduplicated, read by Admin Web, and deleted through the API
+- Admin Web: production build, type checking, focused ESLint, and 119 tests
 
 - Windows Debug configure/build with GCC 15.2 and Qt 6.10.2 MinGW libraries
 - Four CTest groups, including local HTTP Range/fallback/mid-stream disconnect,

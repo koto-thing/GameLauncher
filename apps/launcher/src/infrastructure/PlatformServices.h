@@ -4,12 +4,15 @@
 
 #include <QMutex>
 #include <QObject>
+#include <QPointer>
 #include <QProcess>
 
 #include <map>
 #include <memory>
 
 namespace pandd {
+
+class PlayStatisticsService;
 
 /** @brief QProcessでmain processを監視するゲーム起動Service */
 class QtGameProcessService final : public QObject, public IGameProcessService {
@@ -20,6 +23,9 @@ class QtGameProcessService final : public QObject, public IGameProcessService {
     /** @brief 実行中processを終了せずhandleだけを解放する */
     ~QtGameProcessService() override;
 
+    /** @brief QObject所有threadで起動と終了を記録する統計Serviceを設定する */
+    void setPlayStatisticsService(PlayStatisticsService* service);
+
     /** @copydoc IGameProcessService::launch */
     OperationResult launch(const InstalledGame& installed, const std::string& saveDirectory,
                            ExitCallback onExit) override;
@@ -28,6 +34,7 @@ class QtGameProcessService final : public QObject, public IGameProcessService {
     [[nodiscard]] bool isRunning(const GameId& gameId) const override;
 
   private:
+    QPointer<PlayStatisticsService> playStatistics_;
     std::map<std::string, std::unique_ptr<QProcess>> processes_;
     mutable QMutex processesMutex_;
 };
