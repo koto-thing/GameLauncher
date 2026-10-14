@@ -21,7 +21,7 @@ test("shared GitHub identity, strict game authorization, PKCE and cookie boundar
       if (url.pathname === "/user")
         return identityFails
           ? new Response("unauthorized", { status: 401 })
-          : Response.json({ id: userId, login: "music-a", avatar_url: "" });
+          : Response.json({ id: userId, login: userId === 1001 ? "koto-thing" : "music-a", avatar_url: "" });
       if (url.pathname.endsWith("/permission"))
         return Response.json({ permission, role_name: permission });
       return permission === "none"
@@ -38,11 +38,7 @@ test("shared GitHub identity, strict game authorization, PKCE and cookie boundar
       headers: { Cookie: cookie },
       redirect: "manual",
     });
-  assert.equal(
-    ((await (await get("/__test/identity")).json()) as { gameAccess: boolean })
-      .gameAccess,
-    false,
-  );
+  assert.equal((await get("/__test/identity")).status,403);
   assert.equal((await get("/__test/identity?game")).status, 403);
   for (permission of ["read", "triage"])
     assert.equal((await get("/__test/identity?game")).status, 403);
@@ -63,6 +59,7 @@ test("shared GitHub identity, strict game authorization, PKCE and cookie boundar
   identityFails = false;
   userId = 900002;
   permission = "none";
+  await runtime.db.prepare("UPDATE platform_roles SET role='assistant' WHERE github_user_id='900002'").run();
   const start = await get("/api/auth/github/start");
   assert.equal(start.status, 302);
   const authorize = new URL(start.headers.get("location")!);
@@ -91,7 +88,7 @@ test("shared GitHub identity, strict game authorization, PKCE and cookie boundar
     cookie,
   );
   assert.equal(callback.status, 302);
-  assert.equal(callback.headers.get("location"), "/music");
+  assert.equal(callback.headers.get("location"), "/");
   assert.equal(
     createHash("sha256").update(tokenRequest.code_verifier).digest("base64url"),
     authorize.searchParams.get("code_challenge"),
@@ -99,8 +96,8 @@ test("shared GitHub identity, strict game authorization, PKCE and cookie boundar
   assert.match(callback.headers.get("set-cookie")!, /Max-Age=0/);
   const client = await fixtureClient(runtime, "music-a");
   assert.deepEqual(await client.json("/api/auth/services"), {
-    game: false,
-    music: false,
+    game: true,
+    music: true,
   });
   assert.deepEqual(
     await (

@@ -21,7 +21,7 @@ function actionsActor(identity: ActionsIdentity): SessionUser {
     githubUserId: text(identity.claims.actor_id),
     login: text(identity.claims.actor),
     avatarUrl: "",
-    role: "user",
+    role: null,
     isAdmin: false,
     gameAccess: true,
     authenticatedAt: new Date().toISOString(),

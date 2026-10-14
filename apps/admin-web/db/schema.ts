@@ -250,3 +250,18 @@ export const publicationRecoveries = sqliteTable("publication_recoveries", {
   mode: text("mode", { enum: ["rollback", "suspend", "resume"] }).notNull(),
   manifestSha256: text("manifest_sha256").notNull(),
 });
+
+// 許可名をプロフィールの自動更新から分離し、取消と再承認を世代で区別する
+export const operatorAdmissions = sqliteTable("operator_admissions", {
+  githubUserId: text("github_user_id").primaryKey().references(() => users.githubUserId),
+  approvedLogin: text("approved_login").notNull(), version: text("version").notNull(), revokedAt: text("revoked_at"),
+});
+
+// 未ログインの本人も招待でき、古いmember_invitationsは認可に使わない
+export const operatorInvitations = sqliteTable("operator_invitations", {
+  id: text("id").primaryKey(), recipient: text("recipient").notNull(), login: text("login").notNull(),
+  avatarUrl: text("avatar_url").notNull(), role: text("role",{enum:["assistant","executive","admin"]}).notNull(),
+  issuer: text("issuer").notNull().references(() => users.githubUserId), issuerRole: text("issuer_role").notNull(),
+  issuerVersion: text("issuer_version").notNull(), kind: text("kind",{enum:["invite","reapprove"]}).notNull(),
+  expiresAt: text("expires_at").notNull(), acceptedAt: text("accepted_at"), acceptedToken: text("accepted_token"), revokedAt: text("revoked_at"),
+}, table => [uniqueIndex("operator_invitation_pending").on(table.recipient).where(sql`${table.acceptedAt} IS NULL AND ${table.revokedAt} IS NULL`)]);

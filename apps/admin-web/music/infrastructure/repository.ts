@@ -48,8 +48,8 @@ interface AssetRow {
 
 // 保存直前の権限もSQLで再評価し、認可後に担当解除された書き込みを防ぐ。
 const EDIT =
-  "EXISTS(SELECT 1 FROM platform_roles WHERE github_user_id=? AND role IN ('admin','executive','assistant')) AND ? IS NOT NULL";
-const ADMIN = "EXISTS(SELECT 1 FROM platform_roles WHERE github_user_id=? AND role IN ('admin','executive','assistant'))";
+  "EXISTS(SELECT 1 FROM active_platform_roles WHERE github_user_id=? AND role IN ('admin','executive','assistant')) AND ? IS NOT NULL";
+const ADMIN = "EXISTS(SELECT 1 FROM active_platform_roles WHERE github_user_id=? AND role IN ('admin','executive','assistant'))";
 
 /** @brief D1行を作品へ変換する。 */
 function decodeGame(row: GameRow): Game {
