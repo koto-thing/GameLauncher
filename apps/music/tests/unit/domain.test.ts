@@ -63,14 +63,16 @@ test("queue end, single-track, repeat modes and shuffle respect current track", 
   assert.equal(new Set(shuffled).size, 4);
   assert.deepEqual(shuffledQueue([], "", Math.random), []);
 });
-test("authorization is scoped to game membership and admin operations", /** @brief GitHubログイン済みだけでは投稿できない */ () => {
-  const actor = { id: "1", login: "creator", admin: false, gameIds: ["a"] };
-  assert.doesNotThrow(
-    /** @brief 担当作品を許可する */ () => authorize(actor, "a"),
-  );
-  assert.throws(/** @brief 別作品を拒否する */ () => authorize(actor, "b"));
-  assert.throws(/** @brief 運営機能は拒否する */ () => authorize(actor));
-  assert.throws(/** @brief 未認証を拒否する */ () => authorize(null, "a"));
+test("authorization uses explicit operations roles across games", /** @brief 旧所属や未知ロールは昇格させず全運営は別作品にもアクセスする */ () => {
+  const legacy = { id: "1", login: "creator", admin: true, gameIds: ["a"] };
+  assert.throws(/** @brief 明示した主体の認可を検証する */ () => authorize(legacy,"a"));
+  for (const role of ["assistant","executive","admin"] as const) {
+    const actor = { ...legacy,role };
+    assert.doesNotThrow(/** @brief 明示した主体の認可を検証する */ () => authorize(actor,"a"));
+    assert.doesNotThrow(/** @brief 明示した主体の認可を検証する */ () => authorize(actor,"b"));
+    assert.doesNotThrow(/** @brief 明示した主体の認可を検証する */ () => authorize(actor));
+  }
+  assert.throws(/** @brief 明示した主体の認可を検証する */ () => authorize(null,"a"));
 });
 test("content and config validation rejects HTML, unsafe links and invalid defaults", /** @brief UI入力制限をサーバー検証の代替にしない */ () => {
   assert.throws(

@@ -108,26 +108,20 @@ export function AccessRequests({ initialService }: { initialService: AccessServi
         {row.grant_type && <p>付与した権限：{grants[row.grant_type]}</p>}
         {row.game_id && <p>付与した作品：{row.game_title ?? "削除された作品"}</p>}
         {row.state === "approved" && <a href={service === "game" ? "/game" : "/music"}>管理画面を開く</a>}
-        {review && row.state === "pending" && <ReviewForm row={row} games={data.games} busy={busy} mutate={mutate} />}
+        {review && row.state === "pending" && <ReviewForm row={row} busy={busy} mutate={mutate} />}
       </article>)}</div>
     </>}
   </section>;
 }
 
 /** @brief 管理者が付与範囲を明示して審査し、却下には理由を必須にする */
-function ReviewForm({ row, games, busy, mutate }: {
-  row: AccessRequestRow; games: Data["games"]; busy: boolean;
+function ReviewForm({ row, busy, mutate }: {
+  row: AccessRequestRow; busy: boolean;
   mutate: (payload: Record<string, unknown>) => Promise<boolean>;
 }) {
-  const [grantType, setGrant] = useState("requester");
-  const [gameId, setGame] = useState("");
   const [reason, setReason] = useState("");
   return <div className="access-review">
-    {row.service === "game" ? <>
-      <p>{row.repository_access ? "承認時にリポジトリ権限を再確認します。" : "リポジトリ権限の設定・確認が必要です。設定後に承認してください。"}</p>
-      <label>付与する権限<select value={grantType} onChange={(event) => setGrant(event.target.value)}>{Object.entries(grants).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-    </> : <label>付与する作品<select value={gameId} onChange={(event) => setGame(event.target.value)}><option value="">作品を選択</option>{games.map((game) => <option key={game.id} value={game.id}>{game.title || game.id}</option>)}</select></label>}
-    <button disabled={busy || (row.service === "music" && !gameId)} onClick={() => void mutate({ action: "decide", id: row.id, decision: "approved", grantType, gameId })}>承認して権限を付与</button>
+    <a href="/members">メンバー管理で招待する</a>
     <label>却下理由<textarea value={reason} maxLength={1000} onChange={(event) => setReason(event.target.value)} /></label>
     <button disabled={busy || !reason.trim()} onClick={() => void mutate({ action: "decide", id: row.id, decision: "rejected", reason })}>却下する</button>
   </div>;

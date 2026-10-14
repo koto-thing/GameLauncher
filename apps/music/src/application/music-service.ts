@@ -86,8 +86,8 @@ export class MusicService {
     if (!actor)
       throw new MusicError("UNAUTHENTICATED", "ログインしてください。");
     return (await this.repository.games()).filter(
-      /** @brief 未担当作品を管理一覧から除く */ (game) =>
-        actor.admin || actor.gameIds.includes(game.id),
+      /** @brief 未担当作品を管理一覧から除く */ (_game) =>
+        ["admin", "executive", "assistant"].includes(actor.role ?? ""),
     );
   }
   /** @brief 作品取得と認可を統一する @param id 作品ID @param actor 現在の権限 */
@@ -363,6 +363,7 @@ export class MusicService {
     actor: Principal | null,
   ): Promise<void> {
     authorize(actor);
+    if (actor.role !== "admin" && actor.role !== "executive") throw new MusicError("FORBIDDEN", "幹部以上の権限が必要です。");
     const value = {
       enabled: input.enabled === true,
       imageAssetId: input.imageAssetId,
@@ -386,6 +387,7 @@ export class MusicService {
   /** @brief 運営専用の設定・履歴を取得する */
   async adminSettings(actor: Principal | null) {
     authorize(actor);
+    if (actor.role !== "admin" && actor.role !== "executive") throw new MusicError("FORBIDDEN", "幹部以上の権限が必要です。");
     const [advertisement, accounts, audit] = await Promise.all([
       this.repository.advertisement(),
       this.repository.accounts(),
@@ -400,22 +402,7 @@ export class MusicService {
     enabled: boolean,
     actor: Principal | null,
   ): Promise<void> {
-    authorize(actor);
-    await this.managedGame(gameId, actor);
-    requireValue(
-      /^[1-9]\d{0,15}$/.test(accountId) &&
-        Number.isSafeInteger(Number(accountId)),
-      "GitHubの数値アカウントIDを指定してください。",
-      "accountId",
-    );
-    // 解除はGitHub側で削除済みのアカウントにも実行できるよう、外部照会を要求しない
-    const account = enabled ? (await this.repository.accounts()).find(/** @brief 対象のGitHubアカウントを照合する */ (candidate) => candidate.id === accountId) : null;
-    if (enabled) requireValue(Boolean(account), "新しい担当者は利用申請を行ってください。", "accountId");
-    await this.repository.setMembership(
-      gameId,
-      accountId,
-      enabled,
-      actor,
-    );
+    void gameId; void accountId; void enabled; void actor;
+    throw new MusicError("FORBIDDEN", "メンバー管理から運営ロールを変更してください。");
   }
 }

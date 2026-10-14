@@ -1,27 +1,25 @@
-import { requireRecentSession } from "@/lib/auth";
+import { recordOperation } from "@/lib/roles";
+import type { SessionUser } from "@/lib/auth";
+import { requireRecentIdentity } from "@/lib/auth";
 import { assertBrowserWrite } from "@/lib/request-security";
 import {
+  requireRequester,
   authorizeRecovery,
+  recoverPublication,
   cancelRequest,
   createRequest,
   createProductionRequest,
-  decideRequest,
-  designateApprover,
   dispatchRequest,
   reconcileCancelledRun,
-  setGrant,
   submitRequest,
-  type GrantType,
 } from "@/lib/control-plane";
 
 // action プロパティをIDとして、ペイロードごとの型定義を分ける
 type ControlAction =
-  | { action: "set_grant"; githubUserId: string; grantType: GrantType; enabled: boolean }
+  | { action: "recover_publication"; requestId: string; mode: string; reason: string }
   | { action: "create_request"; artifactId: string; gameId: string; version: string; artifactSha256: string; sizeBytes: number; fileCount: number }
   | { action: "create_production_request"; sourceStagingRequestId: string }
-  | { action: "designate_approver"; requestId: string; approverGithubUserId: string }
   | { action: "submit_request"; requestId: string; reason: string }
-  | { action: "decide_request"; requestId: string; decision: "approved" | "rejected"; reason: string }
   | { action: "cancel_request"; requestId: string; reason: string }
   | { action: "authorize_recovery"; requestId: string; reason: string }
   | { action: "dispatch_request"; requestId: string }
@@ -48,7 +46,7 @@ function errorResponse(error: unknown): Response {
  * @param request リクエストヘッダー1
  * @constructor
  */
-export async function POST(request: Request) {
+async function execute(request: Request, capture: (actor: SessionUser, action: string, target: string) => void) {
   try {
     // CSRF 対策
     assertBrowserWrite(request);
@@ -56,14 +54,16 @@ export async function POST(request: Request) {
     // 通常のログインだけでなく、直近で認証されたセッションを要求する
     // 重要な操作に対するセッションハイジャックを阻止
     // 実行者情報を取得
-    const actor = await requireRecentSession(request);
+    const actor = await requireRecentIdentity(request);
+    capture(actor,"control","");
+    await requireRequester(actor);
 
     const payload = await request.json() as ControlAction;
+    capture(actor, payload.action, "requestId" in payload ? payload.requestId : "");
     switch (payload.action) {
+      case "recover_publication":
+        return Response.json({ ok: true, ...await recoverPublication(actor,payload) });
       // ユーザーに対する権限の付与・はく奪
-      case "set_grant":
-        await setGrant(actor, payload);
-        break;
 
       //ゲームビルド等のアーティファクトを指定し、デプロイ申請を新規作成
       case "create_request":
@@ -74,9 +74,6 @@ export async function POST(request: Request) {
         return Response.json({ ok: true, ...(await createProductionRequest(actor, payload)) }, { status: 201 });
 
       // 申請に対する特定の承認者を氏名
-      case "designate_approver":
-        await designateApprover(actor, payload);
-        break;
 
       // 下書き状態の申請を正式に提出
       case "submit_request":
@@ -84,9 +81,6 @@ export async function POST(request: Request) {
         break;
 
       // 承認者による申請の承認または却下
-      case "decide_request":
-        await decideRequest(actor, payload);
-        break;
 
       // 申請者等による申請の取り下げ
       case "cancel_request":
@@ -113,4 +107,14 @@ export async function POST(request: Request) {
   } catch (error) {
     return errorResponse(error);
   }
+}
+
+/** @brief 公開・復旧の全HTTP結果を実行者と対応させる */
+export async function POST(request: Request) {
+  let actor: SessionUser | null = null;
+  let action = "control";
+  let target = "";
+  const response = await execute(request, (user,operation,id) => { actor = user; action = operation; target = id; });
+  await recordOperation(actor, action, target, `http:${response.status}`);
+  return response;
 }

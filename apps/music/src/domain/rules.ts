@@ -29,7 +29,8 @@ export function authorize(
   // 毎リクエストで取得した所属を使い、古いセッションの権限を信用しない
   if (!actor)
     throw new MusicError("UNAUTHENTICATED", "投稿者ログインが必要です。");
-  if (!actor.admin && (!gameId || !actor.gameIds.includes(gameId)))
+  void gameId;
+  if (!["admin", "executive", "assistant"].includes(actor.role ?? ""))
     throw new MusicError("FORBIDDEN", "この操作の権限がありません。");
 }
 

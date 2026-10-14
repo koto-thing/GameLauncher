@@ -1,7 +1,7 @@
+import { currentRole, permits } from "@/lib/roles";
 import { env } from "cloudflare:workers";
 import { ensureSchema, getD1 } from "@/db/initialize";
-import { localUsers, upsertUser, type SessionUser } from "@/lib/auth";
-import { githubRepositoryAccess } from "@/lib/github-app";
+import { upsertUser, type SessionUser } from "@/lib/auth";
 
 export type AccessService = "game" | "music";
 export type AccessRequestRow = {
@@ -36,17 +36,8 @@ export function accessService(value: unknown): AccessService {
 
 /** @brief ゲーム運営とMusic運営の審査権限を分離する */
 export async function canReview(actor: SessionUser, service: AccessService): Promise<boolean> {
-  if (service === "game") return actor.isAdmin && actor.gameAccess;
-  return Boolean(await getD1().prepare("SELECT 1 FROM music_accounts WHERE id=? AND admin=1")
-    .bind(actor.githubUserId).first());
-}
-
-/** @brief 本番はGitHubの最新権限、隔離開発では固定fixtureだけを参照する */
-export async function hasRepositoryAccess(id: string, actor: SessionUser): Promise<boolean> {
-  if (actor.authSource === "local-development") {
-    return Object.values(localUsers).some((user) => user.githubUserId === id && user.gameAccess);
-  }
-  return githubRepositoryAccess(id);
+  void service;
+  return permits(await currentRole(actor.githubUserId), "invite");
 }
 
 /** @brief 一般利用者には自分の申請だけ、審査者には対象サービスの申請を返す */
@@ -103,50 +94,12 @@ export async function decideAccessRequest(actor: SessionUser, input: Record<stri
   if (row.state !== "pending") fail(409, "この申請は審査済みです。最新の状態に更新してください");
   if (row.applicant_id === actor.githubUserId) fail(403, "自分の利用申請は承認・却下できません");
 
-  let grant: string | null = null;
-  let gameId: string | null = null;
-  if (decision === "approved" && service === "game") {
-    grant = text(input.grantType, 30, "付与する権限");
-    if (!["requester", "approver", "production_requester"].includes(grant)) fail(400, "権限が不正です");
-    if (!await hasRepositoryAccess(row.applicant_id, actor)) {
-      await db.prepare("UPDATE access_requests SET repository_access=0 WHERE id=? AND state='pending'").bind(id).run();
-      fail(409, "リポジトリのWrite以上の権限設定が必要です。設定後に再度承認してください");
-    }
-  }
-  if (decision === "approved" && service === "music") {
-    gameId = text(input.gameId, 100, "付与する作品");
-    if (!await db.prepare("SELECT 1 FROM music_games WHERE id=?").bind(gameId).first()) fail(400, "作品が見つかりません");
-  }
-
-  await upsertUser(actor);
-  const token = crypto.randomUUID();
-  const timestamp = new Date().toISOString();
-  // Music運営の取消と競合しても、書き込み時の権限がなければ確定させない
-  const authority = service === "music" ? "AND EXISTS(SELECT 1 FROM music_accounts WHERE id=? AND admin=1)" : "";
-  const update = db.prepare(`UPDATE access_requests SET state=?,decided_at=?,decided_by=?,reason=?,grant_type=?,game_id=?,decision_token=?,
-    repository_access=CASE WHEN service='game' AND ?='approved' THEN 1 ELSE repository_access END
-    WHERE id=? AND state='pending' ${authority}`);
-  const values = [decision, timestamp, actor.githubUserId, reason, grant, gameId, token, decision, id];
-  const batch = [update.bind(...(service === "music" ? [...values, actor.githubUserId] : values))];
-  const owned = "EXISTS(SELECT 1 FROM access_requests WHERE id=? AND decision_token=?)";
-
-  // 各書き込みは今回だけの審査tokenを条件にし、競合で負けた処理から権限を付与させない
-  if (decision === "approved" && service === "game") {
-    batch.push(db.prepare(`INSERT INTO policy_grants
-      (github_user_id,grant_type,granted_by_github_user_id,granted_at,revoked_at)
-      SELECT ?,?,?,?,NULL WHERE ${owned}
-      ON CONFLICT(github_user_id,grant_type) DO UPDATE SET granted_by_github_user_id=excluded.granted_by_github_user_id,
-      granted_at=excluded.granted_at,revoked_at=NULL`).bind(row.applicant_id, grant, actor.githubUserId, timestamp, id, token));
-  }
-  if (decision === "approved" && service === "music") {
-    batch.push(db.prepare(`INSERT INTO music_accounts(id,login,admin)
-      SELECT github_user_id,login_snapshot,0 FROM users WHERE github_user_id=? AND ${owned}
-      ON CONFLICT(id) DO UPDATE SET login=excluded.login`).bind(row.applicant_id, id, token));
-    batch.push(db.prepare(`INSERT INTO music_memberships(game_id,account_id) SELECT ?,? WHERE ${owned} ON CONFLICT DO NOTHING`)
-      .bind(gameId, row.applicant_id, id, token));
-    batch.push(db.prepare(`INSERT INTO music_audit_log(actor,action,target,at) SELECT ?,'membership.approved',?,? WHERE ${owned}`)
-      .bind(actor.githubUserId, `${gameId}:${row.applicant_id}`, Date.now(), id, token));
-  }
-  const results = await db.batch(batch);
-  if (!results[0].meta.changes) fail(409, "審査済み、または審査権限が変更されました。最新の状態に更新してください");
+  // 権限付与は本人が受諾する共通招待へ一本化する
+  if (decision === "approved") fail(410, "メンバー管理から運営ロールを招待してください");
+  await db.batch([
+    db.prepare("UPDATE access_requests SET state='rejected',decided_at=?,decided_by=?,reason=? WHERE id=? AND state='pending'")
+      .bind(new Date().toISOString(),actor.githubUserId,reason,id),
+    db.prepare("INSERT INTO operation_events(id,actor,action,target,result,at) SELECT ?,?,'access.rejected',?,'succeeded',? WHERE changes()=1")
+      .bind(crypto.randomUUID(),actor.githubUserId,id,new Date().toISOString()),
+  ]);
 }

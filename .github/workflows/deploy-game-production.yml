@@ -156,6 +156,14 @@ jobs:
             --platform windows \
             --arch x86_64
 
+      - name: Verify known-good recovery and apply catalogue visibility
+        run: >-
+          python -m scripts.deployment.prepare_game_recovery
+          --snapshot request-snapshot.json
+          --metadata deployment/metadata/release.json
+          --public-tree public
+          --base-url "$PRODUCTION_BASE_URL"
+
       - name: Record immutable upload stage
         env:
           REQUEST_ID: ${{ inputs.request_id }}
@@ -212,7 +220,8 @@ jobs:
             --metadata deployment/metadata/release.json \
             --public-tree public \
             --base-url "$PRODUCTION_BASE_URL" \
-            --digest-output "$RUNNER_TEMP/manifest.sha256"
+            --digest-output "$RUNNER_TEMP/manifest.sha256" \
+            --snapshot request-snapshot.json
 
       - name: Record successful production deployment
         env:

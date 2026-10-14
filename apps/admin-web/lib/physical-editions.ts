@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/roles";
 import { env } from "cloudflare:workers";
 import { ensureSchema, getD1 } from "@/db/initialize";
 import { requireGameAccess, type SessionUser } from "@/lib/auth";
@@ -11,7 +12,7 @@ type BuildRow = { build_id: string; edition_id: string; state: string; run_id: s
 /** @brief 配布版の作成・実行は既存の管理者に限定する */
 export async function requireEditionAdmin(actor: SessionUser): Promise<void> {
   requireGameAccess(actor);
-  if (!actor.isAdmin) throw new Response("Admin required", { status: 403 });
+  await requirePermission(actor, "settings");
   await ensureSchema();
 }
 
@@ -99,7 +100,8 @@ export async function editionPreflight(identity: ActionsIdentity, editionId: str
   await ensureSchema();
   const result = await getD1().prepare(`UPDATE physical_edition_builds
     SET state = 'running', run_id = ?, run_attempt = ?, workflow_sha = ?
-    WHERE build_id = ? AND edition_id = ? AND state = 'queued' AND run_id IS NULL`)
+    WHERE build_id = ? AND edition_id = ? AND state = 'queued' AND run_id IS NULL
+    AND EXISTS(SELECT 1 FROM platform_roles r WHERE r.github_user_id=created_by AND r.role IN ('admin','executive'))`)
     .bind(identity.runId, identity.runAttempt, identity.workflowSha, buildId, editionId).run();
   if (result.meta.changes !== 1) throw new Error("このビルドは実行済みか、別のActionsに割り当てられています");
   const row = await getD1().prepare("SELECT definition_json FROM physical_editions WHERE edition_id = ?")

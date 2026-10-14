@@ -47,7 +47,6 @@ interface AdminSettings {
 interface ManagedGame {
   game: Game;
   tracks: Track[];
-  members: string[];
 }
 
 /** @brief 投稿者ログインと担当作品・運営機能への入口を表示する */
@@ -107,7 +106,7 @@ export function ManagePage() {
         </button>
       </div>
       <ManagedGameList />
-      {session.principal.admin && <AdminPanel />}
+      {(session.principal.role === "admin" || session.principal.role === "executive") && <AdminPanel />}
       <TaskNotice task={task} />
     </>
   );
@@ -782,10 +781,9 @@ function GameEditor({
           )}
         </ul>
       </section>
-      {session?.principal.admin && (
+      {session?.principal.role && (
         <GameOperations
           game={game}
-          members={initial.members}
           onSaved={onSaved}
           disabled={dirty}
         />
@@ -797,56 +795,19 @@ function GameEditor({
 /** @brief 担当者割り当てと運営停止を作品単位で実施する */
 function GameOperations({
   game,
-  members,
   onSaved,
   disabled,
 }: {
   game: Game;
-  members: string[];
   onSaved(): Promise<void>;
   disabled: boolean;
 }) {
   const { session, refresh } = useSite();
-  const { data } = useRemote<AdminSettings>("/admin/settings");
   const task = useEditorTask();
   return (
     <section className="admin-panel">
       <h2>作品の運営設定</h2>
-      <p>利用申請を承認して、新しい担当者へ作品の編集・公開権限を付与できます。</p>
-      <a href="/access?service=music">利用申請を審査する →</a>
-      <ul className="account-list">
-        {data?.accounts.map(
-          /** @brief 現在の所属をサーバーの結果から表示する */ (account) => (
-            <li key={account.id}>
-              <span>
-                {account.login}
-              </span>
-              <button
-                disabled={task.busy || disabled}
-                onClick={
-                  /** @brief 割り当て・解除を即時適用する */ () => {
-                    void task.run(
-                      async () => /** @brief 運営認可付きAPIで担当を変更する */ {
-                        await api(
-                          `/admin/games/${game.id}/members/${account.id}`,
-                          {
-                            method: "PUT",
-                            body: { enabled: !members.includes(account.id) },
-                            csrf: session!.csrf,
-                          },
-                        );
-                        await onSaved();
-                      },
-                    );
-                  }
-                }
-              >
-                {members.includes(account.id) ? "担当を解除" : "担当に割り当て"}
-              </button>
-            </li>
-          ),
-        )}
-      </ul>
+      <a href="/members">運営メンバー管理 →</a>
       <button
         disabled={task.busy || disabled}
         className="danger"

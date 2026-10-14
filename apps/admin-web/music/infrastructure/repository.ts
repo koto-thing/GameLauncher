@@ -48,8 +48,8 @@ interface AssetRow {
 
 // 保存直前の権限もSQLで再評価し、認可後に担当解除された書き込みを防ぐ。
 const EDIT =
-  "EXISTS(SELECT 1 FROM music_accounts a WHERE a.id=? AND (a.admin=1 OR EXISTS(SELECT 1 FROM music_memberships m WHERE m.account_id=a.id AND m.game_id=?)))";
-const ADMIN = "EXISTS(SELECT 1 FROM music_accounts WHERE id=? AND admin=1)";
+  "EXISTS(SELECT 1 FROM platform_roles WHERE github_user_id=? AND role IN ('admin','executive','assistant')) AND ? IS NOT NULL";
+const ADMIN = "EXISTS(SELECT 1 FROM platform_roles WHERE github_user_id=? AND role IN ('admin','executive','assistant'))";
 
 /** @brief D1行を作品へ変換する。 */
 function decodeGame(row: GameRow): Game {
@@ -353,36 +353,9 @@ export class D1MusicRepository implements MusicRepository {
   }
 
   /** @brief 次のAPIから所属変更を反映させる。 */
-  async setMembership(
-    gameId: string,
-    accountId: string,
-    enabled: boolean,
-    actor: Principal,
-  ): Promise<void> {
-    const statement = enabled
-      ? this.db
-          .prepare(
-            `INSERT INTO music_memberships(game_id,account_id) SELECT ?,? WHERE ${ADMIN} ON CONFLICT DO NOTHING`,
-          )
-          .bind(gameId, accountId, actor.id)
-      : this.db
-          .prepare(
-            `DELETE FROM music_memberships WHERE game_id=? AND account_id=? AND ${ADMIN}`,
-          )
-          .bind(gameId, accountId, actor.id);
-    await this.db.batch([
-      statement,
-      this.db
-        .prepare(
-          "INSERT INTO music_audit_log(actor,action,target,at) SELECT ?,?,?,? WHERE changes()=1",
-        )
-        .bind(
-          actor.id,
-          enabled ? "membership.add" : "membership.remove",
-          `${gameId}:${accountId}`,
-          Date.now(),
-        ),
-    ]);
+  async setMembership(gameId: string, accountId: string, enabled: boolean, actor: Principal): Promise<void> {
+    void gameId; void accountId; void enabled; void actor;
+    throw new MusicError("FORBIDDEN", "Use platform member management");
   }
 
   /** @brief 最近100件の操作履歴を返す。 */

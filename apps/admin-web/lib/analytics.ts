@@ -1,8 +1,9 @@
+import { permits } from "./role-policy.ts";
 import type { AnalyticsReport, AnalyticsGame as GameAnalytics, RetentionMetric } from "../../../services/platform-api/src/types";
 
 export type { AnalyticsReport, AnalyticsGame as GameAnalytics, RetentionMetric, PlayEnvironment as AnalyticsEnvironment } from "../../../services/platform-api/src/types";
 
-export type AnalyticsActor = { isAdmin: boolean; gameAccess: boolean };
+export type AnalyticsActor = { role?: string; isAdmin: boolean; gameAccess: boolean };
 
 export type AnalyticsBinding = { fetch(request: Request): Promise<Response> };
 
@@ -23,7 +24,7 @@ export function defaultAnalyticsPeriod(now: number = Date.now()): { from: string
 /** @brief 統計閲覧をゲーム管理許可のある運営管理者だけに制限する */
 export function requireAnalyticsAdmin(actor: AnalyticsActor | null): void {
   if (!actor) throw new Response("Authentication required", { status: 401 });
-  if (actor.gameAccess !== true || actor.isAdmin !== true) throw new Response("Administrator permission required", { status: 403 });
+  if (!permits(actor.role, "operate")) throw new Response("Administrator permission required", { status: 403 });
 }
 
 /** @brief 実在する日付だけを統計検索へ渡す */

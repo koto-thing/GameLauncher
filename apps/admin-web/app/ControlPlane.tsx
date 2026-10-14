@@ -1,4 +1,5 @@
 "use client";
+import { Members } from "./members/Members";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
@@ -277,7 +278,7 @@ export function ControlPlane() {
 
         <div className="account">
           <div className="avatar" aria-hidden="true">{dashboard.actor.login.slice(0, 1).toUpperCase()}</div>
-          <div><strong>@{dashboard.actor.login}</strong><small>{dashboard.actor.isAdmin ? "Repository Admin" : "Authorized operator"}</small></div>
+          <div><strong>@{dashboard.actor.login}</strong><small>{dashboard.actor.isAdmin ? "Admin" : "Authorized operator"}</small></div>
           <button className="text-button" onClick={logout}>ログアウト</button>
         </div>
       </header>
@@ -299,7 +300,7 @@ export function ControlPlane() {
       <nav className="tabs" aria-label="control planeセクション">
         <button className={tab === "requests" ? "active" : ""} onClick={() => setTab("requests")}>申請</button>
 
-        {dashboard.permissions.canAdminister && <button className={tab === "access" ? "active" : ""} onClick={() => setTab("access")}>権限</button>}
+        {dashboard.permissions.canRequest && <button className={tab === "access" ? "active" : ""} onClick={() => setTab("access")}>権限</button>}
 
         <button className={tab === "audit" ? "active" : ""} onClick={() => setTab("audit")}>監査ログ</button>
       </nav>
@@ -310,8 +311,8 @@ export function ControlPlane() {
         <RequestWorkspace dashboard={dashboard} busy={busy} runAction={runAction} />
       )}
 
-      {tab === "access" && dashboard.permissions.canAdminister && (
-        <AccessWorkspace dashboard={dashboard} busy={busy} runAction={runAction} />
+      {tab === "access" && dashboard.permissions.canRequest && (
+        <Members />
       )}
 
       {tab === "audit" && <AuditWorkspace events={dashboard.events} />}
@@ -369,7 +370,6 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
 }) {
   const [showForm, setShowForm] = useState(false);
   const requestListRef = useRef<HTMLDivElement>(null);
-  const approvers = dashboard.users.filter((user) => user.grants.includes("approver"));
 
   // カードの可変高さと画面幅に合わせて一覧を先頭4件分の高さに制限する
   useEffect(() => {
@@ -419,7 +419,7 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
       <div ref={requestListRef} className={`request-list${dashboard.requests.length > 4 ? " request-list-scrollable" : ""}`} role="region" aria-label="公開申請一覧">
         {dashboard.requests.length === 0 && <div className="empty-state"><strong>申請はまだありません</strong><span>最初のartifact情報を登録すると、監査記録がここから始まります。</span></div>}
         {dashboard.requests.map((request) => (
-          <RequestCard key={request.requestId} request={request} dashboard={dashboard} approvers={approvers} busy={busy} runAction={runAction} />
+          <RequestCard key={request.requestId} request={request} dashboard={dashboard} busy={busy} runAction={runAction} />
         ))}
       </div>
     </section>
@@ -499,24 +499,18 @@ function RequestForm({ busy, runAction, onDone }: {
 }
 
 /** 個別申請の状態、承認操作、実行結果を表示するカード */
-function RequestCard({ request, dashboard, approvers, busy, runAction }: {
+function RequestCard({ request, dashboard, busy, runAction }: {
   request: DeploymentRequest;
   dashboard: Dashboard;
-  approvers: User[];
   busy: boolean;
   runAction: (payload: Record<string, unknown>, success: string) => Promise<void>;
 }) {
-  const [selectedApprover, setSelectedApprover] = useState(approvers[0]?.githubUserId ?? "");
-  const [reason, setReason] = useState("");
+  const reason = "";
   const [safetyReason, setSafetyReason] = useState("");
 
-  const isOwner = request.requesterGithubUserId === dashboard.actor.githubUserId;
-  const requester = dashboard.users.find((user) => user.githubUserId === request.requesterGithubUserId);
-  const skipApproval = Boolean(dashboard.actor.isAdmin || requester?.isAdmin || requester?.grants.includes("requester"));
-  const isDesignated = request.approvers.some((item) => item.githubUserId === dashboard.actor.githubUserId);
-  const canDispatch = dashboard.actor.isAdmin || isOwner;
-  const canCancel = (dashboard.actor.isAdmin || isOwner) &&
-    ["ready", "pending_approval", "approved", "failed_retryable"].includes(request.state);
+  const skipApproval = true;
+  const canDispatch = dashboard.permissions.canRequest;
+  const canCancel = canDispatch && ["ready", "pending_approval", "approved", "failed_retryable"].includes(request.state);
   const latestAttempt = request.attempts[0];
   const productionRequestExists = dashboard.requests.some((candidate) =>
     candidate.environment === "production" && candidate.sourceStagingRequestId === request.requestId);
@@ -536,7 +530,7 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
         <div className="fingerprint"><span>SHA-256</span><code title={request.artifactSha256}>{shortHash(request.artifactSha256)}</code><small>artifact {request.artifactId.slice(0, 8)}</small></div>
 
         <div className="approval-line">
-          <span>{skipApproval ? "承認不要（Admin／Maintain相当）" : "指名承認者"}</span>
+          <span>{skipApproval ? "承認不要（全運営メンバー）" : "指名承認者"}</span>
           {skipApproval ? null : request.approvers.length ? request.approvers.map((item) => <b key={item.githubUserId}>@{item.login}</b>) : <em>未指名</em>}
           {request.decisions.map((decision) => <span className={`decision ${decision.decision}`} key={decision.githubUserId}>{decision.decision === "approved" ? "承認済み" : "却下"}</span>)}
         </div>
@@ -547,9 +541,6 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
       <div className="request-actions">
         {request.environment === "production" && <div className="production-warning"><strong>本番公開</strong><span>公開URLの内容が更新されます。Stagingで動作確認した同じSHA-256か確認してください。</span></div>}
 
-        {!skipApproval && dashboard.permissions.canAdminister && request.state === "ready" && approvers.length > 0 && (
-          <div className="inline-action"><select aria-label="指名承認者" value={selectedApprover} onChange={(event) => setSelectedApprover(event.target.value)}>{approvers.map((user) => <option key={user.githubUserId} value={user.githubUserId}>@{user.login}</option>)}</select><button disabled={busy || !selectedApprover} onClick={() => runAction({ action: "designate_approver", requestId: request.requestId, approverGithubUserId: selectedApprover }, "承認者を指名しました")}>指名</button></div>
-        )}
 
         {canDispatch && (request.state === "ready" || (skipApproval && request.state === "pending_approval")) && (
           <div className="submit-request-action">
@@ -560,9 +551,6 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
           </div>
         )}
 
-        {!skipApproval && isDesignated && request.state === "pending_approval" && (
-          <div className="decision-actions"><input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="却下時は理由が必須" /><button disabled={busy} onClick={() => runAction({ action: "decide_request", requestId: request.requestId, decision: "rejected", reason }, "申請を却下しました")}>却下</button><button className="approve-button" disabled={busy} onClick={() => runAction({ action: "decide_request", requestId: request.requestId, decision: "approved", reason }, "申請を承認しました")}>承認</button></div>
-        )}
 
         {canDispatch && dispatchConfigured && ["approved", "failed_retryable"].includes(request.state) && <button className={request.environment === "production" ? "danger-button" : "primary-button"} disabled={busy} onClick={() => runAction({ action: "dispatch_request", requestId: request.requestId }, request.state === "approved" ? `${environmentLabel} Actionsを開始しました` : `${environmentLabel} Actionsを再試行しました`)}>{request.state === "approved" ? `${environmentLabel}へ実行` : "再試行"}</button>}
 
@@ -572,11 +560,17 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
 
         {canDispatch && latestAttempt?.githubRunId && ["dispatched", "running", "publishing_pointers", "verifying"].includes(request.state) && <button className="secondary-button" disabled={busy} onClick={() => runAction({ action: "reconcile_cancelled_run", requestId: request.requestId }, "キャンセルを確認しました。次の操作を選んでください")}>Actionsの状態を確認</button>}
 
-        {canCreateProduction && <button className="danger-outline-button" disabled={busy} onClick={() => runAction({ action: "create_production_request", sourceStagingRequestId: request.requestId }, "Production申請を作成しました。承認者を指名してください")}>Production申請を作成</button>}
+        {canCreateProduction && <button className="danger-outline-button" disabled={busy} onClick={() => runAction({ action: "create_production_request", sourceStagingRequestId: request.requestId }, "Production公開処理を開始しました")}>Production申請を作成</button>}
 
         {productionRequestExists && request.environment === "staging" && request.state === "succeeded" && <div className="phase-block"><span>✓</span><p><strong>Production申請作成済み</strong><small>一覧のPRODUCTIONカードを進めてください。</small></p></div>}
 
-        {dashboard.permissions.canAdminister && ["recovery_required", "failed_terminal"].includes(request.state) && <div className="inline-action vertical"><input value={safetyReason} onChange={(event) => setSafetyReason(event.target.value)} placeholder="復旧確認内容（10文字以上）" /><button className="danger-outline-button" disabled={busy} onClick={() => runAction({ action: "authorize_recovery", requestId: request.requestId, reason: safetyReason }, "復旧確認を記録し、再試行可能にしました")}>復旧後の再試行を許可</button></div>}
+        {dashboard.permissions.canRequest && ["recovery_required", "failed_terminal"].includes(request.state) && <div className="inline-action vertical"><input value={safetyReason} onChange={(event) => setSafetyReason(event.target.value)} placeholder="復旧確認内容（10文字以上）" /><button className="danger-outline-button" disabled={busy} onClick={() => runAction({ action: "authorize_recovery", requestId: request.requestId, reason: safetyReason }, "復旧確認を記録し、再試行可能にしました")}>復旧後の再試行を許可</button></div>}
+
+        {request.environment === "production" && request.state === "succeeded" && <div className="inline-action vertical">
+          <label>復旧理由<input value={safetyReason} onChange={(event) => setSafetyReason(event.target.value)} placeholder="確認内容（10文字以上）" /></label>
+          {([["rollback", "この正常版に切り戻す"], ["suspend", "一覧から一時公開停止"], ["resume", "この版を再公開"]] as const).map(([mode,label]) => <button key={mode} disabled={busy || safetyReason.trim().length < 10} onClick={() => runAction({ action: "recover_publication", requestId: request.requestId, mode, reason: safetyReason }, "復旧処理を開始しました")}>{label}</button>)}
+          <small>停止は公開カタログから非表示にします。インストール済みゲームや既知URLのアクセスは停止しません。</small>
+        </div>}
 
         {canCancel && <div className="inline-action vertical"><input value={safetyReason} onChange={(event) => setSafetyReason(event.target.value)} placeholder="キャンセル理由（3文字以上）" /><button className="secondary-button" disabled={busy} onClick={() => runAction({ action: "cancel_request", requestId: request.requestId, reason: safetyReason }, "申請をキャンセルしました")}>この申請をキャンセル</button></div>}
       </div>
@@ -584,37 +578,6 @@ function RequestCard({ request, dashboard, approvers, busy, runAction }: {
   );
 }
 
-/** ユーザーへのゲーム管理権限の付与・取消画面 */
-function AccessWorkspace({ dashboard, busy, runAction }: {
-  dashboard: Dashboard;
-  busy: boolean;
-  runAction: (payload: Record<string, unknown>, success: string) => Promise<void>;
-}) {
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    await runAction({ action: "set_grant", githubUserId: data.get("githubUserId"), grantType: data.get("grantType"), enabled: true }, "権限を付与しました");
-    form.reset();
-  }
-
-  return (
-    <section className="workspace access-grid">
-      <div><p className="eyebrow">ACCESS POLICY</p><h2>個別アカウント権限</h2><p className="section-copy">個人所有リポジトリのCollaboratorから、PandDで操作できる人だけを明示的に許可します。</p></div>
-
-      <form className="access-form" onSubmit={submit}>
-        <a href="/access">利用申請を審査する →</a>
-        <label>登録済みユーザー<select name="githubUserId" required><option value="">ユーザーを選択</option>{dashboard.users.map((user) => <option key={user.githubUserId} value={user.githubUserId}>@{user.login}</option>)}</select></label>
-        <label>付与する権限<select name="grantType"><option value="requester">Maintain相当申請者</option><option value="approver">指名承認者候補</option><option value="production_requester">Production申請者</option></select></label>
-        <button className="primary-button" disabled={busy}>権限を付与</button>
-      </form>
-
-      <div className="user-table">
-        {dashboard.users.map((user) => <div className="user-row" key={user.githubUserId}><span className="avatar small">{user.login.slice(0, 1).toUpperCase()}</span><div><strong>@{user.login}</strong></div><div className="grant-list">{user.isAdmin && <span>ADMIN</span>}{user.grants.map((grant) => <button type="button" disabled={busy} title={`${grant}を取り消す`} key={grant} onClick={() => runAction({ action: "set_grant", githubUserId: user.githubUserId, grantType: grant, enabled: false }, "権限を取り消しました")}>{grant.replaceAll("_", " ")} ×</button>)}</div></div>)}
-      </div>
-    </section>
-  );
-}
 
 /** 申請に紐づく改ざん検知用監査ログを表示する */
 function AuditWorkspace({ events }: { events: AuditEvent[] }) {

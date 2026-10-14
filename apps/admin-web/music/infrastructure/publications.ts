@@ -29,13 +29,8 @@ export class D1Publications implements PublicationRepository {
     const hash = await digest(payload);
     const id = crypto.randomUUID();
     const scope = value.scope;
-    const adminOnly =
-      mutation.kind === "ad" ||
-      (mutation.kind === "game" && mutation.adminOnly);
-    // 作品停止の運営チェックはUse Caseで行い、ここでも一般的な現在所属を必須にする。
-    const permission = adminOnly
-      ? "a.admin=1"
-      : "(a.admin=1 OR EXISTS(SELECT 1 FROM music_memberships WHERE account_id=a.id AND game_id=?))";
+    const permission = mutation.kind === "ad"
+      ? "a.role IN ('admin','executive')" : "a.role IN ('admin','executive','assistant')";
     const args: (number | string)[] = [
       id,
       scope,
@@ -47,7 +42,6 @@ export class D1Publications implements PublicationRepository {
       Date.now(),
       actor.id,
     ];
-    if (!adminOnly) args.push(scope);
     let condition: string;
     if (mutation.kind === "ad") {
       condition = "(SELECT version FROM music_advertisement WHERE id=1)=?";
@@ -64,7 +58,7 @@ export class D1Publications implements PublicationRepository {
     try {
       result = await this.db
         .prepare(
-          `INSERT INTO music_publications(id,scope,state,expected_revision,payload,digest,mutation,actor,created_at) SELECT ?,?,'prepared',COALESCE((SELECT revision FROM music_delivery WHERE scope=?),0),?,?,?,?,? WHERE EXISTS(SELECT 1 FROM music_accounts a WHERE a.id=? AND ${permission}) AND ${condition}`,
+          `INSERT INTO music_publications(id,scope,state,expected_revision,payload,digest,mutation,actor,created_at) SELECT ?,?,'prepared',COALESCE((SELECT revision FROM music_delivery WHERE scope=?),0),?,?,?,?,? WHERE EXISTS(SELECT 1 FROM platform_roles a WHERE a.github_user_id=? AND ${permission}) AND ${condition}`,
         )
         .bind(...args)
         .run();
@@ -95,7 +89,7 @@ export class D1Publications implements PublicationRepository {
     return (
       await this.db
         .prepare(
-          `SELECT * FROM music_publications p WHERE EXISTS(SELECT 1 FROM music_accounts a WHERE a.id=? AND (a.admin=1 OR EXISTS(SELECT 1 FROM music_memberships m WHERE m.account_id=a.id AND m.game_id=p.scope))) ORDER BY created_at DESC LIMIT 100`,
+          `SELECT * FROM music_publications p WHERE EXISTS(SELECT 1 FROM platform_roles a WHERE a.github_user_id=? AND a.role IN ('admin','executive','assistant')) ORDER BY created_at DESC LIMIT 100`,
         )
         .bind(actor.id)
         .all<PublicationOperation>()

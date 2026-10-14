@@ -13,7 +13,7 @@ const expiredRequests = `SELECT r.request_id FROM deployment_requests r
 // 365日経過した申請と関連ログを外部キー順に同一トランザクションで削除する
 export async function pruneRequestHistory(db: D1Database, timestamp: number): Promise<void> {
   const cutoff = new Date(timestamp - 365 * 24 * 60 * 60 * 1000).toISOString();
-  const tables = ["request_approvers", "approval_decisions", "execution_attempts", "audit_events", "deployment_requests"];
+  const tables = ["publication_recoveries", "request_approvers", "approval_decisions", "execution_attempts", "audit_events", "deployment_requests"];
 
   await db.batch(tables.map((table) => db.prepare(
     `DELETE FROM ${table} WHERE request_id IN (${expiredRequests})`,
