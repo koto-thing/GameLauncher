@@ -87,7 +87,7 @@ test(
     assert.deepEqual(await admin.json(`/manage/tracks/${track.id}/command-code`), track.commandCode);
     assert.equal((await other.request(`/manage/tracks/${track.id}/command-code`)).status, 200);
     const outsider = await fixtureClient(runtime,"outsider");
-    assert.equal((await outsider.request(`/manage/tracks/${track.id}/command-code`)).status,403);
+    assert.equal((await outsider.request(`/manage/tracks/${track.id}/command-code`)).status,401);
     assert.equal((await guest.request(`/manage/tracks/${track.id}/command-code`)).status, 401);
     // 乱数衝突は本物の一意制約に任せ、未発行の複製曲へ別の候補を予約する
     const copy = await admin.json(`/manage/games/${game.id}/tracks`, {

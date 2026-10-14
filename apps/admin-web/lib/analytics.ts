@@ -3,7 +3,7 @@ import type { AnalyticsReport, AnalyticsGame as GameAnalytics, RetentionMetric }
 
 export type { AnalyticsReport, AnalyticsGame as GameAnalytics, RetentionMetric, PlayEnvironment as AnalyticsEnvironment } from "../../../services/platform-api/src/types";
 
-export type AnalyticsActor = { role?: string; isAdmin: boolean; gameAccess: boolean };
+export type AnalyticsActor = { role?: string | null; isAdmin: boolean; gameAccess: boolean };
 
 export type AnalyticsBinding = { fetch(request: Request): Promise<Response> };
 

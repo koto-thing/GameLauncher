@@ -62,7 +62,7 @@ async function execute(request: Request, capture: (user: SessionUser | null) => 
     if (!actor)
       throw new MusicError(
         "FORBIDDEN",
-        "Musicの担当割り当てがありません。利用申請から担当作品を申請してください。",
+        "運営として許可されていません。運営へGitHubユーザー名を連絡してください。",
       );
 
     if (!["GET", "HEAD"].includes(method)) {

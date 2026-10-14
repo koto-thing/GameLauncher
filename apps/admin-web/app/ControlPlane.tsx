@@ -338,8 +338,8 @@ function SignIn({ response }: { response: DashboardResponse }) {
 
         <p className="eyebrow">IDENTITY REQUIRED</p>
         <h1>GitHubアカウントで<br />公開責任を確認します。</h1>
-        <p>個人リポジトリのOwnerと、Adminが許可したCollaboratorだけが操作できます。</p>
-        <a href="/access">利用を申請する・申請状況を確認する</a>
+        <p>事前に許可された運営メンバーだけが操作できます。GitHubユーザー名を変更した場合は、運営へ再申請してください。</p>
+        <a href="/members">運営メンバー</a>
 
         {response.githubAuthConfigured ? (
           <a className="primary-link" href="/api/auth/github/start">GitHubでログイン</a>

@@ -6,7 +6,7 @@ export default function MembersPage() {
     <header className="members-page-heading">
       <p className="members-kicker">TEAM MANAGEMENT</p>
       <h1>運営メンバー</h1>
-      <p>チームのメンバーと役割、あなたへの招待を管理します。</p>
+      <p>チームのメンバーと役割、事前招待を管理します。</p>
     </header>
     <Members />
   </main>;

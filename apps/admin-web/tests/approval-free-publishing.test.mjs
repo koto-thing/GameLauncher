@@ -76,7 +76,8 @@ for (const state of ["ready", "pending_approval"]) {
     const { requestId } = await f.control.createRequest(f.actor, f.input);
     f.sql.prepare("UPDATE deployment_requests SET state=? WHERE request_id=?").run(state, requestId);
     f.sql.exec("UPDATE platform_roles SET role='user'; INSERT INTO users VALUES ('2','admin','',1,'now'); INSERT INTO platform_roles VALUES ('2','admin','2','now')");
-    const admin = { githubUserId: "2", login: "admin", isAdmin: true };
+    f.sql.prepare("INSERT OR IGNORE INTO operator_admissions SELECT github_user_id,login_snapshot,'test-admin',NULL FROM users WHERE github_user_id!='1'").run();
+  const admin = { githubUserId: "2", login: "admin", isAdmin: true };
     f.dispatch.enabled = true;
     await f.control.submitRequest(admin, { requestId, reason: "" });
     await f.preflight(requestId);
@@ -95,6 +96,7 @@ test("admin can publish another user's production request while staging conditio
   f.dispatch.enabled = false;
   const { requestId } = await f.control.createProductionRequest(f.actor, { sourceStagingRequestId: source.requestId });
   f.dispatch.enabled = true;
+  f.sql.prepare("INSERT OR IGNORE INTO operator_admissions SELECT github_user_id,login_snapshot,'test-admin',NULL FROM users WHERE github_user_id!='1'").run();
   const admin = { githubUserId: "2", login: "admin", isAdmin: true };
   await f.control.dispatchRequest(admin, { requestId });
   f.sql.prepare("UPDATE deployment_requests SET production_eligible_until='2020-01-01T00:00:00Z' WHERE request_id=?").run(source.requestId);
@@ -111,6 +113,7 @@ test("revoked admin privileges cannot authorize a queued execution", async (t) =
   f.sql.prepare("UPDATE deployment_requests SET state='ready' WHERE request_id=?").run(requestId);
   f.sql.exec("UPDATE platform_roles SET role='user'; INSERT INTO users VALUES ('2','admin','',1,'now'); INSERT INTO platform_roles VALUES ('2','admin','2','now')");
   f.dispatch.enabled = true;
+  f.sql.prepare("INSERT INTO operator_admissions VALUES ('2','admin','test-admin',NULL)").run();
   await f.control.submitRequest({ githubUserId: "2", login: "admin", isAdmin: true }, { requestId, reason: "" });
   f.sql.exec("UPDATE platform_roles SET role='user' WHERE github_user_id='2'");
   await assert.rejects(f.preflight(requestId), /現在有効ではありません/);

@@ -134,7 +134,7 @@ export async function getDashboard(actor: SessionUser) {
   const [usersResult, grantsResult, requestsResult, approversResult, decisionsResult, attemptsResult, eventsResult] =
     await Promise.all([
       db.prepare(`SELECT u.github_user_id, u.login_snapshot, u.avatar_url, r.role='admin' AS is_admin, u.last_verified_at
-        FROM users u LEFT JOIN platform_roles r ON r.github_user_id=u.github_user_id ORDER BY is_admin DESC, login_snapshot`).all<Row>(),
+        FROM users u LEFT JOIN active_platform_roles r ON r.github_user_id=u.github_user_id ORDER BY is_admin DESC, login_snapshot`).all<Row>(),
       db.prepare(`SELECT github_user_id, grant_type, granted_by_github_user_id, granted_at
         FROM policy_grants WHERE revoked_at IS NULL ORDER BY grant_type, github_user_id`).all<Row>(),
       db.prepare(`SELECT r.*, u.login_snapshot AS requester_login, a.size_bytes, a.file_count

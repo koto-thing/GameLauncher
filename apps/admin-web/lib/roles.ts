@@ -7,7 +7,7 @@ export { normalizeRole, permits, type Role, type Permission } from "@/lib/role-p
 /** @brief セッションに保存された権限を使わず最新のDBロールを取得する */
 export async function currentRole(id: string): Promise<Role> {
   await ensureSchema();
-  const row = await getD1().prepare("SELECT role FROM platform_roles WHERE github_user_id=?").bind(id).first<{ role: string }>();
+  const row = await getD1().prepare("SELECT r.role FROM platform_roles r JOIN operator_admissions a ON a.github_user_id=r.github_user_id WHERE r.github_user_id=? AND a.revoked_at IS NULL").bind(id).first<{ role: string }>();
   return normalizeRole(row?.role);
 }
 

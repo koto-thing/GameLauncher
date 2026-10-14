@@ -91,3 +91,5 @@
   .members-invitations li { align-items: stretch; flex-direction: column; padding: 20px 16px; gap: 14px; }
   .members-state { padding: 36px 20px; }
 }
+
+.members-lookup { display: grid; gap: 12px; margin-top: 24px; }

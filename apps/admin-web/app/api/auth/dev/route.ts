@@ -5,6 +5,7 @@ import {
   localUsers,
   musicLocalUsers,
   upsertUser,
+  currentOperatorForDevelopment,
 } from "@/lib/auth";
 
 /**
@@ -27,7 +28,8 @@ export async function GET(request: Request) {
   await ensureLocalFixtures();
 
   // ユーザー情報の準備
-  const user = { ...template, authenticatedAt: new Date().toISOString() };
+  const user = await currentOperatorForDevelopment(template);
+  if (!user) return new Response("運営として許可されていません",{status:403});
   // セッション発行とリダイレクトを行う
   await upsertUser(user);
   return new Response(null, {

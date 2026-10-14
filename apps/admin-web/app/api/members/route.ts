@@ -1,7 +1,8 @@
 import { requireRecentIdentity, type SessionUser } from "@/lib/auth";
 import { assertBrowserWrite } from "@/lib/request-security";
-import { memberDashboard, inviteMember, acceptInvitation, changeRole } from "@/lib/members";
-import { recordOperation } from "@/lib/roles";
+import { memberDashboard, inviteMember, revokeInvitation, changeRole } from "@/lib/members";
+import { lookupGithubUser } from "@/lib/operator-access";
+import { requirePermission, recordOperation } from "@/lib/roles";
 
 /** @brief 個人の招待と認可済み管理一覧をキャッシュせず返す */
 export async function GET(request: Request) {
@@ -24,8 +25,12 @@ export async function POST(request: Request) {
     const input = JSON.parse(raw) as Record<string, unknown>;
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new Response("Invalid input", { status: 400 });
     action = String(input.action).slice(0,40);
-    if (action === "invite") return Response.json(await inviteMember(actor,input), { status: 201 });
-    if (action === "accept") await acceptInvitation(actor,input);
+    if (action === "lookup") {
+      await requirePermission(actor,"invite");
+      return Response.json(await lookupGithubUser(input.login));
+    }
+    if (action === "invite" || action === "reapprove") return Response.json(await inviteMember(actor,input), { status: 201 });
+    if (action === "revoke_invitation") await revokeInvitation(actor,input);
     else if (action === "set_role") await changeRole(actor,input);
     else throw new Response("Unknown action", { status: 400 });
     return Response.json({ ok: true });
