@@ -222,3 +222,31 @@ export const auditEvents = sqliteTable(
     index("idx_audit_events_occurred").on(table.occurredAt),
   ],
 );
+
+// 共通運営ロールは旧grantやMusic所属から自動生成しない
+export const platformRoles = sqliteTable("platform_roles", {
+  githubUserId: text("github_user_id").primaryKey().references(() => users.githubUserId),
+  role: text("role", { enum: ["user", "assistant", "executive", "admin"] }).notNull(),
+  changedBy: text("changed_by").notNull(), changedAt: text("changed_at").notNull(),
+});
+
+// 招待は数値本人IDへ固定し、受諾時にも発行者の現在権限を確認する
+export const memberInvitations = sqliteTable("member_invitations", {
+  id: text("id").primaryKey(), recipient: text("recipient").notNull().references(() => users.githubUserId),
+  role: text("role", { enum: ["assistant", "executive"] }).notNull(),
+  issuer: text("issuer").notNull().references(() => users.githubUserId),
+  expiresAt: text("expires_at").notNull(), acceptedAt: text("accepted_at"),
+});
+
+// 成功・失敗・拒否の主体を追跡する追加監査記録
+export const operationEvents = sqliteTable("operation_events", {
+  id: text("id").primaryKey(), actor: text("actor"), action: text("action").notNull(),
+  target: text("target").notNull(), result: text("result").notNull(), at: text("at").notNull(),
+});
+
+// 正常公開済みmanifestを固定した復旧操作
+export const publicationRecoveries = sqliteTable("publication_recoveries", {
+  requestId: text("request_id").primaryKey().references(() => deploymentRequests.requestId),
+  mode: text("mode", { enum: ["rollback", "suspend", "resume"] }).notNull(),
+  manifestSha256: text("manifest_sha256").notNull(),
+});

@@ -4,6 +4,26 @@ import { env } from "cloudflare:workers";
 let initialized: Promise<void> | undefined;
 
 const statements = [
+  `CREATE TABLE IF NOT EXISTS publication_recoveries (
+    request_id TEXT PRIMARY KEY REFERENCES deployment_requests(request_id),
+    mode TEXT NOT NULL CHECK(mode IN ('rollback','suspend','resume')),
+    manifest_sha256 TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS platform_roles (
+    github_user_id TEXT PRIMARY KEY REFERENCES users(github_user_id),
+    role TEXT NOT NULL CHECK(role IN ('user','assistant','executive','admin')),
+    changed_by TEXT NOT NULL, changed_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS member_invitations (
+    id TEXT PRIMARY KEY, recipient TEXT NOT NULL REFERENCES users(github_user_id),
+    role TEXT NOT NULL CHECK(role IN ('assistant','executive')),
+    issuer TEXT NOT NULL REFERENCES users(github_user_id),
+    expires_at TEXT NOT NULL, accepted_at TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS operation_events (
+    id TEXT PRIMARY KEY, actor TEXT, action TEXT NOT NULL, target TEXT NOT NULL,
+    result TEXT NOT NULL, at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS access_requests (
     id TEXT PRIMARY KEY,
     applicant_id TEXT NOT NULL REFERENCES users(github_user_id),

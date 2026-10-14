@@ -43,7 +43,7 @@ export class D1Uploads implements UploadRepository {
     const result = await db.batch([
       db
         .prepare(
-          "INSERT INTO music_assets(id,game_id,object_key,kind,mime,bytes,status,created_at) SELECT ?,?,?,?,'',?,'pending',? WHERE EXISTS(SELECT 1 FROM music_accounts a WHERE a.id=? AND (a.admin=1 OR EXISTS(SELECT 1 FROM music_memberships WHERE account_id=a.id AND game_id=?))) AND EXISTS(SELECT 1 FROM music_games WHERE id=?)",
+          "INSERT INTO music_assets(id,game_id,object_key,kind,mime,bytes,status,created_at) SELECT ?,?,?,?,'',?,'pending',? WHERE EXISTS(SELECT 1 FROM platform_roles WHERE github_user_id=? AND role IN ('admin','executive','assistant')) AND ? IS NOT NULL AND EXISTS(SELECT 1 FROM music_games WHERE id=?)",
         )
         .bind(
           asset.id,

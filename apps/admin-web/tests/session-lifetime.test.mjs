@@ -8,7 +8,7 @@ test("sessions and management actions expire after three hours", async () => {
   const source = (await readFile(new URL("../lib/auth.ts", import.meta.url), "utf8"))
     .replace('import { env } from "cloudflare:workers";', 'const env = { SESSION_SECRET: "test-session-secret-with-32-characters" };')
     .replace('import { ensureSchema, getD1 } from "@/db/initialize";', "")
-    .replace('import { githubRepositoryAccess } from "@/lib/github-app";', "");
+    .replace('import { currentRole, permits, type Role } from "@/lib/roles";', 'const currentRole = async () => "admin"; const permits = (role) => role === "admin";');
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext } }).outputText;
   const auth = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
   const originalNow = Date.now;
@@ -17,7 +17,7 @@ test("sessions and management actions expire after three hours", async () => {
   Date.now = () => now;
 
   try {
-    const actor = { githubUserId: "1", login: "admin", avatarUrl: "", isAdmin: true, gameAccess: true, authenticatedAt: new Date(start).toISOString(), authSource: "github" };
+    const actor = { githubUserId: "1", login: "admin", role: "admin", avatarUrl: "", isAdmin: true, gameAccess: true, authenticatedAt: new Date(start).toISOString(), authSource: "github" };
     const cookie = await auth.createSessionCookie(actor, new Request("https://example.com"));
     assert.match(cookie, /Max-Age=10800; Secure$/);
     const request = new Request("https://example.com/api/control", { headers: { cookie: cookie.split(";")[0] } });

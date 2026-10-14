@@ -1,6 +1,6 @@
 import { ensureSchema, getD1 } from "@/db/initialize";
 import type { SessionUser } from "@/lib/auth";
-import { hasRepositoryAccess } from "@/lib/access-requests";
+import { requirePermission, currentRole, permits } from "@/lib/roles";
 import {
   dispatchDeploymentWorkflow,
   deploymentWorkflowRun,
@@ -15,7 +15,6 @@ import {
 
 export { MAX_ARTIFACT_BYTES, MAX_ARTIFACT_FILES };
 
-export type GrantType = "requester" | "approver" | "production_requester";
 
 type Row = Record<string, unknown>;
 
@@ -82,35 +81,19 @@ export async function auditRecord(
     );
 }
 
-async function activeGrant(userId: string, grantType: GrantType): Promise<boolean> {
-  const row = await getD1().prepare(`SELECT 1 AS allowed FROM policy_grants
-    WHERE github_user_id = ? AND grant_type = ? AND revoked_at IS NULL`)
-    .bind(userId, grantType).first<{ allowed: number }>();
-  return row?.allowed === 1;
+/** @brief 全運営ロールは別の人の承認なしで公開できる */
+export async function canPublishWithoutApproval(userId: string): Promise<boolean> {
+  return permits(await currentRole(userId), "operate");
 }
 
-/** Maintain相当の申請者またはAdminの承認省略権限を確認する */
-export async function canPublishWithoutApproval(userId: string, isAdmin: boolean): Promise<boolean> {
-  return isAdmin || await activeGrant(userId, "requester");
-}
-
-/** 申請作成に必要なrequester権限を検証する */
+/** @brief 最新の運営ロールを毎回確認する */
 export async function requireRequester(actor: SessionUser): Promise<void> {
-  await ensureSchema();
-  if (!actor.isAdmin && !await activeGrant(actor.githubUserId, "requester")) {
-    throw new Error("申請者として許可されていません");
-  }
+  await requirePermission(actor, "operate");
 }
 
+/** @brief 本番公開にも同じ運営権限を要求する */
 async function requireProductionRequester(actor: SessionUser): Promise<void> {
-  await ensureSchema();
-  if (!actor.isAdmin && !await activeGrant(actor.githubUserId, "production_requester")) {
-    throw new Error("Production申請者として許可されていません");
-  }
-}
-
-async function requireAdmin(actor: SessionUser): Promise<void> {
-  if (!actor.isAdmin) throw new Error("Adminだけが実行できます");
+  await requirePermission(actor, "operate");
 }
 
 function validateGameId(value: string): string {
@@ -146,20 +129,12 @@ async function requestRow(requestId: string): Promise<Row> {
 export async function getDashboard(actor: SessionUser) {
   await ensureSchema();
   const db = getD1();
-  const [canRequest, canApprove, canRequestProduction] = actor.isAdmin
-    ? [true, false, true]
-    : await Promise.all([
-        activeGrant(actor.githubUserId, "requester"),
-        activeGrant(actor.githubUserId, "approver"),
-        activeGrant(actor.githubUserId, "production_requester"),
-      ]);
-  if (!actor.isAdmin && !canRequest && !canApprove && !canRequestProduction) {
-    throw new Response("ゲーム管理の利用権限がありません。利用申請から申請してください", { status: 403 });
-  }
+  const role = await requirePermission(actor, "operate");
+  const [canRequest, canApprove, canRequestProduction] = [true, false, true];
   const [usersResult, grantsResult, requestsResult, approversResult, decisionsResult, attemptsResult, eventsResult] =
     await Promise.all([
-      db.prepare(`SELECT github_user_id, login_snapshot, avatar_url, is_admin, last_verified_at
-        FROM users ORDER BY is_admin DESC, login_snapshot`).all<Row>(),
+      db.prepare(`SELECT u.github_user_id, u.login_snapshot, u.avatar_url, r.role='admin' AS is_admin, u.last_verified_at
+        FROM users u LEFT JOIN platform_roles r ON r.github_user_id=u.github_user_id ORDER BY is_admin DESC, login_snapshot`).all<Row>(),
       db.prepare(`SELECT github_user_id, grant_type, granted_by_github_user_id, granted_at
         FROM policy_grants WHERE revoked_at IS NULL ORDER BY grant_type, github_user_id`).all<Row>(),
       db.prepare(`SELECT r.*, u.login_snapshot AS requester_login, a.size_bytes, a.file_count
@@ -200,7 +175,7 @@ export async function getDashboard(actor: SessionUser) {
       canRequest,
       canApprove,
       canRequestProduction,
-      canAdminister: actor.isAdmin,
+      canAdminister: role === "admin",
     },
     users: usersResult.results.map((row: Row) => ({
       githubUserId: asString(row.github_user_id),
@@ -260,44 +235,6 @@ export async function getDashboard(actor: SessionUser) {
       eventHash: asString(row.event_hash),
     })),
   };
-}
-
-/** Adminがユーザーのrequester・approver等の権限を付与または取消する */
-export async function setGrant(
-  actor: SessionUser,
-  input: { githubUserId: string; grantType: GrantType; enabled: boolean },
-) {
-  await ensureSchema();
-  await requireAdmin(actor);
-  if (!(["requester", "approver", "production_requester"] as string[]).includes(input.grantType)) {
-    throw new Error("権限種別が不正です");
-  }
-  if (typeof input.githubUserId !== "string" || typeof input.enabled !== "boolean") throw new Error("入力が不正です");
-  const githubUserId = input.githubUserId.trim();
-  const user = await getD1().prepare("SELECT login_snapshot FROM users WHERE github_user_id=?")
-    .bind(githubUserId).first<{ login_snapshot: string }>();
-  if (!user) throw new Error("本人の利用申請が必要です");
-  const login = user.login_snapshot;
-  if (input.enabled && !await hasRepositoryAccess(githubUserId, actor)) throw new Error("リポジトリのWrite以上の権限設定が必要です");
-
-  const timestamp = now();
-  const db = getD1();
-  const audit = await auditRecord(null, input.enabled ? "policy_grant_added" : "policy_grant_revoked", actor, {
-    githubUserId,
-    login,
-    grantType: input.grantType,
-  });
-  await db.batch([
-    db.prepare(`INSERT INTO policy_grants
-      (github_user_id, grant_type, granted_by_github_user_id, granted_at, revoked_at)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(github_user_id, grant_type) DO UPDATE SET
-        granted_by_github_user_id = excluded.granted_by_github_user_id,
-        granted_at = excluded.granted_at,
-        revoked_at = excluded.revoked_at`)
-      .bind(githubUserId, input.grantType, actor.githubUserId, timestamp, input.enabled ? null : timestamp),
-    audit,
-  ]);
 }
 
 /** sealed Artifactを対象にStaging公開申請を作成する */
@@ -362,7 +299,7 @@ export async function createRequest(actor: SessionUser, input: {
     audit,
   ]);
   // 申請作成と同じ操作で、権限に応じて公開処理を開始する
-  if (await canPublishWithoutApproval(actor.githubUserId, actor.isAdmin)) {
+  if (await canPublishWithoutApproval(actor.githubUserId)) {
     try {
       await submitRequest(actor, { requestId, reason: "" });
     } catch (error) {
@@ -385,7 +322,7 @@ export async function createProductionRequest(
     throw new Error("成功済みのstaging申請だけをProductionへ進められます");
   }
   const eligibleUntil = asString(source.production_eligible_until);
-  if (!eligibleUntil || Date.parse(eligibleUntil) <= Date.now()) {
+  if (!eligibleUntil || !Number.isFinite(Date.parse(eligibleUntil)) || Date.parse(eligibleUntil) <= Date.now()) {
     throw new Error("Production申請期限を過ぎています。stagingからやり直してください");
   }
   const artifact = await getD1().prepare(`SELECT claimed_sha256, status FROM artifacts
@@ -425,7 +362,7 @@ export async function createProductionRequest(
     audit,
   ]);
   // 申請作成と同じ操作で、権限に応じて公開処理を開始する
-  if (await canPublishWithoutApproval(actor.githubUserId, actor.isAdmin)) {
+  if (await canPublishWithoutApproval(actor.githubUserId)) {
     try {
       await submitRequest(actor, { requestId, reason: "" });
     } catch (error) {
@@ -436,49 +373,15 @@ export async function createProductionRequest(
   return { requestId };
 }
 
-/** Adminが申請に対する承認者を指名する */
-export async function designateApprover(
-  actor: SessionUser,
-  input: { requestId: string; approverGithubUserId: string },
-) {
-  await ensureSchema();
-  await requireAdmin(actor);
-  const request = await requestRow(input.requestId);
-  if (request.state !== "ready") throw new Error("提出後は承認者を変更できません");
-  if (request.requester_github_user_id === input.approverGithubUserId) {
-    throw new Error("申請者本人を承認者にはできません");
-  }
-  if (!await activeGrant(input.approverGithubUserId, "approver")) {
-    throw new Error("承認者allowlistに含まれていません");
-  }
-  const timestamp = now();
-  const db = getD1();
-  const audit = await auditRecord(input.requestId, "approver_designated", actor, {
-    approverGithubUserId: input.approverGithubUserId,
-  });
-  await db.batch([
-    db.prepare(`INSERT INTO request_approvers
-      (request_id, approver_github_user_id, designated_by_github_user_id, designated_at)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(request_id, approver_github_user_id) DO NOTHING`)
-      .bind(input.requestId, input.approverGithubUserId, actor.githubUserId, timestamp),
-    audit,
-  ]);
-}
-
-/** 申請を提出し、Maintain相当以上なら既存の承認待ちも直接公開する */
+/** @brief 全運営メンバーが既存の承認待ちを含め直接公開する */
 export async function submitRequest(
   actor: SessionUser,
   input: { requestId: string; reason: string },
 ) {
   await ensureSchema();
+  await requireRequester(actor);
   const request = await requestRow(input.requestId);
-  if (!actor.isAdmin && request.requester_github_user_id !== actor.githubUserId) {
-    throw new Error("申請者本人またはAdminだけが提出できます");
-  }
-  const skipApproval = await canPublishWithoutApproval(actor.githubUserId, actor.isAdmin);
-  const allowedStates = skipApproval ? ["ready", "pending_approval"] : ["ready"];
-  if (!allowedStates.includes(asString(request.state))) throw new Error("この申請は提出できません");
+  if (!["ready", "pending_approval"].includes(asString(request.state))) throw new Error("この申請は提出できません");
 
   // 環境ごとの申請権限は承認省略時にも検証する
   if (request.environment === "production") {
@@ -489,10 +392,10 @@ export async function submitRequest(
 
   const timestamp = now();
   const db = getD1();
-  if (skipApproval) {
+  {
     const audit = await auditRecord(input.requestId, "approval_waived", actor, {
       environment: asString(request.environment),
-      authority: actor.isAdmin ? "admin" : "requester",
+      authority: await currentRole(actor.githubUserId),
       previousState: asString(request.state),
     });
     await db.batch([
@@ -504,65 +407,14 @@ export async function submitRequest(
     await dispatchRequest(actor, input);
     return;
   }
-  const approver = await db.prepare("SELECT 1 AS found FROM request_approvers WHERE request_id = ? LIMIT 1")
-    .bind(input.requestId).first<{ found: number }>();
-  if (!approver) throw new Error("Adminによる承認者指名が必要です");
-  const audit = await auditRecord(input.requestId, "request_submitted", actor, {});
-  await db.batch([
-    db.prepare(`UPDATE deployment_requests SET state = 'pending_approval', submitted_at = ?
-      WHERE request_id = ? AND state = 'ready'`).bind(timestamp, input.requestId),
-    audit,
-  ]);
+
 }
 
-/** 指名された承認者またはAdminが申請を承認・却下する */
-export async function decideRequest(actor: SessionUser, input: {
-  requestId: string;
-  decision: "approved" | "rejected";
-  reason: string;
-}) {
-  await ensureSchema();
-  const request = await requestRow(input.requestId);
-  if (request.state !== "pending_approval") throw new Error("承認待ちの申請ではありません");
-  if (request.requester_github_user_id === actor.githubUserId) throw new Error("自己承認は禁止です");
-  if (!await activeGrant(actor.githubUserId, "approver")) throw new Error("承認権限がありません");
-  const designated = await getD1().prepare(`SELECT 1 AS found FROM request_approvers
-    WHERE request_id = ? AND approver_github_user_id = ?`)
-    .bind(input.requestId, actor.githubUserId).first<{ found: number }>();
-  if (!designated) throw new Error("この申請の指名承認者ではありません");
-  const existing = await getD1().prepare(`SELECT 1 AS found FROM approval_decisions
-    WHERE request_id = ? AND approver_github_user_id = ?`)
-    .bind(input.requestId, actor.githubUserId).first<{ found: number }>();
-  if (existing) throw new Error("同じアカウントによる二重承認は禁止です");
-  const reason = input.reason.trim();
-  if (reason.length > 500) {
-    throw new Error("承認・却下コメントは500文字以内で入力してください");
-  }
-  if (input.decision === "rejected" && reason.length < 3) {
-    throw new Error("却下理由を3～500文字で入力してください");
-  }
-  const timestamp = now();
-  const audit = await auditRecord(input.requestId,
-    input.decision === "approved" ? "request_approved" : "request_rejected", actor, { reason });
-  const db = getD1();
-  await db.batch([
-    db.prepare(`INSERT INTO approval_decisions
-      (request_id, approver_github_user_id, decision, reason, decided_at)
-      VALUES (?, ?, ?, ?, ?)`)
-      .bind(input.requestId, actor.githubUserId, input.decision, reason, timestamp),
-    db.prepare("UPDATE deployment_requests SET state = ? WHERE request_id = ? AND state = 'pending_approval'")
-      .bind(input.decision, input.requestId),
-    audit,
-  ]);
-}
-
-/** 申請者またはAdminが実行前の申請を取り消す */
+/** @brief 全運営メンバーが実行前の申請を取り消す */
 export async function cancelRequest(actor: SessionUser, input: { requestId: string; reason: string }) {
   await ensureSchema();
+  await requireRequester(actor);
   const request = await requestRow(input.requestId);
-  if (!actor.isAdmin && request.requester_github_user_id !== actor.githubUserId) {
-    throw new Error("申請者本人またはAdminだけがキャンセルできます");
-  }
   if (!["ready", "pending_approval", "approved", "failed_retryable"].includes(asString(request.state))) {
     throw new Error("この状態の申請はキャンセルできません");
   }
@@ -579,16 +431,16 @@ export async function cancelRequest(actor: SessionUser, input: { requestId: stri
   ]);
 }
 
-/** 実行失敗後の復旧再試行をAdminの明示承認で許可する */
+/** @brief 運営本人の復旧確認を記録し再試行可能にする */
 export async function authorizeRecovery(
   actor: SessionUser,
   input: { requestId: string; reason: string },
 ) {
   await ensureSchema();
-  await requireAdmin(actor);
+  await requireRequester(actor);
   const request = await requestRow(input.requestId);
   if (!["recovery_required", "failed_terminal"].includes(asString(request.state))) {
-    throw new Error("Adminによる復旧が可能な申請ではありません");
+    throw new Error("復旧が可能な申請ではありません");
   }
   const reason = input.reason.trim();
   if (reason.length < 10 || reason.length > 500) {
@@ -608,10 +460,8 @@ export async function authorizeRecovery(
 /** @brief キャンセル済みActionsを確認し、公開段階に応じて再試行または復旧確認へ進める */
 export async function reconcileCancelledRun(actor: SessionUser, input: { requestId: string }) {
   await ensureSchema();
+  await requireRequester(actor);
   const request = await requestRow(input.requestId);
-  if (!actor.isAdmin && request.requester_github_user_id !== actor.githubUserId) {
-    throw new Error("申請者本人またはAdminだけが確認できます");
-  }
 
   // 最新の実行だけを確認し、終了済みの申請を上書きしない
   const db = getD1();
@@ -648,6 +498,7 @@ export async function reconcileCancelledRun(actor: SessionUser, input: { request
 /** 承認済み申請をGitHub Actionsの対象Workflowへディスパッチする */
 export async function dispatchRequest(actor: SessionUser, input: { requestId: string }) {
   await ensureSchema();
+  await requireRequester(actor);
   const request = await requestRow(input.requestId);
   const environment = asString(request.environment) as DeploymentEnvironment;
   if (environment !== "staging" && environment !== "production") {
@@ -659,17 +510,16 @@ export async function dispatchRequest(actor: SessionUser, input: { requestId: st
   if (request.state !== "approved" && request.state !== "failed_retryable") {
     throw new Error("実行承認済みの申請ではありません");
   }
-  if (!actor.isAdmin && request.requester_github_user_id !== actor.githubUserId) {
-    throw new Error("申請者本人またはAdminだけが実行できます");
-  }
+  await requireRequester(actor);
   if (environment === "production") {
     await requireProductionRequester(actor);
+    const recovery = await getD1().prepare("SELECT mode FROM publication_recoveries WHERE request_id=?").bind(input.requestId).first();
     const source = await requestRow(asString(request.source_staging_request_id));
     if (source.environment !== "staging" || source.state !== "succeeded" ||
         asString(source.artifact_id) !== asString(request.artifact_id) ||
         asString(source.artifact_sha256) !== asString(request.artifact_sha256) ||
-        !source.production_eligible_until ||
-        Date.parse(asString(source.production_eligible_until)) <= Date.now()) {
+        !source.production_eligible_until || !Number.isFinite(Date.parse(asString(source.production_eligible_until))) ||
+        (!recovery && Date.parse(asString(source.production_eligible_until)) <= Date.now())) {
       throw new Error("Production実行条件を満たすstaging申請を確認できません");
     }
   } else {
@@ -685,7 +535,7 @@ export async function dispatchRequest(actor: SessionUser, input: { requestId: st
   const audit = await auditRecord(input.requestId, "workflow_dispatch_requested", actor, {
     attemptId,
     attemptNumber,
-    authority: actor.isAdmin ? "admin" : "requester",
+    authority: await currentRole(actor.githubUserId),
     environment,
     artifactSha256: asString(request.artifact_sha256),
   });
@@ -732,4 +582,31 @@ export async function listSuccessfulStagingRequests() {
     WHERE environment = 'staging' AND state = 'succeeded'
       AND production_eligible_until > ? ORDER BY created_at DESC`)
     .bind(now()).all<Row>();
+}
+
+/** @brief 正常な既存本番版だけを再公開・停止・切り戻しの対象とし成功時のハッシュを固定する */
+export async function recoverPublication(actor: SessionUser, input: { requestId: string; mode: string; reason: string }) {
+  await requireRequester(actor);
+  if (!["rollback", "suspend", "resume"].includes(input.mode)) throw new Response("Invalid recovery mode", { status: 400 });
+  if (typeof input.reason !== "string" || input.reason.trim().length < 10 || input.reason.length > 500) throw new Response("復旧理由を10～500文字で入力してください", { status: 400 });
+  const request = await requestRow(input.requestId);
+  if (request.environment !== "production" || request.state !== "succeeded") throw new Response("正常な本番公開済み版を指定してください", { status: 409 });
+  const success = await getD1().prepare(`SELECT json_extract(payload_json,'$.manifestSha256') AS digest
+    FROM audit_events WHERE request_id=? AND event_type='execution_finished'
+    AND json_extract(payload_json,'$.result')='succeeded' ORDER BY sequence DESC LIMIT 1`)
+    .bind(input.requestId).first<{ digest: string }>();
+  if (!success || !/^[0-9a-f]{64}$/.test(success.digest)) throw new Response("正常公開時のmanifest検証記録が必要です", { status: 409 });
+  // 同作品の実行中申請がある場合は復旧の開始を拒否する
+  const active = await getD1().prepare(`SELECT 1 FROM deployment_requests WHERE game_id=? AND environment='production'
+    AND state IN ('dispatched','running','publishing_pointers','verifying')`).bind(request.game_id).first();
+  if (active) throw new Response("この作品は公開処理中です", { status: 409 });
+  const audit = await auditRecord(input.requestId, "publication_recovery_requested", actor, { mode: input.mode, reason: input.reason.trim(), manifestSha256: success.digest });
+  const results = await getD1().batch([
+    getD1().prepare("UPDATE deployment_requests SET state='approved' WHERE request_id=? AND state='succeeded'").bind(input.requestId),
+    getD1().prepare(`INSERT INTO publication_recoveries SELECT ?,?,? WHERE changes()=1 ON CONFLICT(request_id)
+      DO UPDATE SET mode=excluded.mode,manifest_sha256=excluded.manifest_sha256`).bind(input.requestId,input.mode,success.digest),
+    audit,
+  ]);
+  if (results[0].meta.changes !== 1) throw new Response("復旧要求が競合しました", { status: 409 });
+  return dispatchRequest(actor,input);
 }

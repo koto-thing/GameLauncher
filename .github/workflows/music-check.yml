@@ -36,6 +36,8 @@ jobs:
         working-directory: apps/admin-web
       - run: npm run lint
         working-directory: apps/admin-web
+      - run: npx tsc --noEmit
+        working-directory: apps/admin-web
       - name: Start virtual audio output
         # Firefoxの実音声出力を検証する。音声APIのモックや再生テストのスキップはしない。
         run: |

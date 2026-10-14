@@ -1,11 +1,12 @@
 import { env } from "cloudflare:workers";
 import { ensureSchema, getD1 } from "@/db/initialize";
-import { githubRepositoryAccess } from "@/lib/github-app";
+import { currentRole, permits, type Role } from "@/lib/roles";
 
 export type SessionUser = {
   githubUserId: string;
   login: string;
   avatarUrl: string;
+  role: Role;
   isAdmin: boolean;
   gameAccess: boolean;
   authenticatedAt: string;
@@ -21,8 +22,6 @@ type RuntimeEnv = {
 };
 
 type GitHubUser = { id: number; login: string; avatar_url: string };
-type GitHubRepository = { owner: { id: number } };
-type GitHubPermission = { permission: string; role_name: string };
 
 const SESSION_COOKIE = "pandd_deploy_session";
 const STATE_COOKIE = "pandd_github_state";
@@ -112,19 +111,14 @@ export async function readSession(request: Request): Promise<SessionUser | null>
     };
     // 古いCookieにゲーム許可を補完せず、サービス境界導入後は再ログインする。
     const age = Date.now() - Date.parse(decoded.user.authenticatedAt);
-    if (decoded.expiresAt <= Date.now() || !Number.isFinite(age) || age < 0 ||
+    if (!Number.isFinite(decoded.expiresAt) || decoded.expiresAt <= Date.now() || !Number.isFinite(age) || age < 0 ||
         age >= SESSION_LIFETIME_SECONDS * 1000 || typeof decoded.user.gameAccess !== "boolean") return null;
     if (decoded.user.authSource === "local-development" && !localDevAuthAvailable(request)) return null;
-    // 承認後は既存Cookieでも新しいリポジトリ許可を確認して利用を開始できる
-    if (!decoded.user.gameAccess && decoded.user.authSource === "github") {
-      await ensureSchema();
-      const grant = await getD1().prepare("SELECT 1 FROM policy_grants WHERE github_user_id=? AND revoked_at IS NULL LIMIT 1")
-        .bind(decoded.user.githubUserId).first();
-      if (grant) {
-        try { decoded.user.gameAccess = await githubRepositoryAccess(decoded.user.githubUserId); }
-        catch { decoded.user.gameAccess = false; }
-      }
-    }
+    if (decoded.user.authSource !== "github" && decoded.user.authSource !== "local-development") return null;
+    if (!/^\d+$/.test(decoded.user.githubUserId)) return null;
+    decoded.user.role = await currentRole(decoded.user.githubUserId);
+    decoded.user.isAdmin = decoded.user.role === "admin";
+    decoded.user.gameAccess = permits(decoded.user.role, "operate");
     return decoded.user;
   } catch {
     return null;
@@ -173,32 +167,14 @@ export async function verifyGithubIdentity(accessToken: string): Promise<Session
   if (!userResponse.ok) throw new Error("GitHub identity verification failed");
   const githubUser = await userResponse.json() as GitHubUser;
   if (!Number.isSafeInteger(githubUser.id) || githubUser.id <= 0) throw new Error("Invalid GitHub identity");
-  let isAdmin: boolean;
-  let gameAccess: boolean;
-  try {
-    const repositoryResponse = await fetch("https://api.github.com/repos/koto-thing/GameLauncher", { headers });
-    if (!repositoryResponse.ok) throw new Error("Repository unavailable");
-    const repository = await repositoryResponse.json() as GitHubRepository;
-    isAdmin = githubUser.id === repository.owner.id;
-    gameAccess = isAdmin;
-    if (!isAdmin) {
-    const permissionResponse = await fetch(
-      `https://api.github.com/repos/koto-thing/GameLauncher/collaborators/${encodeURIComponent(githubUser.login)}/permission`,
-      { headers },
-    );
-    if (!permissionResponse.ok) throw new Error("Repository Collaboratorではありません");
-    const permission = await permissionResponse.json() as GitHubPermission;
-      gameAccess = permission.permission === "write" || permission.permission === "admin" || permission.role_name === "maintain";
-    }
-  } catch {
-    // リポジトリへのアクセス不足・障害時にはゲーム管理を閉じる。
-    isAdmin = false;
-    gameAccess = false;
-  }
+  const role = await currentRole(String(githubUser.id));
+  const isAdmin = role === "admin";
+  const gameAccess = permits(role, "operate");
   const actor: SessionUser = {
     githubUserId: String(githubUser.id),
     login: githubUser.login,
     avatarUrl: githubUser.avatar_url,
+    role,
     isAdmin,
     gameAccess,
     authenticatedAt: new Date().toISOString(),
@@ -243,7 +219,7 @@ export async function githubFlowVerifier(request: Request, state: string): Promi
 
 /** @brief ゲームのリポジトリ許可をサーバー入口で強制する。 @param actor 共通本人情報。 @returns ゲーム管理者。 */
 export function requireGameAccess(actor: SessionUser): SessionUser {
-  if (actor.gameAccess !== true) throw new Response("Game management permission required", { status: 403 });
+  if (!permits(actor.role, "operate")) throw new Response("Game management permission required", { status: 403 });
   return actor;
 }
 
@@ -258,11 +234,12 @@ export async function requireUploaderActor(request: Request): Promise<SessionUse
   if (authorization.startsWith("Bearer ")) {
     const token = authorization.slice("Bearer ".length).trim();
     if (localDevAuthAvailable(request) && token.startsWith("local-development:")) {
-      const role = token.slice("local-development:".length);
-      const user = localUsers[role];
+      const fixtureRole = token.slice("local-development:".length);
+      const user = localUsers[fixtureRole];
       if (!user) throw new Response("Authentication required", { status: 401 });
       await ensureLocalFixtures();
-      return { ...user, authenticatedAt: new Date().toISOString() };
+      const role = await currentRole(user.githubUserId);
+      return requireGameAccess({ ...user, role, isAdmin: role === "admin", gameAccess: permits(role, "operate"), authenticatedAt: new Date().toISOString() });
     }
     try {
       return await verifyGithubToken(token);
@@ -306,7 +283,6 @@ export async function upsertUser(user: SessionUser): Promise<void> {
       ON CONFLICT(github_user_id) DO UPDATE SET
         login_snapshot = excluded.login_snapshot,
         avatar_url = excluded.avatar_url,
-        is_admin = excluded.is_admin,
         last_verified_at = excluded.last_verified_at`)
     .bind(
       user.githubUserId,
@@ -346,6 +322,7 @@ export const localUsers: Record<string, SessionUser> = {
     githubUserId: "1001",
     login: "koto-thing",
     avatarUrl: "",
+    role: "admin",
     isAdmin: true,
     gameAccess: true,
     authenticatedAt: "",
@@ -354,6 +331,7 @@ export const localUsers: Record<string, SessionUser> = {
   maintainer: {
     githubUserId: "1002",
     login: "pandd-maintainer",
+    role: "executive",
     avatarUrl: "",
     isAdmin: false,
     gameAccess: true,
@@ -363,6 +341,7 @@ export const localUsers: Record<string, SessionUser> = {
   reviewer: {
     githubUserId: "1003",
     login: "pandd-reviewer",
+    role: "assistant",
     avatarUrl: "",
     isAdmin: false,
     gameAccess: true,
@@ -375,7 +354,7 @@ export const localUsers: Record<string, SessionUser> = {
 export const musicLocalUsers: Record<string, SessionUser> = Object.fromEntries(
   ["music-admin", "music-a", "music-b", "outsider"].map(
     /** @brief ゲーム権限を持たない固定fixtureを定義する。 @param login 表示名。 @param index 固定IDの位置。 @returns 本人情報。 */
-    (login, index) => [login, { githubUserId: String(900001 + index), login, avatarUrl: "", isAdmin: false, gameAccess: false, authenticatedAt: "", authSource: "local-development" }],
+    (login, index) => [login, { githubUserId: String(900001 + index), login, avatarUrl: "", role: "user", isAdmin: false, gameAccess: false, authenticatedAt: "", authSource: "local-development" }],
   ),
 );
 
@@ -393,15 +372,8 @@ export async function ensureLocalFixtures(): Promise<void> {
           is_admin = excluded.is_admin, last_verified_at = excluded.last_verified_at`)
         .bind(user.githubUserId, user.login, user.isAdmin ? 1 : 0, now),
     ),
-    db.prepare(`INSERT INTO policy_grants
-      (github_user_id, grant_type, granted_by_github_user_id, granted_at, revoked_at)
-      VALUES ('1002', 'requester', '1001', ?, NULL)
-      ON CONFLICT(github_user_id, grant_type) DO UPDATE SET revoked_at = NULL`)
-      .bind(now),
-    db.prepare(`INSERT INTO policy_grants
-      (github_user_id, grant_type, granted_by_github_user_id, granted_at, revoked_at)
-      VALUES ('1003', 'approver', '1001', ?, NULL)
-      ON CONFLICT(github_user_id, grant_type) DO UPDATE SET revoked_at = NULL`)
-      .bind(now),
+    ...Object.values(localUsers).map((user) => db.prepare(`INSERT INTO platform_roles
+      (github_user_id,role,changed_by,changed_at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING`)
+      .bind(user.githubUserId,user.role,user.githubUserId,now)),
   ]);
 }

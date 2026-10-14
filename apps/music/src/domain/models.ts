@@ -94,6 +94,7 @@ export interface Account {
   admin: boolean;
 }
 export interface Principal extends Account {
+  role?: "user" | "assistant" | "executive" | "admin";
   gameIds: string[];
 }
 export interface Advertisement {

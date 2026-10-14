@@ -1,3 +1,5 @@
+import type { SessionUser } from "@/lib/auth";
+import { requirePermission, recordOperation } from "@/lib/roles";
 import { env } from "cloudflare:workers";
 import { getD1 } from "@/db/initialize";
 import {
@@ -23,11 +25,12 @@ import {
 import { readJson } from "../../../music/src/presentation/api/http";
 
 /** @brief 全Music入口で共通本人確認・最新所属・Originを検証する。 @param request HTTP要求。 @returns 管理DTOまたは認可済みストリーム。 */
-export async function musicApi(request: Request): Promise<Response> {
+async function execute(request: Request, capture: (user: SessionUser | null) => void): Promise<Response> {
   try {
     const path = new URL(request.url).pathname.replace(/^\/api\/music\/?/, "");
     const method = request.method;
     const user = await readSession(request);
+    capture(user);
     const enabled = (env as Record<string, unknown>).MUSIC_ENABLED === "true";
 
     if (path === "session" && method === "GET") {
@@ -75,7 +78,8 @@ export async function musicApi(request: Request): Promise<Response> {
       musicServices();
     const segments = path.split("/");
 
-    if (segments[0] === "admin") authorize(actor);
+    if (segments[0] === "admin" && segments[3] !== "suspension") await requirePermission(user, "settings");
+    if (segments[3] === "members") throw new MusicError("FORBIDDEN", "メンバー管理を使用してください。");
 
     if (path === "publications" && method === "GET")
       return json(
@@ -357,4 +361,14 @@ function json(value: unknown, status = 200): Response {
       ...(status === 429 ? { "Retry-After": "60" } : {}),
     },
   });
+}
+
+/** @brief Musicの公開・停止・再試行を含む書き込み結果を実行者と対応させる */
+export async function musicApi(request: Request): Promise<Response> {
+  let actor: SessionUser | null = null;
+  const response = await execute(request, (user) => { actor = user; });
+  if (!["GET", "HEAD"].includes(request.method)) {
+    await recordOperation(actor, `music.${request.method}`, new URL(request.url).pathname, `http:${response.status}`);
+  }
+  return response;
 }

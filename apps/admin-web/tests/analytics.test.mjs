@@ -59,7 +59,7 @@ test("analytics proxy confines read token to the service binding and strips priv
     assert.equal(request.headers.get("cookie"), null);
     return Response.json(fixture);
   } };
-  const response = await analyticsResponse(new Request("https://admin.example/api/analytics/games", { headers: { cookie: "private-session-cookie" } }), { isAdmin: true, gameAccess: true }, binding, "server-only-test-token");
+  const response = await analyticsResponse(new Request("https://admin.example/api/analytics/games", { headers: { cookie: "private-session-cookie" } }), { role: "admin", isAdmin: true, gameAccess: true }, binding, "server-only-test-token");
   assert.equal(response.status, 200);
   const text = await response.text();
   assert.doesNotMatch(text, /private-installation|server-only-test-token|private-session-cookie/);
@@ -69,7 +69,7 @@ test("analytics proxy confines read token to the service binding and strips priv
 // 未設定と上流障害を0件の統計と混同しない
 test("analytics proxy distinguishes unconfigured service from failed or malformed data", async () => {
   const request = new Request("https://admin.example/api/analytics/games");
-  const actor = { isAdmin: true, gameAccess: true };
+  const actor = { role: "admin", isAdmin: true, gameAccess: true };
   assert.equal((await analyticsResponse(request, actor)).status, 503);
   for (const response of [new Response("private upstream failure", { status: 500 }), Response.json({ installationId: "private" }), Response.json({ ...reportFixture(), period: { ...reportFixture().period, environment: "staging" } })]) {
     const result = await analyticsResponse(request, actor, { async fetch() { return response; } }, "server-only-test-token");
@@ -127,7 +127,7 @@ test("analytics route requires a signed, live admin session before calling its s
   const authSource = (await readFile(new URL("../lib/auth.ts", import.meta.url), "utf8"))
     .replace('import { env } from "cloudflare:workers";', 'const env = { SESSION_SECRET: "analytics-test-secret-with-32-characters" };')
     .replace('import { ensureSchema, getD1 } from "@/db/initialize";', "")
-    .replace('import { githubRepositoryAccess } from "@/lib/github-app";', "");
+    .replace('import { currentRole, permits, type Role } from "@/lib/roles";', 'const currentRole = async () => globalThis.analyticsTestRole ?? "user"; const permits = (role) => ["admin","executive","assistant"].includes(role);');
   const compile = (source) => ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext } }).outputText;
   const authUrl = `data:text/javascript;base64,${Buffer.from(compile(authSource)).toString("base64")}`;
   const auth = await import(authUrl);
@@ -147,6 +147,7 @@ test("analytics route requires a signed, live admin session before calling its s
     const forbiddenCookie = (await auth.createSessionCookie(user, request())).split(";")[0];
     assert.equal((await route.GET(request(forbiddenCookie))).status, 403);
     assert.equal(calls, 0);
+    globalThis.analyticsTestRole = "assistant";
     const adminCookie = (await auth.createSessionCookie({ ...user, isAdmin: true }, request())).split(";")[0];
     assert.equal((await route.GET(request(adminCookie))).status, 200);
     assert.equal(calls, 1);
@@ -163,5 +164,5 @@ test("analytics route requires a signed, live admin session before calling its s
     const expiredCookie = (await auth.createSessionCookie({ ...user, isAdmin: true, authenticatedAt: new Date(Date.now() - 4 * 3600000).toISOString() }, request())).split(";")[0];
     assert.equal((await route.GET(request(expiredCookie))).status, 401);
     assert.equal(calls, 1);
-  } finally { delete globalThis.analyticsTestRuntime; }
+  } finally { delete globalThis.analyticsTestRuntime; delete globalThis.analyticsTestRole; }
 });

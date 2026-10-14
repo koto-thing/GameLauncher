@@ -179,7 +179,7 @@ export class Publications {
     if (!operation) throw new MusicError("NOT_FOUND", "公開操作がありません。");
     authorize(actor, operation.scope === "ads" ? undefined : operation.scope);
     const mutation = JSON.parse(operation.mutation) as PublicationMutation;
-    if (mutation.kind === "game" && mutation.adminOnly) authorize(actor);
+    if (mutation.kind === "ad" && actor.role !== "admin" && actor.role !== "executive") throw new MusicError("FORBIDDEN", "幹部以上の権限が必要です。");
     if (operation.state === "applied") return;
     await this.run(operation, actor);
   }

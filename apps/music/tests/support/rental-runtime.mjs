@@ -290,6 +290,12 @@ export async function createRuntime({
       .prepare("INSERT INTO music_accounts VALUES(?,?,?)")
       .bind(id, login, admin)
       .run();
+  // 共通ロールは隔離テスト環境にだけ明示して設定する
+  await runtime.dispatchFetch(`${origin}/api/auth/dev?as=admin`);
+  for (const [id,login,role] of [["900001","music-admin","admin"],["900002","music-a","assistant"],["900003","music-b","assistant"]]) {
+    await db.prepare("INSERT INTO users VALUES (?,?,'',0,'now') ON CONFLICT DO NOTHING").bind(id,login).run();
+    await db.prepare("INSERT INTO platform_roles VALUES (?,?,'fixture','now') ON CONFLICT DO NOTHING").bind(id,role).run();
+  }
   return {
     runtime,
     db,

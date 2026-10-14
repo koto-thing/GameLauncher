@@ -16,6 +16,7 @@ test("retention removes old completed requests and their logs while preserving a
 
   await db.exec(`PRAGMA foreign_keys = ON;
     CREATE TABLE deployment_requests (request_id TEXT PRIMARY KEY, source_staging_request_id TEXT, created_at TEXT, state TEXT);
+    CREATE TABLE publication_recoveries (request_id TEXT REFERENCES deployment_requests(request_id));
     CREATE TABLE request_approvers (request_id TEXT REFERENCES deployment_requests(request_id));
     CREATE TABLE approval_decisions (request_id TEXT REFERENCES deployment_requests(request_id));
     CREATE TABLE execution_attempts (request_id TEXT REFERENCES deployment_requests(request_id), created_at TEXT, started_at TEXT, finished_at TEXT);

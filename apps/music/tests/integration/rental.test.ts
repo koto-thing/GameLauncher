@@ -47,7 +47,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
     "game, Music-only, unassigned and anonymous permissions remain separate",
     /** @brief ゲームデータとゲーム書込をMusic Cookieで読めない */ async () => {
       assert.equal((await gamer.json("/api/dashboard")).authenticated, true);
-      for (const client of [admin, author, other, outsider]) {
+      for (const client of [outsider]) {
         assert.equal((await client.request("/api/dashboard")).status, 403);
         assert.equal(
           (
@@ -77,10 +77,11 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
           401,
         );
       }
-      assert.equal((await gamer.request("/manage/games")).status, 403);
+      assert.equal((await gamer.request("/manage/games")).status, 200);
+      for (const client of [admin,author,other]) assert.equal((await client.request("/api/dashboard")).status,200);
       assert.equal((await outsider.request("/manage/games")).status, 403);
       assert.equal((await guest.request("/manage/games")).status, 401);
-      assert.equal((await author.json("/manage/games")).length, 1);
+      assert.equal((await author.json("/manage/games")).length, 2);
       assert.equal(
         await runtime.db
           .prepare("SELECT * FROM music_accounts WHERE id='900004'")
@@ -94,11 +95,11 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
     /** @brief 別作品のIDと同一Cookieでの越権を拒否する */ async () => {
       assert.equal(
         (await author.request(`/manage/games/${foreign.id}`)).status,
-        403,
+        200,
       );
       assert.equal(
         (await author.request(`/manage/tracks/${foreign.tracks[0].id}`)).status,
-        403,
+        200,
       );
       assert.equal((await author.request("/admin/settings")).status, 403);
       assert.equal(
@@ -195,7 +196,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
       const audio = await author.upload(game.id, "audio", toneWav(9));
       assert.equal((await media(audio.id)).status, 404);
       assert.equal((await guest.request(`/assets/${audio.id}`)).status, 401);
-      assert.equal((await other.request(`/assets/${audio.id}`)).status, 403);
+      assert.equal((await other.request(`/assets/${audio.id}`)).status, 200);
       assert.equal((await author.request(`/assets/${audio.id}`)).status, 200);
       for (const url of [
         `/private/assets/${audio.id}.bin`,
@@ -245,7 +246,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
         },
       });
       assert.equal(
-        (await other.request(`/uploads/${start.id}`, { method: "PUT", bytes }))
+        (await outsider.request(`/uploads/${start.id}`, { method: "PUT", bytes }))
           .status,
         403,
       );
@@ -392,7 +393,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
       );
       assert.equal(
         (
-          await other.request(`/publications/${pending.id}/retry`, {
+          await outsider.request(`/publications/${pending.id}/retry`, {
             method: "POST",
             body: {},
           })
@@ -400,7 +401,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
         403,
       );
       await runtime.php.fault("");
-      await author.json(`/publications/${pending.id}/retry`, {
+      await other.json(`/publications/${pending.id}/retry`, {
         method: "POST",
         body: {},
       });
@@ -450,7 +451,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
         assert.equal((await media(original.imageAssetId, options)).status, 404);
       }
       await runtime.php.fault("");
-      await author.json(`/publications/${pending.id}/retry`, {
+      await other.json(`/publications/${pending.id}/retry`, {
         method: "POST",
         body: {},
       });
@@ -458,7 +459,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
         (await author.json(`/manage/tracks/${track.id}`)).track.published,
         null,
       );
-      await author.json(`/publications/${pending.id}/retry`, {
+      await other.json(`/publications/${pending.id}/retry`, {
         method: "POST",
         body: {},
       });
@@ -474,9 +475,9 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   await t.test(
     "membership revocation takes effect with the existing cookie",
     /** @brief Cookieを作り直さず次のAPIを拒否する */ async () => {
-      await admin.json(`/admin/games/${game.id}/members/900002`, {
-        method: "PUT",
-        body: { enabled: false },
+      await admin.json("/api/members", {
+        method: "POST",
+        body: { action: "set_role", githubUserId: "900002", role: "user" },
       });
       assert.equal(
         (await author.request(`/manage/games/${game.id}`)).status,
@@ -486,9 +487,9 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
         (await author.request(`/assets/${original.audioAssetId}`)).status,
         403,
       );
-      await admin.json(`/admin/games/${game.id}/members/900002`, {
-        method: "PUT",
-        body: { enabled: true },
+      await admin.json("/api/members", {
+        method: "POST",
+        body: { action: "set_role", githubUserId: "900002", role: "assistant" },
       });
     },
   );

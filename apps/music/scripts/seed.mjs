@@ -48,10 +48,6 @@ export async function seed(runtime) {
         body: { publish: true, version: game.version },
       });
     }
-    await client.json(
-      `/admin/games/${game.id}/members/${index === 0 ? "900002" : "900003"}`,
-      { method: "PUT", body: { enabled: true } },
-    );
     for (let song = 0; song < 3; song++) {
       const title = `DEMO ${index + 1}-${song + 1} / ${["はじまりの音", "繰り返す風景", "帰り道"][song]}`;
       const tracks = (await client.json(`/manage/games/${game.id}`)).tracks;

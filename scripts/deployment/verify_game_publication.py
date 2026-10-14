@@ -27,7 +27,7 @@ def read_json(url: str) -> tuple[dict, bytes]:
     return json.loads(content.decode("utf-8")), content
 
 
-def verify(metadata_path: Path, public_tree: Path, base_url: str) -> str:
+def verify(metadata_path: Path, public_tree: Path, base_url: str, suspended: bool = False) -> str:
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     game_id = metadata["gameId"]
     version = metadata["version"]
@@ -48,7 +48,7 @@ def verify(metadata_path: Path, public_tree: Path, base_url: str) -> str:
         validate_contract(catalog, "catalog.schema.json")
         entry = next((item for item in catalog["games"] if item["gameId"] == game_id), None)
         expected_latest_url = f"{base_url.rstrip('/')}/{latest_relative}"
-        if not entry or entry["latestReleaseUrl"] != expected_latest_url:
+        if (entry is not None if suspended else not entry or entry["latestReleaseUrl"] != expected_latest_url):
             raise ValueError(f"published catalog is invalid: {locale}")
     return hashlib.sha256(canonical_json(remote_manifest)).hexdigest()
 
@@ -59,8 +59,10 @@ def main() -> int:
     parser.add_argument("--public-tree", type=Path, required=True)
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--digest-output", type=Path, required=True)
+    parser.add_argument("--snapshot", type=Path)
     arguments = parser.parse_args()
-    digest = verify(arguments.metadata, arguments.public_tree, arguments.base_url)
+    snapshot = json.loads(arguments.snapshot.read_text(encoding="utf-8")) if arguments.snapshot else {}
+    digest = verify(arguments.metadata, arguments.public_tree, arguments.base_url, snapshot.get("recovery", {}).get("mode") == "suspend")
     arguments.digest_output.write_text(digest + "\n", encoding="ascii")
     return 0
 

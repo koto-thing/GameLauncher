@@ -1,3 +1,4 @@
+import { GET as membersGet, POST as membersPost } from "../../../admin-web/app/api/members/route";
 import { musicApi } from "../../../admin-web/music/presentation/api";
 import { GET as login } from "../../../admin-web/app/api/auth/dev/route";
 import { GET as dashboard } from "../../../admin-web/app/api/dashboard/route";
@@ -36,6 +37,7 @@ export default {
         ),
       );
     }
+    if (path === "/api/members") return request.method === "GET" ? membersGet(request) : membersPost(request);
     if (path.startsWith("/api/music/")) return musicApi(request);
     if (path === "/api/auth/dev") return login(request);
     if (path === "/api/auth/services") return services(request);

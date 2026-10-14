@@ -1,8 +1,9 @@
 import type { ActionsIdentity } from "@/lib/actions-identity";
 export { requireActionsIdentity, type ActionsIdentity } from "@/lib/actions-identity";
 import { ensureSchema, getD1 } from "@/db/initialize";
-import { auditRecord, canPublishWithoutApproval } from "@/lib/control-plane";
+import { auditRecord } from "@/lib/control-plane";
 import { issueArtifactDownloadUrl } from "@/lib/intake";
+import { currentRole, permits } from "@/lib/roles";
 import type { SessionUser } from "@/lib/auth";
 
 type Row = Record<string, unknown>;
@@ -20,6 +21,7 @@ function actionsActor(identity: ActionsIdentity): SessionUser {
     githubUserId: text(identity.claims.actor_id),
     login: text(identity.claims.actor),
     avatarUrl: "",
+    role: "user",
     isAdmin: false,
     gameAccess: true,
     authenticatedAt: new Date().toISOString(),
@@ -46,53 +48,35 @@ export async function preflightRequest(
   if (!row || text(row.attempt_request_id) !== input.requestId) throw new Error("requestまたはattemptが見つかりません");
   if (row.environment !== identity.deploymentEnvironment ||
       !["dispatched", "running"].includes(text(row.state)) ||
-      row.artifact_status !== "sealed" || row.attempt_result !== "queued") {
+      row.artifact_status !== "sealed" || text(row.artifact_sha256) !== text(row.claimed_sha256) || row.attempt_result !== "queued") {
     throw new Error("requestはこのworkflowで実行可能な状態ではありません");
   }
   if (row.github_run_id && text(row.github_run_id) !== identity.runId) {
     throw new Error("attemptは別のGitHub runへ固定されています");
   }
+  const recovery = await db.prepare("SELECT mode,manifest_sha256 AS manifestSha256 FROM publication_recoveries WHERE request_id=?").bind(input.requestId).first<{ mode: string; manifestSha256: string }>();
   if (identity.deploymentEnvironment === "production") {
-    const source = await db.prepare(`SELECT request_id, artifact_id, artifact_sha256, state,
+    const source = await db.prepare(`SELECT request_id, environment, artifact_id, artifact_sha256, state,
       production_eligible_until FROM deployment_requests WHERE request_id = ?`)
       .bind(text(row.source_staging_request_id)).first<Row>();
-    if (!source || source.state !== "succeeded" ||
+    if (!source || source.environment !== "staging" || source.state !== "succeeded" ||
         text(source.artifact_id) !== text(row.artifact_id) ||
         text(source.artifact_sha256) !== text(row.artifact_sha256) ||
-        Date.parse(text(source.production_eligible_until)) <= Date.now()) {
+        (!Number.isFinite(Date.parse(text(source.production_eligible_until)))) ||
+        (!recovery && Date.parse(text(source.production_eligible_until)) <= Date.now())) {
       throw new Error("有効なstaging成功記録を確認できません");
     }
   }
 
-  // 今回の実行を開始したAdminの監査記録と現在の権限を確認する
-  const adminDispatch = await db.prepare(`SELECT 1 AS allowed FROM audit_events a
-    JOIN users u ON u.github_user_id = a.actor_github_user_id AND u.is_admin = 1
-    WHERE a.request_id = ? AND a.event_type = 'workflow_dispatch_requested'
-      AND json_extract(a.payload_json, '$.attemptId') = ?
-      AND json_extract(a.payload_json, '$.authority') = 'admin' LIMIT 1`)
-    .bind(input.requestId, input.attemptId).first<{ allowed: number }>();
-
-  // Adminによる実行、または実行時点の申請者権限に基づいて認可する
-  if (!adminDispatch && number(row.requester_is_admin) !== 1) {
-    const requiredGrant = identity.deploymentEnvironment === "production" ? "production_requester" : "requester";
-    const requesterGrant = await db.prepare(`SELECT 1 AS allowed FROM policy_grants
-      WHERE github_user_id = ? AND grant_type = ? AND revoked_at IS NULL`)
-      .bind(text(row.requester_github_user_id), requiredGrant).first<{ allowed: number }>();
-    if (!requesterGrant) throw new Error(`${requiredGrant} grantが現在有効ではありません`);
+  // OIDCの検証に加え、実際にこの試行を開始した運営本人の現在の権限を確認する
+  const dispatch = await db.prepare(`SELECT actor_github_user_id FROM audit_events
+    WHERE request_id=? AND event_type='workflow_dispatch_requested'
+      AND json_extract(payload_json,'$.attemptId')=? LIMIT 1`)
+    .bind(input.requestId,input.attemptId).first<{ actor_github_user_id: string }>();
+  if (!dispatch || !permits(await currentRole(dispatch.actor_github_user_id), "operate")) {
+    throw new Error("実行者の運営権限が現在有効ではありません");
   }
 
-  if (!adminDispatch && !await canPublishWithoutApproval(text(row.requester_github_user_id), number(row.requester_is_admin) === 1)) {
-    const approval = await db.prepare(`SELECT 1 AS allowed
-      FROM approval_decisions d
-      JOIN request_approvers ra ON ra.request_id = d.request_id
-        AND ra.approver_github_user_id = d.approver_github_user_id
-      JOIN policy_grants g ON g.github_user_id = d.approver_github_user_id
-        AND g.grant_type = 'approver' AND g.revoked_at IS NULL
-      WHERE d.request_id = ? AND d.decision = 'approved'
-        AND d.approver_github_user_id != ? LIMIT 1`)
-      .bind(input.requestId, text(row.requester_github_user_id)).first<{ allowed: number }>();
-    if (!approval) throw new Error("有効な指名承認を確認できません");
-  }
   const timestamp = new Date().toISOString();
   const audit = await auditRecord(input.requestId, "actions_preflight_passed", actionsActor(identity), {
     attemptId: input.attemptId,
@@ -123,6 +107,7 @@ export async function preflightRequest(
       downloadUrl: await issueArtifactDownloadUrl(text(row.artifact_id)),
     },
     metadata: JSON.parse(text(row.metadata_json)),
+    ...(recovery ? { recovery } : {}),
   };
 }
 

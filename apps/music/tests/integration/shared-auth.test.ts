@@ -31,6 +31,7 @@ test("shared GitHub identity, strict game authorization, PKCE and cookie boundar
   });
   t.after(/** @brief 所有する隔離環境を停止する */ () => runtime.dispose());
   const url = runtime.origin;
+  await runtime.db.prepare("UPDATE platform_roles SET role='user' WHERE github_user_id='900002'").run();
   /** @brief 同じWorkerへ認証APIを送る @param path API @param cookie Cookie @returns 応答 */
   const get = (path: string, cookie = "") =>
     runtime.dispatchFetch(url + path, {
@@ -46,14 +47,7 @@ test("shared GitHub identity, strict game authorization, PKCE and cookie boundar
   for (permission of ["read", "triage"])
     assert.equal((await get("/__test/identity?game")).status, 403);
   for (permission of ["write", "maintain", "admin"])
-    assert.equal(
-      (
-        (await (await get("/__test/identity?game")).json()) as {
-          gameAccess: boolean;
-        }
-      ).gameAccess,
-      true,
-    );
+    assert.equal((await get("/__test/identity?game")).status,403);
   permission = "read";
   userId = 1001;
   assert.equal(
@@ -112,7 +106,7 @@ test("shared GitHub identity, strict game authorization, PKCE and cookie boundar
     await (
       await fixtureClient(runtime, "music-admin")
     ).json("/api/auth/services"),
-    { game: false, music: true },
+    { game: true, music: true },
   );
   assert.equal(
     (
