@@ -6,7 +6,7 @@ test("executive invitation grants assistant access only after recipient accepts"
   await page.goto(`${origin}/api/auth/dev?as=outsider`);
   await page.goto(`${origin}/members`);
   await expect(page.getByText("あなたの役割", { exact: true })).toBeVisible();
-  await expect(page.getByText("一般利用者", { exact: true })).toBeVisible();
+  await expect(page.locator(".members-current-role").getByText("一般利用者", { exact: true })).toBeVisible();
   const reviewer = await browser.newPage();
   try {
     await reviewer.goto(`${origin}/api/auth/dev?as=maintainer`);
@@ -18,7 +18,7 @@ test("executive invitation grants assistant access only after recipient accepts"
     await expect(reviewer.getByRole("status").filter({ hasText: "招待を作成しました" })).toBeVisible();
     await page.reload();
     await page.getByRole("button",{name:"招待を受諾",exact:true}).first().click();
-    await expect(page.getByText("幹部補佐", { exact: true })).toBeVisible();
+    await expect(page.locator(".members-current-role").getByText("幹部補佐", { exact: true })).toBeVisible();
     await expect(page.getByRole("button",{name:"招待を作成",exact:true})).toHaveCount(0);
     await page.goto(`${origin}/music`);
     await expect(page.getByRole("link").filter({hasText:"DEMO 2 / 夜の航路"})).toBeVisible();
