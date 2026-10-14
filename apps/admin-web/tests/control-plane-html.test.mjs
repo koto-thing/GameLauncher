@@ -44,6 +44,17 @@ test("server-renders game management at its dedicated route", async () => {
   assert.match(html, /href="\/intake"/);
 });
 
+// メンバー画面は認証結果が届く前にログイン要求や管理操作を表示しない
+test("members page starts with an accessible loading state and no privileged controls", async () => {
+  const response = await render("/members");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /運営メンバー/);
+  assert.match(html, /role="status"/);
+  assert.match(html, /メンバー情報を読み込み中/);
+  assert.doesNotMatch(html, /href="\/api\/auth\/github\/start"|<form\b|<select\b/);
+});
+
 // 統計画面をログイン前に開いても集計や読み取り資格を公開しない
 test("analytics page and API enforce authentication in the built Worker", async () => {
   const page = await render("/analytics");
