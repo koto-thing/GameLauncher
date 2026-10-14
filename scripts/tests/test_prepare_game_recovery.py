@@ -61,6 +61,18 @@ class RecoveryTests(unittest.TestCase):
         catalog = json.loads((self.output / "v1/catalog/ja-JP/windows/x86_64.json").read_text())
         self.assertEqual(catalog["games"], [])
 
+    def test_recovery_does_not_change_other_platform_catalogues(self):
+        """The existing Windows x86_64 workflow leaves Linux/macOS pointers untouched."""
+        paths = [self.output / "v1/catalog/ja-JP/linux/x86_64.json", self.output / "v1/catalog/ja-JP/macos/arm64.json"]
+        for path in paths:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"other platform fixture")
+        for mode in ("rollback", "suspend", "resume"):
+            with patch("scripts.deployment.prepare_game_recovery.read_json", return_value=(self.manifest, b"")):
+                prepare({"recovery": {"mode": mode, "manifestSha256": self.digest}}, self.metadata, self.output, self.base)
+            for path in paths:
+                self.assertEqual(path.read_bytes(), b"other platform fixture")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -31,6 +31,23 @@ for (const mode of ["rollback", "suspend", "resume"]) {
   });
 }
 
+test("recovery refuses another active publication of the same game without changing the successful request", async (t) => {
+  const f = await fixture(t);
+  const source = await f.control.createRequest(f.actor,f.input);
+  f.sql.prepare("UPDATE deployment_requests SET state='succeeded',production_eligible_until=? WHERE request_id=?").run(new Date(Date.now()+86400000).toISOString(),source.requestId);
+  const production = await f.control.createProductionRequest(f.actor,{sourceStagingRequestId:source.requestId});
+  f.sql.prepare("UPDATE deployment_requests SET state='succeeded' WHERE request_id=?").run(production.requestId);
+  await (await f.control.auditRecord(production.requestId,"execution_finished",f.actor,{result:"succeeded",manifestSha256:"d".repeat(64)})).run();
+  f.sql.prepare("UPDATE deployment_requests SET version='2.0.0' WHERE request_id=?").run(source.requestId);
+  const competing = await f.control.createProductionRequest(f.actor,{sourceStagingRequestId:source.requestId});
+  for (const state of ["dispatched","running","publishing_pointers","verifying"]) {
+    f.sql.prepare("UPDATE deployment_requests SET state=? WHERE request_id=?").run(state,competing.requestId);
+    await assert.rejects(f.control.recoverPublication(f.actor,{requestId:production.requestId,mode:"rollback",reason:"Restore verified version during incident"}),e=>e.status===409);
+    assert.equal(f.state(production.requestId),"succeeded");
+    assert.equal(f.sql.prepare("SELECT COUNT(*) AS n FROM publication_recoveries").get().n,0);
+  }
+});
+
 for (const role of ["user", "assistant", "executive"]) {
   test(`${role} cannot change roles or perform dangerous operations`, async (t) => {
     const f = await fixture(t, { role });

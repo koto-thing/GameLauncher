@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { placeholderPng } from "../support/fixtures.mjs";
 import type { PublicGame } from "../../src/domain/models";
 
-test("admin assigns a registered account and author previews and publishes a game background", /** @brief 管理者の権限付与から担当者の背景公開までを実UIと匿名APIで確認する */ async ({
+test("assistant previews and publishes another operator's game background without per-game assignment", /** @brief 補佐が他の運営メンバーの作品を編集・公開できることを実UIと匿名APIで確認する */ async ({
   page,
   browserName,
 }, info) => {
@@ -17,9 +17,8 @@ test("admin assigns a registered account and author previews and publishes a gam
   const title = `背景検証 ${info.project.name} ${Date.now()}`;
   await page.getByLabel("新しい作品名").fill(title);
   await page.getByRole("button", { name: "作品を作成", exact: true }).click();
-  const member = page.locator(".account-list li").filter({ has: page.getByText("music-a", { exact: true }) });
-  await member.getByRole("button", { name: "担当に割り当て", exact: true }).click();
-  await expect(member.getByRole("button")).toHaveText("担当を解除");
+  await expect(page).toHaveURL(/#\/manage\/games\/[^/]+$/);
+  await expect(page.getByRole("button", { name: "担当に割り当て", exact: true })).toHaveCount(0);
   const id = page.url().split("/").at(-1)!;
   await page.goto("http://127.0.0.1:8788/music#/manage");
   await page.getByRole("button", { name: "ログアウト", exact: true }).click();
