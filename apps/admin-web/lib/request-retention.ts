@@ -19,3 +19,15 @@ export async function pruneRequestHistory(db: D1Database, timestamp: number): Pr
     `DELETE FROM ${table} WHERE request_id IN (${expiredRequests})`,
   ).bind(cutoff, cutoff, cutoff)));
 }
+
+// 未承認の保存期限でCronから削除せず、dry-runも候補100件までに制限する
+export async function scheduledRequestRetention(db: D1Database, timestamp: number, mode?: string) {
+  if (mode !== "dry-run") return { mode: "disabled" };
+
+  const cutoff = new Date(timestamp - 365 * 86400000).toISOString();
+  const sample = expiredRequests.replace("FROM deployment_requests r", "FROM (SELECT * FROM deployment_requests WHERE created_at < ? ORDER BY created_at LIMIT 100) r");
+  const result = await db.prepare(`SELECT COUNT(*) AS count FROM (${sample})`)
+    .bind(cutoff, cutoff, cutoff, cutoff).first<{ count: number }>();
+
+  return { mode: "dry-run", cutoff, candidateRequestsInSample: result?.count ?? 0, sampleLimit: 100 };
+}

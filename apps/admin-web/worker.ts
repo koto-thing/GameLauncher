@@ -1,11 +1,12 @@
 import handler from "vinext/server/fetch-handler";
-import { pruneRequestHistory } from "./lib/request-retention";
+import { scheduledRequestRetention } from "./lib/request-retention";
 
 export default {
   ...handler,
 
-  // 毎日のCron実行で保存期限を過ぎた申請履歴を削除する
+  // 保存期間の承認前は無効、明示したdry-runでもデータを変更しない
   async scheduled(controller: { scheduledTime: number }, env: Cloudflare.Env): Promise<void> {
-    await pruneRequestHistory(env.DB, controller.scheduledTime);
+    const result = await scheduledRequestRetention(env.DB, controller.scheduledTime, env.REQUEST_RETENTION_MODE);
+    if (result.mode === "dry-run") console.info(JSON.stringify({ event: "request_retention_preview", ...result }));
   },
 };

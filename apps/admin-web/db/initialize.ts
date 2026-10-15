@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { observeD1 } from "../../../packages/observability/d1.ts";
 
 // 同一Workerインスタンス内でスキーマ初期化を一度だけ実行するPromise
 let initialized: Promise<void> | undefined;
@@ -215,7 +216,7 @@ export function getD1(): D1Database {
   if (!env.DB) {
     throw new Error("D1 binding DB is unavailable");
   }
-  return env.DB;
+  return observeD1(env.DB, "deployment-control-plane", env.D1_METRICS_ENABLED === "true");
 }
 
 /** D1のテーブル・インデックスを作成し、初期化完了を共有する */

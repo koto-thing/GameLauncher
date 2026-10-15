@@ -1,5 +1,5 @@
-import { readAnalytics } from "./analytics.ts";
-import { archiveDetails, deleteInstallation, saveBatch } from "./storage.ts";
+import { cachedAnalytics, invalidateReports } from "./report-cache.ts";
+import { scheduledRetention, deleteInstallation, saveBatch } from "./storage.ts";
 import type { AnalyticsEnv } from "./types.ts";
 import { validateBatch } from "./validation.ts";
 
@@ -72,12 +72,16 @@ export async function handleRequest(request: Request, env: AnalyticsEnv, now = D
         return json({ error: "unauthorized" }, 401);
       }
 
-      return json(await readAnalytics(env, url, now));
+      if (env.ANALYTICS_READS_ENABLED === "false") return json({ error: "analytics paused" }, 503);
+
+      return json(await cachedAnalytics(env, url, now));
     }
 
     const deletionMatch = /^\/v1\/installations\/([a-fA-F0-9-]{36})$/.exec(url.pathname);
 
     if ((request.method === "POST" && url.pathname === "/v1/play-sessions") || (request.method === "DELETE" && deletionMatch)) {
+      if (request.method === "POST" && env.ANALYTICS_INGEST_ENABLED === "false") return json({ error: "analytics paused" }, 503);
+
       if (!env.INGEST_RATE_LIMITER || !(await env.INGEST_RATE_LIMITER.limit({ key: request.headers.get("CF-Connecting-IP") ?? "local" })).success) {
         return json({ error: "rate limited" }, 429);
       }
@@ -90,6 +94,7 @@ export async function handleRequest(request: Request, env: AnalyticsEnv, now = D
         }
 
         await deleteInstallation(env, deletionMatch[1].toLowerCase(), token, now);
+        invalidateReports(env.ANALYTICS_DB);
 
         return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
       }
@@ -122,8 +127,10 @@ export default {
     return handleRequest(request, env);
   },
 
-  // Rotate detailed sessions into anonymous aggregates every Japanese calendar day
+  // Require explicit retention approval before any scheduled database access
   async scheduled(controller: ScheduledController, env: AnalyticsEnv, context: ExecutionContext): Promise<void> {
-    context.waitUntil(archiveDetails(env, controller.scheduledTime));
+    context.waitUntil(scheduledRetention(env, controller.scheduledTime).then((result) => {
+      if (result.mode === "dry-run") console.info(JSON.stringify({ event: "analytics_retention_preview", ...result }));
+    }));
   },
 };

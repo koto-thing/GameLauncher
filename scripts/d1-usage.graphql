@@ -1,0 +1,13 @@
+# Read-only Cloudflare metrics query; no D1 SQL, notifications or scheduler
+# Use a single UTC date for both start and end; account scope includes every DB
+query D1Usage($accountTag: string!, $start: Date!, $end: Date!) {
+  viewer {
+    accounts(filter: { accountTag: $accountTag }) {
+      d1AnalyticsAdaptiveGroups(limit: 10000, filter: { date_geq: $start, date_leq: $end }) {
+        dimensions { databaseId date }
+        sum { rowsRead rowsWritten readQueries writeQueries }
+        quantiles { queryBatchTimeMsP90 }
+      }
+    }
+  }
+}
