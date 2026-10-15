@@ -109,6 +109,7 @@ try {
   const fixture =
     "INSERT INTO music_accounts(id,login,admin) VALUES('900001','music-admin',1),('900002','music-a',0),('900003','music-b',0) ON CONFLICT(id) DO NOTHING;" +
     "INSERT INTO users VALUES('900001','music-admin','',0,'fixture'),('900002','music-a','',0,'fixture'),('900003','music-b','',0,'fixture') ON CONFLICT DO NOTHING;" +
+    "INSERT INTO operator_admissions VALUES('900001','music-admin','fixture-900001',NULL),('900002','music-a','fixture-900002',NULL),('900003','music-b','fixture-900003',NULL) ON CONFLICT DO NOTHING;" +
     "INSERT INTO platform_roles VALUES('900001','admin','fixture','fixture'),('900002','assistant','fixture','fixture'),('900003','assistant','fixture','fixture') ON CONFLICT DO NOTHING;";
   await writeFile(path.join(local, "seed.sql"), fixture);
   await run(

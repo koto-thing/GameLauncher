@@ -294,6 +294,7 @@ export async function createRuntime({
   await runtime.dispatchFetch(`${origin}/api/auth/dev?as=admin`);
   for (const [id,login,role] of [["900001","music-admin","admin"],["900002","music-a","assistant"],["900003","music-b","assistant"]]) {
     await db.prepare("INSERT INTO users VALUES (?,?,'',0,'now') ON CONFLICT DO NOTHING").bind(id,login).run();
+    await db.prepare("INSERT INTO operator_admissions VALUES (?,?,?,NULL) ON CONFLICT DO NOTHING").bind(id,login,"fixture-"+id).run();
     await db.prepare("INSERT INTO platform_roles VALUES (?,?,'fixture','now') ON CONFLICT DO NOTHING").bind(id,role).run();
   }
   return {

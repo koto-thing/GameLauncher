@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import ts from "typescript";
+import { observeD1 } from "../../../../packages/observability/d1.ts";
 
 // 実装を外部通信だけ差し替えて読み込み、SQLiteで状態遷移を検証する
 function loadModule(path, dependencies) {
@@ -16,7 +17,7 @@ function loadModule(path, dependencies) {
 }
 
 // D1のSQLとトランザクションをメモリ内SQLiteで実行する
-export async function fixture(t, { role = "assistant" } = {}) {
+export async function fixture(t, { role = "assistant", metrics = false } = {}) {
   const sql = new DatabaseSync(":memory:");
   t.after(() => sql.close());
   const db = {
@@ -42,11 +43,15 @@ export async function fixture(t, { role = "assistant" } = {}) {
       }
     },
   };
-  const initialize = loadModule("../../db/initialize.ts", { "cloudflare:workers": { env: { DB: db } } });
+  const initialize = loadModule("../../db/initialize.ts", {
+    "cloudflare:workers": { env: { DB: db, D1_METRICS_ENABLED: String(metrics) } },
+    "../../../packages/observability/d1.ts": { observeD1 },
+  });
   await initialize.ensureSchema();
   const sent = [];
   const dispatch = { enabled: true, fail: false, run: { status: "completed", conclusion: "cancelled", run_attempt: 1 } };
   const policy = loadModule("../../lib/role-policy.ts", {});
+  const access = loadModule("../../lib/operator-access.ts", { "@/db/initialize": initialize });
   const roles = loadModule("../../lib/roles.ts", { "@/db/initialize": initialize, "@/lib/role-policy": policy });
   const control = loadModule("../../lib/control-plane.ts", {
     "@/db/initialize": initialize,
@@ -68,15 +73,18 @@ export async function fixture(t, { role = "assistant" } = {}) {
     "@/lib/actions-identity": {},
     "@/lib/roles": roles,
   });
-  const actor = { githubUserId: "1", login: "operator", role, isAdmin: role === "admin", gameAccess: role !== "user", authenticatedAt: new Date().toISOString(), authSource: "github" };
+  const actor = { githubUserId: "1", login: "operator", role, isAdmin: role === "admin", gameAccess: role !== "user", admissionVersion: "fixture-1", avatarUrl:"", authenticatedAt: new Date().toISOString(), authSource: "github" };
   sql.prepare("INSERT INTO users VALUES ('1','operator','',?,?)").run(Number(role === "admin"), new Date().toISOString());
   sql.prepare("INSERT INTO platform_roles VALUES ('1',?,'1','now')").run(role);
+  sql.prepare("INSERT INTO operator_admissions VALUES ('1','operator','fixture-1',NULL)").run();
+  sql.exec("CREATE TABLE music_accounts(id TEXT PRIMARY KEY,login TEXT NOT NULL,admin INTEGER NOT NULL DEFAULT 0)");
   const env = { DB: db, SESSION_SECRET: "test-session-secret-with-32-characters" };
-  const auth = loadModule("../../lib/auth.ts", { "cloudflare:workers": { env }, "@/db/initialize": initialize, "@/lib/roles": roles });
-  const members = loadModule("../../lib/members.ts", { "@/db/initialize": initialize, "@/lib/roles": roles });
+  const auth = loadModule("../../lib/auth.ts", { "cloudflare:workers": { env }, "@/db/initialize": initialize, "@/lib/roles": roles, "@/lib/operator-access": access });
+  const members = loadModule("../../lib/members.ts", { "@/db/initialize": initialize, "@/lib/roles": roles, "@/lib/operator-access": access });
   const security = loadModule("../../lib/request-security.ts", {});
-  const memberApi = loadModule("../../app/api/members/route.ts", { "@/lib/auth": auth, "@/lib/members": members, "@/lib/roles": roles, "@/lib/request-security": security });
-  const controlApi = loadModule("../../app/api/control/route.ts", { "@/lib/auth": auth, "@/lib/control-plane": control, "@/lib/roles": roles, "@/lib/request-security": security });
+  const memberApi = loadModule("../../app/api/members/route.ts", { "@/lib/auth": auth, "@/lib/members": members, "@/lib/roles": roles, "@/lib/request-security": security, "@/lib/operator-access": access });
+  const controlApi = loadModule("../../app/api/control/route.ts", { "@/lib/auth": auth, "@/lib/control-plane": control, "@/lib/roles": roles, "@/lib/request-security": security, "@/lib/operator-access": access });
+  const invitationApi = loadModule("../../app/api/invitations/route.ts", {"@/lib/auth":auth,"@/lib/members":members,"@/lib/roles":roles,"@/lib/request-security":security,"@/lib/operator-access":access});
   const call = async (api, payload, user = actor) => {
     const cookie = user ? await auth.createSessionCookie(user, new Request("https://admin.test")) : "";
     return api.POST(new Request("https://admin.test/api/control", { method: "POST", headers: { "Content-Type": "application/json", origin: "https://admin.test", cookie: cookie.split(";")[0] }, body: JSON.stringify(payload) }));
@@ -90,5 +98,5 @@ export async function fixture(t, { role = "assistant" } = {}) {
     const attempt = sql.prepare("SELECT attempt_id,github_run_id FROM execution_attempts WHERE request_id=? ORDER BY attempt_number DESC LIMIT 1").get(id);
     return actions.preflightRequest({ deploymentEnvironment: environment, runId: attempt.github_run_id || crypto.randomUUID(), runAttempt: 1, workflowSha: "b".repeat(40), claims: { actor_id: "1", actor: "maintainer" } }, { requestId: id, attemptId: attempt.attempt_id });
   };
-  return { sql, db, roles, auth, members, memberApi, controlApi, call, control, actor, input, dispatch, sent, state, preflight };
+  return { sql, db, access, invitationApi, roles, auth, members, memberApi, controlApi, call, control, actor, input, dispatch, sent, state, preflight };
 }

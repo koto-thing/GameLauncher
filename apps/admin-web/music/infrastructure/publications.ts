@@ -58,7 +58,7 @@ export class D1Publications implements PublicationRepository {
     try {
       result = await this.db
         .prepare(
-          `INSERT INTO music_publications(id,scope,state,expected_revision,payload,digest,mutation,actor,created_at) SELECT ?,?,'prepared',COALESCE((SELECT revision FROM music_delivery WHERE scope=?),0),?,?,?,?,? WHERE EXISTS(SELECT 1 FROM platform_roles a WHERE a.github_user_id=? AND ${permission}) AND ${condition}`,
+          `INSERT INTO music_publications(id,scope,state,expected_revision,payload,digest,mutation,actor,created_at) SELECT ?,?,'prepared',COALESCE((SELECT revision FROM music_delivery WHERE scope=?),0),?,?,?,?,? WHERE EXISTS(SELECT 1 FROM active_platform_roles a WHERE a.github_user_id=? AND ${permission}) AND ${condition}`,
         )
         .bind(...args)
         .run();
@@ -89,7 +89,7 @@ export class D1Publications implements PublicationRepository {
     return (
       await this.db
         .prepare(
-          `SELECT * FROM music_publications p WHERE EXISTS(SELECT 1 FROM platform_roles a WHERE a.github_user_id=? AND a.role IN ('admin','executive','assistant')) ORDER BY created_at DESC LIMIT 100`,
+          `SELECT * FROM music_publications p WHERE EXISTS(SELECT 1 FROM active_platform_roles a WHERE a.github_user_id=? AND a.role IN ('admin','executive','assistant')) ORDER BY created_at DESC LIMIT 100`,
         )
         .bind(actor.id)
         .all<PublicationOperation>()

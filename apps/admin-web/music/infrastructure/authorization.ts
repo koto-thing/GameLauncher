@@ -11,7 +11,7 @@ export async function musicPrincipal(
   if (!user) return null;
   void db;
   const role = await currentRole(user.githubUserId);
-  if (!permits(role, "operate")) return null;
+  if (!role || !permits(role, "operate")) return null;
   return { id: user.githubUserId, login: user.login, admin: role === "admin", role, gameIds: [] };
 
 }

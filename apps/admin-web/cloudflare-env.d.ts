@@ -1,4 +1,11 @@
 // 管理アプリがCloudflare Worker/D1/R2の型を共有するための実行環境宣言
+declare namespace Cloudflare {
+  interface Env {
+    REQUEST_RETENTION_MODE?: string;
+    D1_METRICS_ENABLED?: string;
+  }
+}
+
 interface D1Result<T = unknown> {
   success: boolean;
   results: T[];

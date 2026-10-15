@@ -21,7 +21,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
   );
   await seed(runtime);
   const admin = await fixtureClient(runtime);
-  const author = await fixtureClient(runtime, "music-a");
+  let author = await fixtureClient(runtime, "music-a");
   const other = await fixtureClient(runtime, "music-b");
   const outsider = await fixtureClient(runtime, "outsider");
   const gamer = await fixtureClient(runtime, "maintainer");
@@ -48,7 +48,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
     /** @brief ゲームデータとゲーム書込をMusic Cookieで読めない */ async () => {
       assert.equal((await gamer.json("/api/dashboard")).authenticated, true);
       for (const client of [outsider]) {
-        assert.equal((await client.request("/api/dashboard")).status, 403);
+        assert.equal((await client.json("/api/dashboard")).authenticated, false);
         assert.equal(
           (
             await client.request("/api/control", {
@@ -56,7 +56,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
               body: { action: "dispatch_request", requestId: "anything" },
             })
           ).status,
-          403,
+          401,
         );
         assert.equal(
           (
@@ -65,7 +65,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
               body: {},
             })
           ).status,
-          403,
+          401,
         );
         assert.equal(
           (
@@ -79,7 +79,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
       }
       assert.equal((await gamer.request("/manage/games")).status, 200);
       for (const client of [admin,author,other]) assert.equal((await client.request("/api/dashboard")).status,200);
-      assert.equal((await outsider.request("/manage/games")).status, 403);
+      assert.equal((await outsider.request("/manage/games")).status, 401);
       assert.equal((await guest.request("/manage/games")).status, 401);
       assert.equal((await author.json("/manage/games")).length, 2);
       assert.equal(
@@ -248,7 +248,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
       assert.equal(
         (await outsider.request(`/uploads/${start.id}`, { method: "PUT", bytes }))
           .status,
-        403,
+        401,
       );
       assert.equal(
         (
@@ -398,7 +398,7 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
             body: {},
           })
         ).status,
-        403,
+        401,
       );
       await runtime.php.fault("");
       await other.json(`/publications/${pending.id}/retry`, {
@@ -477,20 +477,20 @@ test("control-plane D1 + actual PHP publication, permissions and recovery", /** 
     /** @brief Cookieを作り直さず次のAPIを拒否する */ async () => {
       await admin.json("/api/members", {
         method: "POST",
-        body: { action: "set_role", githubUserId: "900002", role: "user" },
+        body: { action: "set_role", githubUserId: "900002", role: null },
       });
       assert.equal(
         (await author.request(`/manage/games/${game.id}`)).status,
-        403,
+        401,
       );
       assert.equal(
         (await author.request(`/assets/${original.audioAssetId}`)).status,
-        403,
+        401,
       );
-      await admin.json("/api/members", {
-        method: "POST",
-        body: { action: "set_role", githubUserId: "900002", role: "assistant" },
-      });
+      // 後続の独立したMusic検証用fixtureを復元し、新しいCookieを取得する
+      await runtime.db.prepare("UPDATE platform_roles SET role='assistant' WHERE github_user_id='900002'").run();
+      await runtime.db.prepare("UPDATE operator_admissions SET revoked_at=NULL,version='restored' WHERE github_user_id='900002'").run();
+      author = await fixtureClient(runtime,"music-a");
     },
   );
   await t.test(

@@ -2,6 +2,7 @@ import {
   githubFlowVerifier,
   githubCallback,
   clearStateCookie,
+  clearSessionCookie,
   createSessionCookie,
   githubClientConfig,
   type SessionUser,
@@ -51,9 +52,9 @@ export async function GET(request: Request) {
     }
 
     // 取得したアクセストークンを使って、GitHub API を通じてログインしたユーザー情報を取得し、検証
-    const actor: SessionUser = await verifyGithubIdentity(tokenPayload.access_token);
+    const actor: SessionUser = await verifyGithubIdentity(tokenPayload.access_token, true);
     // 権限に応じて遷移先を切り替える
-    const headers = new Headers({ location: actor.gameAccess ? "/" : "/music" });
+    const headers = new Headers({ location: actor.invitationId ? "/invitations" : "/" });
 
     // set-cookie でログインセッションCookieを発行
     headers.append("set-cookie", await createSessionCookie(actor, request));
@@ -66,6 +67,12 @@ export async function GET(request: Request) {
       headers,
     });
   } catch (error) {
+    if (error instanceof Response) {
+      error.headers.append("set-cookie", clearStateCookie(request));
+      error.headers.append("set-cookie", clearSessionCookie(request));
+      error.headers.set("Cache-Control", "no-store");
+      return error;
+    }
     // GitHub との通信などに失敗した場合、Cookieを削除して HTTP 502を返す
     const message = error instanceof Error ? error.message : "GitHubログインに失敗しました";
     return Response.json(

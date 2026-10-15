@@ -5,7 +5,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-08",
   "workers_dev": true,
-  "vars": { "ALLOWED_GAME_IDS": "beattery,fishing-rule,pixel-pile,plan-chaotic-developers,precursor,slime-hero,space-yakuza,space-yakuza-gaiden,sweet-step,tacti-tank", "PLAY_ENVIRONMENT": "staging" },
+  "vars": { "ALLOWED_GAME_IDS": "beattery,fishing-rule,pixel-pile,plan-chaotic-developers,precursor,slime-hero,space-yakuza,space-yakuza-gaiden,sweet-step,tacti-tank", "PLAY_ENVIRONMENT": "staging", "ANALYTICS_READS_ENABLED": "true", "ANALYTICS_INGEST_ENABLED": "true", "ANALYTICS_RETENTION_MODE": "active", "D1_METRICS_ENABLED": "false" },
   "d1_databases": [
     {
       "binding": "ANALYTICS_DB",
@@ -22,7 +22,7 @@
   "env": {
     "production": {
       "name": "pandd-platform-api",
-      "vars": { "ALLOWED_GAME_IDS": "beattery,fishing-rule,pixel-pile,plan-chaotic-developers,precursor,slime-hero,space-yakuza,space-yakuza-gaiden,sweet-step,tacti-tank", "PLAY_ENVIRONMENT": "production" },
+      "vars": { "ALLOWED_GAME_IDS": "beattery,fishing-rule,pixel-pile,plan-chaotic-developers,precursor,slime-hero,space-yakuza,space-yakuza-gaiden,sweet-step,tacti-tank", "PLAY_ENVIRONMENT": "production", "ANALYTICS_READS_ENABLED": "true", "ANALYTICS_INGEST_ENABLED": "true", "ANALYTICS_RETENTION_MODE": "active", "D1_METRICS_ENABLED": "false" },
       "d1_databases": [
         {
           "binding": "ANALYTICS_DB",

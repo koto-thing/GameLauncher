@@ -30,7 +30,7 @@ export class D1CommandReservations implements CommandReservations {
       .prepare(
         `INSERT INTO music_command_codes(version,code_id,track_id,created_at)
       SELECT 1,?,t.id,? FROM music_tracks t WHERE t.id=? AND EXISTS(
-        SELECT 1 FROM platform_roles WHERE github_user_id=? AND role IN ('admin','executive','assistant'))
+        SELECT 1 FROM active_platform_roles WHERE github_user_id=? AND role IN ('admin','executive','assistant'))
       ON CONFLICT DO NOTHING`,
       )
       .bind(candidate, Date.now(), trackId, actor.id)

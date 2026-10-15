@@ -3,12 +3,27 @@ import type { AnalyticsReport, AnalyticsGame as GameAnalytics, RetentionMetric }
 
 export type { AnalyticsReport, AnalyticsGame as GameAnalytics, RetentionMetric, PlayEnvironment as AnalyticsEnvironment } from "../../../services/platform-api/src/types";
 
-export type AnalyticsActor = { role?: string; isAdmin: boolean; gameAccess: boolean };
+export type AnalyticsActor = { role?: string | null; isAdmin: boolean; gameAccess: boolean };
 
 export type AnalyticsBinding = { fetch(request: Request): Promise<Response> };
 
 const DAY_MILLISECONDS = 86400000;
 const RESPONSE_HEADERS = { "cache-control": "no-store, max-age=0" };
+
+// Service Bindingや応答本文が停止しても管理画面の待機を有限にする
+export async function withAnalyticsDeadline<T>(read: (signal: AbortSignal) => Promise<T>, timeoutMs = 5000): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => { controller.abort(); reject(new Error("Analytics deadline exceeded")); }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([read(controller.signal), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** @brief 統計の表示項目に制御文字が含まれないことを確認する */
 function hasControlCharacters(value: string): boolean {
@@ -151,11 +166,13 @@ export async function analyticsResponse(request: Request, actor: AnalyticsActor 
     if (!binding || !token?.trim()) return Response.json({ error: "統計サービスが未設定です。運営側の接続設定後に利用できます" }, { status: 503, headers: RESPONSE_HEADERS });
 
     try {
-      const upstream = await binding.fetch(new Request(`https://platform.internal/v1/analytics/games?${query}`, {
-        headers: { authorization: `Bearer ${token}`, accept: "application/json" }, signal: AbortSignal.timeout(15000),
-      }));
-      if (!upstream.ok) throw new Error("Analytics upstream unavailable");
-      const report = parseAnalyticsReport(await upstream.json());
+      const report = await withAnalyticsDeadline(async (signal) => {
+        const upstream = await binding.fetch(new Request(`https://platform.internal/v1/analytics/games?${query}`, {
+          headers: { authorization: `Bearer ${token}`, accept: "application/json" }, signal,
+        }));
+        if (!upstream.ok) throw new Error("Analytics upstream unavailable");
+        return parseAnalyticsReport(await upstream.json());
+      });
       if (report.period.from !== query.get("from") || report.period.to !== query.get("to") || report.period.environment !== query.get("environment")) throw new Error("Analytics period mismatch");
       return Response.json(report, { headers: RESPONSE_HEADERS });
     } catch {

@@ -1,3 +1,4 @@
+import { GET as invitationsGet, POST as invitationsPost } from "../../../admin-web/app/api/invitations/route";
 import { GET as membersGet, POST as membersPost } from "../../../admin-web/app/api/members/route";
 import { musicApi } from "../../../admin-web/music/presentation/api";
 import { GET as login } from "../../../admin-web/app/api/auth/dev/route";
@@ -8,7 +9,6 @@ import { GET as intakeConfig } from "../../../admin-web/app/api/intake/config/ro
 import { POST as intakeUpload } from "../../../admin-web/app/api/intake/uploads/route";
 import { POST as preflight } from "../../../admin-web/app/api/actions/preflight/route";
 import { GET as services } from "../../../admin-web/app/api/auth/services/route";
-import { GET as accessList, POST as accessWrite } from "../../../admin-web/app/api/access-requests/route";
 import { GET as oauthStart } from "../../../admin-web/app/api/auth/github/start/route";
 import { GET as oauthCallback } from "../../../admin-web/app/api/auth/github/callback/route";
 import {
@@ -37,11 +37,11 @@ export default {
         ),
       );
     }
+    if (path === "/api/invitations") return request.method === "GET" ? invitationsGet(request) : invitationsPost(request);
     if (path === "/api/members") return request.method === "GET" ? membersGet(request) : membersPost(request);
     if (path.startsWith("/api/music/")) return musicApi(request);
     if (path === "/api/auth/dev") return login(request);
     if (path === "/api/auth/services") return services(request);
-    if (path === "/api/access-requests") return request.method === "GET" ? accessList(request) : accessWrite(request);
     if (path === "/api/auth/github/start") return oauthStart(request);
     if (path === "/api/auth/github/callback") return oauthCallback(request);
     if (path === "/api/dashboard") return dashboard(request);

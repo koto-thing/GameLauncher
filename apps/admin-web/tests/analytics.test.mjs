@@ -2,7 +2,22 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import ts from "typescript";
-import { analyticsCsv, analyticsQuery, analyticsResponse, defaultAnalyticsPeriod, parseAnalyticsReport } from "../lib/analytics.ts";
+import { analyticsCsv, analyticsQuery, analyticsResponse, defaultAnalyticsPeriod, parseAnalyticsReport, withAnalyticsDeadline } from "../lib/analytics.ts";
+
+// AbortSignalを無視する上流にも待機上限を適用する
+test("analytics deadline bounds an unresponsive binding and body reader", async () => {
+  let signal;
+  await assert.rejects(withAnalyticsDeadline((value) => {
+    signal = value;
+    return new Promise(() => {});
+  }, 10), /deadline/);
+  assert.equal(signal.aborted, true);
+  await assert.rejects(withAnalyticsDeadline(async () => {
+    const response = new Response(new ReadableStream({ start() {} }));
+    return response.json();
+  }, 10), /deadline/);
+  assert.equal(await withAnalyticsDeadline(async () => 42, 10), 42);
+});
 
 /** @brief APIとCSVの検証に同じ集計契約の値を用いる */
 function reportFixture() {
@@ -127,9 +142,10 @@ test("analytics route requires a signed, live admin session before calling its s
   const authSource = (await readFile(new URL("../lib/auth.ts", import.meta.url), "utf8"))
     .replace('import { env } from "cloudflare:workers";', 'const env = { SESSION_SECRET: "analytics-test-secret-with-32-characters" };')
     .replace('import { ensureSchema, getD1 } from "@/db/initialize";', "")
-    .replace('import { currentRole, permits, type Role } from "@/lib/roles";', 'const currentRole = async () => globalThis.analyticsTestRole ?? "user"; const permits = (role) => ["admin","executive","assistant"].includes(role);');
+    .replace('import { currentRole, permits, recordOperation, type Role } from "@/lib/roles";', 'const currentRole = async () => globalThis.analyticsTestRole ?? null; const permits = (role) => ["admin","executive","assistant"].includes(role);');
+  const adjustedAuthSource = authSource.replace('import { admission, normalizedLogin, pendingInvitation, verifiedIdentity } from "@/lib/operator-access";', 'const admission = async () => ({approved_login:"admin",version:"test",revoked_at:null}); const normalizedLogin = value => value.toLowerCase();');
   const compile = (source) => ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext } }).outputText;
-  const authUrl = `data:text/javascript;base64,${Buffer.from(compile(authSource)).toString("base64")}`;
+  const authUrl = `data:text/javascript;base64,${Buffer.from(compile(adjustedAuthSource)).toString("base64")}`;
   const auth = await import(authUrl);
   let calls = 0;
   globalThis.analyticsTestRuntime = { PLATFORM_API: { async fetch() { calls += 1; return Response.json(reportFixture()); } }, ANALYTICS_READ_TOKEN: "server-only-test-token" };
@@ -143,14 +159,19 @@ test("analytics route requires a signed, live admin session before calling its s
     const request = (cookie) => new Request("https://admin.example/api/analytics/games", { headers: cookie ? { cookie } : {} });
     assert.equal((await route.GET(request())).status, 401);
     assert.equal((await route.GET(request("pandd_deploy_session=forged.signature"))).status, 401);
-    const user = { githubUserId: "1", login: "admin", avatarUrl: "", isAdmin: false, gameAccess: true, authenticatedAt: new Date().toISOString(), authSource: "github" };
+    const user = { githubUserId: "1", login: "admin", admissionVersion: "test", avatarUrl: "", isAdmin: false, gameAccess: true, authenticatedAt: new Date().toISOString(), authSource: "github" };
     const forbiddenCookie = (await auth.createSessionCookie(user, request())).split(";")[0];
-    assert.equal((await route.GET(request(forbiddenCookie))).status, 403);
+    assert.equal((await route.GET(request(forbiddenCookie))).status, 401);
     assert.equal(calls, 0);
     globalThis.analyticsTestRole = "assistant";
     const adminCookie = (await auth.createSessionCookie({ ...user, isAdmin: true }, request())).split(";")[0];
     assert.equal((await route.GET(request(adminCookie))).status, 200);
     assert.equal(calls, 1);
+    // The same signed cookie cannot reuse a previous successful result after current-role revocation
+    globalThis.analyticsTestRole = "user";
+    assert.equal((await route.GET(request(adminCookie))).status, 401);
+    assert.equal(calls, 1);
+    globalThis.analyticsTestRole = "assistant";
     const stagingRequest = new Request("https://admin.example/api/analytics/games?environment=staging", { headers: { cookie: adminCookie } });
     assert.equal((await route.GET(stagingRequest)).status, 503);
     assert.equal(calls, 1);

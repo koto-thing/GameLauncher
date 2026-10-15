@@ -15,6 +15,7 @@ test("workerd supports static validation, atomic D1 snapshots, administrator rea
       ALLOWED_GAME_IDS: { type: "text", value: "test-game" },
       PLAY_ENVIRONMENT: { type: "text", value: "production" },
       ANALYTICS_READ_TOKEN: { type: "text", value: "s".repeat(64) },
+      D1_METRICS_ENABLED: { type: "text", value: "true" },
     },
   } }] });
 
@@ -26,6 +27,8 @@ test("workerd supports static validation, atomic D1 snapshots, administrator rea
     for (const statement of migration.replace(/^--.*$/gm, "").split(/;\s*(?=CREATE\s|$)/).filter((value) => value.trim())) {
       await db.prepare(statement).run();
     }
+    const indexes = await readFile(new URL("../migrations/0002_analytics_read_indexes.sql", import.meta.url), "utf8");
+    for (const statement of indexes.replace(/^--.*$/gm, "").split(";").filter((value) => value.trim())) await db.prepare(statement).run();
 
     const ended = Date.now() - 60_000;
     const start = ended - 600_000;
@@ -60,9 +63,11 @@ test("workerd supports static validation, atomic D1 snapshots, administrator rea
       assert.equal(response.status, 200, await response.text());
     }
 
-    const response = await mf.dispatchFetch(`https://analytics.test/v1/analytics/games?from=${japanDate}&to=${endDate}&environment=production`, {
+    const responses = await Promise.all(Array.from({ length: 10 }, () => mf.dispatchFetch(`https://analytics.test/v1/analytics/games?from=${japanDate}&to=${endDate}&environment=production`, {
       headers: { Authorization: `Bearer ${"s".repeat(64)}` },
-    });
+    })));
+    for (const item of responses) assert.equal(item.status, 200);
+    const response = responses[0];
     const result = await response.json();
 
     assert.equal(response.status, 200, JSON.stringify(result));

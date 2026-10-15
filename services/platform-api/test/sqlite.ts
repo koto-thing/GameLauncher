@@ -8,6 +8,7 @@ export function sqliteDatabase(): { binding: D1Database; database: DatabaseSync 
 
   database.exec("PRAGMA foreign_keys = ON");
   database.exec(readFileSync(new NodeURL("../migrations/0001_play_analytics.sql", import.meta.url), "utf8"));
+  database.exec(readFileSync(new NodeURL("../migrations/0002_analytics_read_indexes.sql", import.meta.url), "utf8"));
 
   // Bind values exactly as the Worker does and preserve SQL execution order
   function prepare(sql: string, args: Array<string | number | null> = []): unknown {
