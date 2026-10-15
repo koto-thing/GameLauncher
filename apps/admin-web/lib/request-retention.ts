@@ -20,8 +20,12 @@ export async function pruneRequestHistory(db: D1Database, timestamp: number): Pr
   ).bind(cutoff, cutoff, cutoff)));
 }
 
-// 未承認の保存期限でCronから削除せず、dry-runも候補100件までに制限する
+// activeは承認済みの既存365日処理、dry-runは最古100候補のみ確認する
 export async function scheduledRequestRetention(db: D1Database, timestamp: number, mode?: string) {
+  if (mode === "active") {
+    await pruneRequestHistory(db, timestamp);
+    return { mode: "active" };
+  }
   if (mode !== "dry-run") return { mode: "disabled" };
 
   const cutoff = new Date(timestamp - 365 * 86400000).toISOString();

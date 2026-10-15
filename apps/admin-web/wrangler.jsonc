@@ -9,7 +9,7 @@
     "crons": ["0 18 * * *"]
   },
   "vars": {
-    "REQUEST_RETENTION_MODE": "disabled",
+    "REQUEST_RETENTION_MODE": "active",
     "D1_METRICS_ENABLED": "false",
     "LOCAL_DEV_AUTH": "false",
     "GITHUB_CALLBACK_URL": "https://pandd-deployment-control-plane.gotoukenta62.workers.dev/api/auth/github/callback",

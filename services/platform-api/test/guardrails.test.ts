@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { handleRequest } from "../src/index.ts";
+import { readAnalytics } from "../src/analytics.ts";
 import { cachedAnalytics, invalidateReports } from "../src/report-cache.ts";
 import { scheduledRetention } from "../src/storage.ts";
 import { observeD1 } from "../../../packages/observability/d1.ts";
@@ -38,6 +39,7 @@ test("cache cannot bypass authentication, invalid filters, environment or emerge
   await cachedAnalytics(env, url, now);
   assert.equal((await handleRequest(new Request(url), env, now)).status, 401);
   const request = new Request(url, { headers: { Authorization: `Bearer ${env.ANALYTICS_READ_TOKEN}` } });
+  assert.equal((await handleRequest(request, { ...env, ANALYTICS_READ_TOKEN: "r".repeat(64) }, now)).status, 401);
   assert.equal((await handleRequest(request, { ...env, ANALYTICS_READS_ENABLED: "false" }, now)).status, 503);
   for (const query of ["&from=2026-10-01", "&installationId=secret", "&environment=staging"]) {
     await assert.rejects(cachedAnalytics(env, new URL(url + query), now), /invalid/);
@@ -46,6 +48,40 @@ test("cache cannot bypass authentication, invalid filters, environment or emerge
   const other = fixture();
   await cachedAnalytics(other.env, url, now);
   assert.equal(other.queries(), 1);
+});
+
+test("cached totals match SQL and are separated by game, version, period and environment", async () => {
+  const { env, database } = fixture();
+  const insert = database.prepare(`INSERT INTO analytics_daily(game_id,game_version,environment,date,launch_attempts,
+    successful_launches,successful_duration_sum,duration_seconds,normal,last_received_at) VALUES(?,?,?,?,1,1,?,?,1,?)`);
+  for (const [game, version, date, duration] of [
+    ["test-game", "1.0.0", "2026-06-01", 10], ["test-game", "2.0.0", "2026-06-02", 30], ["other-game", "1.0.0", "2026-06-01", 90],
+  ] as const) insert.run(game, version, "production", date, duration, duration, `${date}T00:00:00Z`);
+  const root = "https://analytics.test/v1/analytics/games?from=2026-06-01&to=2026-06-02";
+  for (const suffix of ["", "&gameId=test-game", "&gameId=test-game&gameVersion=1.0.0", "&gameId=test-game&gameVersion=2.0.0", "&gameId=other-game"]) {
+    const query = new URL(root + suffix);
+    assert.deepEqual(await cachedAnalytics(env, query, now), await readAnalytics(env, query, now));
+  }
+  const all = await cachedAnalytics(env, new URL(root), now);
+  assert.equal(all.games.find((game) => game.gameId === "test-game")!.totalDurationSeconds, 40);
+  assert.equal(all.games.find((game) => game.gameId === "other-game")!.totalDurationSeconds, 90);
+  assert.equal((await cachedAnalytics(env, new URL(root + "&gameId=test-game&gameVersion=1.0.0"), now)).games[0].totalDurationSeconds, 10);
+  assert.equal((await cachedAnalytics(env, new URL(root.replace("to=2026-06-02", "to=2026-06-01") + "&gameId=test-game"), now)).games[0].totalDurationSeconds, 10);
+  assert.deepEqual((await cachedAnalytics({ ...env, PLAY_ENVIRONMENT: "staging" }, new URL(root + "&environment=staging"), now)).games, []);
+});
+
+test("report diagnostics distinguish database work, shared requests and cache hits", async (t) => {
+  const logs: string[] = [];
+  t.mock.method(console, "info", (line: string) => logs.push(line));
+  const { env } = fixture();
+  env.D1_METRICS_ENABLED = "true";
+  const first = cachedAnalytics(env, url, now);
+  const shared = cachedAnalytics(env, url, now);
+  await assert.rejects(cachedAnalytics(env, new URL(url + "&gameId=test-game"), now), /busy/);
+  await Promise.all([first, shared]);
+  await cachedAnalytics(env, url, now);
+  const sources = logs.map((line) => JSON.parse(line)).filter((event) => event.event === "analytics_report").map((event) => event.source);
+  assert.deepEqual(sources.sort(), ["cache", "coalesced", "database", "rejected"]);
 });
 
 test("different concurrent filters fail promptly and failures back off without more D1 work", async () => {
@@ -90,7 +126,7 @@ test("bounded cache evicts old filters and cannot repopulate after concurrent in
   await assert.rejects(cachedAnalytics(env, url, now), /busy/);
 });
 
-test("scheduled retention never deletes, requires dry-run and avoids database access by default", async () => {
+test("retention defaults to disabled, previews without writes, and active preserves the approved policy", async () => {
   const { env, database } = fixture();
   const prepare = env.ANALYTICS_DB.prepare;
   env.ANALYTICS_DB.prepare = () => { throw new Error("unexpected database access"); };
@@ -113,6 +149,11 @@ test("scheduled retention never deletes, requires dry-run and avoids database ac
   assert.equal(preview.candidateSessions, 100);
   assert.equal(preview.hasMore, true);
   assert.equal(database.prepare("SELECT COUNT(*) count FROM play_sessions").get()!.count, 150);
+  assert.deepEqual(await scheduledRetention({ ...env, ANALYTICS_RETENTION_MODE: "active" }, now), { mode: "active" });
+  assert.equal(database.prepare("SELECT COUNT(*) count FROM play_sessions").get()!.count, 0);
+  assert.equal(database.prepare("SELECT SUM(launch_attempts) count FROM analytics_daily").get()!.count, 150);
+  await scheduledRetention({ ...env, ANALYTICS_RETENTION_MODE: "active" }, now);
+  assert.equal(database.prepare("SELECT SUM(launch_attempts) count FROM analytics_daily").get()!.count, 150);
 });
 
 test("D1 metrics are optional, redact sensitive inputs and preserve cross-wrapper batch statements", async (t) => {

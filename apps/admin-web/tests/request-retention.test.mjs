@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createAdminTestHarness } from "./helpers/admin-worker-harness.mjs";
 import test from "node:test";
-import { pruneRequestHistory, scheduledRequestRetention } from "../lib/request-retention.ts";
+import { scheduledRequestRetention } from "../lib/request-retention.ts";
 
 // 設定欠落や誤記を削除許可として扱わない
 test("scheduled request retention defaults to no database access", async () => {
@@ -53,12 +53,11 @@ test("retention removes old completed requests and their logs while preserving a
   await db.prepare("INSERT INTO audit_events VALUES (NULL, ?)").bind(old).run();
   await db.prepare("INSERT INTO execution_attempts VALUES (?, ?, ?, ?)").bind("executed", old, old, recent).run();
 
-  await worker.scheduled({ scheduledTime: new Date(timestamp) });
   assert.equal(await db.prepare("SELECT count(*) AS count FROM audit_events WHERE request_id='succeeded'").first("count"), 1);
   const preview = await scheduledRequestRetention(db, timestamp, "dry-run");
   assert.equal(preview.candidateRequestsInSample, 4);
   assert.equal(await db.prepare("SELECT count(*) AS count FROM audit_events WHERE request_id='succeeded'").first("count"), 1);
-  await pruneRequestHistory(db, timestamp);
+  await worker.scheduled({ scheduledTime: new Date(timestamp) });
 
   for (const table of ["deployment_requests", "request_approvers", "approval_decisions", "execution_attempts", "audit_events"]) {
     assert.equal(await db.prepare(`SELECT count(*) AS count FROM ${table} WHERE request_id IN ('succeeded','rejected','cancelled','failed_terminal')`).first("count"), 0);

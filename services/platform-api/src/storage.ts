@@ -1,6 +1,7 @@
 import type { AnalyticsEnv, PlaySessionBatch } from "./types.ts";
 import { detailCutoff, japanDate } from "./validation.ts";
 import { observeD1 } from "../../../packages/observability/d1.ts";
+import { invalidateReports } from "./report-cache.ts";
 
 // Hash the private installation credential without storing its token or device identifiers
 export async function credentialHash(installationId: string, token: string): Promise<string> {
@@ -83,8 +84,13 @@ export async function deleteInstallation(env: AnalyticsEnv, id: string, token: s
   ]);
 }
 
-// Preview at most 101 expired sessions without exposing identifiers or mutating data
+// Preserve the approved policy in active mode, or preview at most 101 expired sessions
 export async function scheduledRetention(env: AnalyticsEnv, now: number) {
+  if (env.ANALYTICS_RETENTION_MODE === "active") {
+    await archiveDetails(env, now);
+    invalidateReports(env.ANALYTICS_DB);
+    return { mode: "active" };
+  }
   if (env.ANALYTICS_RETENTION_MODE !== "dry-run") return { mode: "disabled" };
 
   const cutoff = detailCutoff(now);
@@ -97,6 +103,7 @@ export async function scheduledRetention(env: AnalyticsEnv, now: number) {
 
 // Archive expired sessions as anonymous aggregates before deleting detailed records
 export async function archiveDetails(env: AnalyticsEnv, now: number): Promise<void> {
+  env = { ...env, ANALYTICS_DB: observeD1(env.ANALYTICS_DB, `analytics-${env.PLAY_ENVIRONMENT}`, env.D1_METRICS_ENABLED === "true") };
   const cutoff = detailCutoff(now);
 
   await env.ANALYTICS_DB.batch([

@@ -10,10 +10,20 @@ function fixture() {
 }
 
 test("account report combines all DBs and keeps observed errors separate from quota usage", () => {
-  const text = usageReport(fixture(), "2026-10-15", [{ event: "analytics_report", database: "analytics-production", outcome: "error", elapsedMs: 5000 }]);
+  const text = usageReport(fixture(), "2026-10-15", [{ event: "analytics_report", source: "database", database: "analytics-production", outcome: "error", elapsedMs: 5000 }]);
   assert.match(text, /600 rows read; 30 rows written/);
-  assert.match(text, /analytics-production\/analytics_report \| 1 \| 1 \| 5000/);
+  assert.match(text, /analytics-production\/analytics_report\/database \| 1 \| 1 \| 5000/);
   assert.match(text, /not account-wide error totals/);
+});
+
+test("cached responses cannot hide slow database reports in the diagnostic percentile", () => {
+  const events = [
+    { event: "analytics_report", database: "analytics-production", source: "database", outcome: "ok", elapsedMs: 4000 },
+    ...Array.from({ length: 99 }, () => ({ event: "analytics_report", database: "analytics-production", source: "cache", outcome: "ok", elapsedMs: 0 })),
+  ];
+  const text = usageReport(fixture(), "2026-10-15", events);
+  assert.match(text, /analytics_report\/database \| 1 \| 0 \| 4000/);
+  assert.match(text, /analytics_report\/cache \| 99 \| 0 \| 0/);
 });
 
 test("missing metrics and API errors fail closed instead of appearing as zero load", () => {

@@ -127,7 +127,7 @@ export default {
     return handleRequest(request, env);
   },
 
-  // Require explicit retention approval before any scheduled database access
+  // Preserve the approved 90-day policy only when active is explicitly configured
   async scheduled(controller: ScheduledController, env: AnalyticsEnv, context: ExecutionContext): Promise<void> {
     context.waitUntil(scheduledRetention(env, controller.scheduledTime).then((result) => {
       if (result.mode === "dry-run") console.info(JSON.stringify({ event: "analytics_retention_preview", ...result }));

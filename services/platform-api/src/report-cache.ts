@@ -2,6 +2,7 @@ import { analyticsFilters, readAnalytics } from "./analytics.ts";
 import type { AnalyticsEnv, AnalyticsReport } from "./types.ts";
 
 type Entry = { report: AnalyticsReport; expires: number; bytes: number };
+type ReadSource = "cache" | "coalesced" | "database" | "rejected";
 type State = { entries: Map<string, Entry>; pending?: { key: string; promise: Promise<AnalyticsReport> }; retryAfter: number; generation: number };
 const states = new WeakMap<D1Database, State>();
 const TTL_MS = 60_000;
@@ -18,7 +19,7 @@ function stateFor(db: D1Database): State {
   return state;
 }
 
-// Expire local aggregates when identifiable data is erased or archived
+// Expire local aggregates when identifiable data is erased
 export function invalidateReports(db: D1Database): void {
   const state = stateFor(db);
   state.entries.clear();
@@ -26,7 +27,7 @@ export function invalidateReports(db: D1Database): void {
 }
 
 // Coalesce identical reads and bound distinct concurrent reports without an additional storage service
-async function readCached(env: AnalyticsEnv, url: URL, now: number): Promise<AnalyticsReport> {
+async function readCached(env: AnalyticsEnv, url: URL, now: number, trace: { source: ReadSource }): Promise<AnalyticsReport> {
   const filters = analyticsFilters(env, url, now);
   const key = JSON.stringify(filters);
   const state = stateFor(env.ANALYTICS_DB);
@@ -36,10 +37,17 @@ async function readCached(env: AnalyticsEnv, url: URL, now: number): Promise<Ana
   }
 
   const cached = state.entries.get(key);
-  if (cached) return cached.report;
-  if (state.pending?.key === key) return state.pending.promise;
+  if (cached) {
+    trace.source = "cache";
+    return cached.report;
+  }
+  if (state.pending?.key === key) {
+    trace.source = "coalesced";
+    return state.pending.promise;
+  }
   if (state.pending || now < state.retryAfter) throw new Error("analytics busy");
 
+  trace.source = "database";
   const generation = state.generation;
   const started = performance.now();
   const promise = readAnalytics(env, url, now).then((report) => {
@@ -68,15 +76,16 @@ async function readCached(env: AnalyticsEnv, url: URL, now: number): Promise<Ana
 export async function cachedAnalytics(env: AnalyticsEnv, url: URL, now: number): Promise<AnalyticsReport> {
   const started = performance.now();
   let outcome = "error";
+  const trace: { source: ReadSource } = { source: "rejected" };
   try {
-    const report = await readCached(env, url, now);
+    const report = await readCached(env, url, now, trace);
     outcome = "ok";
     return report;
   } finally {
     if (env.D1_METRICS_ENABLED === "true") {
       try {
         console.info(JSON.stringify({ event: "analytics_report", database: `analytics-${env.PLAY_ENVIRONMENT}`,
-          outcome, elapsedMs: Math.round(performance.now() - started) }));
+          source: trace.source, outcome, elapsedMs: Math.round(performance.now() - started) }));
       } catch { /* Diagnostics must not fail a report */ }
     }
   }

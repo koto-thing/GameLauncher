@@ -167,6 +167,11 @@ test("analytics route requires a signed, live admin session before calling its s
     const adminCookie = (await auth.createSessionCookie({ ...user, isAdmin: true }, request())).split(";")[0];
     assert.equal((await route.GET(request(adminCookie))).status, 200);
     assert.equal(calls, 1);
+    // The same signed cookie cannot reuse a previous successful result after current-role revocation
+    globalThis.analyticsTestRole = "user";
+    assert.equal((await route.GET(request(adminCookie))).status, 401);
+    assert.equal(calls, 1);
+    globalThis.analyticsTestRole = "assistant";
     const stagingRequest = new Request("https://admin.example/api/analytics/games?environment=staging", { headers: { cookie: adminCookie } });
     assert.equal((await route.GET(stagingRequest)).status, 503);
     assert.equal(calls, 1);

@@ -35,7 +35,8 @@ export function usageReport(document, date, events = []) {
     for (const event of events) {
       if (!["d1_operation", "analytics_report"].includes(event.event)) continue;
       if (typeof event.database !== "string" || !/^[a-zA-Z0-9-]{1,80}$/.test(event.database) || !["ok", "error"].includes(event.outcome)) throw new Error("Invalid diagnostic event");
-      const key = `${event.database}/${event.event}`;
+      if (event.event === "analytics_report" && !["database", "cache", "coalesced", "rejected"].includes(event.source)) throw new Error("Invalid analytics source");
+      const key = `${event.database}/${event.event}${event.event === "analytics_report" ? `/${event.source}` : ""}`;
       const sample = samples.get(key) ?? { count: 0, errors: 0, times: [] };
       sample.count++; sample.errors += Number(event.outcome === "error"); sample.times.push(number(event.elapsedMs));
       samples.set(key, sample);
