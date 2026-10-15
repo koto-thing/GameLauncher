@@ -19,3 +19,19 @@ export async function pruneRequestHistory(db: D1Database, timestamp: number): Pr
     `DELETE FROM ${table} WHERE request_id IN (${expiredRequests})`,
   ).bind(cutoff, cutoff, cutoff)));
 }
+
+// activeは承認済みの既存365日処理、dry-runは最古100候補のみ確認する
+export async function scheduledRequestRetention(db: D1Database, timestamp: number, mode?: string) {
+  if (mode === "active") {
+    await pruneRequestHistory(db, timestamp);
+    return { mode: "active" };
+  }
+  if (mode !== "dry-run") return { mode: "disabled" };
+
+  const cutoff = new Date(timestamp - 365 * 86400000).toISOString();
+  const sample = expiredRequests.replace("FROM deployment_requests r", "FROM (SELECT * FROM deployment_requests WHERE created_at < ? ORDER BY created_at LIMIT 100) r");
+  const result = await db.prepare(`SELECT COUNT(*) AS count FROM (${sample})`)
+    .bind(cutoff, cutoff, cutoff, cutoff).first<{ count: number }>();
+
+  return { mode: "dry-run", cutoff, candidateRequestsInSample: result?.count ?? 0, sampleLimit: 100 };
+}

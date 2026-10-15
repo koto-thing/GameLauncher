@@ -57,6 +57,10 @@ export interface AnalyticsReport {
 }
 
 export interface AnalyticsEnv {
+  ANALYTICS_READS_ENABLED?: string;
+  ANALYTICS_INGEST_ENABLED?: string;
+  ANALYTICS_RETENTION_MODE?: string;
+  D1_METRICS_ENABLED?: string;
   ANALYTICS_DB: D1Database;
   INGEST_RATE_LIMITER: { limit(options: { key: string }): Promise<{ success: boolean }> };
   ALLOWED_GAME_IDS: string;

@@ -1,5 +1,7 @@
 import type { AnalyticsEnv, PlaySessionBatch } from "./types.ts";
 import { detailCutoff, japanDate } from "./validation.ts";
+import { observeD1 } from "../../../packages/observability/d1.ts";
+import { invalidateReports } from "./report-cache.ts";
 
 // Hash the private installation credential without storing its token or device identifiers
 export async function credentialHash(installationId: string, token: string): Promise<string> {
@@ -10,6 +12,7 @@ export async function credentialHash(installationId: string, token: string): Pro
 
 // Commit all snapshots in one D1 transaction while ignoring older or repeated revisions
 export async function saveBatch(env: AnalyticsEnv, batch: PlaySessionBatch, now: number): Promise<Array<{ sessionId: string; revision: number }>> {
+  env = { ...env, ANALYTICS_DB: observeD1(env.ANALYTICS_DB, `analytics-${env.PLAY_ENVIRONMENT}`, env.D1_METRICS_ENABLED === "true") };
   const hash = await credentialHash(batch.installationId, batch.installationToken);
   const received = new Date(now).toISOString();
   const writeId = crypto.randomUUID();
@@ -64,6 +67,7 @@ export async function saveBatch(env: AnalyticsEnv, batch: PlaySessionBatch, now:
 
 // Delete identifiable data and revoke retries even if deletion races the first upload
 export async function deleteInstallation(env: AnalyticsEnv, id: string, token: string, now: number): Promise<void> {
+  env = { ...env, ANALYTICS_DB: observeD1(env.ANALYTICS_DB, `analytics-${env.PLAY_ENVIRONMENT}`, env.D1_METRICS_ENABLED === "true") };
   const hash = await credentialHash(id, token);
   const owner = await env.ANALYTICS_DB.prepare("SELECT credential_hash FROM installations WHERE installation_id = ?").bind(id).first<{ credential_hash: string }>();
 
@@ -80,8 +84,26 @@ export async function deleteInstallation(env: AnalyticsEnv, id: string, token: s
   ]);
 }
 
+// Preserve the approved policy in active mode, or preview at most 101 expired sessions
+export async function scheduledRetention(env: AnalyticsEnv, now: number) {
+  if (env.ANALYTICS_RETENTION_MODE === "active") {
+    await archiveDetails(env, now);
+    invalidateReports(env.ANALYTICS_DB);
+    return { mode: "active" };
+  }
+  if (env.ANALYTICS_RETENTION_MODE !== "dry-run") return { mode: "disabled" };
+
+  const cutoff = detailCutoff(now);
+  const result = await env.ANALYTICS_DB.prepare(`SELECT COUNT(*) count FROM (
+    SELECT 1 FROM play_sessions WHERE environment = ? AND started_date < ? LIMIT 101
+  )`).bind(env.PLAY_ENVIRONMENT, cutoff).first<{ count: number }>();
+
+  return { mode: "dry-run", cutoff, candidateSessions: Math.min(result?.count ?? 0, 100), hasMore: (result?.count ?? 0) > 100 };
+}
+
 // Archive expired sessions as anonymous aggregates before deleting detailed records
 export async function archiveDetails(env: AnalyticsEnv, now: number): Promise<void> {
+  env = { ...env, ANALYTICS_DB: observeD1(env.ANALYTICS_DB, `analytics-${env.PLAY_ENVIRONMENT}`, env.D1_METRICS_ENABLED === "true") };
   const cutoff = detailCutoff(now);
 
   await env.ANALYTICS_DB.batch([

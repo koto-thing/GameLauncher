@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import ts from "typescript";
+import { observeD1 } from "../../../../packages/observability/d1.ts";
 
 // 実装を外部通信だけ差し替えて読み込み、SQLiteで状態遷移を検証する
 function loadModule(path, dependencies) {
@@ -16,7 +17,7 @@ function loadModule(path, dependencies) {
 }
 
 // D1のSQLとトランザクションをメモリ内SQLiteで実行する
-export async function fixture(t, { role = "assistant" } = {}) {
+export async function fixture(t, { role = "assistant", metrics = false } = {}) {
   const sql = new DatabaseSync(":memory:");
   t.after(() => sql.close());
   const db = {
@@ -42,7 +43,10 @@ export async function fixture(t, { role = "assistant" } = {}) {
       }
     },
   };
-  const initialize = loadModule("../../db/initialize.ts", { "cloudflare:workers": { env: { DB: db } } });
+  const initialize = loadModule("../../db/initialize.ts", {
+    "cloudflare:workers": { env: { DB: db, D1_METRICS_ENABLED: String(metrics) } },
+    "../../../packages/observability/d1.ts": { observeD1 },
+  });
   await initialize.ensureSchema();
   const sent = [];
   const dispatch = { enabled: true, fail: false, run: { status: "completed", conclusion: "cancelled", run_attempt: 1 } };

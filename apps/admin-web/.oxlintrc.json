@@ -8,6 +8,7 @@
     "correctness": "off"
   },
   "ignorePatterns": [
+    ".wrangler/**",
     "node_modules/**",
     "dist/**",
     "build/**",

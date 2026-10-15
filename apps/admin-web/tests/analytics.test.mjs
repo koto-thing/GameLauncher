@@ -2,7 +2,22 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import ts from "typescript";
-import { analyticsCsv, analyticsQuery, analyticsResponse, defaultAnalyticsPeriod, parseAnalyticsReport } from "../lib/analytics.ts";
+import { analyticsCsv, analyticsQuery, analyticsResponse, defaultAnalyticsPeriod, parseAnalyticsReport, withAnalyticsDeadline } from "../lib/analytics.ts";
+
+// AbortSignalを無視する上流にも待機上限を適用する
+test("analytics deadline bounds an unresponsive binding and body reader", async () => {
+  let signal;
+  await assert.rejects(withAnalyticsDeadline((value) => {
+    signal = value;
+    return new Promise(() => {});
+  }, 10), /deadline/);
+  assert.equal(signal.aborted, true);
+  await assert.rejects(withAnalyticsDeadline(async () => {
+    const response = new Response(new ReadableStream({ start() {} }));
+    return response.json();
+  }, 10), /deadline/);
+  assert.equal(await withAnalyticsDeadline(async () => 42, 10), 42);
+});
 
 /** @brief APIとCSVの検証に同じ集計契約の値を用いる */
 function reportFixture() {
@@ -152,6 +167,11 @@ test("analytics route requires a signed, live admin session before calling its s
     const adminCookie = (await auth.createSessionCookie({ ...user, isAdmin: true }, request())).split(";")[0];
     assert.equal((await route.GET(request(adminCookie))).status, 200);
     assert.equal(calls, 1);
+    // The same signed cookie cannot reuse a previous successful result after current-role revocation
+    globalThis.analyticsTestRole = "user";
+    assert.equal((await route.GET(request(adminCookie))).status, 401);
+    assert.equal(calls, 1);
+    globalThis.analyticsTestRole = "assistant";
     const stagingRequest = new Request("https://admin.example/api/analytics/games?environment=staging", { headers: { cookie: adminCookie } });
     assert.equal((await route.GET(stagingRequest)).status, 503);
     assert.equal(calls, 1);

@@ -1,5 +1,6 @@
 import type { AnalyticsEnv, AnalyticsGame, AnalyticsReport, RetentionMetric } from "./types.ts";
 import { DAY_MS, detailCutoff, japanDate, validDate } from "./validation.ts";
+import { observeD1 } from "../../../packages/observability/d1.ts";
 
 const buckets = [
   { label: "1分未満", minSeconds: 0, maxSeconds: 60 },
@@ -35,8 +36,8 @@ interface DetailRow { game_id: string; date: string | null; devices: number; med
 
 interface CohortRow { game_id: string; day: number; eligible: number; returned: number }
 
-// Read anonymous historical aggregates together with current detailed records in one snapshot
-export async function readAnalytics(env: AnalyticsEnv, url: URL, now: number): Promise<AnalyticsReport> {
+// Validate before cache lookup and normalize default dates at the Japanese date boundary
+export function analyticsFilters(env: AnalyticsEnv, url: URL, now: number) {
   const from = url.searchParams.get("from") ?? japanDate(now - 29 * DAY_MS);
   const to = url.searchParams.get("to") ?? japanDate(now);
   const environment = url.searchParams.get("environment") ?? "production";
@@ -56,6 +57,14 @@ export async function readAnalytics(env: AnalyticsEnv, url: URL, now: number): P
       throw new Error("invalid analytics filters");
     }
   }
+
+  return { from, to, environment, gameId, gameVersion, days };
+}
+
+// Read anonymous historical aggregates together with current detailed records in one snapshot
+export async function readAnalytics(env: AnalyticsEnv, url: URL, now: number): Promise<AnalyticsReport> {
+  const { from, to, environment, gameId, gameVersion, days } = analyticsFilters(env, url, now);
+  const db = observeD1(env.ANALYTICS_DB, `analytics-${env.PLAY_ENVIRONMENT}`, env.D1_METRICS_ENABLED === "true");
 
   const dimensions = "environment = ? AND (? IS NULL OR game_id = ?) AND (? IS NULL OR game_version = ?)";
   const dimensionArgs = [environment, gameId, gameId, gameVersion, gameVersion];
@@ -86,7 +95,8 @@ export async function readAnalytics(env: AnalyticsEnv, url: URL, now: number): P
       SUM(running) running, SUM(normal) normal, SUM(abnormal) abnormal, SUM(interrupted) interrupted, SUM(launch_failed) launch_failed,
       SUM(bucket0) bucket0, SUM(bucket1) bucket1, SUM(bucket2) bucket2, SUM(bucket3) bucket3, SUM(bucket4) bucket4,
       MAX(last_received_at) last_received_at, MAX(detail_missing) detail_missing FROM facts GROUP BY game_id, game_version, date ORDER BY game_id, date`;
-  const detailsQuery = `WITH base AS (SELECT * FROM play_sessions WHERE outcome <> 'launch_failed' AND ${dimensions}),
+  const detailsQuery = `WITH base AS (SELECT session_id, game_id, installation_id, started_date, duration_seconds
+    FROM play_sessions WHERE outcome <> 'launch_failed' AND ${dimensions}),
     filtered AS (SELECT * FROM base WHERE started_date BETWEEN ? AND ?), activity AS (
       SELECT game_id, installation_id, started_date date FROM filtered
       UNION SELECT b.game_id, b.installation_id, d.date FROM base b JOIN session_daily_durations d USING(session_id)
@@ -114,14 +124,14 @@ export async function readAnalytics(env: AnalyticsEnv, url: URL, now: number): P
         ))
     )) returned FROM cohorts c CROSS JOIN horizons h WHERE c.first_date BETWEEN ? AND ?
       AND date(c.first_date, '+' || h.day || ' days') < ? GROUP BY c.game_id, h.day`;
-  const queries = [env.ANALYTICS_DB.prepare(factsQuery).bind(from, to, ...dimensionArgs, staleBefore, staleBefore, from, to, ...dimensionArgs, from, to, ...dimensionArgs)];
+  const queries = [db.prepare(factsQuery).bind(from, to, ...dimensionArgs, staleBefore, staleBefore, from, to, ...dimensionArgs, from, to, ...dimensionArgs)];
 
   if (detailAvailable) {
-    queries.push(env.ANALYTICS_DB.prepare(detailsQuery).bind(...dimensionArgs, from, to, from, to));
-    queries.push(env.ANALYTICS_DB.prepare(cohortsQuery).bind(...dimensionArgs, cutoff, environment, gameVersion, gameVersion, from, to, japanDate(now)));
+    queries.push(db.prepare(detailsQuery).bind(...dimensionArgs, from, to, from, to));
+    queries.push(db.prepare(cohortsQuery).bind(...dimensionArgs, cutoff, environment, gameVersion, gameVersion, from, to, japanDate(now)));
   }
 
-  const results = await env.ANALYTICS_DB.batch(queries);
+  const results = await db.batch(queries);
   const facts = results[0].results as unknown as FactRow[];
   const details = detailAvailable ? results[1].results as unknown as DetailRow[] : [];
   const cohorts = detailAvailable ? results[2].results as unknown as CohortRow[] : [];
