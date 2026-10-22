@@ -29,7 +29,7 @@ test("assistant previews and publishes another operator's game background withou
   ).toBeVisible();
   const authorLogin = await page.request.get("http://127.0.0.1:8788/api/auth/dev?as=music-a", { maxRedirects: 0 });
   expect(authorLogin.status()).toBe(302);
-  await page.goto("http://127.0.0.1:8788/music#/manage");
+  await page.reload();
   await page.locator(".manage-list a").filter({ hasText: title }).click();
   await expect(page.getByLabel("担当者のGitHub数値ID")).toHaveCount(0);
   await page.getByLabel("背景色", { exact: true }).fill("#344466");
