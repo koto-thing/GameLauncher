@@ -50,7 +50,8 @@ test("theme follows initial system preference and persists a manual choice acros
   await expect(
     page.getByRole("button", { name: "一時停止", exact: true }),
   ).toBeVisible();
-  await page.goto("http://127.0.0.1:8788/api/auth/dev?as=music-a");
+  const login = await page.request.get("http://127.0.0.1:8788/api/auth/dev?as=music-a", { maxRedirects: 0 });
+  expect(login.status()).toBe(302);
   await page.goto("http://127.0.0.1:8788/music#/manage");
   await page.emulateMedia({ colorScheme: "dark" });
   await page.locator(".manage-list a").filter({ hasText: "DEMO 1 /" }).click();
