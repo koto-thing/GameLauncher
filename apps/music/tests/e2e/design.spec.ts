@@ -12,8 +12,10 @@ test("assistant previews and publishes another operator's game background withou
   );
   // 実D1・PHPを使う管理操作が多く、遅いローカル環境でも後片付けまで待つ
   test.setTimeout(90000);
-  await page.goto("http://127.0.0.1:8788/api/auth/dev?as=music-admin");
+  const login = await page.request.get("http://127.0.0.1:8788/api/auth/dev?as=music-admin", { maxRedirects: 0 });
+  expect(login.status()).toBe(302);
   await page.goto("http://127.0.0.1:8788/music#/manage");
+  await expect(page.getByRole("heading", { name: "GitHubアカウント", exact: true })).toBeVisible();
   const title = `背景検証 ${info.project.name} ${Date.now()}`;
   await page.getByLabel("新しい作品名").fill(title);
   await page.getByRole("button", { name: "作品を作成", exact: true }).click();
@@ -25,8 +27,9 @@ test("assistant previews and publishes another operator's game background withou
   await expect(
     page.getByRole("link", { name: "music-a", exact: true }),
   ).toBeVisible();
-  await page.goto("http://127.0.0.1:8788/api/auth/dev?as=music-a");
-  await page.goto("http://127.0.0.1:8788/music#/manage");
+  const authorLogin = await page.request.get("http://127.0.0.1:8788/api/auth/dev?as=music-a", { maxRedirects: 0 });
+  expect(authorLogin.status()).toBe(302);
+  await page.reload();
   await page.locator(".manage-list a").filter({ hasText: title }).click();
   await expect(page.getByLabel("担当者のGitHub数値ID")).toHaveCount(0);
   await page.getByLabel("背景色", { exact: true }).fill("#344466");
