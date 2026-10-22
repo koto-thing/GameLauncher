@@ -68,7 +68,7 @@ type DashboardResponse = {
   error?: string;
 };
 
-const UPLOADER_DOWNLOAD_URL = "https://github.com/koto-thing/GameLauncher/releases/download/uploader-v0.1.0/PandDIntakeUploader.exe";
+const UPLOADER_DOWNLOAD_URL = "https://github.com/koto-thing/GameLauncher/releases/download/uploader-v0.1.1/PandDIntakeUploader.exe";
 const ACTIVE_EXECUTION_STATES = new Set(["dispatched", "running", "publishing_pointers", "verifying"]);
 const EXECUTION_REFRESH_INTERVAL_MS = 4_000;
 
