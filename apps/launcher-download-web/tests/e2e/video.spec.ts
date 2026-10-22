@@ -70,7 +70,9 @@ for (const failure of ["404", "network", "unsupported", "both-missing"]) {
   test(`media failure: ${failure}`, async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
-    await page.goto(`cases/${failure}`);
+    // Broken media can delay Firefox's load event; verify the actual fallback instead.
+    await page.goto(`cases/${failure}`, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("video")).not.toHaveAttribute("src", /.+/u);
     await expect(page.locator(".video-toggle")).toBeHidden();
     await expect(page.locator("video")).not.toHaveClass(/has-frame/u);
     for (const platform of ["windows", "linux"]) {
