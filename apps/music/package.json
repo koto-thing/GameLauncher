@@ -20,7 +20,10 @@
     "policy:sync": "node -e \"require('node:fs').copyFileSync('../../contracts/music/policy.json','../../server/music/config/policy.json')\"",
     "check": "npm run typecheck && npm run lint && npm run build && npm test",
     "browsers:install": "node scripts/e2e.mjs install chromium firefox webkit",
-    "test:public": "node scripts/public-test.mjs"
+    "test:public": "node scripts/public-test.mjs",
+    "predev": "node ../admin-web/scripts/build-intake-policy.js",
+    "pretest": "node ../admin-web/scripts/build-intake-policy.js",
+    "pretest:e2e": "node ../admin-web/scripts/build-intake-policy.js"
   },
   "dependencies": {
     "react": "19.2.8",
