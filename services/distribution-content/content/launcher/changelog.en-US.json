@@ -2,6 +2,18 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.3.0",
+      "title": "Improved downloads and installation",
+      "publishedAt": "2026-10-25T00:00:00+09:00",
+      "changes": [
+        "Moved game download, verification, and installation processing to Rust",
+        "Improved retries and resuming interrupted downloads, with a shared speed limit across concurrent transfers",
+        "Improved cancellation during network waits, pauses, and speed limiting",
+        "Verified incoming data while writing it to reduce redundant file reads",
+        "Improved recovery after installation failures and cleanup of temporary files and caches"
+      ]
+    },
+    {
       "version": "1.2.0",
       "title": "Added play statistics for each game",
       "publishedAt": "2026-10-10T21:40:00Z",

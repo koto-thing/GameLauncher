@@ -20,6 +20,12 @@ ctest --preset clion-windows
 
 ## テスト
 
+ゲーム本体のダウンロードは `packages/transfer` のRust実装をCXX経由で呼び出します。
+最大3並列・全体速度制限・Range再開・再試行・一時停止・キャンセルを同じランタイムで管理します。
+受信中にSHA-256を計算し、取得直後の検証だけのための再読込を省きます。
+マニフェストや自己更新など、他のQtネットワーク処理はこの移行の対象外です。
+Publisherとの共通範囲と詳しい規則は [共通転送モジュール](https://github.com/koto-thing/GameLauncher/blob/master/packages/transfer/README.md) を参照してください。
+
 CTestはDomain、統合状態、ダウンロード、プロセス、Live2Dを分離しています。GUIを必要としないCIでは `QT_QPA_PLATFORM=offscreen` を使用します。
 
 `PlayStatisticsTests` はSQLite履歴、同意前データの除外、途中保存、終了・中断、送信と削除を検証します。

@@ -16,6 +16,7 @@ cmake_install.cmake
 Makefile
 *.ninja
 build/
+/target/
 vcpkg_installed/
 bin/
 lib/

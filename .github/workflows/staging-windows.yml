@@ -61,6 +61,8 @@ jobs:
         env:
           STAGING_VERSION: ${{ inputs.version }}
         run: python -m scripts.release.validate_release_version "$env:STAGING_VERSION"
+      - name: Install launcher Rust toolchain
+        run: rustup toolchain install 1.94.1 --profile minimal
       - name: Configure staging launcher
         shell: pwsh
         env:
@@ -131,8 +133,14 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.13'
-      - name: Install Publisher dependencies
-        run: python -m pip install --requirement services/deployment_publisher/requirements.txt
+      - name: Install Python contract validators
+        run: python -m pip install --requirement packages/contracts/requirements.txt
+      - name: Build Rust Publisher
+        shell: bash
+        run: |
+          rustup toolchain install 1.94.1 --profile minimal
+          cargo +1.94.1 build --release --locked --manifest-path services/deployment_publisher/Cargo.toml
+          echo "$GITHUB_WORKSPACE/target/release" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: windows-staging-${{ inputs.version }}
@@ -147,10 +155,10 @@ jobs:
           mkdir -p "$destination"
           cp artifact/ifw/PandD-Game-Launcher-Online-Installer.exe* "$destination/"
           cp artifact/ifw/PandD-Game-Launcher-windows-x86_64.zip* "$destination/"
-          python services/deployment_publisher/publisher.py publish-announcements --source services/distribution-content/content/announcements --output public
+          pandd-publisher publish-announcements --source services/distribution-content/content/announcements --output public
           for locale in ja-JP en-US; do
-            python services/deployment_publisher/publisher.py publish-changelog --source "services/distribution-content/content/launcher/changelog.$locale.json" --output public --locale "$locale"
-            python services/deployment_publisher/publisher.py publish-launcher --source "services/distribution-content/content/launcher/release.$locale.json" --output public --base-url "$STAGING_BASE_URL" --locale "$locale" --platform windows --arch x86_64
+            pandd-publisher publish-changelog --source "services/distribution-content/content/launcher/changelog.$locale.json" --output public --locale "$locale"
+            pandd-publisher publish-launcher --source "services/distribution-content/content/launcher/release.$locale.json" --output public --base-url "$STAGING_BASE_URL" --locale "$locale" --platform windows --arch x86_64
           done
       - name: Upload immutable objects then mutable pointers
         env:
@@ -159,4 +167,4 @@ jobs:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: |
           aws --version
-          python services/deployment_publisher/publisher.py upload --output public --endpoint "$R2_ENDPOINT" --bucket "$STAGING_BUCKET"
+          pandd-publisher upload --output public --endpoint "$R2_ENDPOINT" --bucket "$STAGING_BUCKET"

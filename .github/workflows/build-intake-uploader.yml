@@ -5,8 +5,7 @@ on:
   push:
     paths:
       - apps/intake-uploader/**
-      - packages/contracts/schemas/**
-      - services/deployment_publisher/**
+      - packages/contracts/**
       - .github/workflows/build-intake-uploader.yml
 
 permissions:

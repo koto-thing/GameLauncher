@@ -55,6 +55,14 @@ class SbomTests(unittest.TestCase):
         for notice in ("Milan Ikits", "Brian Paul", "The Khronos Group Inc."):
             self.assertIn(notice, license_info["extractedText"])
 
+    def test_launcher_rust_closure_excludes_publisher_only_dependencies(self) -> None:
+        """Shared crypto and CXX must ship in the inventory without Publisher's process control"""
+        document = generate_document(self.metadata, "1.0.0", "4.7.0")
+        packages = {item["name"]: item for item in document["packages"]}
+        for name in ("cxx", "ed25519-dalek", "serde_json", "jsonschema", "url"):
+            self.assertEqual(len(packages[name]["checksums"][0]["checksumValue"]), 64)
+        self.assertNotIn("ctrlc", packages)
+
     def test_unhandled_vcpkg_dependency_is_rejected(self) -> None:
         with mock.patch("scripts.release.generate_sbom.json.loads", return_value={
             "dependencies": ["glew", "openssl", "untracked"],

@@ -3,6 +3,10 @@
 Production uses `https://downloads.koto-thing.com/`, a dedicated R2 bucket and token,
 and a production-only Ed25519 manifest key. Never reuse staging credentials or keys.
 
+Manual publication commands use the [Rust Publisher](https://github.com/koto-thing/GameLauncher/blob/master/services/deployment_publisher/README.md).
+Install it with `cargo install --locked --path services/deployment_publisher` and keep
+AWS CLI v2 on PATH. The publishing workflows build the executable automatically.
+
 ## Cloudflare configuration
 
 1. Create an R2 Standard bucket named `pandd-launcher-production`.
@@ -60,7 +64,7 @@ PowerShell session:
 ```
 
 ```powershell
-python services\deployment_publisher\publisher.py publish-game `
+pandd-publisher publish-game `
   --metadata local-test\metadata\release.json `
   --build-dir local-test\game-build `
   --output $env:PANDD_PUBLIC_OUTPUT `
@@ -69,11 +73,11 @@ python services\deployment_publisher\publisher.py publish-game `
   --platform windows `
   --arch x86_64
 
-python services\deployment_publisher\publisher.py publish-announcements `
+pandd-publisher publish-announcements `
   --source services\distribution-content\content\announcements `
   --output $env:PANDD_PUBLIC_OUTPUT
 
-python services\deployment_publisher\publisher.py upload `
+pandd-publisher upload `
   --output $env:PANDD_PUBLIC_OUTPUT `
   --endpoint $env:R2_ENDPOINT `
   --bucket $env:R2_BUCKET

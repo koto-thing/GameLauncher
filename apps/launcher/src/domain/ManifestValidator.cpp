@@ -1,143 +1,113 @@
 #include "domain/ManifestValidator.h"
 
-#include <algorithm>
-#include <cctype>
-#include <filesystem>
-#include <regex>
-#include <set>
+#include "pandd-launcher-rust/src/lib.rs.h"
+#include "rust/cxx.h"
+
+#include <stdexcept>
+#include <utility>
 
 namespace pandd {
 namespace {
 
-/** @brief MANIFEST_INVALID結果を短く作成する */
-OperationResult invalid(std::string detail) {
-    return OperationResult::failure({
-        .code = ErrorCode::ManifestInvalid,
-        .userMessage = "配布情報が正しくないため処理を続行できません",
-        .detail = std::move(detail),
-        .retryable = false,
-    });
+/** @brief 所有権を移さずJSONや署名対象をRustへ渡す */
+rust::Slice<const std::uint8_t> bytes(std::string_view value) {
+    return {reinterpret_cast<const std::uint8_t*>(value.data()), value.size()};
+}
+
+/** @brief 配布元の固定host集合をCXXの文字列配列へ変換する */
+rust::Vec<rust::String> rustHosts(const std::set<std::string>& hosts) {
+    rust::Vec<rust::String> result;
+    for (const auto& host : hosts) {
+        result.push_back(rust::String(host));
+    }
+    return result;
+}
+
+/** @brief 検証済みRustデータだけを既存application層の値へ写す */
+GameRelease domainRelease(const manifest_bridge::GameRelease& source) {
+    GameRelease release;
+    release.schemaVersion = static_cast<int>(source.schema_version);
+    release.gameId = GameId(std::string(source.game_id));
+    release.version = SemanticVersion(std::string(source.version));
+    release.platform = std::string(source.platform);
+    release.architecture = std::string(source.arch);
+    release.minimumLauncherVersion = SemanticVersion(std::string(source.minimum_launcher_version));
+    release.engine = std::string(source.engine);
+    release.entrypoint = std::string(source.entrypoint);
+    release.workingDirectory = std::string(source.working_directory);
+    release.saveDirectoryName = std::string(source.save_directory_name);
+    release.totalSize = source.total_size;
+    release.publishedAt = std::string(source.published_at);
+    release.signature = std::string(source.signature);
+
+    for (const auto& argument : source.arguments) {
+        release.arguments.emplace_back(argument);
+    }
+    for (const auto& item : source.files) {
+        GameFile file{
+            std::string(item.path), item.size, std::string(item.sha256), item.executable, {}};
+        for (const auto& chunk : item.chunks) {
+            file.chunks.push_back(
+                {chunk.offset, chunk.size, std::string(chunk.sha256), std::string(chunk.url)});
+        }
+        release.files.push_back(std::move(file));
+    }
+    return release;
 }
 
 } // namespace
 
-/** @brief 許可配布hostの集合を保持するvalidatorを構築する */
+/** @brief 許可配布hostの集合を保持する */
 ManifestValidator::ManifestValidator(std::set<std::string> allowedHosts)
     : allowedHosts_(std::move(allowedHosts)) {}
 
-/** @brief ゲームリリースの構造と配布先を検証する */
-OperationResult ManifestValidator::validate(const GameRelease& release) const {
-    // 配布物全体に適用する資源上限を固定
-    constexpr std::size_t maximumFiles = 10000;
-    constexpr std::uint64_t maximumFileSize = 16ULL * 1024ULL * 1024ULL * 1024ULL;
-    constexpr std::uint64_t maximumChunkSize = 256ULL * 1024ULL * 1024ULL;
-    // schemaとファイル数の基本条件を検証
-    if (release.schemaVersion != 1 || release.files.empty() ||
-        release.files.size() > maximumFiles) {
-        return invalid("unsupported schema or file count");
+/** @brief JSONの構造と配布先検証を共有Rustライブラリへ委譲する */
+OperationResult ManifestValidator::validate(std::string_view json) const {
+    try {
+        const auto hosts = rustHosts(allowedHosts_);
+        manifest_bridge::validate_manifest(bytes(json), {hosts.data(), hosts.size()});
+        return OperationResult::success();
+    } catch (const rust::Error& error) {
+        return OperationResult::failure({ErrorCode::ManifestInvalid,
+                                         "配布情報が正しくないため処理を続行できません",
+                                         error.what(), false});
     }
-    // 起動方法を把握しているengineだけを許可
-    if (release.engine != "unity" && release.engine != "godot" && release.engine != "siv3d") {
-        return invalid("unsupported engine");
-    }
-    // 対応platformとarchitectureの組合せ以外を拒否
-    if ((release.platform != "windows" && release.platform != "macos" &&
-         release.platform != "linux") ||
-        (release.architecture != "x86_64" && release.architecture != "arm64")) {
-        return invalid("unsupported platform or architecture");
-    }
-    // shell解釈やinstall root外参照につながる起動条件を拒否
-    if (!release.arguments.empty() || !isSafeRelativePath(release.entrypoint) ||
-        (release.workingDirectory != "." && !isSafeRelativePath(release.workingDirectory))) {
-        return invalid("unsafe launch contract");
-    }
-    // save directory名を単一path要素へ限定
-    static const std::regex saveName("^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$");
-    if (!std::regex_match(release.saveDirectoryName, saveName)) {
-        return invalid("invalid saveDirectoryName");
-    }
-
-    // パス重複、チャンク順、総容量を同時に検証
-    std::set<std::string> paths;
-    std::uint64_t calculatedTotal = 0;
-    bool entrypointFound = false;
-    for (const auto& file : release.files) {
-        if (!isSafeRelativePath(file.path) || !paths.insert(file.path).second ||
-            file.size > maximumFileSize || !isSha256(file.sha256) || file.chunks.empty()) {
-            return invalid("invalid file entry: " + file.path);
-        }
-        // chunkが隙間や重複なくfile全体を構成することを検証
-        std::uint64_t nextOffset = 0;
-        for (const auto& chunk : file.chunks) {
-            if (chunk.offset != nextOffset || chunk.size == 0 || chunk.size > maximumChunkSize ||
-                !isSha256(chunk.sha256) || !isAllowedUrl(chunk.url) || nextOffset > file.size ||
-                chunk.size > file.size - nextOffset) {
-                return invalid("invalid chunk entry: " + file.path);
-            }
-            nextOffset += chunk.size;
-        }
-        if (nextOffset != file.size) {
-            return invalid("chunk size mismatch: " + file.path);
-        }
-        calculatedTotal += file.size;
-        entrypointFound |= file.path == release.entrypoint;
-    }
-    // file単位の検証結果をrelease全体の宣言値と照合
-    if (!entrypointFound || calculatedTotal != release.totalSize || release.signature.empty()) {
-        return invalid("manifest totals, entrypoint, or signature are invalid");
-    }
-    return OperationResult::success();
 }
 
-/** @brief install root内へ収まる相対pathかを検証する */
+/** @brief JSON解析から署名検証まで一度のRust呼び出しで完了する */
+GameRelease ManifestValidator::verify(std::string_view json,
+                                      std::string_view publicKeyBase64) const {
+    try {
+        const auto hosts = rustHosts(allowedHosts_);
+        return domainRelease(manifest_bridge::verify_manifest(
+            bytes(json), rust::Str(publicKeyBase64.data(), publicKeyBase64.size()),
+            {hosts.data(), hosts.size()}));
+    } catch (const rust::Error& error) {
+        throw std::runtime_error(error.what());
+    }
+}
+
+/** @brief 固定公開鍵の形式を検証する */
+void ManifestValidator::validatePublicKey(std::string_view publicKeyBase64) {
+    try {
+        manifest_bridge::validate_public_key(
+            rust::Str(publicKeyBase64.data(), publicKeyBase64.size()));
+    } catch (const rust::Error& error) {
+        throw std::invalid_argument(error.what());
+    }
+}
+
+/** @brief 物理版の配布情報にも同じEd25519検証を適用する */
+bool ManifestValidator::verifySignature(std::string_view payload, std::string_view signatureBase64,
+                                        std::string_view publicKeyBase64) {
+    return manifest_bridge::verify_signature(
+        bytes(payload), rust::Str(signatureBase64.data(), signatureBase64.size()),
+        rust::Str(publicKeyBase64.data(), publicKeyBase64.size()));
+}
+
+/** @brief Publisherと同じ相対path検証を適用する */
 bool ManifestValidator::isSafeRelativePath(const std::string& path) {
-    // Windows driveと区切り文字をplatform共通の段階で拒否
-    const bool hasWindowsDrivePrefix = path.size() >= 2 &&
-                                       std::isalpha(static_cast<unsigned char>(path.front())) &&
-                                       path[1] == ':';
-    if (path.empty() || path.size() > 240 || path.find('\\') != std::string::npos ||
-        hasWindowsDrivePrefix) {
-        return false;
-    }
-    // rootを持つpathと親directory参照を拒否
-    const std::filesystem::path candidate(path);
-    if (candidate.is_absolute() || candidate.has_root_name() || candidate.has_root_directory()) {
-        return false;
-    }
-    for (const auto& component : candidate) {
-        if (component == ".." || component == "." || component.empty()) {
-            return false;
-        }
-    }
-    return candidate.lexically_normal().generic_string() == path;
-}
-
-/** @brief SHA-256文字列の形式を検証する */
-bool ManifestValidator::isSha256(const std::string& value) {
-    return value.size() == 64 &&
-           std::all_of(value.begin(), value.end(), [](unsigned char character) {
-               return std::isdigit(character) || (character >= 'a' && character <= 'f');
-           });
-}
-
-/** @brief HTTPSまたはlocal開発用HTTPの許可URLかを検証する */
-bool ManifestValidator::isAllowedUrl(const std::string& url) const {
-    // schemeとhostだけを抽出して許可配布元と照合
-    static const std::regex urlPattern("^(https?)://([^/:?#]+)(?::[0-9]+)?(?:/|$)",
-                                       std::regex::icase);
-    std::smatch match;
-    if (!std::regex_search(url, match, urlPattern)) {
-        return false;
-    }
-    std::string scheme = match[1].str();
-    std::string host = match[2].str();
-    std::transform(host.begin(), host.end(), host.begin(),
-                   [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
-    // 本番はHTTPSに限定しlocal開発だけHTTPを許可
-    const bool secure = scheme == "https" || scheme == "HTTPS";
-    const bool localDevelopment =
-        (host == "127.0.0.1" || host == "localhost") && (scheme == "http" || scheme == "HTTP");
-    return (secure || localDevelopment) && allowedHosts_.contains(host);
+    return manifest_bridge::safe_relative_path(path);
 }
 
 } // namespace pandd

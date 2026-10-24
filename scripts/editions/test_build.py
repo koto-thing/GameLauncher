@@ -9,7 +9,7 @@ from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 from scripts.editions.build import NoRedirect, materialize_game, package, download
-from services.deployment_publisher.publisher import CHUNK_SIZE
+from packages.contracts.validation import CHUNK_SIZE
 
 
 class PhysicalMediaTests(unittest.TestCase):

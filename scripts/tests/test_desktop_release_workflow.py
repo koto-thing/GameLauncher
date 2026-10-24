@@ -74,7 +74,7 @@ class DesktopReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("--pattern PandD-Game-Launcher-Online-Installer.exe.sha256", recovery)
         self.assertIn("python -m scripts.release.promote_installer", recovery)
         self.assertNotIn("cmake --build", recovery)
-        self.assertNotIn("publisher.py upload", recovery)
+        self.assertNotIn("pandd-publisher upload", recovery)
         self.assertNotIn("gh release upload", recovery)
 
 

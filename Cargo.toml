@@ -1,0 +1,8 @@
+[workspace]
+members = ["packages/transfer", "packages/local-storage", "packages/file-integrity", "packages/distribution-contracts", "services/deployment_publisher", "apps/launcher/rust"]
+exclude = ["packages/music-loudness"]
+resolver = "3"
+
+[profile.release]
+lto = "thin"
+strip = true

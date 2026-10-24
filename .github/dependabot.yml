@@ -48,8 +48,8 @@ updates:
         patterns:
           - "*"
 
-  - package-ecosystem: pip
-    directory: /services/deployment_publisher
+  - package-ecosystem: cargo
+    directory: /
     schedule:
       interval: weekly
       day: monday
@@ -59,3 +59,8 @@ updates:
       publisher:
         patterns:
           - "*"
+
+  - package-ecosystem: pip
+    directory: /packages/contracts
+    schedule:
+      interval: weekly

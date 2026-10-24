@@ -1,5 +1,8 @@
 # ランチャー多言語化・PandD Intake Uploader実装計画
 
+この文書は初期設計です。現在のdesktop uploaderは受入artifactの作成・送信を担当し、
+署名・R2への公開は公開ジョブのRust Publisherが担当します。
+
 ## 1. 目的
 
 PandD Game Launcher全体を追加可能な多言語構成へ移行する。あわせて、Unityなどで
@@ -7,7 +10,7 @@ PandD Game Launcher全体を追加可能な多言語構成へ移行する。あ�
 ステージング環境へ公開できるWindowsデスクトップアプリを作る。
 
 このアプリは新しい公開処理を実装するものではない。既存の
-`services/deployment_publisher/publisher.py` が持つ検証、チャンク分割、ハッシュ計算、署名、
+`services/deployment_publisher/` のRust Publisher が持つ検証、チャンク分割、ハッシュ計算、署名、
 アップロード、リモート検証、`latest.json` の最終昇格を利用し、その前面に
 初心者向けの入力画面と確認手順を提供する。
 

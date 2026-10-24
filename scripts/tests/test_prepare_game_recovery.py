@@ -2,13 +2,17 @@
 
 import hashlib
 import json
+import os
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from scripts.deployment.prepare_game_recovery import prepare
-from services.deployment_publisher.publisher import build_game_release, canonical_json, create_key
+from packages.contracts.validation import canonical_json
+
+PUBLISHER = os.environ.get("PANDD_PUBLISHER", "pandd-publisher")
 
 
 class RecoveryTests(unittest.TestCase):
@@ -32,9 +36,13 @@ class RecoveryTests(unittest.TestCase):
         }
         metadata = root / "release.json"
         metadata.write_text(json.dumps(self.metadata), encoding="utf-8")
-        create_key(root / "private.pem", root / "public.pem")
+        subprocess.run([PUBLISHER, "init-key", "--private-key", str(root / "private.pem"),
+                        "--public-key", str(root / "public.pem")], check=True, capture_output=True)
         self.base = "https://downloads.example.test"
-        build_game_release(metadata, build, self.output, self.base, root / "private.pem", "windows", "x86_64")
+        subprocess.run([PUBLISHER, "publish-game", "--metadata", str(metadata), "--build-dir", str(build),
+                        "--output", str(self.output), "--base-url", self.base,
+                        "--private-key", str(root / "private.pem"), "--platform", "windows",
+                        "--arch", "x86_64"], check=True, capture_output=True)
         self.manifest = json.loads((self.output / "v1/games/sample-game/releases/windows/x86_64/1.0.0/manifest.json").read_text())
         self.digest = hashlib.sha256(canonical_json(self.manifest)).hexdigest()
 
