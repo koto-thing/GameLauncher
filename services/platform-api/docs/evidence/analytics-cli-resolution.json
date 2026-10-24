@@ -1,0 +1,65 @@
+{
+  "cliVersion": "0.2.129",
+  "sourceArchiveSha256": "5fd044ed178958a277eeaf21f3d384287b0f4428d38c019141df01da9c03168c",
+  "registryIndexChecksum": "5fd044ed178958a277eeaf21f3d384287b0f4428d38c019141df01da9c03168c",
+  "registryChecksumMatches": true,
+  "upstreamLockSha256": "e1d658381b01def5f91618c10958aad4a3965abb3ff8265526434b833076e887",
+  "reviewedLockSha256": "6bfd12ce20db1e2c84721c670248ba907df8a2d6285cf00387f0073d25aa2453",
+  "sourceCheck": "cargo check --locked --bin wasm-bindgen: passed; CLI binary not linked/installed/executed",
+  "changes": [
+    {
+      "name": "rustls",
+      "old": [
+        "0.23.45"
+      ],
+      "new": [
+        "0.23.46"
+      ],
+      "checksums": {
+        "0.23.46": "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
+      }
+    },
+    {
+      "name": "rustls-webpki",
+      "old": [
+        "0.103.15"
+      ],
+      "new": [
+        "0.103.16"
+      ],
+      "checksums": {
+        "0.103.16": "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281"
+      }
+    },
+    {
+      "name": "webpki-root-certs",
+      "old": [
+        "1.0.9"
+      ],
+      "new": [
+        "1.0.10"
+      ],
+      "checksums": {
+        "1.0.10": "58ec80e73fd8baf57bf0d9615554c75348bda990d6d5bbeab964dd068319fecb"
+      }
+    },
+    {
+      "name": "webpki-roots",
+      "old": [
+        "1.0.9"
+      ],
+      "new": [
+        "1.0.10"
+      ],
+      "checksums": {
+        "1.0.10": "1c1c8e20c8a38fc7d65abfe74eb7280e4aa667e8eec8bc84996d2874810748d9"
+      }
+    }
+  ],
+  "auditSummary": {
+    "vulnerabilities": 0,
+    "unmaintainedWarnings": 4,
+    "yankedWarnings": 1,
+    "advisoryDatabaseCommit": "21d909e4c8bd4e14c7aea58bf980c881a0053ab1"
+  }
+}

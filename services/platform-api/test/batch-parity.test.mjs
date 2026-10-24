@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { validateBatch } from "../src/validation.ts";
+import { isNormalization, validateBatch } from "../src/validation.ts";
 import { validateBatch as previous } from "./fixtures/previous-validation.ts";
 import { validate_batch } from "../src/rust-validation.ts";
 
@@ -100,6 +100,29 @@ test("Rust returns bounded normalization fields without copying unchanged daily 
   assert.equal(validateBatch(value, env, now), value);
   assert.equal(value.sessions[0].dailyDurations, daily);
   assert.equal(value.sessions[0].sessionId, value.sessions[0].sessionId.toLowerCase());
+});
+
+// 不正な返却値の件数と型と余分なキーを反映前に拒否する
+test("normalization boundary rejects missing entries and unexpected fields fail closed", () => {
+  const value = fixture();
+  const correct = JSON.parse(validate_batch(JSON.stringify(value), env.ALLOWED_GAME_IDS, env.PLAY_ENVIRONMENT, now));
+
+  assert.equal(isNormalization(correct, 1), true);
+  assert.equal(isNormalization(correct, 2), false);
+
+  for (const result of [null, false, [], {}, { ...correct, installationId: null }, { ...correct, extra: true },
+    { ...correct, sessions: [] }, { ...correct, sessions: null }, { ...correct, sessions: [null] },
+    { ...correct, sessions: [{ ...correct.sessions[0], durationSeconds: 0 }] },
+    { ...correct, sessions: [{ ...correct.sessions[0], startedAt: 0 }] },
+    { ...correct, sessions: [{ ...correct.sessions[0], endedAt: false }] }]) {
+    assert.equal(isNormalization(result, 1), false, JSON.stringify(result));
+  }
+
+  for (const key of Object.keys(correct.sessions[0])) {
+    const missing = structuredClone(correct);
+    delete missing.sessions[0][key];
+    assert.equal(isNormalization(missing, 1), false, key);
+  }
 });
 
 // 固定 seed の変異で異常値の組み合わせとセッション間の制約を比較する

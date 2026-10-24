@@ -1,5 +1,8 @@
 # Rust/Wasm 検証処理
 
+リソース実測、CLI の互換修正調査、staging の読み取り専用確認と未実行の検証案は
+[Part2 検証報告](rust-part2-resource-review.md) を参照する
+
 `POST /v1/play-sessions` のスキーマ適合後のバッチ全体を
 `rust-validation/src/batch.rs` の Rust 関数で検証する
 許可ゲーム・環境・UUID の重複・セッション時刻・終了状態・日別配分の上限と合計を検証し、
