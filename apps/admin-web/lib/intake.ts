@@ -1,3 +1,4 @@
+import { validPartNumber, expectedUploadPartSize } from "./intake-policy";
 import { env } from "cloudflare:workers";
 import { AwsClient } from "aws4fetch";
 import { ensureSchema, getD1 } from "@/db/initialize";
@@ -256,12 +257,12 @@ export async function uploadLocalPart(
 
 function expectedPartSize(row: Row, partNumber: number): number {
   const count = number(row.part_count);
-  if (!Number.isSafeInteger(partNumber) || partNumber < 1 || partNumber > count) {
+  if (!validPartNumber(partNumber, count)) {
     throw new Error("part番号が不正です");
   }
   const size = number(row.size_bytes);
   const partSize = number(row.part_size);
-  return partNumber === count ? size - partSize * (count - 1) : partSize;
+  return expectedUploadPartSize(partNumber, count, size, partSize);
 }
 
 /** 受信済みパートのETagと容量をD1へ記録する */
