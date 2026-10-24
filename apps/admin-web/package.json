@@ -56,7 +56,10 @@
     "@esbuild-kit/core-utils": {
       "esbuild": "0.28.1"
     },
-    "fflate": "0.7.5"
+    "fflate": "0.7.5",
+    "miniflare": {
+      "undici": "7.30.1"
+    }
   },
   "type": "module"
 }
