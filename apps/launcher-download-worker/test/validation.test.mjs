@@ -1,10 +1,16 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {readFile} from "node:fs/promises";
+import {readFile, stat} from "node:fs/promises";
 
 // 配布するWasmを既存JavaScriptの契約と比較する
 const {instance: {exports: core}} = await WebAssembly.instantiate(await readFile(new URL("../generated/validation.wasm", import.meta.url)));
 const encoder = new TextEncoder();
+
+test("generated Wasm has non-executable POSIX permissions", {skip: process.platform === "win32"}, async () => {
+  // 再生成後もGit管理下の0644を維持する
+  const artifact = await stat(new URL("../generated/validation.wasm", import.meta.url));
+  assert.equal(artifact.mode & 0o777, 0o644);
+});
 
 /**
  * 移行前のJavaScript検証結果を取得する
