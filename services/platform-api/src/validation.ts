@@ -31,12 +31,25 @@ export function validateBatch(value: unknown, env: AnalyticsEnv, now: number): P
   }
 
   // スキーマ適合後の意味検証と正規化を一度の Rust 呼出しで行う
+  let normalization: Pick<PlaySessionBatch, "installationId"> & {
+    sessions: Array<Pick<PlaySessionBatch["sessions"][number], "sessionId" | "startedAt" | "lastObservedAt" | "endedAt">>;
+  };
+
   try {
-    return JSON.parse(validate_batch(JSON.stringify(value), env.ALLOWED_GAME_IDS, env.PLAY_ENVIRONMENT, now)) as PlaySessionBatch;
+    normalization = JSON.parse(validate_batch(JSON.stringify(value), env.ALLOWED_GAME_IDS, env.PLAY_ENVIRONMENT, now));
   } catch (error) {
     // wasm-bindgen が送出する既存の意味検証メッセージを HTTP 層へ引き継ぐ
     throw new Error(typeof error === "string" ? error : "analytics unavailable");
   }
+
+  // Rust が正規化したフィールドだけを反映し日別配列の再転送を避ける
+  value.installationId = normalization.installationId;
+
+  for (let index = 0; index < value.sessions.length; index++) {
+    Object.assign(value.sessions[index], normalization.sessions[index]);
+  }
+
+  return value;
 }
 
 // Validate real calendar dates without accepting JavaScript date normalization

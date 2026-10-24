@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { validateBatch } from "../src/validation.ts";
 import { validateBatch as previous } from "./fixtures/previous-validation.ts";
+import { validate_batch } from "../src/rust-validation.ts";
 
 const now = Date.parse("2026-10-11T03:00:00Z");
 const env = { ALLOWED_GAME_IDS: "test-game,other-game", PLAY_ENVIRONMENT: "production" };
@@ -88,6 +89,19 @@ test("whole-batch Rust boundary preserves schema failures and error precedence",
   }
 });
 
+// 正規化結果だけを受け取り既存のオブジェクトと日別配列を再利用する
+test("Rust returns bounded normalization fields without copying unchanged daily arrays", () => {
+  const value = fixture();
+  const daily = value.sessions[0].dailyDurations;
+  const normalization = JSON.parse(validate_batch(JSON.stringify(value), env.ALLOWED_GAME_IDS, env.PLAY_ENVIRONMENT, now));
+
+  assert.deepEqual(Object.keys(normalization).sort(), ["installationId", "sessions"]);
+  assert.deepEqual(Object.keys(normalization.sessions[0]).sort(), ["endedAt", "lastObservedAt", "sessionId", "startedAt"]);
+  assert.equal(validateBatch(value, env, now), value);
+  assert.equal(value.sessions[0].dailyDurations, daily);
+  assert.equal(value.sessions[0].sessionId, value.sessions[0].sessionId.toLowerCase());
+});
+
 // 固定 seed の変異で異常値の組み合わせとセッション間の制約を比較する
 test("deterministic batch mutation fuzz preserves Rust validation and normalization", () => {
   let seed = 0x12345678;
@@ -172,5 +186,7 @@ test("Rust validates the maximum 100 sessions and 91 daily allocations without c
 
   // 本番の受信上限に収まる正常な入力で比較する
   assert.ok(new TextEncoder().encode(JSON.stringify(value)).length < 1_048_576);
+  const normalization = validate_batch(JSON.stringify(value), env.ALLOWED_GAME_IDS, env.PLAY_ENVIRONMENT, clock);
+  assert.ok(new TextEncoder().encode(normalization).length < 32_768);
   assert.deepEqual(validateBatch(structuredClone(value), env, clock), previous(structuredClone(value), env, clock));
 });

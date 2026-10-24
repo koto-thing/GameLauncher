@@ -6,23 +6,19 @@ use wasm_bindgen::prelude::*;
 
 use crate::{valid_daily, valid_outcome, valid_timing};
 
-#[derive(Deserialize, Serialize)]
+// スキーマだけで検証できる認証情報と版情報は所有文字列として複製せず読み飛ばす
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Batch {
-    schema_version: u8,
     installation_id: String,
-    installation_token: String,
     sessions: Vec<Session>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Session {
     session_id: String,
-    revision: i32,
     game_id: String,
-    game_version: String,
-    launcher_version: String,
     environment: String,
     started_at: String,
     last_observed_at: String,
@@ -34,11 +30,27 @@ struct Session {
     daily_durations: Vec<DailyDuration>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DailyDuration {
     date: String,
     duration_seconds: u32,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Normalization {
+    installation_id: String,
+    sessions: Vec<NormalizedSession>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NormalizedSession {
+    session_id: String,
+    started_at: String,
+    last_observed_at: String,
+    ended_at: Option<String>,
 }
 
 /// スキーマ検証済み UTC 文字列を既存の Date.parse と同じミリ秒に変換する
@@ -211,7 +223,7 @@ fn validate(
 /// * `now` - 検証時刻の Unix ミリ秒
 ///
 /// # 戻り値
-/// 正規化した JSON 解析不能または意味検証の違反では既存のエラーメッセージを送出する
+/// 正規化したフィールドだけの JSON 解析不能または意味検証の違反では既存のエラーメッセージを送出する
 #[wasm_bindgen]
 pub fn validate_batch(
     json: &str,
@@ -223,6 +235,21 @@ pub fn validate_batch(
     let batch: Batch = serde_json::from_str(json).map_err(|_| "invalid session payload")?;
     let validated = validate(batch, allowed_ids, environment, now)?;
 
+    // 未変更の日別配列を再転送せず正規化したフィールドだけを型付きで抽出する
+    let normalization = Normalization {
+        installation_id: validated.installation_id,
+        sessions: validated
+            .sessions
+            .into_iter()
+            .map(|session| NormalizedSession {
+                session_id: session.session_id,
+                started_at: session.started_at,
+                last_observed_at: session.last_observed_at,
+                ended_at: session.ended_at,
+            })
+            .collect(),
+    };
+
     // シリアライズは標準ライブラリに委ね独自のメモリ管理を持たない
-    serde_json::to_string(&validated).map_err(|_| "invalid session payload".to_string())
+    serde_json::to_string(&normalization).map_err(|_| "invalid session payload".to_string())
 }
