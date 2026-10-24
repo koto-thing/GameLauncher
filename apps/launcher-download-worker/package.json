@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:rust": "node scripts/build-rust.mjs",
     "test": "node --test",
     "check": "wrangler deploy --dry-run",
     "deploy": "wrangler deploy"

@@ -1,8 +1,16 @@
+import {validPointer} from "./validation.mjs";
+
 const POINTER = "v1/launcher/downloads/windows/x86_64/latest.json";
 const ORIGIN = "https://downloads.koto-thing.com";
 const installerKey = version => `v1/launcher/installers/windows/x86_64/${version}/PandD-Game-Launcher-Online-Installer.exe`;
 const headers = {"Cache-Control": "no-store", "CDN-Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"};
 export default {
+  /**
+   * 検証済みインストーラーへの固定URLを解決する
+   * @param {Request} request ダウンロード要求
+   * @param {object} env RELEASESバケットの実行環境
+   * @returns {Promise<Response>} 転送応答または既存契約のエラー応答
+   */
   async fetch(request, env) {
     const url = new URL(request.url);
     const reply = (status, message, extra = {}) => new Response(request.method === "HEAD" ? null : message, {status, headers: {...headers, ...extra}});
@@ -12,8 +20,7 @@ export default {
       const object = await env.RELEASES.get(POINTER);
       if (!object || object.size > 4096) return reply(503, "Installer is not available yet.", {"Retry-After": "60"});
       const data = await object.json();
-      if (data?.schemaVersion !== 1 || typeof data.version !== "string" || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(data.version) ||
-          !/^[a-f0-9]{64}$/.test(data.sha256) || !Number.isSafeInteger(data.size) || data.size <= 0) throw new Error("Invalid pointer");
+      if (!validPointer(data)) throw new Error("Invalid pointer");
       const key = installerKey(data.version);
       const artifact = await env.RELEASES.head(key);
       if (!artifact || artifact.size !== data.size || artifact.customMetadata?.sha256 !== data.sha256) throw new Error("Artifact mismatch");

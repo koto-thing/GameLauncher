@@ -1,14 +1,22 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { test } from "node:test";
 import { Miniflare } from "miniflare";
 
 // Run the bundled production Worker in workerd with a real D1 database and rate-limit binding
 test("workerd supports static validation, atomic D1 snapshots, administrator reads and deletion", async () => {
   const contents = await readFile(new URL("../.wrangler/test-worker/index.js", import.meta.url), "utf8");
+  const modules = { "index.js": { type: "esm", contents } };
+
+  // Wrangler が出力した静的 Wasm を同じ workerd モジュール構成で読み込む
+  for (const name of await readdir(new URL("../.wrangler/test-worker/", import.meta.url))) {
+    if (name.endsWith(".wasm")) modules[name] = { type: "wasm", contents: await readFile(new URL(`../.wrangler/test-worker/${name}`, import.meta.url)) };
+  }
+
+  assert.ok(Object.keys(modules).some((name) => name.endsWith(".wasm")), "production bundle must contain Rust Wasm");
   const mf = new Miniflare({ workers: [{ config: {
     name: "analytics-test", compatibilityDate: "2026-10-08",
-    manifest: { mainModule: "index.js", modules: { "index.js": { type: "esm", contents } } },
+    manifest: { mainModule: "index.js", modules },
     env: {
       ANALYTICS_DB: { type: "d1", id: "analytics-test-db" },
       INGEST_RATE_LIMITER: { type: "rate-limit", namespace: "1001", simple: { limit: 60, period: 60 } },
@@ -53,6 +61,23 @@ test("workerd supports static validation, atomic D1 snapshots, administrator rea
       const first = Math.floor((midnight - start) / 1000);
 
       snapshot.sessions[0].dailyDurations = [{ date: japanDate, durationSeconds: first }, { date: endDate, durationSeconds: 600 - first }];
+    }
+
+    // Rust の各判定を HTTP 経由で実行し拒否したデータが D1 に残らないことを確認する
+    for (const [overrides, message] of [
+      [{ durationSeconds: 603 }, "invalid session timing"],
+      [{ exitCode: 1 }, "invalid session outcome"],
+      [{ dailyDurations: [{ date: japanDate, durationSeconds: 604 }] }, "invalid daily duration"],
+    ]) {
+      const invalid = structuredClone(snapshot);
+      Object.assign(invalid.sessions[0], overrides);
+      const response = await mf.dispatchFetch("https://analytics.test/v1/play-sessions", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(invalid),
+      });
+
+      assert.equal(response.status, 400);
+      assert.deepEqual(await response.json(), { error: message });
+      assert.equal((await db.prepare("SELECT COUNT(*) count FROM play_sessions").first()).count, 0);
     }
 
     for (let repeat = 0; repeat < 2; repeat++) {
