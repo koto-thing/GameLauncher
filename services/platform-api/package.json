@@ -7,18 +7,20 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "schema:generate": "node scripts/generate-validator.js",
+    "schema:generate": "npm run rust:build && node scripts/generate-validator.js",
     "predev": "npm run schema:generate",
     "pretypecheck": "npm run schema:generate",
     "pretest": "npm run schema:generate && node scripts/build-test-worker.js",
     "predeploy": "npm run schema:generate",
     "dev": "wrangler dev",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.ts test/*.test.mjs",
-    "check": "npm run typecheck && npm test && wrangler deploy --dry-run --env production",
+    "test": "node --import ./scripts/register-wasm.js --test test/*.test.ts test/*.test.mjs",
+    "check": "npm run rust:test && npm run typecheck && npm test && wrangler deploy --dry-run --env production",
     "db:local": "wrangler d1 migrations apply ANALYTICS_DB --local",
     "db:remote": "wrangler d1 migrations apply ANALYTICS_DB --remote",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "rust:build": "node scripts/build-rust.js",
+    "rust:test": "cargo test --manifest-path rust-validation/Cargo.toml --locked"
   },
   "dependencies": {
     "ajv": "^8.20.0",
