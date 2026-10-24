@@ -23,7 +23,8 @@
     "test:public": "node scripts/public-test.mjs",
     "predev": "node ../admin-web/scripts/build-intake-policy.js",
     "pretest": "node ../admin-web/scripts/build-intake-policy.js",
-    "pretest:e2e": "node ../admin-web/scripts/build-intake-policy.js"
+    "pretest:e2e": "node ../admin-web/scripts/build-intake-policy.js",
+    "pretest:public": "node ../admin-web/scripts/build-intake-policy.js"
   },
   "dependencies": {
     "react": "19.2.8",
