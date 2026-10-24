@@ -32,6 +32,12 @@ jobs:
           cache-dependency-path: services/platform-api/package-lock.json
       - name: Install analytics API dependencies
         run: npm ci --prefix services/platform-api
+      - name: Install repository Rust toolchain and Wasm target
+        run: rustup target add wasm32-unknown-unknown
+      - name: Regenerate analytics Rust module when available
+        run: |
+          npm run rust:build --if-present --prefix services/platform-api
+          git diff --exit-code -- services/platform-api
       - name: Check analytics API
         run: npm run check --prefix services/platform-api
 

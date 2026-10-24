@@ -1,0 +1,37 @@
+name: Management API validation
+
+on:
+  pull_request:
+    paths:
+      - 'apps/admin-web/**'
+      - 'apps/music/**'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/management-api-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  management:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+      - name: Install repository Rust toolchain and Wasm target
+        run: rustup target add wasm32-unknown-unknown
+      - run: npm ci --prefix apps/admin-web
+      - run: npm ci --prefix apps/music
+      - name: Test Rust upload policy
+        run: |
+          rustc --edition=2024 --test apps/admin-web/rust/intake-policy.rs -o /tmp/intake-policy-tests
+          /tmp/intake-policy-tests
+      - run: npm run lint --prefix apps/admin-web
+      - run: npm test --prefix apps/admin-web
+      - name: Validate deployment bundle without deployment
+        working-directory: apps/admin-web
+        run: npx wrangler deploy --dry-run --config dist/server/wrangler.json

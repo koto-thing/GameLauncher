@@ -5,6 +5,7 @@ on:
     paths:
       - 'apps/launcher-download-web/**'
       - 'apps/launcher-download-worker/**'
+      - 'rust-toolchain.toml'
       - 'scripts/release/promote_installer.py'
       - 'scripts/tests/test_promote_installer.py'
       - '.github/workflows/release.yml'
@@ -53,6 +54,16 @@ jobs:
           node-version: '24'
       - run: npm ci
         working-directory: apps/launcher-download-worker
+      - name: Install repository Rust toolchain and Wasm target
+        run: rustup target add wasm32-unknown-unknown
+      - name: Test and regenerate download Rust module when available
+        working-directory: apps/launcher-download-worker
+        run: |
+          if test -f rust/Cargo.toml; then
+            cargo test --manifest-path rust/Cargo.toml --locked
+          fi
+          npm run build:rust --if-present
+          git diff --exit-code -- .
       - run: npm test
         working-directory: apps/launcher-download-worker
       - run: npm run check
