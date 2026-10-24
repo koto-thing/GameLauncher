@@ -7,8 +7,8 @@
   },
   "scripts": {
     "schema:generate": "node scripts/generate-validators.js",
-    "predev": "npm run schema:generate",
-    "prebuild": "npm run schema:generate && npm run music:build",
+    "predev": "npm run rust:build && npm run schema:generate",
+    "prebuild": "npm run rust:build && npm run schema:generate && npm run music:build",
     "dev": "vinext dev",
     "build": "vinext build",
     "predeploy:cloudflare": "npm run prebuild",
@@ -17,7 +17,8 @@
     "test": "npm run build && node --test",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern lib/generated && oxlint",
     "db:generate": "drizzle-kit generate",
-    "music:build": "npm --prefix ../music run build:manager"
+    "music:build": "npm --prefix ../music run build:manager",
+    "rust:build": "node scripts/build-intake-policy.js"
   },
   "dependencies": {
     "ajv": "^8.20.0",
