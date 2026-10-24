@@ -234,6 +234,10 @@ export async function createRuntime({
                 type: "wasm",
                 contents: await readFile(path.join(workspaceRoot, "apps/admin-web/lib/generated/intake-policy.wasm")),
               },
+              "generated/music-upload-policy.wasm?module": {
+                type: "wasm",
+                contents: await readFile(path.join(workspaceRoot, "apps/admin-web/lib/generated/music-upload-policy.wasm")),
+              },
             },
           },
           env: {

@@ -8,7 +8,7 @@ const policy = new WebAssembly.Instance(module).exports as {
 const encoder = new TextEncoder();
 
 /**
- * 固定長 ABI で Rust のアップロード受付ルールを呼ぶ
+ * @brief 固定長 ABI で Rust のアップロード受付ルールを呼ぶ
  * @param bytes 申告容量
  * @param limit 用途別上限
  * @param audio 音声用途か
