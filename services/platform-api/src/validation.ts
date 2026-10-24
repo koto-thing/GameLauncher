@@ -1,18 +1,40 @@
-import validationModule from "./generated/analytics-validation.wasm";
+import { validate_batch } from "./rust-validation.ts";
 import type { ValidateFunction } from "ajv";
 import { validatePlaySessions } from "./generated/play-sessions.js";
 import type { AnalyticsEnv, PlaySessionBatch } from "./types.ts";
 
 const validateSchema = validatePlaySessions as ValidateFunction<PlaySessionBatch>;
 
-// 静的インポートした Rust Wasm を isolate ごとに一度だけ初期化する
-const rust = new WebAssembly.Instance(validationModule).exports as unknown as {
-  valid_timing(start: number, observed: number, ended: number, now: number, duration: number, running: number): number;
-  valid_outcome(outcome: number, exitCode: number, crashed: number, duration: number): number;
-  valid_daily(start: number, observed: number, dayStart: number, duration: number): number;
+type Normalization = Pick<PlaySessionBatch, "installationId"> & {
+  sessions: Array<Pick<PlaySessionBatch["sessions"][number], "sessionId" | "startedAt" | "lastObservedAt" | "endedAt">>;
 };
 
-const outcomes = { running: 0, normal: 1, abnormal: 2, interrupted: 3, launch_failed: 4 };
+/**
+ * Rust の返却値が正規化フィールドだけの対応するバッチであることを確認する
+ * @param value JSON として復元した Rust の返却値
+ * @param count 入力バッチのセッション件数
+ * @returns 件数と型とキーが一致した場合は true
+ */
+export function isNormalization(value: unknown, count: number): value is Normalization {
+  // 構造が崩れた返却値を反映する前に拒否する
+  if (value === null || typeof value !== "object") return false;
+
+  const result = value as Record<string, unknown>;
+
+  if (Object.keys(result).length !== 2 || typeof result.installationId !== "string" ||
+      !Array.isArray(result.sessions) || result.sessions.length !== count) return false;
+
+  // ドメイン規則を重複させず各セッションの返却フィールドだけを確認する
+  return result.sessions.every((session: unknown) => {
+    if (session === null || typeof session !== "object") return false;
+
+    const fields = session as Record<string, unknown>;
+
+    return Object.keys(fields).length === 4 && typeof fields.sessionId === "string" &&
+      typeof fields.startedAt === "string" && typeof fields.lastObservedAt === "string" &&
+      (fields.endedAt === null || typeof fields.endedAt === "string");
+  });
+}
 
 export const DAY_MS = 86_400_000;
 
@@ -39,59 +61,24 @@ export function validateBatch(value: unknown, env: AnalyticsEnv, now: number): P
     throw new Error("invalid session payload");
   }
 
-  const allowed = new Set(env.ALLOWED_GAME_IDS.split(",").map((id) => id.trim()).filter(Boolean));
-  const ids = new Set<string>();
+  // スキーマ適合後の意味検証と正規化を一度の Rust 呼出しで行う
+  let normalization: unknown;
 
-  value.installationId = value.installationId.toLowerCase();
+  try {
+    normalization = JSON.parse(validate_batch(JSON.stringify(value), env.ALLOWED_GAME_IDS, env.PLAY_ENVIRONMENT, now));
+  } catch (error) {
+    // wasm-bindgen が送出する既存の意味検証メッセージを HTTP 層へ引き継ぐ
+    throw new Error(typeof error === "string" ? error : "analytics unavailable");
+  }
 
-  for (const session of value.sessions) {
-    session.sessionId = session.sessionId.toLowerCase();
-    const start = Date.parse(session.startedAt);
-    const observed = Date.parse(session.lastObservedAt);
-    const ended = session.endedAt === null ? null : Date.parse(session.endedAt);
+  // 欠落したセッションや余分なフィールドを保存経路へ通さない
+  if (!isNormalization(normalization, value.sessions.length)) throw new Error("analytics unavailable");
 
-    if (!allowed.has(session.gameId) || session.environment !== env.PLAY_ENVIRONMENT || ids.has(session.sessionId)) {
-      throw new Error("unknown game, environment, or duplicate session");
-    }
+  // Rust が正規化したフィールドだけを反映し日別配列の再転送を避ける
+  value.installationId = normalization.installationId;
 
-    ids.add(session.sessionId);
-
-    if (!Number.isFinite(start) || !Number.isFinite(observed) || (ended !== null && !Number.isFinite(ended))) {
-      throw new Error("invalid session timing");
-    }
-
-    // 時刻と終了状態の意味検証を Rust に委ねる
-    if (!rust.valid_timing(start, observed, ended ?? NaN, now, session.durationSeconds, Number(session.outcome === "running"))) {
-      throw new Error("invalid session timing");
-    }
-
-    if (!rust.valid_outcome(outcomes[session.outcome], session.exitCode ?? NaN,
-      session.crashed === null ? -1 : Number(session.crashed), session.durationSeconds)) {
-      throw new Error("invalid session outcome");
-    }
-
-    let dailyTotal = 0;
-    const dates = new Set<string>();
-
-    for (const part of session.dailyDurations) {
-      // 日別配分の重複はこの層で検出し時間の上限は Rust で検証する
-      const dayStart = Date.parse(`${part.date}T00:00:00+09:00`);
-
-      if (dates.has(part.date) || !rust.valid_daily(start, observed, dayStart, part.durationSeconds)) {
-        throw new Error("invalid daily duration");
-      }
-
-      dates.add(part.date);
-      dailyTotal += part.durationSeconds;
-    }
-
-    if (dailyTotal !== session.durationSeconds) {
-      throw new Error("daily duration total does not match session");
-    }
-
-    session.startedAt = new Date(start).toISOString();
-    session.lastObservedAt = new Date(observed).toISOString();
-    session.endedAt = ended === null ? null : new Date(ended).toISOString();
+  for (let index = 0; index < value.sessions.length; index++) {
+    Object.assign(value.sessions[index], normalization.sessions[index]);
   }
 
   return value;

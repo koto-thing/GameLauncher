@@ -3,4 +3,4 @@
 !.dev.vars.example
 
 rust-validation/target/
-src/generated/analytics-validation.wasm
+src/generated/rust/
