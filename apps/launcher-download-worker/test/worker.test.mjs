@@ -4,7 +4,7 @@ import {Miniflare} from "miniflare";
 const POINTER = "v1/launcher/downloads/windows/x86_64/latest.json";
 const ORIGIN = "https://downloads.koto-thing.com";
 const installerKey = version => `v1/launcher/installers/windows/x86_64/${version}/PandD-Game-Launcher-Online-Installer.exe`;
-const mf = new Miniflare({workers: [{config: {name: "download", compatibilityDate: "2026-09-02", manifest: {mainModule: "index.mjs", modules: {"index.mjs": {type: "esm", contents: await (await import("node:fs/promises")).readFile(new URL("../src/index.mjs", import.meta.url), "utf8")}}}, env: {RELEASES: {type: "r2", name: "test-releases"}}}}]});
+const mf = new Miniflare({workers: [{config: {name: "download", compatibilityDate: "2026-09-02", manifest: {mainModule: "src/index.mjs", modules: {"src/validation.mjs": {type: "esm", contents: await (await import("node:fs/promises")).readFile(new URL("../src/validation.mjs", import.meta.url), "utf8")}, "generated/validation.wasm": {type: "wasm", contents: await (await import("node:fs/promises")).readFile(new URL("../generated/validation.wasm", import.meta.url))}, "src/index.mjs": {type: "esm", contents: await (await import("node:fs/promises")).readFile(new URL("../src/index.mjs", import.meta.url), "utf8")}}}, env: {RELEASES: {type: "r2", name: "test-releases"}}}}]});
 after(() => mf.dispose());
 const digest = "a".repeat(64);
 const document = version => ({schemaVersion: 1, version, sha256: digest, size: 3});
@@ -26,6 +26,14 @@ test("R2 missing, verified promotion, update, HEAD, malformed and missing artifa
   assert.equal(response.status, 302);
   assert.equal(await response.text(), "");
   assert.equal(response.headers.get("Location"), `${ORIGIN}/${installerKey("1.1.0")}`);
+  // Range付き要求も同じ公開R2 URLへ転送する
+  response = await mf.dispatchFetch(`${ORIGIN}/download/windows`, {headers: {Range: "bytes=0-1"}, redirect: "manual"});
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("Location"), `${ORIGIN}/${installerKey("1.1.0")}`);
+  assert.equal(response.headers.get("CDN-Cache-Control"), "no-store");
+  assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
+
   const bucket = await mf.getR2Bucket("RELEASES");
   await bucket.delete(installerKey("1.1.0"));
   assert.equal((await request()).status, 503);
@@ -35,6 +43,14 @@ test("R2 missing, verified promotion, update, HEAD, malformed and missing artifa
     assert.equal(response.status, 503);
     assert.equal(response.headers.get("Location"), null);
     assert.equal(response.headers.get("Cache-Control"), "no-store");
+  }
+  // JSONの型違いを数値や文字列へ暗黙変換せず拒否する
+  for (const data of [null, {}, {...document("1.0.5"), schemaVersion: "1"}, {...document("1.0.5"), size: "3"}, {...document("1.0.5"), version: 123}, {...document("1.0.5"), sha256: null}]) {
+    await bucket.put(POINTER, JSON.stringify(data));
+    response = await request("/download/windows", "HEAD");
+    assert.equal(response.status, 503);
+    assert.equal(await response.text(), "");
+    assert.equal(response.headers.get("Retry-After"), "60");
   }
 });
 test("only the fixed GET/HEAD endpoint is served", async () => {
