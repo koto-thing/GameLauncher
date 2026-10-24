@@ -3,7 +3,7 @@ attrs==26.1.0
 fqdn==1.6.0
 idna==3.20
 isoduration==20.11.0
-jsonpointer==3.2.1
+jsonpointer==3.4
 jsonschema[format]==4.26.0
 jsonschema-specifications==2025.9.1
 python-dateutil==2.9.0.post0
