@@ -137,7 +137,8 @@ webpki-root-certs  1.0.9   -> 1.0.10
 Windows では差分と適用後の lockfile を LF に揃えて canonical checksum を確認する
 この方法で公開差分から修正 lockfile の再構成も確認した
 Rust 1.94.1 の `cargo check --locked --bin wasm-bindgen` は成功した
-CLI 本体のリンク・インストール・実行はしていない
+その後、親の承認に基づき同じ公式ソースと四依存差分から CLI 本体を release build し、`wasm-bindgen --version` と生成処理を実行した
+システムの PATH や共有 CLI は変更せず、サービスのローカル target 内だけに配置した
 修正 lockfile の RustSec 脆弱性はゼロになったが、未保守四件と yanked 一件の警告は残る
 未保守は buf_redux 0.8.4、multipart 0.18.0、safemem 0.3.3、twoway 0.1.8
 yanked は yoke-derive 0.8.3
@@ -182,7 +183,11 @@ Paid の Tail Worker は作成しない
 
 ## 承認後に行う bounded staging 検証案
 
-ここからは未実行の手順であり、現在の許可にはデプロイと合成書込を含めない
+ここからは未実行の計画であり、staging を止めていた理由はユーザーの制限ではなく親の統合調整による保留
+最新の親の条件付き承認は、統合担当から明示的な staging 所有権引継ぎを受けた後の no-write screening だけを対象とする
+既存 Observability=false を維持し、最大十件の逐次・九十日分の後段エラーを期待通りの400とDB無変更で確認し、元の staging version へ戻す
+引継ぎは未受領であり、現在はデプロイ・合成送信を実施しない
+以下の保存ログ設定と正常系書込を含む拡張案は現在の承認には含まれない
 
 1. 親が対象 SHA・staging Worker 名・D1 ID・元の version を記録し、他の staging 利用と重ならない窓を確保する
    直前に上の件数と active version を再確認し、実データが入っていれば valid-write phase は停止する
@@ -237,3 +242,23 @@ Paid の Tail Worker は作成しない
 - [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/)
 - [D1 pricing と index の書込](https://developers.cloudflare.com/d1/platform/pricing/)
 - [D1 Free の共有 daily limit](https://developers.cloudflare.com/changelog/post/2026-09-01-d1-free-tier-limit-enforcement/)
+
+
+## 審査済み CLI の再現用インストーラー
+
+Python 3.12以上、Git、Rust 1.94.1を用意し、サービス専用の次の手順を使う
+共有 CI の編集と採用は統合担当が所有する
+
+```sh
+python services/platform-api/scripts/prepare-reviewed-cli.py --target-dir services/platform-api/rust-validation/target/cli-reviewed
+export WASM_BINDGEN="$PWD/services/platform-api/rust-validation/target/cli-reviewed/release/wasm-bindgen"
+npm run check --prefix services/platform-api
+```
+
+Windows は表示された `.exe` のパスを `WASM_BINDGEN` に設定する
+スクリプトは公式 archive と元 lock と修正 lock の SHA256 を確認し、四依存差分だけを適用して `--locked` でビルドする
+不一致は即時停止し、既存の共有 CLI や PATH を変更しない
+未保守四件と yanked 一件は build tool の generator 用途に限定して残存事項として扱う
+ネットワーク test runner と server 用途は承認していない
+審査済み版で Rust二件・Node/workerd三十四件・型検査・production dry-run が成功した
+従来の clean-target 生成物との Wasm/JS/型定義の byte 一致も確認する
