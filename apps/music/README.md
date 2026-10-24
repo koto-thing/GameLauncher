@@ -8,7 +8,7 @@
 
 管理 API の設定取得にはリポジトリ指定の Rust と `wasm32-unknown-unknown` target が必要
 初回にリポジトリ内で `rustup target add wasm32-unknown-unknown` を実行する
-`npm run dev`、`npm test`、`npm run test:e2e` は起動前に管理 API の Wasm を自動生成する
+`npm run dev`、`npm test`、`npm run test:e2e`、`npm run test:public` は起動前に管理 API の Wasm を自動生成する
 `npm run check` も内部の `npm test` で同じ生成処理を実行する
 生成物の手動コピーや Cloudflare ログインは不要
 
