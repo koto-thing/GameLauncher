@@ -23,6 +23,11 @@ jobs:
       - run: npm ci
       - run: npm ci
         working-directory: apps/admin-web
+      - name: Prepare management Rust module for shared API tests
+        working-directory: .
+        run: |
+          rustup target add wasm32-unknown-unknown
+          npm run rust:build --prefix apps/admin-web
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.4'

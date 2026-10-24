@@ -197,7 +197,7 @@ export async function createRuntime({
     platform: "neutral",
     mainFields: ["browser", "module", "main"],
     conditions: ["workerd", "worker", "browser"],
-    external: ["node:*", "cloudflare:workers"],
+    external: ["node:*", "cloudflare:workers", "*.wasm?module"],
     target: "es2023",
     logLevel: "silent",
   });
@@ -228,6 +228,11 @@ export async function createRuntime({
               "worker.mjs": {
                 type: "esm",
                 contents: built.outputFiles[0].text,
+              },
+              // 管理 API と同じ実 Wasm を読み込み、設定取得の経路を維持する
+              "generated/intake-policy.wasm?module": {
+                type: "wasm",
+                contents: await readFile(path.join(workspaceRoot, "apps/admin-web/lib/generated/intake-policy.wasm")),
               },
             },
           },
