@@ -10,7 +10,9 @@ node apps/admin-web/scripts/build-intake-policy.js
 node --test apps/admin-web/tests/multipart-policy.test.mjs
 
 実際の Wasm を使い、安全整数境界、非整数、NaN、無限大、容量の桁あふれを旧式と比較する
-Worker 全体の build と認証付き upload/record/seal の実行検証は統合担当で追加する必要がある
+Worker 全体の build、全テスト、lint、型チェック、dry-run と認証付き upload/record/seal の workerd 実行検証を実施
+JSON の文字列、真偽値、null、配列、オブジェクトは Wasm ABI の変換前に拒否し、保存済みパートが増えないことを確認
+LOCAL_DEV_AUTH と SESSION_SECRET はテスト専用 binding だけで指定する
 Music の追加が同じ intake-policy.rs または wrapper に触れる場合は手動統合が必要
 共有 CI や配信設定は変更していない
 
