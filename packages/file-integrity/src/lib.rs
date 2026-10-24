@@ -16,7 +16,15 @@ pub enum Failure {
 }
 
 impl std::fmt::Display for Failure {
-    /// Preserve a typed failure across application boundaries
+    /// ファイル処理の失敗種別を境界を越えて伝える
+    ///
+    /// # 引数
+    ///
+    /// * `formatter` - エラーの出力先
+    ///
+    /// # 戻り値
+    ///
+    /// 整形結果の書込が成功した場合は Ok(())
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(match self {
             Self::Integrity => "file size or SHA-256 mismatch",
@@ -38,13 +46,29 @@ pub struct FileDigest {
     pub sha256: String,
 }
 
-/// Stop before reading or committing cancelled work
+/// キャンセルされた処理を読込や確定の前に停止する
+///
+/// # 引数
+///
+/// * `cancelled` - キャンセル要求がある場合に true を返す関数
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 fn checkpoint(cancelled: &impl Fn() -> bool) -> Result<()> {
     ensure!(!cancelled(), Failure::Cancelled);
     Ok(())
 }
 
-/// Open regular files while rejecting leaf symlinks and Windows reparse points
+/// 末尾のシンボリックリンクや Windows の再解析ポイントを拒否して通常ファイルを開く
+///
+/// # 引数
+///
+/// * `path` - 操作または検証の対象パス
+///
+/// # 戻り値
+///
+/// 読込用に開いた通常ファイル
 fn open_file(path: &Path) -> Result<File> {
     let metadata = std::fs::symlink_metadata(path)?;
     ensure!(
@@ -62,13 +86,31 @@ fn open_file(path: &Path) -> Result<File> {
     File::open(path).with_context(|| format!("cannot open {}", path.display()))
 }
 
-/// Hash an in-memory block with the same algorithm used for streamed files
+/// ファイル読込と同じ SHA-256 でメモリ上のバイト列をハッシュ化する
+///
+/// # 引数
+///
+/// * `bytes` - 処理対象のバイト列
+///
+/// # 戻り値
+///
+/// SHA-256 の小文字16進文字列
 pub fn hash_bytes(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-/// Hash a reader with bounded memory and cancellation at each block
+/// メモリ使用量を制限し、各ブロックでキャンセルを確認しながらハッシュ化する
+///
+/// # 引数
+///
+/// * `reader` - データの読込元
+/// * `cancelled` - キャンセル要求がある場合に true を返す関数
+///
+/// # 戻り値
+///
+/// 読込バイト数とファイル全体の SHA-256
 pub fn hash_reader(mut reader: impl Read, cancelled: impl Fn() -> bool) -> Result<FileDigest> {
+    // 固定サイズのバッファで読込とハッシュ計算を進める
     let mut buffer = vec![0; BUFFER_SIZE];
     let mut digest = Sha256::new();
     let mut size = 0u64;
@@ -89,12 +131,30 @@ pub fn hash_reader(mut reader: impl Read, cancelled: impl Fn() -> bool) -> Resul
     })
 }
 
-/// Hash one regular file in a single sequential pass
+/// 通常ファイルを一度だけ順番に読み込んでハッシュ化する
+///
+/// # 引数
+///
+/// * `path` - 操作または検証の対象パス
+///
+/// # 戻り値
+///
+/// ファイル全体の SHA-256 の小文字16進文字列
 pub fn hash_file(path: &Path) -> Result<String> {
     Ok(hash_reader(open_file(path)?, || false)?.sha256)
 }
 
-/// Verify size and content from the same open file
+/// 同じファイルハンドルでサイズと内容を検証する
+///
+/// # 引数
+///
+/// * `path` - 操作または検証の対象パス
+/// * `size` - 期待するバイト数
+/// * `digest` - 期待する SHA-256 の16進文字列
+///
+/// # 戻り値
+///
+/// サイズと SHA-256 が一致した場合は Ok(())
 pub fn verify_file(path: &Path, size: u64, digest: &str) -> Result<()> {
     let file = open_file(path)?;
     ensure!(file.metadata()?.len() == size, Failure::Integrity);
@@ -106,7 +166,21 @@ pub fn verify_file(path: &Path, size: u64, digest: &str) -> Result<()> {
     Ok(())
 }
 
-/// Copy exactly one part while hashing both the part and the assembled stream
+/// チャンクと結合全体のハッシュを更新しながら指定サイズをコピーする
+///
+/// # 引数
+///
+/// * `reader` - データの読込元
+/// * `writer` - データの書込先
+/// * `size` - 期待するバイト数
+/// * `expected` - 期待するチャンクの SHA-256
+/// * `whole` - 結合するファイル全体のハッシュ状態
+/// * `buffer` - 読込に再利用するバッファ
+/// * `cancelled` - キャンセル要求がある場合に true を返す関数
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 fn transfer(
     reader: &mut impl Read,
     writer: &mut impl Write,
@@ -136,7 +210,17 @@ fn transfer(
     Ok(())
 }
 
-/// Commit only successfully verified bytes without rereading the temporary output
+/// 一時出力を再読込せず検証済みのバイト列だけを確定する
+///
+/// # 引数
+///
+/// * `temporary` - 保存先と同じファイルシステム上の一時ファイル
+/// * `destination` - 書込先のパス
+/// * `cancelled` - キャンセル要求がある場合に true を返す関数
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 fn commit(
     temporary: NamedTempFile,
     destination: &Path,
@@ -149,7 +233,19 @@ fn commit(
     Ok(())
 }
 
-/// Assemble and authenticate all chunks in one pass before atomically replacing the destination
+/// 全チャンクを一度の読込で結合と検証を行い保存先を原子的に置き換える
+///
+/// # 引数
+///
+/// * `parts` - 結合順に並んだ検証対象チャンク
+/// * `destination` - 書込先のパス
+/// * `size` - 期待するバイト数
+/// * `digest` - 期待する SHA-256 の16進文字列
+/// * `cancelled` - キャンセル要求がある場合に true を返す関数
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn assemble(
     parts: &[Part],
     destination: &Path,
@@ -157,12 +253,15 @@ pub fn assemble(
     digest: &str,
     cancelled: impl Fn() -> bool,
 ) -> Result<()> {
+    // チャンクの総サイズを確認して不正な結合を拒否する
     checkpoint(&cancelled)?;
     let sum = parts
         .iter()
         .try_fold(0u64, |sum, part| sum.checked_add(part.size))
         .context("chunk size overflow")?;
     ensure!(sum == size, Failure::Integrity);
+
+    // 各チャンクと全体のハッシュを同じ読込で更新して一時ファイルへ書き込む
     let mut temporary = NamedTempFile::new_in(destination.parent().context("missing parent")?)?;
     let mut whole = Sha256::new();
     let mut buffer = vec![0; BUFFER_SIZE];
@@ -180,6 +279,8 @@ pub fn assemble(
         )?;
         ensure!(source.read(&mut [0u8; 1])? == 0, Failure::Integrity);
     }
+
+    // 全体のハッシュが一致した場合にだけ出力先へ確定する
     ensure!(
         format!("{:x}", whole.finalize()) == digest,
         Failure::Integrity
@@ -187,7 +288,19 @@ pub fn assemble(
     commit(temporary, destination, &cancelled)
 }
 
-/// Verify and copy an existing file using the same transactional assembly path
+/// 検証付き結合と同じ仕組みで既存ファイルをコピーする
+///
+/// # 引数
+///
+/// * `source` - 入力ファイルまたはディレクトリのパス
+/// * `destination` - 書込先のパス
+/// * `size` - 期待するバイト数
+/// * `digest` - 期待する SHA-256 の16進文字列
+/// * `cancelled` - キャンセル要求がある場合に true を返す関数
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn copy_verified(
     source: &Path,
     destination: &Path,
@@ -208,7 +321,20 @@ pub fn copy_verified(
     )
 }
 
-/// Recover a verified chunk from an installed file with one bounded read of its range
+/// インストール済みファイルの指定範囲を一度だけ読み込んでチャンクを復元する
+///
+/// # 引数
+///
+/// * `source` - 入力ファイルまたはディレクトリのパス
+/// * `offset` - 読込元の先頭からのバイト位置
+/// * `destination` - 書込先のパス
+/// * `size` - 期待するバイト数
+/// * `digest` - 期待する SHA-256 の16進文字列
+/// * `cancelled` - キャンセル要求がある場合に true を返す関数
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn copy_range_verified(
     source: &Path,
     offset: u64,
@@ -226,6 +352,8 @@ pub fn copy_range_verified(
             .is_some_and(|end| end <= source_size),
         Failure::Integrity
     );
+
+    // 指定範囲だけを検証付きでコピーして確定する
     input.seek(SeekFrom::Start(offset))?;
     let mut temporary = NamedTempFile::new_in(destination.parent().context("missing parent")?)?;
     transfer(
@@ -240,7 +368,18 @@ pub fn copy_range_verified(
     commit(temporary, destination, &cancelled)
 }
 
-/// Split a source once and supply authenticated chunks to the publisher's storage callback
+/// 入力を一度だけ分割し検証用ハッシュとともに保存処理へ渡す
+///
+/// # 引数
+///
+/// * `source` - 入力ファイルまたはディレクトリのパス
+/// * `chunk_size` - 分割するチャンクの最大バイト数
+/// * `cancelled` - キャンセル要求がある場合に true を返す関数
+/// * `store` - チャンクを保存するコールバック
+///
+/// # 戻り値
+///
+/// 分割した全バイト数とファイル全体の SHA-256
 pub fn split_file(
     source: &Path,
     chunk_size: usize,
@@ -251,6 +390,8 @@ pub fn split_file(
     let mut file = open_file(source)?;
     let expected_size = file.metadata()?.len();
     ensure!(expected_size > 0, "empty release files are not supported");
+
+    // 一度の読込でチャンク保存と全体のハッシュ計算を進める
     let mut buffer = vec![0; expected_size.min(chunk_size as u64) as usize];
     let mut whole = Sha256::new();
     let mut offset = 0u64;
@@ -281,6 +422,8 @@ pub fn split_file(
             .checked_add(count as u64)
             .context("source size overflow")?;
     }
+
+    // 分割中に入力のサイズが変わっていないことを確認する
     ensure!(
         offset == expected_size,
         "source size changed during publication"
@@ -306,7 +449,7 @@ mod tests {
     }
 
     impl Read for CountedReader {
-        /// Count physical source bytes consumed by the transfer loop
+        /// 転送ループが実際に読み込んだバイト数を数える
         fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
             let count = self.input.read(buffer)?;
             self.bytes += count;
@@ -317,18 +460,18 @@ mod tests {
     struct FailingWriter;
 
     impl Write for FailingWriter {
-        /// Simulate a destination write failure
+        /// 書込先の障害を再現する
         fn write(&mut self, _: &[u8]) -> io::Result<usize> {
             Err(io::Error::other("disk full"))
         }
 
-        /// No buffered bytes exist in this test writer
+        /// テスト用の書込先には未出力のバッファがないため何もしない
         fn flush(&mut self) -> io::Result<()> {
             Ok(())
         }
     }
 
-    /// Prove both hashes and output are derived from a single traversal of source bytes
+    /// 一度の読込からチャンクと全体のハッシュおよび出力が得られることを検証する
     #[test]
     fn transfer_reads_each_byte_once_and_propagates_io_failures() -> Result<()> {
         let content = vec![19u8; BUFFER_SIZE + 17];

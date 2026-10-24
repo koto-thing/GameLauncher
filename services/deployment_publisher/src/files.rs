@@ -12,13 +12,30 @@ use std::{
 use tempfile::NamedTempFile;
 use walkdir::WalkDir;
 
-/// Read a JSON document with its source path in error diagnostics
+/// JSON を読み込みエラーに入力元のパスを付与する
+///
+/// # 引数
+///
+/// * `path` - 操作または検証の対象パス
+///
+/// # 戻り値
+///
+/// 読み込んだ JSON 文書
 pub fn read_json(path: &Path) -> Result<Value> {
     serde_json::from_reader(File::open(path)?)
         .with_context(|| format!("invalid JSON: {}", path.display()))
 }
 
-/// Atomically replace a JSON document using a temporary file on the same filesystem
+/// 同じファイルシステムの一時ファイルで JSON を原子的に置き換える
+///
+/// # 引数
+///
+/// * `path` - 操作または検証の対象パス
+/// * `document` - 検証または保存する JSON 文書
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn write_json(path: &Path, document: &Value) -> Result<()> {
     let parent = path.parent().context("missing parent directory")?;
     fs::create_dir_all(parent)?;
@@ -27,7 +44,15 @@ pub fn write_json(path: &Path, document: &Value) -> Result<()> {
     pandd_local_storage::write_atomic(path, &bytes)
 }
 
-/// Enumerate regular files deterministically and reject symlinks and Windows junctions
+/// リンクや Windows のジャンクションを拒否し通常ファイルを一定の順序で列挙する
+///
+/// # 引数
+///
+/// * `root` - 操作の基準となる管理ルート
+///
+/// # 戻り値
+///
+/// パス順に並べた通常ファイルの一覧
 pub fn regular_files(root: &Path) -> Result<Vec<PathBuf>> {
     ensure!(root.is_dir(), "not a directory: {}", root.display());
     let mut files = Vec::new();
@@ -62,7 +87,16 @@ pub fn regular_files(root: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-/// Convert a filesystem-relative name to a portable object key
+/// 相対ファイル名を環境に依存しないオブジェクトキーに変換する
+///
+/// # 引数
+///
+/// * `path` - 操作または検証の対象パス
+/// * `root` - 操作の基準となる管理ルート
+///
+/// # 戻り値
+///
+/// 区切り文字をスラッシュに統一した相対キー
 pub fn object_key(path: &Path, root: &Path) -> Result<String> {
     Ok(path
         .strip_prefix(root)?
@@ -71,7 +105,16 @@ pub fn object_key(path: &Path, root: &Path) -> Result<String> {
         .replace('\\', "/"))
 }
 
-/// Store immutable content without overwriting a conflicting existing object
+/// 既存内容との不一致を拒否して不変オブジェクトを保存する
+///
+/// # 引数
+///
+/// * `path` - 操作または検証の対象パス
+/// * `bytes` - 処理対象のバイト列
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn store_bytes(path: &Path, bytes: &[u8]) -> Result<()> {
     let parent = path.parent().context("missing parent directory")?;
     fs::create_dir_all(parent)?;
@@ -100,7 +143,17 @@ pub fn store_bytes(path: &Path, bytes: &[u8]) -> Result<()> {
     }
 }
 
-/// Split one file into stable 64 MiB chunks while hashing the complete stream
+/// ファイル全体をハッシュ化しながら64 MiB のチャンクに分割する
+///
+/// # 引数
+///
+/// * `source` - 入力ファイルまたはディレクトリのパス
+/// * `output` - 配信ファイルを配置するローカルディレクトリ
+/// * `base_url` - 配信先の基準 URL
+///
+/// # 戻り値
+///
+/// ファイルのサイズ、SHA-256、チャンク一覧を含む JSON
 pub fn chunk_file(source: &Path, output: &Path, base_url: &str) -> Result<Value> {
     let mut chunks = Vec::new();
     let result = split_file(
@@ -120,7 +173,17 @@ pub fn chunk_file(source: &Path, output: &Path, base_url: &str) -> Result<Value>
     Ok(json!({"size": result.size, "sha256": result.sha256, "chunks": chunks}))
 }
 
-/// Store a display asset under its content-addressed name
+/// 表示アセットを内容ハッシュに基づく名前で保存する
+///
+/// # 引数
+///
+/// * `source` - 入力ファイルまたはディレクトリのパス
+/// * `output` - 配信ファイルを配置するローカルディレクトリ
+/// * `base_url` - 配信先の基準 URL
+///
+/// # 戻り値
+///
+/// 内容ハッシュを含む公開アセットの URL
 pub fn copy_asset(source: &Path, output: &Path, base_url: &str) -> Result<String> {
     let content = fs::read(source)?;
     let digest = hash_bytes(&content);
@@ -134,7 +197,15 @@ pub fn copy_asset(source: &Path, output: &Path, base_url: &str) -> Result<String
     Ok(format!("{}/{relative}", base_url.trim_end_matches('/')))
 }
 
-/// Set stable content types for public JSON and XML independent of host MIME tables
+/// ホストの MIME 設定に依存せず公開 JSON と XML の Content-Type を決める
+///
+/// # 引数
+///
+/// * `path` - 操作または検証の対象パス
+///
+/// # 戻り値
+///
+/// 公開ファイルに使用する Content-Type
 pub fn content_type(path: &Path) -> String {
     match path
         .extension()

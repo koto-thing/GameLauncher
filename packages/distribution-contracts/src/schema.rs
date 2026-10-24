@@ -3,7 +3,11 @@ use regex::Regex;
 use serde_json::Value;
 use std::{collections::HashMap, sync::OnceLock};
 
-/// Compile the checked-in schemas once without network resolution
+/// リポジトリ内のスキーマをネットワーク参照なしで一度だけコンパイルする
+///
+/// # 戻り値
+///
+/// スキーマ名をキーとする初期化済みバリデータの共有参照
 fn validators() -> &'static HashMap<&'static str, jsonschema::Validator> {
     static VALIDATORS: OnceLock<HashMap<&str, jsonschema::Validator>> = OnceLock::new();
     VALIDATORS.get_or_init(|| {
@@ -39,7 +43,16 @@ fn validators() -> &'static HashMap<&'static str, jsonschema::Validator> {
     })
 }
 
-/// Validate a public document including date and URI formats
+/// 日付と URI の形式を含めて公開文書を検証する
+///
+/// # 引数
+///
+/// * `document` - 検証または保存する JSON 文書
+/// * `schema` - リポジトリ内のスキーマファイル名
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn validate(document: &Value, schema: &str) -> Result<()> {
     let validator = validators()
         .get(schema)
@@ -50,7 +63,15 @@ pub fn validate(document: &Value, schema: &str) -> Result<()> {
     Ok(())
 }
 
-/// Reject noncanonical and platform-dependent paths before filesystem access
+/// ファイル操作の前に非正規形や環境依存の相対パスを拒否する
+///
+/// # 引数
+///
+/// * `path` - 操作または検証の対象パス
+///
+/// # 戻り値
+///
+/// 検証済みの入力パス
 pub fn relative_path(path: &str) -> Result<&str> {
     ensure!(
         !path.is_empty() && path.chars().count() <= 240,
@@ -67,7 +88,15 @@ pub fn relative_path(path: &str) -> Result<&str> {
     Ok(path)
 }
 
-/// Permit the build root as a working directory
+/// ビルドのルートを表す作業ディレクトリを許可する
+///
+/// # 引数
+///
+/// * `path` - 操作または検証の対象パス
+///
+/// # 戻り値
+///
+/// 検証済みの作業ディレクトリ
 pub fn working_directory(path: &str) -> Result<&str> {
     if path == "." {
         Ok(path)
@@ -76,7 +105,15 @@ pub fn working_directory(path: &str) -> Result<&str> {
     }
 }
 
-/// Validate locale names before using them in public object keys
+/// 公開オブジェクトのキーに使う言語タグを検証する
+///
+/// # 引数
+///
+/// * `value` - 検証対象の文字列
+///
+/// # 戻り値
+///
+/// 検証済みの言語タグ
 pub fn locale(value: &str) -> Result<&str> {
     static PATTERN: OnceLock<Regex> = OnceLock::new();
     ensure!(
@@ -88,7 +125,15 @@ pub fn locale(value: &str) -> Result<&str> {
     Ok(value)
 }
 
-/// Parse the exact version format used by the publication contracts
+/// 配信契約で定めたバージョン形式を解析する
+///
+/// # 引数
+///
+/// * `value` - 検証対象の文字列
+///
+/// # 戻り値
+///
+/// メジャー・マイナー・パッチの3要素
 pub fn version(value: &str) -> Result<[u64; 3]> {
     let parts: Vec<_> = value.split('.').collect();
     ensure!(parts.len() == 3, "invalid version: {value}");
@@ -105,7 +150,15 @@ pub fn version(value: &str) -> Result<[u64; 3]> {
     Ok(result)
 }
 
-/// Encode sorted UTF-8 JSON for the integer-only signed release contract
+/// 整数のみを含む署名対象の JSON をキー順に並べて UTF-8 に変換する
+///
+/// # 引数
+///
+/// * `document` - 検証または保存する JSON 文書
+///
+/// # 戻り値
+///
+/// キー順を正規化した UTF-8 JSON のバイト列
 pub fn canonical_json(document: &Value) -> Result<Vec<u8>> {
     Ok(serde_json::to_vec(document)?)
 }

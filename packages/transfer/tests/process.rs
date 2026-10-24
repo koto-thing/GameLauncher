@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// Launch only the fixture test in a child process
+/// 子プロセスで起動用テストだけを実行する
 fn fixture(mode: &str) -> Command {
     let mut command = Command::new(std::env::current_exe().unwrap());
     command

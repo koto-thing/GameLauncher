@@ -3,7 +3,7 @@ use pandd_file_integrity::{self as integrity, Failure, Part};
 use std::{cell::Cell, fs};
 use tempfile::tempdir;
 
-/// Check a published SHA-256 vector and strict size verification
+/// 既知の SHA-256 と厳密なサイズ検証を確認する
 #[test]
 fn hashes_and_verifies_known_bytes() -> Result<()> {
     let root = tempdir()?;
@@ -18,7 +18,7 @@ fn hashes_and_verifies_known_bytes() -> Result<()> {
     Ok(())
 }
 
-/// Exercise Publisher splitting and Launcher assembly with partial and exact final chunks
+/// 最終チャンクが端数の場合と最大サイズの場合に分割と結合を確認する
 #[test]
 fn publisher_chunks_round_trip_through_verified_assembly() -> Result<()> {
     for size in [1, 17, 64, 65, 1024 * 1024 + 31] {
@@ -54,7 +54,7 @@ fn publisher_chunks_round_trip_through_verified_assembly() -> Result<()> {
     Ok(())
 }
 
-/// Leave the prior destination untouched on every integrity failure and clean temporary files
+/// 整合性の検証失敗時に既存の保存先を保持し一時ファイルを片付ける
 #[test]
 fn failed_assembly_never_replaces_the_destination() -> Result<()> {
     let root = tempdir()?;
@@ -96,7 +96,7 @@ fn failed_assembly_never_replaces_the_destination() -> Result<()> {
     Ok(())
 }
 
-/// Abort after some bytes have been written and before final commit without leaking staging data
+/// 書込途中かつ確定前の中断で一時データが残らないことを確認する
 #[test]
 fn cancelled_copy_cleans_temporary_output() -> Result<()> {
     let root = tempdir()?;
@@ -128,7 +128,7 @@ fn cancelled_copy_cleans_temporary_output() -> Result<()> {
     Ok(())
 }
 
-/// Verify range boundaries and reject out-of-bounds recovery before committing the cache
+/// 復元範囲を検証しキャッシュの確定前に範囲外の読込を拒否する
 #[test]
 fn recovers_only_the_requested_verified_range() -> Result<()> {
     let root = tempdir()?;
@@ -146,7 +146,7 @@ fn recovers_only_the_requested_verified_range() -> Result<()> {
     Ok(())
 }
 
-/// Propagate storage callback failures and reject invalid Publisher inputs
+/// 保存コールバックの失敗を伝播し不正な分割入力を拒否する
 #[test]
 fn publisher_rejects_empty_sources_and_storage_failures() -> Result<()> {
     let root = tempdir()?;

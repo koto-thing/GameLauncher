@@ -19,21 +19,21 @@ struct State {
     progress: Mutex<Vec<u64>>,
 }
 impl Control for State {
-    /// Read cancellation shared with the controller
+    /// 制御側と共有するキャンセル状態を取得する
     fn cancelled(&self) -> bool {
         self.cancelled.load(Ordering::Relaxed)
     }
-    /// Read pause state shared with the controller
+    /// 制御側と共有する一時停止状態を取得する
     fn paused(&self) -> bool {
         self.paused.load(Ordering::Relaxed)
     }
-    /// Record aggregate progress for boundedness assertions
+    /// 上限検証のため集計した進捗を記録する
     fn progress(&self, received: u64, _: u64) {
         self.progress.lock().unwrap().push(received);
     }
 }
 
-/// Serve one deterministic HTTP response and expose the captured request
+/// 一定の HTTP 応答を返して受信したリクエストを取得可能にする
 fn server(response: Vec<u8>) -> (String, thread::JoinHandle<String>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}/blob", listener.local_addr().unwrap());
@@ -54,7 +54,7 @@ fn server(response: Vec<u8>) -> (String, thread::JoinHandle<String>) {
     (url, worker)
 }
 
-/// Describe immutable bytes using the manifest digest
+/// マニフェストのハッシュで不変のバイト列を表す
 fn chunk(url: String, body: &[u8]) -> Chunk {
     Chunk {
         url,

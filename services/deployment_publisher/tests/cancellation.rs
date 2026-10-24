@@ -11,7 +11,7 @@ struct CancelStore {
 }
 
 impl ObjectStore for CancelStore {
-    /// Request cancellation immediately after checking the immutable object
+    /// 不変オブジェクトの確認直後にキャンセルを要求する
     fn head(&self, _: &str) -> Result<Option<Value>> {
         CANCELLED.store(true, Ordering::Relaxed);
         Ok(Some(
@@ -19,29 +19,29 @@ impl ObjectStore for CancelStore {
         ))
     }
 
-    /// Record any write that incorrectly passes the cancellation gate
+    /// キャンセルの確認後に誤って進んだ書込を記録する
     fn put(&self, key: &str, _: &Path, _: &Value, _: bool) -> Result<()> {
         self.writes.borrow_mut().push(key.into());
         Ok(())
     }
 
-    /// No cleanup inventory is needed for this upload test
+    /// アップロードのテストでは整理用の一覧を使わない
     fn inventory(&self) -> Result<Vec<Value>> {
         unreachable!()
     }
 
-    /// No remote documents are needed for this upload test
+    /// アップロードのテストではリモート文書を使わない
     fn read_json(&self, _: &str) -> Result<Value> {
         unreachable!()
     }
 
-    /// Upload cancellation must never trigger cleanup
+    /// アップロードのキャンセルで整理処理が呼ばれた場合は失敗する
     fn delete(&self, _: &str) -> Result<()> {
         unreachable!()
     }
 }
 
-/// Keep cancellation state in a separate test process from other publication tests
+/// 他の公開テストと別のプロセスでキャンセル状態を管理する
 #[test]
 fn cancellation_prevents_pointer_promotion() -> Result<()> {
     let directory = tempfile::tempdir()?;

@@ -11,17 +11,17 @@ use serde_json::{Value, json};
 const RELEASE: &[u8] = include_bytes!("fixtures/release.json");
 const KEY: &str = include_str!("fixtures/public-key.txt");
 
-/// Supply the pinned distribution host used by both integration consumers
+/// 両方の利用側で使う固定の配信ホストを用意する
 fn hosts() -> Vec<String> {
     vec!["downloads.koto-thing.com".to_owned()]
 }
 
-/// Load mutable fixture JSON for malformed contract cases
+/// 不正な契約データの検証用に変更可能な JSON を読み込む
 fn document() -> Value {
     serde_json::from_slice(RELEASE).unwrap()
 }
 
-/// Confirm canonical bytes and signatures match a fixed public test key
+/// 固定のテスト公開鍵で正規化したバイト列と署名の一致を確認する
 #[test]
 fn fixed_signature_and_unicode_round_trip() -> Result<()> {
     let release = manifest::verify(RELEASE, KEY.trim(), &hosts())?;
@@ -41,7 +41,7 @@ fn fixed_signature_and_unicode_round_trip() -> Result<()> {
     Ok(())
 }
 
-/// Reject malformed original JSON before normalization can hide duplicate keys or fractions
+/// 正規化で重複キーや小数が隠れる前に不正な元の JSON を拒否する
 #[test]
 fn original_json_is_strict() {
     let original = std::str::from_utf8(RELEASE).unwrap();
@@ -64,7 +64,7 @@ fn original_json_is_strict() {
     assert!(manifest::parse(&vec![b' '; MAX_MANIFEST_BYTES + 1]).is_err());
 }
 
-/// Preserve file, chunk, total, entrypoint, and path safety limits in the shared validator
+/// 共有バリデータでファイル、チャンク、総サイズ、起動ファイル、パスの規則を検証する
 #[test]
 fn malformed_semantics_are_rejected() -> Result<()> {
     for (pointer, value) in [
@@ -101,7 +101,7 @@ fn malformed_semantics_are_rejected() -> Result<()> {
     Ok(())
 }
 
-/// Separate publisher content rules from the launcher's pinned-host trust policy
+/// Publisher の内容規則とランチャーの固定ホストによる信頼規則を区別する
 #[test]
 fn host_and_signature_policies_are_enforced() -> Result<()> {
     assert!(manifest::verify(RELEASE, KEY.trim(), &["evil.example".into()]).is_err());
@@ -134,7 +134,7 @@ fn host_and_signature_policies_are_enforced() -> Result<()> {
     Ok(())
 }
 
-/// Keep root working directories and cross-language JSON encoding consistent
+/// ルート作業ディレクトリと異なる言語間の JSON 表現の一致を確認する
 #[test]
 fn root_entrypoint_and_canonical_json_are_supported() -> Result<()> {
     let mut input = document();

@@ -10,12 +10,25 @@ use rayon::prelude::*;
 use serde_json::{Value, json};
 use std::{fs, io::Write, path::Path};
 
-/// Format publication timestamps consistently in UTC
+/// 公開日時を UTC の共通形式にそろえる
+///
+/// # 戻り値
+///
+/// 秒精度の UTC 日時を表す RFC 3339 文字列
 fn utc_now() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
-/// Generate an OpenSSL-compatible Ed25519 keypair without overwriting keys
+/// 既存の鍵を上書きせず OpenSSL 互換の Ed25519 鍵ペアを生成する
+///
+/// # 引数
+///
+/// * `private` - PKCS#8 PEM 形式の秘密鍵ファイルのパス
+/// * `public` - PEM 形式の公開鍵ファイルの出力先
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn create_key(private: &Path, public: &Path) -> Result<()> {
     ensure!(
         !private.exists() && !public.exists() && private != public,
@@ -49,12 +62,35 @@ pub fn create_key(private: &Path, public: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Sign canonical release bytes using the existing PKCS#8 PEM key format
+/// 既存の PKCS#8 PEM 鍵形式で正規化済みのリリースに署名する
+///
+/// # 引数
+///
+/// * `payload` - 署名または検証の対象となる元のバイト列
+/// * `private` - PKCS#8 PEM 形式の秘密鍵ファイルのパス
+///
+/// # 戻り値
+///
+/// Base64 形式の Ed25519 署名
 pub fn sign_payload(payload: &[u8], private: &Path) -> Result<String> {
     crypto::sign(payload, &fs::read_to_string(private)?)
 }
 
-/// Build signed immutable releases and localized catalogs before updating latest
+/// 署名済みの不変リリースと言語別カタログを構築してから latest を更新する
+///
+/// # 引数
+///
+/// * `metadata_path` - ゲーム公開用メタデータの JSON ファイル
+/// * `build` - 配信するビルドのルートディレクトリ
+/// * `output` - 配信ファイルを配置するローカルディレクトリ
+/// * `base_url` - 配信先の基準 URL
+/// * `private` - PKCS#8 PEM 形式の秘密鍵ファイルのパス
+/// * `platform` - 対象 OS、windows・macos・linux のいずれか
+/// * `arch` - 対象 CPU、x86_64 または arm64
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn build_game(
     metadata_path: &Path,
     build: &Path,
@@ -64,6 +100,7 @@ pub fn build_game(
     platform: &str,
     arch: &str,
 ) -> Result<()> {
+    // 公開用メタデータと対象環境、起動パスを検証する
     let metadata = files::read_json(metadata_path)?;
     contracts::validate(&metadata, "game-release-source.schema.json")?;
     let text = |key: &str| metadata[key].as_str().context("missing metadata string");
@@ -89,7 +126,7 @@ pub fn build_game(
         "output must be outside the build directory"
     );
 
-    // Bound memory to four chunk buffers while processing independent files in parallel
+    // 独立したファイルを並列処理しチャンクバッファを最大4個に制限する
     let threads = std::thread::available_parallelism()?.get().min(4);
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
@@ -121,6 +158,7 @@ pub fn build_game(
             .collect::<Result<Vec<_>>>()
     })?;
 
+    // チャンク情報を含むリリースを組み立てて署名と配信先を検証する
     let mut manifest = json!({
         "schemaVersion": 1, "gameId": game_id, "version": version, "platform": platform, "arch": arch,
         "minimumLauncherVersion": metadata["minimumLauncherVersion"], "engine": metadata["engine"],
@@ -137,6 +175,8 @@ pub fn build_game(
         &release,
         &[origin.host_str().context("distribution host")?.to_owned()],
     )?;
+
+    // 同じバージョンの既存内容を上書きせず不変マニフェストを保存する
     let manifest = serde_json::to_value(&release)?;
     check_cancelled()?;
     let root = format!("v1/games/{game_id}/releases/{platform}/{arch}");
@@ -150,6 +190,7 @@ pub fn build_game(
         files::store_bytes(&immutable, &serde_json::to_vec_pretty(&manifest)?)?;
     }
 
+    // 表示アセットを内容ハッシュで保存して言語別カタログを更新する
     let asset_root = metadata_path.parent().context("metadata directory")?;
     let hero = files::copy_asset(
         &asset_root.join(contracts::relative_path(text("hero")?)?),
@@ -182,11 +223,22 @@ pub fn build_game(
         contracts::validate(&catalog, "catalog.schema.json")?;
         files::write_json(&path, &catalog)?;
     }
+
+    // 参照先の準備がすべて終わってから latest を更新する
     check_cancelled()?;
     files::write_json(&output.join(latest), &manifest)
 }
 
-/// Publish reviewed announcements with a fresh generation timestamp
+/// 確認済みのお知らせに新しい生成日時を付けて公開する
+///
+/// # 引数
+///
+/// * `source` - 入力ファイルまたはディレクトリのパス
+/// * `output` - 配信ファイルを配置するローカルディレクトリ
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn announcements(source: &Path, output: &Path) -> Result<()> {
     for entry in fs::read_dir(source)? {
         let path = entry?.path();
@@ -210,7 +262,20 @@ pub fn announcements(source: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Publish platform-specific Qt IFW release metadata
+/// プラットフォーム別の Qt IFW リリース情報を公開する
+///
+/// # 引数
+///
+/// * `source` - 入力ファイルまたはディレクトリのパス
+/// * `output` - 配信ファイルを配置するローカルディレクトリ
+/// * `base_url` - 配信先の基準 URL
+/// * `locale` - 公開する言語タグ
+/// * `platform` - 対象 OS、windows・macos・linux のいずれか
+/// * `arch` - 対象 CPU、x86_64 または arm64
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn launcher(
     source: &Path,
     output: &Path,
@@ -234,7 +299,17 @@ pub fn launcher(
     )
 }
 
-/// Publish the dedicated localized changelog source
+/// 専用の入力から言語別の変更履歴を公開する
+///
+/// # 引数
+///
+/// * `source` - 入力ファイルまたはディレクトリのパス
+/// * `output` - 配信ファイルを配置するローカルディレクトリ
+/// * `locale` - 公開する言語タグ
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn changelog(source: &Path, output: &Path, locale: &str) -> Result<()> {
     contracts::locale(locale)?;
     let document = files::read_json(source)?;

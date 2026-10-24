@@ -6,17 +6,56 @@ use std::{path::Path, process::Command};
 pub const IMMUTABLE_CACHE: &str = "public,max-age=31536000,immutable";
 pub const POINTER_CACHE: &str = "public,max-age=60,must-revalidate";
 
-/// Isolate object storage operations for local failure and ordering tests
+/// ストレージ操作を分離して障害と公開順序をローカルで検証可能にする
 pub trait ObjectStore {
-    /// Read integrity metadata or report an explicitly missing object
+    /// 整合性メタデータを取得し対象が存在しない場合は None を返す
+    ///
+    /// # 引数
+    ///
+    /// * `key` - オブジェクトストレージ内のキー
+    ///
+    /// # 戻り値
+    ///
+    /// 存在する場合は整合性メタデータ、存在しない場合は None
     fn head(&self, key: &str) -> Result<Option<Value>>;
-    /// Write one object with the selected cache policy
+    /// 指定されたキャッシュ方針でオブジェクトを書き込む
+    ///
+    /// # 引数
+    ///
+    /// * `key` - オブジェクトストレージ内のキー
+    /// * `source` - 入力ファイルまたはディレクトリのパス
+    /// * `metadata` - サイズ、SHA-256、Content-Type を含むメタデータ
+    /// * `immutable` - 不変オブジェクト用のキャッシュ方針を選ぶ場合は true
+    ///
+    /// # 戻り値
+    ///
+    /// 処理が完了した場合は Ok(())
     fn put(&self, key: &str, source: &Path, metadata: &Value, immutable: bool) -> Result<()>;
-    /// List all objects needed to plan retention
+    /// 保持計画に必要な全オブジェクトを列挙する
+    ///
+    /// # 戻り値
+    ///
+    /// キーと更新日時を含むオブジェクト一覧
     fn inventory(&self) -> Result<Vec<Value>>;
-    /// Read a public manifest as JSON
+    /// 公開マニフェストを JSON として読み込む
+    ///
+    /// # 引数
+    ///
+    /// * `key` - オブジェクトストレージ内のキー
+    ///
+    /// # 戻り値
+    ///
+    /// 読み込んだ JSON 文書
     fn read_json(&self, key: &str) -> Result<Value>;
-    /// Remove one approved cleanup candidate
+    /// 整理計画で承認されたオブジェクトを削除する
+    ///
+    /// # 引数
+    ///
+    /// * `key` - オブジェクトストレージ内のキー
+    ///
+    /// # 戻り値
+    ///
+    /// 処理が完了した場合は Ok(())
     fn delete(&self, key: &str) -> Result<()>;
 }
 
@@ -26,7 +65,15 @@ pub struct AwsStore {
 }
 
 impl AwsStore {
-    /// Use the existing AWS CLI credential chain and multipart upload implementation
+    /// 既存の AWS CLI の認証情報探索と multipart 転送を利用する
+    ///
+    /// # 引数
+    ///
+    /// * `args` - AWS CLI へ渡す引数
+    ///
+    /// # 戻り値
+    ///
+    /// 認証と再試行の設定を適用した AWS CLI コマンド
     fn command(&self, args: &[&str]) -> Command {
         let mut command = Command::new("aws");
         command
@@ -39,7 +86,15 @@ impl AwsStore {
         command
     }
 
-    /// Execute a storage command and preserve actionable CLI diagnostics
+    /// ストレージコマンドを実行し診断に使える CLI のエラーを保持する
+    ///
+    /// # 引数
+    ///
+    /// * `args` - AWS CLI へ渡す引数
+    ///
+    /// # 戻り値
+    ///
+    /// 正常終了した AWS CLI の標準出力
     fn execute(&self, args: &[&str]) -> Result<Vec<u8>> {
         let output = pandd_transfer::command_output(&mut self.command(args), check_cancelled)
             .context("AWS CLI storage operation did not complete")?;
@@ -53,7 +108,15 @@ impl AwsStore {
 }
 
 impl ObjectStore for AwsStore {
-    /// Treat only explicit object-not-found responses as missing immutable data
+    /// 明示的な未検出応答だけを不変オブジェクトの欠落として扱う
+    ///
+    /// # 引数
+    ///
+    /// * `key` - オブジェクトストレージ内のキー
+    ///
+    /// # 戻り値
+    ///
+    /// 存在する場合は整合性メタデータ、存在しない場合は None
     fn head(&self, key: &str) -> Result<Option<Value>> {
         let output = pandd_transfer::command_output(
             &mut self.command(&[
@@ -83,7 +146,18 @@ impl ObjectStore for AwsStore {
         Ok(Some(serde_json::from_slice(&output.stdout)?))
     }
 
-    /// Upload with deterministic content type, checksum metadata, and cache policy
+    /// Content-Type、ハッシュのメタデータ、キャッシュ方針を指定して転送する
+    ///
+    /// # 引数
+    ///
+    /// * `key` - オブジェクトストレージ内のキー
+    /// * `source` - 入力ファイルまたはディレクトリのパス
+    /// * `metadata` - サイズ、SHA-256、Content-Type を含むメタデータ
+    /// * `immutable` - 不変オブジェクト用のキャッシュ方針を選ぶ場合は true
+    ///
+    /// # 戻り値
+    ///
+    /// 処理が完了した場合は Ok(())
     fn put(&self, key: &str, source: &Path, metadata: &Value, immutable: bool) -> Result<()> {
         self.execute(&[
             "s3",
@@ -105,7 +179,11 @@ impl ObjectStore for AwsStore {
         Ok(())
     }
 
-    /// Let AWS CLI paginate the complete object inventory
+    /// AWS CLI のページングで全オブジェクトを列挙する
+    ///
+    /// # 戻り値
+    ///
+    /// キーと更新日時を含むオブジェクト一覧
     fn inventory(&self) -> Result<Vec<Value>> {
         let document: Value = serde_json::from_slice(&self.execute(&[
             "s3api",
@@ -124,7 +202,15 @@ impl ObjectStore for AwsStore {
             .unwrap_or_default())
     }
 
-    /// Read a retained manifest before planning any deletion
+    /// 削除計画の作成前に保持対象のマニフェストを読み込む
+    ///
+    /// # 引数
+    ///
+    /// * `key` - オブジェクトストレージ内のキー
+    ///
+    /// # 戻り値
+    ///
+    /// 読み込んだ JSON 文書
     fn read_json(&self, key: &str) -> Result<Value> {
         Ok(serde_json::from_slice(&self.execute(&[
             "s3",
@@ -135,7 +221,15 @@ impl ObjectStore for AwsStore {
         ])?)?)
     }
 
-    /// Delete one previously validated cleanup candidate
+    /// 事前検証済みの整理対象を削除する
+    ///
+    /// # 引数
+    ///
+    /// * `key` - オブジェクトストレージ内のキー
+    ///
+    /// # 戻り値
+    ///
+    /// 処理が完了した場合は Ok(())
     fn delete(&self, key: &str) -> Result<()> {
         self.execute(&[
             "s3api",
@@ -156,7 +250,15 @@ pub enum Phase {
     Pointers,
 }
 
-/// Identify the mutable indexes that must follow immutable upload verification
+/// 不変オブジェクトの検証後に更新する公開ポインタを識別する
+///
+/// # 引数
+///
+/// * `key` - オブジェクトストレージ内のキー
+///
+/// # 戻り値
+///
+/// 不変オブジェクトの検証後に更新する公開ポインタなら true
 fn is_pointer(key: &str) -> bool {
     let parts: Vec<_> = key.split('/').collect();
     matches!(parts.last(), Some(&"latest.json" | &"Updates.xml"))
@@ -165,8 +267,19 @@ fn is_pointer(key: &str) -> bool {
             .any(|part| ["catalog", "announcements", "changelog"].contains(part))
 }
 
-/// Upload immutable objects first and publish latest pointers last
+/// 不変オブジェクトを先に転送し最後に公開ポインタを更新する
+///
+/// # 引数
+///
+/// * `output` - 配信ファイルを配置するローカルディレクトリ
+/// * `store` - 配信先のオブジェクトストア
+/// * `phase` - 不変オブジェクトと公開ポインタのアップロード範囲
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn upload(output: &Path, store: &impl ObjectStore, phase: Phase) -> Result<()> {
+    // 全ファイルの整合性メタデータを生成して公開順に並べる
     let mut objects = Vec::new();
     for path in files::regular_files(output)? {
         check_cancelled()?;
@@ -178,6 +291,7 @@ pub fn upload(output: &Path, store: &impl ObjectStore, phase: Phase) -> Result<(
     objects
         .sort_by_key(|(key, _, _)| (is_pointer(key), key.ends_with("/latest.json"), key.clone()));
 
+    // 公開ポインタを更新する前に全不変オブジェクトの内容を確認する
     for (key, path, metadata) in objects.iter().filter(|(key, _, _)| !is_pointer(key)) {
         check_cancelled()?;
         let existing = store.head(key)?;
@@ -205,7 +319,7 @@ pub fn upload(output: &Path, store: &impl ObjectStore, phase: Phase) -> Result<(
         return Ok(());
     }
 
-    // Honor cancellation before promotion, then finish the ordered pointer writes
+    // 公開ポインタの更新前にキャンセルを確認してから決められた順序で書き込む
     check_cancelled()?;
     for (key, path, metadata) in objects.iter().filter(|(key, _, _)| is_pointer(key)) {
         store.put(key, path, metadata, false)?;

@@ -28,7 +28,11 @@ struct Remote {
 }
 
 impl Remote {
-    /// Construct the object store using the runner's AWS credentials
+    /// 実行環境の AWS 認証情報を利用するオブジェクトストアを組み立てる
+    ///
+    /// # 戻り値
+    ///
+    /// 指定されたエンドポイントとバケットの AWS ストア
     fn store(self) -> AwsStore {
         AwsStore {
             endpoint: self.endpoint,
@@ -143,7 +147,11 @@ enum Operation {
     },
 }
 
-/// Execute one operation and defer termination until a safe publication boundary
+/// 指定された操作を実行し公開処理の安全な境界で終了要求を反映する
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 fn main() -> Result<()> {
     let cli = Cli::parse();
     ctrlc::set_handler(|| CANCELLED.store(true, Ordering::Relaxed))?;

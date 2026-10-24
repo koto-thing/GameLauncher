@@ -19,11 +19,28 @@ pub struct Chunk {
 }
 
 pub trait Control {
-    /// Read cancellation without blocking the runtime
+    /// ランタイムをブロックせずキャンセル要求を取得する
+    ///
+    /// # 戻り値
+    ///
+    /// キャンセルが要求されている場合は true
     fn cancelled(&self) -> bool;
-    /// Read the shared pause state
+    /// 共有の一時停止状態を取得する
+    ///
+    /// # 戻り値
+    ///
+    /// 一時停止が要求されている場合は true
     fn paused(&self) -> bool;
-    /// Report aggregate cached bytes and actual network throughput
+    /// キャッシュを含む取得済みバイト数と実際の通信速度を通知する
+    ///
+    /// # 引数
+    ///
+    /// * `received` - キャッシュ済みデータを含む取得済みバイト数
+    /// * `bytes_per_second` - ネットワーク転送速度のバイト毎秒
+    ///
+    /// # 戻り値
+    ///
+    /// 戻り値なし
     fn progress(&self, received: u64, bytes_per_second: u64);
 }
 
@@ -34,7 +51,15 @@ pub enum Failure {
 }
 
 impl std::fmt::Display for Failure {
-    /// Preserve transfer failure categories at the application boundary
+    /// アプリケーション境界で転送失敗の種別を保つ
+    ///
+    /// # 引数
+    ///
+    /// * `f` - エラーの出力先
+    ///
+    /// # 戻り値
+    ///
+    /// 整形結果の書込が成功した場合は Ok(())
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Cancelled => write!(f, "download cancelled"),
@@ -44,7 +69,16 @@ impl std::fmt::Display for Failure {
 }
 impl std::error::Error for Failure {}
 
-/// Poll cancellation even while a request, retry delay, or throttle is pending
+/// リクエスト、再試行、速度制限の待機中もキャンセルを監視する
+///
+/// # 引数
+///
+/// * `future` - 一時停止とキャンセルを監視しながら待機する処理
+/// * `control` - 一時停止やキャンセルの状態と進捗通知先
+///
+/// # 戻り値
+///
+/// 待機した処理の出力
 async fn controlled<T>(future: impl Future<Output = T>, control: &impl Control) -> Result<T> {
     tokio::pin!(future);
     loop {
@@ -73,7 +107,15 @@ struct Session<'a, C> {
 }
 
 impl<C: Control> Session<'_, C> {
-    /// Serialize byte budgets across all concurrent requests without accumulating idle credit
+    /// 待機中の余剰枠を持ち越さず全並列リクエストで転送量の枠を共有する
+    ///
+    /// # 引数
+    ///
+    /// * `bytes` - 今回受信したネットワークのバイト数
+    ///
+    /// # 戻り値
+    ///
+    /// 処理が完了した場合は Ok(())
     async fn throttle(&self, bytes: usize) -> Result<()> {
         self.network_bytes
             .set(self.network_bytes.get().saturating_add(bytes as u64));
@@ -86,7 +128,16 @@ impl<C: Control> Session<'_, C> {
         Ok(())
     }
 
-    /// Track each partial exactly once so retries never inflate aggregate progress
+    /// 再試行で進捗が重複加算されないようチャンクごとの位置を管理する
+    ///
+    /// # 引数
+    ///
+    /// * `index` - 進捗を管理するチャンクの位置
+    /// * `position` - 当該チャンクの取得済みバイト数
+    ///
+    /// # 戻り値
+    ///
+    /// 戻り値なし
     fn report(&self, index: usize, position: u64) {
         self.positions.borrow_mut()[index] = position;
         let received = self
@@ -99,7 +150,16 @@ impl<C: Control> Session<'_, C> {
         self.control.progress(received, speed);
     }
 
-    /// Resume authenticated immutable chunks and retry only recoverable failures
+    /// 不変チャンクの途中取得を再開し回復可能な失敗だけを再試行する
+    ///
+    /// # 引数
+    ///
+    /// * `index` - 進捗を管理するチャンクの位置
+    /// * `chunk` - 取得するチャンクの URL、サイズ、ハッシュ
+    ///
+    /// # 戻り値
+    ///
+    /// 処理が完了した場合は Ok(())
     async fn chunk(&self, index: usize, chunk: &Chunk) -> Result<()> {
         ensure!(
             chunk.digest.len() == 64 && chunk.digest.bytes().all(|b| b.is_ascii_hexdigit()),
@@ -112,6 +172,8 @@ impl<C: Control> Session<'_, C> {
                     && matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))),
             "unsafe download URL"
         );
+
+        // 回復可能なエラーだけを上限回数まで再試行する
         let mut last = String::new();
         for attempt in 0..MAX_ATTEMPTS {
             controlled(std::future::ready(()), self.control).await?;
@@ -136,8 +198,18 @@ impl<C: Control> Session<'_, C> {
         Err(anyhow::Error::new(Failure::Http { retryable: true }).context(last))
     }
 
-    /// Hash the resumed prefix once and hash incoming bytes while writing
+    /// 再開位置までを一度だけハッシュ化し受信データは書込と同時にハッシュ化する
+    ///
+    /// # 引数
+    ///
+    /// * `index` - 進捗を管理するチャンクの位置
+    /// * `chunk` - 取得するチャンクの URL、サイズ、ハッシュ
+    ///
+    /// # 戻り値
+    ///
+    /// 処理が完了した場合は Ok(())
     async fn attempt(&self, index: usize, chunk: &Chunk) -> Result<()> {
+        // 途中ファイルを開き宣言サイズ以上なら取得をやり直す
         let path = self.root.path(Path::new(&chunk.digest))?;
         let mut file = OpenOptions::new()
             .create(true)
@@ -150,6 +222,8 @@ impl<C: Control> Session<'_, C> {
             file.set_len(0)?;
             position = 0;
         }
+
+        // 保存済みの先頭部分を一度読み込んでハッシュ状態を復元する
         let mut hasher = Sha256::new();
         let mut buffer = [0_u8; 64 * 1024];
         loop {
@@ -161,6 +235,8 @@ impl<C: Control> Session<'_, C> {
             hasher.update(&buffer[..count]);
         }
         self.report(index, position);
+
+        // 途中取得がある場合は Range を指定して残りを要求する
         let mut request = self
             .client
             .get(&chunk.url)
@@ -177,13 +253,15 @@ impl<C: Control> Session<'_, C> {
             );
         }
         if status == 200 && position > 0 {
-            // A complete representation replaces the prefix instead of being appended
+            // 全体応答は既存の先頭部分へ追記せず置き換える
             file.set_len(0)?;
             file.seek(SeekFrom::Start(0))?;
             position = 0;
             hasher = Sha256::new();
             self.report(index, 0);
         }
+
+        // 部分応答が要求範囲と一致し透過的な圧縮がないことを確認する
         if status == 206 {
             let expected = format!(
                 "bytes {}-{}/{}",
@@ -214,12 +292,14 @@ impl<C: Control> Session<'_, C> {
             file.set_len(0)?;
             return Err(Failure::Http { retryable: false }.into());
         }
+
+        // サイズ上限と共有の速度制限を守りながら受信内容を書き込む
         while let Some(bytes) = controlled(response.chunk(), self.control).await?? {
             if bytes.len() as u64 > chunk.size - position {
                 file.set_len(0)?;
                 return Err(Failure::Http { retryable: false }.into());
             }
-            // Limit each write so a slow transfer remains responsive and memory stays bounded
+            // 書込を小さく区切り低速時の応答性とメモリ使用量を保つ
             for block in bytes.chunks(64 * 1024) {
                 self.throttle(block.len()).await?;
                 controlled(std::future::ready(()), self.control).await?;
@@ -229,6 +309,8 @@ impl<C: Control> Session<'_, C> {
                 self.report(index, position);
             }
         }
+
+        // サイズかハッシュが不一致なら破棄し一致した場合だけ同期する
         if position != chunk.size || format!("{:x}", hasher.finalize()) != chunk.digest {
             file.set_len(0)?;
             self.report(index, 0);
@@ -239,7 +321,19 @@ impl<C: Control> Session<'_, C> {
     }
 }
 
-/// Own the bounded concurrent download runtime on the caller's worker thread
+/// 呼出元のワーカースレッドで並列数を制限したダウンロードを実行する
+///
+/// # 引数
+///
+/// * `chunks` - 取得するチャンクの一覧
+/// * `root` - 操作の基準となる管理ルート
+/// * `cached` - 開始時点で検証済みのキャッシュのバイト数
+/// * `speed_limit` - 全チャンクで共有するバイト毎秒の上限、0は無制限
+/// * `control` - 一時停止やキャンセルの状態と進捗通知先
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 pub fn download(
     chunks: &[Chunk],
     root: &Path,
@@ -247,6 +341,7 @@ pub fn download(
     speed_limit: u64,
     control: &impl Control,
 ) -> Result<()> {
+    // UI の通知先スレッドを維持する単一スレッドのランタイムを用意する
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
@@ -271,6 +366,8 @@ pub fn download(
             positions: RefCell::new(vec![0; chunks.len()]),
             cached,
         };
+
+        // 最大3チャンクを並列に取得し全体で一つの速度上限を共有する
         stream::iter(
             chunks
                 .iter()

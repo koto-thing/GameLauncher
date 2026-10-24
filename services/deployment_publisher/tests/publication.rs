@@ -20,7 +20,7 @@ struct Store {
 }
 
 impl ObjectStore for Store {
-    /// Simulate both missing objects and transport failures
+    /// オブジェクトの欠落と通信の失敗を再現する
     fn head(&self, key: &str) -> Result<Option<Value>> {
         if self.fail_head {
             bail!("network failure");
@@ -28,7 +28,7 @@ impl ObjectStore for Store {
         Ok(self.metadata.borrow().get(key).cloned())
     }
 
-    /// Record writes and optionally simulate failed remote integrity verification
+    /// 書込を記録し必要に応じてリモートの整合性検証失敗を再現する
     fn put(&self, key: &str, _: &Path, metadata: &Value, _: bool) -> Result<()> {
         self.uploads.borrow_mut().push(key.into());
         let mut metadata = metadata.clone();
@@ -39,7 +39,7 @@ impl ObjectStore for Store {
         Ok(())
     }
 
-    /// Return deterministic old objects for retention tests
+    /// 保持規則のテスト用に一定の古いオブジェクトを返す
     fn inventory(&self) -> Result<Vec<Value>> {
         Ok(self
             .documents
@@ -48,19 +48,19 @@ impl ObjectStore for Store {
             .collect())
     }
 
-    /// Read stored retention manifests
+    /// 保存した保持対象のマニフェストを読み込む
     fn read_json(&self, key: &str) -> Result<Value> {
         Ok(self.documents[key].clone())
     }
 
-    /// Capture deletions without accessing a remote bucket
+    /// リモートへ接続せず削除対象を記録する
     fn delete(&self, key: &str) -> Result<()> {
         self.deletions.borrow_mut().push(key.into());
         Ok(())
     }
 }
 
-/// Exercise upload ordering and every failure gate before mutable promotion
+/// 公開ポインタ更新前の転送順序と各失敗条件を検証する
 #[test]
 fn uploads_verify_immutable_objects_before_latest() -> Result<()> {
     let directory = tempdir()?;
@@ -108,7 +108,7 @@ fn uploads_verify_immutable_objects_before_latest() -> Result<()> {
     Ok(())
 }
 
-/// Populate a current, previous, obsolete, and aborted release inventory
+/// 現在版、直前版、旧版、中断版を含む一覧を用意する
 fn retention_store() -> Store {
     let mut store = Store::default();
     let root = "v1/games/sample/releases/windows/x86_64";
@@ -133,7 +133,7 @@ fn retention_store() -> Store {
     store
 }
 
-/// Retain semantic previous versions and refuse incomplete inventories before deletion
+/// バージョン順で直前の版を保持し削除前に不完全な一覧を拒否する
 #[test]
 fn cleanup_retains_current_previous_and_fails_closed() -> Result<()> {
     let store = retention_store();
@@ -161,7 +161,7 @@ fn cleanup_retains_current_previous_and_fails_closed() -> Result<()> {
     Ok(())
 }
 
-/// Verify local retention uses the same plan and respects fresh files
+/// ローカルの整理で同じ計画を使い新しいファイルを保護することを確認する
 #[test]
 fn local_cleanup_keeps_fresh_unreferenced_content() -> Result<()> {
     let directory = tempdir()?;
@@ -190,7 +190,7 @@ fn local_cleanup_keeps_fresh_unreferenced_content() -> Result<()> {
     Ok(())
 }
 
-/// Verify chunk boundaries, complete hashes, deduplication, and corrupted local blobs
+/// 分割の境界、全体ハッシュ、重複排除、壊れたローカルチャンクを検証する
 #[test]
 fn chunks_preserve_the_wire_format_and_detect_corruption() -> Result<()> {
     let directory = tempdir()?;
@@ -221,7 +221,7 @@ fn chunks_preserve_the_wire_format_and_detect_corruption() -> Result<()> {
     Ok(())
 }
 
-/// Validate schemas, international names, and path safety without accessing the network
+/// ネットワーク接続なしでスキーマ、国際化名、パスの安全性を検証する
 #[test]
 fn contracts_enforce_formats_locales_and_paths() -> Result<()> {
     for path in [
@@ -260,7 +260,7 @@ fn contracts_enforce_formats_locales_and_paths() -> Result<()> {
     Ok(())
 }
 
-/// Ensure repeated builds preserve signatures and immutable manifests
+/// 繰り返しのビルドで署名と不変マニフェストが保持されることを確認する
 #[test]
 fn signed_release_is_idempotent_and_rejects_changed_content() -> Result<()> {
     let directory = tempdir()?;

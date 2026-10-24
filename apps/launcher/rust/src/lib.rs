@@ -120,12 +120,31 @@ mod ffi {
     }
 }
 
-/// Validate JSON and deployment hosts without claiming cryptographic authenticity
+/// 署名の真正性とは別に JSON と配信ホストを検証する
+///
+/// # 引数
+///
+/// * `bytes` - 処理対象のバイト列
+/// * `allowed_hosts` - 配信を許可するホスト名の一覧
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 fn validate_manifest(bytes: &[u8], allowed_hosts: &[String]) -> Result<()> {
     manifest::validate_hosts(&manifest::parse(bytes)?, allowed_hosts)
 }
 
-/// Transfer only an authenticated and validated Rust release across the CXX boundary
+/// 認証と検証を終えた Rust のリリースだけを CXX 境界へ渡す
+///
+/// # 引数
+///
+/// * `bytes` - 処理対象のバイト列
+/// * `public_key` - Base64 形式の固定公開鍵
+/// * `allowed_hosts` - 配信を許可するホスト名の一覧
+///
+/// # 戻り値
+///
+/// 認証済みリリースの CXX 受渡し用データ
 fn verify_manifest(
     bytes: &[u8],
     public_key: &str,
@@ -170,22 +189,56 @@ fn verify_manifest(
     })
 }
 
-/// Reject malformed pinned keys during repository construction
+/// リポジトリの構築時に不正な固定公開鍵を拒否する
+///
+/// # 引数
+///
+/// * `public_key` - Base64 形式の固定公開鍵
+///
+/// # 戻り値
+///
+/// 処理が完了した場合は Ok(())
 fn validate_public_key(public_key: &str) -> Result<()> {
     crypto::public_key(public_key).map(|_| ())
 }
 
-/// Verify detached signatures for physical edition profiles using the same cryptography
+/// 共通の暗号処理で物理配布プロファイルの分離署名を検証する
+///
+/// # 引数
+///
+/// * `payload` - 署名または検証の対象となる元のバイト列
+/// * `signature` - Base64 形式の Ed25519 署名
+/// * `public_key` - Base64 形式の固定公開鍵
+///
+/// # 戻り値
+///
+/// 署名が固定公開鍵と一致する場合は true
 fn verify_signature(payload: &[u8], signature: &str, public_key: &str) -> bool {
     crypto::verify(payload, signature, public_key).is_ok()
 }
 
-/// Apply the shared relative-path rule to other launcher inputs
+/// ランチャーの入力に共有の相対パス規則を適用する
+///
+/// # 引数
+///
+/// * `path` - 操作または検証の対象パス
+///
+/// # 戻り値
+///
+/// 共有の相対パス規則を満たす場合は true
 fn safe_relative_path(path: &str) -> bool {
     schema::relative_path(path).is_ok()
 }
 
-/// Preserve integrity, cancellation, and I/O error categories for the C++ application
+/// C++ 側へ整合性不一致、キャンセル、入出力エラーの区分を伝える
+///
+/// # 引数
+///
+/// * `result` - C++ 側へ変換するファイル操作の結果
+///
+/// # 戻り値
+///
+/// 成功は0、整合性不一致は1、キャンセルは2、その他のエラーは3の状態
 fn io_status(result: anyhow::Result<()>) -> ffi::IoStatus {
     match result {
         Ok(()) => ffi::IoStatus {
@@ -203,12 +256,34 @@ fn io_status(result: anyhow::Result<()>) -> ffi::IoStatus {
     }
 }
 
-/// Validate an on-disk file without crossing the bridge for each read block
+/// 読込ブロックごとに CXX 境界を越えずディスク上のファイルを検証する
+///
+/// # 引数
+///
+/// * `path` - 操作または検証の対象パス
+/// * `size` - 期待するバイト数
+/// * `digest` - 期待する SHA-256 の16進文字列
+///
+/// # 戻り値
+///
+/// サイズと SHA-256 が一致する場合は true
 fn verify_file(path: &str, size: u64, digest: &str) -> bool {
     pandd_file_integrity::verify_file(path.as_ref(), size, digest).is_ok()
 }
 
-/// Assemble authenticated chunks and commit only after the whole digest matches
+/// 認証対象のチャンクを結合し全体のハッシュが一致してから確定する
+///
+/// # 引数
+///
+/// * `parts` - 結合順に並んだ検証対象チャンク
+/// * `destination` - 書込先のパス
+/// * `size` - 期待するバイト数
+/// * `digest` - 期待する SHA-256 の16進文字列
+/// * `control` - ファイル処理のキャンセル状態を取得する制御オブジェクト
+///
+/// # 戻り値
+///
+/// 操作結果の状態コードと詳細文字列
 fn assemble_files(
     parts: &[ffi::LocalPart],
     destination: &str,
@@ -233,7 +308,19 @@ fn assemble_files(
     ))
 }
 
-/// Copy a verified existing file without separate source and destination hash passes
+/// コピー元とコピー先を別々にハッシュ化せず既存ファイルを検証付きでコピーする
+///
+/// # 引数
+///
+/// * `source` - 入力ファイルまたはディレクトリのパス
+/// * `destination` - 書込先のパス
+/// * `size` - 期待するバイト数
+/// * `digest` - 期待する SHA-256 の16進文字列
+/// * `control` - ファイル処理のキャンセル状態を取得する制御オブジェクト
+///
+/// # 戻り値
+///
+/// 操作結果の状態コードと詳細文字列
 fn copy_verified_file(
     source: &str,
     destination: &str,
@@ -250,7 +337,20 @@ fn copy_verified_file(
     ))
 }
 
-/// Restore a cached chunk by validating bytes during the copy
+/// コピー中に内容を検証してキャッシュのチャンクを復元する
+///
+/// # 引数
+///
+/// * `source` - 入力ファイルまたはディレクトリのパス
+/// * `offset` - 読込元の先頭からのバイト位置
+/// * `destination` - 書込先のパス
+/// * `size` - 期待するバイト数
+/// * `digest` - 期待する SHA-256 の16進文字列
+/// * `control` - ファイル処理のキャンセル状態を取得する制御オブジェクト
+///
+/// # 戻り値
+///
+/// 操作結果の状態コードと詳細文字列
 fn recover_chunk(
     source: &str,
     offset: u64,
@@ -269,7 +369,19 @@ fn recover_chunk(
     ))
 }
 
-/// Commit an installation while keeping post-commit cleanup warnings distinguishable
+/// インストールを確定し確定後の整理に関する警告を区別して返す
+///
+/// # 引数
+///
+/// * `root` - 操作の基準となる管理ルート
+/// * `game_id` - インストール先と照合するゲーム ID
+/// * `version` - 対象リリースのバージョン
+/// * `entrypoint` - リリース内の起動ファイルの相対パス
+/// * `imported` - 物理配布からの取込用ステージングを選ぶ場合は true
+///
+/// # 戻り値
+///
+/// 有効化の状態コードと整理の警告文字列、有効化後の整理失敗も成功コード0
 fn activate_install(
     root: &str,
     game_id: &str,
@@ -283,12 +395,32 @@ fn activate_install(
     }
 }
 
-/// Remove only the temporary trees belonging to an identified installed game
+/// 識別済みのインストール済みゲームに属する一時ツリーだけを削除する
+///
+/// # 引数
+///
+/// * `root` - 操作の基準となる管理ルート
+/// * `game_id` - インストール先と照合するゲーム ID
+///
+/// # 戻り値
+///
+/// 操作結果の状態コードと詳細文字列
 fn cleanup_install(root: &str, game_id: &str) -> ffi::IoStatus {
     io_status(installation::cleanup(root.as_ref(), game_id))
 }
 
-/// Remove one failed staging tree under the same guarded filesystem boundary
+/// 管理ルートの境界を検証して失敗したステージングだけを削除する
+///
+/// # 引数
+///
+/// * `root` - 操作の基準となる管理ルート
+/// * `game_id` - インストール先と照合するゲーム ID
+/// * `version` - 対象リリースのバージョン
+/// * `imported` - 物理配布からの取込用ステージングを選ぶ場合は true
+///
+/// # 戻り値
+///
+/// 操作結果の状態コードと詳細文字列
 fn discard_install(root: &str, game_id: &str, version: &str, imported: bool) -> ffi::IoStatus {
     io_status(installation::discard(
         root.as_ref(),
@@ -299,21 +431,50 @@ fn discard_install(root: &str, game_id: &str, version: &str, imported: bool) -> 
 }
 
 impl pandd_transfer::download::Control for ffi::DownloadControl {
-    /// Forward the atomic cancellation flag
+    /// 共有のキャンセルフラグを取得する
+    ///
+    /// # 戻り値
+    ///
+    /// キャンセルが要求されている場合は true
     fn cancelled(&self) -> bool {
         self.cancelled()
     }
-    /// Forward the atomic pause flag
+    /// 共有の一時停止フラグを取得する
+    ///
+    /// # 戻り値
+    ///
+    /// 一時停止が要求されている場合は true
     fn paused(&self) -> bool {
         self.paused()
     }
-    /// Keep callbacks on the original calling thread
+    /// 元の呼出元スレッドで進捗コールバックを実行する
+    ///
+    /// # 引数
+    ///
+    /// * `received` - キャッシュ済みデータを含む取得済みバイト数
+    /// * `speed` - ネットワーク転送速度のバイト毎秒
+    ///
+    /// # 戻り値
+    ///
+    /// 戻り値なし
     fn progress(&self, received: u64, speed: u64) {
         self.progress(received, speed);
     }
 }
 
-/// Download a batch without moving UI callbacks or filesystem policy into C++
+/// UI 通知と管理ルートの検証を保ちながらチャンクをまとめて取得する
+///
+/// # 引数
+///
+/// * `chunks` - 取得するチャンクの一覧
+/// * `root` - 操作の基準となる管理ルート
+/// * `cached` - 開始時点で検証済みのキャッシュのバイト数
+/// * `speed_limit` - 全チャンクで共有するバイト毎秒の上限、0は無制限
+/// * `control` - 一時停止やキャンセルの状態と進捗通知先
+///
+/// # 戻り値
+///
+/// 成功は0、キャンセルは2、その他は3、再試行可能な通信エラーは4、再試行不可は5の状態
 fn download_chunks(
     chunks: &[ffi::DownloadChunk],
     root: &str,

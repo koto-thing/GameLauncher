@@ -3,7 +3,7 @@ use pandd_local_storage::{Root, write_atomic};
 use std::{fs, path::Path};
 use tempfile::tempdir;
 
-/// Exercise a failed active-marker write after the directory switch and restore the old release
+/// ディレクトリ切替後のマーカー書込失敗で旧リリースを復元する
 #[test]
 fn marker_failure_restores_old_release_and_keeps_new_staging() -> Result<()> {
     let directory = tempdir()?;
@@ -29,7 +29,7 @@ fn marker_failure_restores_old_release_and_keeps_new_staging() -> Result<()> {
     Ok(())
 }
 
-/// Preserve every recoverable copy and report rollback failure instead of deleting a backup
+/// 復元可能なデータを保持しバックアップを消さずに復旧失敗を報告する
 #[test]
 fn failed_rollback_preserves_backup_and_rejects_another_switch() -> Result<()> {
     let directory = tempdir()?;
@@ -66,7 +66,7 @@ fn failed_rollback_preserves_backup_and_rejects_another_switch() -> Result<()> {
     Ok(())
 }
 
-/// A failed first installation leaves neither an active directory nor a partial marker
+/// 初回インストールの失敗で有効ディレクトリや書込途中のマーカーを残さない
 #[test]
 fn first_install_failure_and_success_are_distinct() -> Result<()> {
     let directory = tempdir()?;
@@ -98,7 +98,7 @@ fn first_install_failure_and_success_are_distinct() -> Result<()> {
     Ok(())
 }
 
-/// Preflight the entire deletion plan before deleting the first valid target
+/// 最初の有効な対象を削除する前に全削除計画を検証する
 #[test]
 fn removal_is_confined_and_missing_targets_are_idempotent() -> Result<()> {
     let directory = tempdir()?;
@@ -116,7 +116,7 @@ fn removal_is_confined_and_missing_targets_are_idempotent() -> Result<()> {
     Ok(())
 }
 
-/// Never traverse a nested link during cleanup, including when another target is otherwise valid
+/// 他に有効な削除対象があっても入れ子のリンクをたどらない
 #[cfg(unix)]
 #[test]
 fn nested_link_blocks_the_complete_cleanup_plan() -> Result<()> {
