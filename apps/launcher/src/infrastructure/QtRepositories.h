@@ -10,19 +10,6 @@
 
 namespace pandd {
 
-/** @brief Ed25519署名検証Portの実装 */
-class OpenSslEd25519Verifier final {
-  public:
-    /** @brief raw公開鍵をbase64で保持する検証器を構築する */
-    explicit OpenSslEd25519Verifier(QByteArray publicKeyBase64);
-
-    /** @brief OpenSSL 3のEd25519実装で署名を検証する */
-    [[nodiscard]] bool verify(const QByteArray& payload, const QByteArray& signatureBase64) const;
-
-  private:
-    QByteArray publicKey_;
-};
-
 /** @brief versioned static endpointを読むRepository */
 class StaticContentRepository final : public IGameCatalogRepository,
                                       public IGameReleaseRepository,
@@ -64,7 +51,7 @@ class StaticContentRepository final : public IGameCatalogRepository,
     QUrl baseUrl_;
     QString allowedHost_;
     ManifestValidator validator_;
-    OpenSslEd25519Verifier signatureVerifier_;
+    QByteArray manifestPublicKeyBase64_;
 };
 
 /** @brief QSaveFileで設定と導入状態を一元保存するRepository */

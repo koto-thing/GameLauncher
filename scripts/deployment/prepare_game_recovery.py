@@ -6,7 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from services.deployment_publisher.publisher import canonical_json, validate_contract, validate_locale_tag, write_json
+from packages.contracts.validation import canonical_json, validate_contract, validate_locale_tag
 
 
 def prepare(snapshot: dict, metadata: dict, public_tree: Path, base_url: str) -> None:
@@ -33,7 +33,7 @@ def prepare(snapshot: dict, metadata: dict, public_tree: Path, base_url: str) ->
             catalog = json.loads(path.read_text(encoding="utf-8"))
             catalog["games"] = [game for game in catalog["games"] if game["gameId"] != game_id]
             validate_contract(catalog, "catalog.schema.json")
-            write_json(path, catalog)
+            path.write_bytes(canonical_json(catalog) + b"\n")
 
 
 def main() -> int:

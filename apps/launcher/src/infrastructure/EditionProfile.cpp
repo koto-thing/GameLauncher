@@ -42,8 +42,10 @@ void EditionProfile::initialize() {
     }
 
     const auto bytes = readFile(QDir(profile.root_).filePath("edition.json"));
-    OpenSslEd25519Verifier profileVerifier{QByteArray(PANDD_MANIFEST_PUBLIC_KEY_BASE64)};
-    if (!profileVerifier.verify(bytes, readFile(QDir(profile.root_).filePath("edition.sig")))) {
+    if (!ManifestValidator::verifySignature(
+            bytes.toStdString(),
+            readFile(QDir(profile.root_).filePath("edition.sig")).toStdString(),
+            PANDD_MANIFEST_PUBLIC_KEY_BASE64)) {
         throw std::runtime_error("Distribution profile signature is invalid");
     }
     profile.digest_ = QCryptographicHash::hash(bytes, QCryptographicHash::Sha256);
@@ -105,14 +107,10 @@ GameRelease EditionProfile::bundledRelease(const GameId& gameId) const {
     }
     const auto data =
         readFile(asset("release-" + QString::fromStdString(gameId.value()) + ".json"));
-    const auto release = JsonCodec::parseRelease(data);
-    OpenSslEd25519Verifier verifier{QByteArray(PANDD_MANIFEST_PUBLIC_KEY_BASE64)};
     ManifestValidator validator({QUrl(PANDD_DISTRIBUTION_BASE_URL).host().toStdString()});
+    const auto release = validator.verify(data.toStdString(), PANDD_MANIFEST_PUBLIC_KEY_BASE64);
     if (release.gameId != gameId || release.platform != "windows" ||
-        release.architecture != "x86_64" ||
-        !verifier.verify(JsonCodec::canonicalReleasePayload(data),
-                         QByteArray::fromStdString(release.signature)) ||
-        !validator.validate(release).ok) {
+        release.architecture != "x86_64") {
         throw std::runtime_error("Invalid bundled release signature or platform");
     }
     return release;

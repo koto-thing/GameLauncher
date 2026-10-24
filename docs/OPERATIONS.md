@@ -1,5 +1,9 @@
 # Distribution operations
 
+Install the [Rust Publisher](../services/deployment_publisher/README.md) with
+`cargo install --locked --path services/deployment_publisher` before running the
+commands below. R2 operations also require AWS CLI v2 on PATH.
+
 ## Publish ordering
 
 The Publisher uploads content-addressed blobs, assets, and immutable manifests first.
@@ -11,7 +15,7 @@ never promoted from staging automatically.
 One protected Publisher invocation can prepare, verify, and promote a game release:
 
 ```text
-python services/deployment_publisher/publisher.py publish-game \
+pandd-publisher publish-game \
   --metadata <reviewed-release.json> --build-dir <game-build> --output <public-tree> \
   --base-url https://downloads.koto-thing.com --private-key <ed25519-private.pem> \
   --platform windows --arch x86_64 --endpoint <r2-s3-endpoint> --bucket <bucket>
@@ -32,8 +36,8 @@ and `--bucket` to prepare and inspect the local publication tree without uploadi
 
 Keep current and previous releases. A cleanup job may delete a blob only when neither
 release references it and at least seven days have passed since pointer promotion.
-`publisher.py gc-local` applies the rule to a prepared local publication tree.
-`publisher.py gc-remote` reads every remote latest pointer and retained manifest before
+`pandd-publisher gc-local` applies the rule to a prepared local publication tree.
+`pandd-publisher gc-remote` reads every remote latest pointer and retained manifest before
 deleting aged objects; the protected release job runs it after promotion. For a manual
 run, review `--dry-run` output first. Both commands refuse a grace period below seven
 days.

@@ -16,11 +16,8 @@
 #include <QThread>
 
 #include <algorithm>
-#include <memory>
 #include <set>
 #include <stdexcept>
-
-#include <openssl/evp.h>
 
 namespace pandd {
 namespace {
@@ -39,54 +36,13 @@ OperationResult storageFailure(const QString& detail) {
 
 } // namespace
 
-/** @brief base64公開鍵を検証器へ設定する */
-OpenSslEd25519Verifier::OpenSslEd25519Verifier(QByteArray publicKeyBase64)
-    : publicKey_(QByteArray::fromBase64(publicKeyBase64)) {
-    // Ed25519 raw公開鍵の固定長を構築時に検証
-    if (publicKey_.size() != 32) {
-        throw std::invalid_argument("Ed25519 public key must contain 32 bytes");
-    }
-}
-
-/** @brief payloadとbase64署名をEd25519で検証する */
-// 暗号境界のpayloadと署名は意味の異なるbyte列として個別に受け取る
-// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-bool OpenSslEd25519Verifier::verify(const QByteArray& payload,
-                                    const QByteArray& signatureBase64) const {
-    // base64署名を復号してEd25519の固定長を確認
-    const auto signature = QByteArray::fromBase64(signatureBase64);
-    if (signature.size() != 64) {
-        return false;
-    }
-
-    // EVPはEd25519でhash指定を許可しないためpayloadを直接渡す
-    auto* key = EVP_PKEY_new_raw_public_key(
-        EVP_PKEY_ED25519, nullptr, reinterpret_cast<const unsigned char*>(publicKey_.constData()),
-        static_cast<std::size_t>(publicKey_.size()));
-    if (key == nullptr) {
-        return false;
-    }
-    std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> keyGuard(key, &EVP_PKEY_free);
-    auto* context = EVP_MD_CTX_new();
-    if (context == nullptr) {
-        return false;
-    }
-    std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> contextGuard(context, &EVP_MD_CTX_free);
-    if (EVP_DigestVerifyInit(context, nullptr, nullptr, nullptr, key) != 1) {
-        return false;
-    }
-    return EVP_DigestVerify(context, reinterpret_cast<const unsigned char*>(signature.constData()),
-                            static_cast<std::size_t>(signature.size()),
-                            reinterpret_cast<const unsigned char*>(payload.constData()),
-                            static_cast<std::size_t>(payload.size())) == 1;
-}
-
 /** @brief 固定配布元と署名検証器を構築する */
 StaticContentRepository::StaticContentRepository(QUrl baseUrl, QByteArray manifestPublicKeyBase64,
                                                  QObject* networkParent)
     : baseUrl_(std::move(baseUrl)), allowedHost_(baseUrl_.host().toLower()),
       validator_({allowedHost_.toStdString()}),
-      signatureVerifier_(std::move(manifestPublicKeyBase64)) {
+      manifestPublicKeyBase64_(std::move(manifestPublicKeyBase64)) {
+    ManifestValidator::validatePublicKey(manifestPublicKeyBase64_.toStdString());
     Q_UNUSED(networkParent)
     // 本番配布元はHTTPSに限定しlocal開発だけHTTPを許可
     const auto scheme = baseUrl_.scheme().toLower();
@@ -159,20 +115,12 @@ GameRelease StaticContentRepository::fetchLatestRelease(const std::string& relea
         throw std::runtime_error("release URL uses an untrusted host");
     }
     const auto data = get(url, qsizetype{16} * 1024 * 1024);
-    const auto release = JsonCodec::parseRelease(data);
+    const auto release =
+        validator_.verify(data.toStdString(), manifestPublicKeyBase64_.toStdString());
     if (!EditionProfile::current().allows(release.gameId)) {
         throw std::runtime_error("Game is not included in this edition");
     }
 
-    // 署名検証後にのみ構造検証済みリリースを返す
-    if (!signatureVerifier_.verify(JsonCodec::canonicalReleasePayload(data),
-                                   QByteArray::fromStdString(release.signature))) {
-        throw std::runtime_error("manifest signature is invalid");
-    }
-    const auto validation = validator_.validate(release);
-    if (!validation.ok) {
-        throw std::runtime_error(validation.error.detail);
-    }
     return release;
 }
 

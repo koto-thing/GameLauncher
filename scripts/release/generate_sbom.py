@@ -6,10 +6,48 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import tomllib
 from pathlib import Path
 from typing import Any
 
 from scripts.release import collect_licenses
+
+
+def launcher_rust_packages(project_root: Path) -> list[dict[str, Any]]:
+    """Inventory the launcher's locked Rust dependency closure, including build dependencies"""
+    lock = tomllib.loads((project_root / "Cargo.lock").read_text(encoding="utf-8"))
+    pending = ["pandd-launcher-rust"]
+    visited: set[tuple[str, str]] = set()
+    result = []
+    while pending:
+        reference = pending.pop().split()
+        matches = [item for item in lock["package"] if item["name"] == reference[0]
+                   and (len(reference) == 1 or item["version"] == reference[1])]
+        if len(matches) != 1:
+            raise ValueError(f"ambiguous Rust dependency: {reference}")
+        package = matches[0]
+        identity = (package["name"], package["version"])
+        if identity in visited:
+            continue
+        visited.add(identity)
+        pending.extend(package.get("dependencies", []))
+        if "source" not in package:
+            continue
+        name, version = identity
+        result.append({
+            "SPDXID": f"SPDXRef-Package-cargo-{name}-{version}",
+            "name": name,
+            "versionInfo": version,
+            "downloadLocation": f"https://crates.io/api/v1/crates/{name}/{version}/download",
+            "filesAnalyzed": False,
+            "licenseConcluded": "NOASSERTION",
+            "licenseDeclared": "NOASSERTION",
+            "comment": "Launcher Cargo.lock dependency closure, including build and target-specific dependencies",
+            "checksums": [{"algorithm": "SHA256", "checksumValue": package["checksum"]}],
+            "externalRefs": [{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl",
+                              "referenceLocator": f"pkg:cargo/{name}@{version}"}],
+        })
+    return sorted(result, key=lambda item: item["SPDXID"])
 
 
 def generate_document(metadata: dict[str, Any], version: str,
@@ -149,6 +187,14 @@ def generate_document(metadata: dict[str, Any], version: str,
             "spdxElementId": "SPDXRef-Package-Launcher",
             "relationshipType": "DEPENDS_ON",
             "relatedSpdxElement": package_id,
+        })
+
+    for package in launcher_rust_packages(project_root):
+        packages.append(package)
+        relationships.append({
+            "spdxElementId": "SPDXRef-Package-Launcher",
+            "relationshipType": "DEPENDS_ON",
+            "relatedSpdxElement": package["SPDXID"],
         })
 
     platform = f"{metadata['systemName']}-{metadata['systemProcessor']}"

@@ -129,7 +129,11 @@ Qt WebEngineのランタイム、リソース、ロケールもQtのデプロイ
 - `services/platform-api/` — 一般利用者向けAPI（実装予定）
 - `modules/` — 業務モジュールの責務と依存規則
 - `packages/contracts/` — 各アプリで共有するJSON Schema
-- `services/deployment_publisher/` — 検証済みartifactの公開処理
+- `packages/transfer/` — Rustダウンロード制御とPublisher共通の転送キャンセル・再試行上限
+- `packages/local-storage/` — PublisherとLauncherの共通Rust原子的保存・削除境界・配置復旧
+- `packages/file-integrity/` — PublisherとLauncherの共通Rustハッシュ計算・検証付き結合
+- `packages/distribution-contracts/` — PublisherとLauncherの共通Rustマニフェスト検証・署名処理
+- `services/deployment_publisher/` — Rust製の配信物生成・署名・公開CLI（[ビルド・実行方法](services/deployment_publisher/README.md)）
 - `apps/launcher/installer/` — ゲームランチャーのインストーラー
 - `services/distribution-content/` — ランチャーが読む公開コンテンツ
 - `infrastructure/` — 信頼環境とCloudflareリソースの所有境界

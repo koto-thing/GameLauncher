@@ -1,4 +1,5 @@
 #include "application/LauncherService.h"
+#include "infrastructure/FileIntegrity.h"
 #include "infrastructure/GameInstallationService.h"
 #include "infrastructure/JsonCodec.h"
 #include "infrastructure/PlatformServices.h"
@@ -6,6 +7,7 @@
 
 #include <QCryptographicHash>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -65,7 +67,7 @@ class FixtureHttpServer final : public QTcpServer {
                 return;
             }
             qint64 offset = 0;
-            const auto marker = request.indexOf("Range: bytes=");
+            const auto marker = request.toLower().indexOf("range: bytes=");
             if (marker >= 0) {
                 const auto start = marker + static_cast<int>(QByteArray("Range: bytes=").size());
                 const auto end = request.indexOf('-', start);
@@ -304,6 +306,9 @@ class LauncherIntegrationTests final : public QObject {
     /** @brief 正規版と完全一致する既存ゲームだけを取り込む */
     void importsVerifiedExistingGame();
 
+    /** @brief Rust境界で結合検証とキャンセルが出力を保護する */
+    void verifiesAssemblyBeforeCommit();
+
     /** @brief 5xxを再試行して正常dataへ回復する */
     void retriesTransientServerFailure();
 
@@ -354,11 +359,14 @@ class LauncherIntegrationTests final : public QObject {
 };
 
 void LauncherIntegrationTests::verifiesEd25519Signature() {
-    const OpenSslEd25519Verifier verifier("11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=");
-    QVERIFY(verifier.verify({}, "5VZDAMNgrHKQhuLMgG6CioSHfx645dl02HPgZSJJAVVfuIIVkKM7rMYeOXAc+"
-                                "bRr0lv18FlbviRlUUFDjnoQCw=="));
-    QVERIFY(!verifier.verify("tampered", "5VZDAMNgrHKQhuLMgG6CioSHfx645dl02HPgZSJJAVVfuIIVkKM7rMYeO"
-                                         "XAc+bRr0lv18FlbviRlUUFDjnoQCw=="));
+    const auto verify = [](std::string_view payload, std::string_view signature) {
+        return ManifestValidator::verifySignature(payload, signature,
+                                                  "11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=");
+    };
+    QVERIFY(verify({}, "5VZDAMNgrHKQhuLMgG6CioSHfx645dl02HPgZSJJAVVfuIIVkKM7rMYeOXAc+"
+                       "bRr0lv18FlbviRlUUFDjnoQCw=="));
+    QVERIFY(!verify("tampered", "5VZDAMNgrHKQhuLMgG6CioSHfx645dl02HPgZSJJAVVfuIIVkKM7rMYeO"
+                                "XAc+bRr0lv18FlbviRlUUFDjnoQCw=="));
 }
 
 void LauncherIntegrationTests::rejectsLookalikeLocalhost() {
@@ -522,6 +530,12 @@ void LauncherIntegrationTests::reusesContentAddressedChunkAcrossReleases() {
     QCOMPARE(server.requestCount(), 1);
     QVERIFY(QFileInfo::exists(QDir(gameRoot).filePath("releases/1.0.0/bin/game")));
     QVERIFY(QFileInfo::exists(QDir(gameRoot).filePath("releases/2.0.0/bin/game")));
+    QVERIFY(install(SemanticVersion("3.0.0")).ok);
+    QCOMPARE(server.requestCount(), 1);
+    QVERIFY(!QFileInfo::exists(QDir(gameRoot).filePath("releases/1.0.0")));
+    QVERIFY(QFileInfo::exists(QDir(gameRoot).filePath("releases/2.0.0/bin/game")));
+    QVERIFY(QFileInfo::exists(QDir(gameRoot).filePath("releases/3.0.0/bin/game")));
+    QVERIFY(QDir(QDir(gameRoot).filePath(".launcher/trash")).isEmpty());
 }
 
 void LauncherIntegrationTests::redownloadsOnlyCorruptChunkAfterCacheCleanup() {
@@ -729,7 +743,8 @@ void LauncherIntegrationTests::fallsBackWhenRangeIsUnsupported() {
     }
     QVERIFY(future.result().ok);
     QVERIFY(server.rangeRequested());
-    QCOMPARE(server.requestCount(), 2);
+    // 完全応答をその場で利用するため再取得のrequestは不要
+    QCOMPARE(server.requestCount(), 1);
 }
 
 void LauncherIntegrationTests::stopsOnClientError() {
@@ -999,8 +1014,10 @@ void LauncherIntegrationTests::rejectsNonContractJson() {
 
     bool fractionalSizeRejected = false;
     try {
-        JsonCodec::parseRelease(
-            R"({"schemaVersion":1,"gameId":"sample-game","version":"1.0.0","platform":"windows","arch":"x86_64","minimumLauncherVersion":"1.0.0","engine":"godot","entrypoint":"bin/game.exe","workingDirectory":"bin","arguments":[],"saveDirectoryName":"sample-game","totalSize":1.5,"files":[],"publishedAt":"2026-08-10T00:00:00Z","signature":"signed"})");
+        (void)ManifestValidator({"downloads.koto-thing.com"})
+            .verify(
+                R"({"schemaVersion":1,"gameId":"sample-game","version":"1.0.0","platform":"windows","arch":"x86_64","minimumLauncherVersion":"1.0.0","engine":"godot","entrypoint":"bin/game.exe","workingDirectory":"bin","arguments":[],"saveDirectoryName":"sample-game","totalSize":1.5,"files":[],"publishedAt":"2026-08-10T00:00:00Z","signature":"signed"})",
+                "11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=");
     } catch (const std::runtime_error&) {
         fractionalSizeRejected = true;
     }
@@ -1155,3 +1172,42 @@ void LauncherIntegrationTests::physicalEditionLaunchesOfflineButRejectsInvalidMa
 
 QTEST_GUILESS_MAIN(LauncherIntegrationTests)
 #include "LauncherIntegrationTests.moc"
+
+void LauncherIntegrationTests::verifiesAssemblyBeforeCommit() {
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const QByteArray content("chunk bytes");
+    const auto digest =
+        QCryptographicHash::hash(content, QCryptographicHash::Sha256).toHex().toStdString();
+    QFile chunk(root.filePath(QString::fromStdString(digest)));
+    QVERIFY(chunk.open(QIODevice::WriteOnly));
+    QCOMPARE(chunk.write(content), content.size());
+    chunk.close();
+    const auto destination = root.filePath(QString::fromUtf8("検証済み.bin"));
+    QFile output(destination);
+    QVERIFY(output.open(QIODevice::WriteOnly));
+    output.write("previous");
+    output.close();
+    GameFile file{"game.bin",
+                  static_cast<std::uint64_t>(content.size()),
+                  std::string(64, '0'),
+                  false,
+                  {{0, static_cast<std::uint64_t>(content.size()), digest, "unused"}}};
+    std::atomic_bool cancelled{false};
+    QCOMPARE(FileIntegrity::assemble(file, root.path(), destination, cancelled).error.code,
+             ErrorCode::FileHashMismatch);
+    QVERIFY(output.open(QIODevice::ReadOnly));
+    QCOMPARE(output.readAll(), QByteArray("previous"));
+    output.close();
+    file.sha256 = digest;
+    cancelled = true;
+    QCOMPARE(FileIntegrity::assemble(file, root.path(), destination, cancelled).error.code,
+             ErrorCode::OperationCancelled);
+    QVERIFY(output.open(QIODevice::ReadOnly));
+    QCOMPARE(output.readAll(), QByteArray("previous"));
+    output.close();
+    cancelled = false;
+    QVERIFY(FileIntegrity::assemble(file, root.path(), destination, cancelled).ok);
+    QVERIFY(FileIntegrity::verify(destination, file.size, digest));
+    QCOMPARE(QDir(root.path()).entryList(QDir::Files | QDir::Hidden).size(), 2);
+}

@@ -260,7 +260,7 @@ npm run build
 # Pythonと構成境界
 Set-Location ../..
 python -m unittest discover -s scripts/tests -p 'test_*.py' -v
-python -m unittest discover -s services/deployment_publisher -p 'test_*.py' -v
+cargo test --locked --manifest-path services/deployment_publisher/Cargo.toml
 python -m unittest discover -s packages/contracts -p 'test_*.py' -v
 
 # Launcher

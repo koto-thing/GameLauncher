@@ -1,0 +1,29 @@
+[package]
+name = "pandd-publisher"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+publish = false
+
+[dependencies]
+pandd-transfer = { path = "../../packages/transfer" }
+pandd-local-storage = { path = "../../packages/local-storage" }
+pandd-file-integrity = { path = "../../packages/file-integrity" }
+anyhow = "1"
+base64 = "0.22"
+chrono = "0.4"
+clap = { version = "4", features = ["derive"] }
+ctrlc = { version = "3", features = ["termination"] }
+ed25519-dalek = { version = "2", features = ["pem", "rand_core"] }
+pandd-distribution-contracts = { path = "../../packages/distribution-contracts", features = ["signing"] }
+mime_guess = "2"
+rand = "0.8"
+rayon = "1"
+regex = "1"
+serde_json = "1"
+tempfile = "3"
+walkdir = "2"
+
+
+[dev-dependencies]
+sha2 = "0.10"

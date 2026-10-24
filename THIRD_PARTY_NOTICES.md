@@ -37,3 +37,10 @@ applicable agreements before recording acceptance or distributing a release.
 
 This file is an inventory, not legal advice. Before public distribution, audit the
 resolved module-specific notices and the generated `licenses/` directory.
+
+Launcher verification and downloads statically link the Rust crates resolved in the root
+`Cargo.lock`, including CXX, serde/serde_json, jsonschema, url, ed25519-dalek,
+reqwest, Tokio, rustls, ring, and webpki-roots.
+The release SBOM includes their locked dependency closure and archive checksums,
+including build and target-specific dependencies. Crate-specific licenses are recorded
+in the downloaded Cargo package manifests and license files.

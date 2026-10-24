@@ -18,17 +18,11 @@ class JsonCodec final {
     /** @brief お知らせJSONをドメイン型へ変換する */
     static std::vector<Announcement> parseAnnouncements(const QByteArray& data);
 
-    /** @brief リリースJSONをドメイン型へ変換する */
-    static GameRelease parseRelease(const QByteArray& data);
-
     /** @brief ランチャーrelease JSONをドメイン型へ変換する */
     static LauncherRelease parseLauncherRelease(const QByteArray& data);
 
     /** @brief ランチャー更新履歴JSONをドメイン型へ変換する */
     static std::vector<LauncherChangelogEntry> parseLauncherChangelog(const QByteArray& data);
-
-    /** @brief signatureを除くCanonical JSONを生成する */
-    static QByteArray canonicalReleasePayload(const QByteArray& data);
 
     /** @brief 導入済み一覧をJSONへ変換する */
     static QJsonArray serializeInstalledGames(const std::vector<InstalledGame>& games);
@@ -41,10 +35,6 @@ class JsonCodec final {
 
     /** @brief 設定をJSONから復元する */
     static LauncherSettings parseSettings(const QJsonObject& object, LauncherSettings defaults);
-
-  private:
-    /** @brief JSON値をキー順・空白なしで符号化する */
-    static QByteArray canonicalize(const QJsonValue& value);
 };
 
 } // namespace pandd

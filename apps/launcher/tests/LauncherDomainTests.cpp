@@ -2,9 +2,12 @@
 #include "domain/ManifestValidator.h"
 #include "domain/Models.h"
 
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTest>
-
-#include <limits>
+#include <stdexcept>
 
 using namespace pandd;
 
@@ -22,6 +25,12 @@ class LauncherDomainTests final : public QObject {
     /** @brief 完全なmanifest契約を受理する */
     void acceptsValidManifest();
 
+    /** @brief 共有fixtureの署名をCXX境界越しに検証する */
+    void verifiesSharedManifest();
+
+    /** @brief 重複JSONキーと許可外hostをRust境界で拒否する */
+    void rejectsAmbiguousJsonAndUntrustedHost();
+
     /** @brief 不連続chunkを拒否する */
     void rejectsChunkGap();
 
@@ -35,27 +44,21 @@ class LauncherDomainTests final : public QObject {
     void mergesLocalizedCatalogWithJapaneseFallback();
 };
 
-/** @brief テスト用の正しいreleaseを作成する */
-GameRelease validRelease() {
-    GameRelease release;
-    release.gameId = GameId("sample-game");
-    release.version = SemanticVersion("1.2.3");
-    release.platform = "windows";
-    release.architecture = "x86_64";
-    release.engine = "unity";
-    release.entrypoint = "bin/game.exe";
-    release.workingDirectory = "bin";
-    release.saveDirectoryName = "sample-game";
-    release.totalSize = 4;
-    release.publishedAt = "2026-08-10T00:00:00Z";
-    release.signature = "signed";
-    release.files = {
-        {"bin/game.exe",
-         4,
-         std::string(64, 'a'),
-         true,
-         {{0, 4, std::string(64, 'b'), "https://downloads.koto-thing.com/blobs/sha256/value"}}}};
-    return release;
+/** @brief Rustと共用する署名済みJSONと公開鍵を読む */
+QByteArray fixture(const char* name) {
+    QFile file(QString(PANDD_MANIFEST_FIXTURE_DIR) + "/" + name);
+    if (!file.open(QIODevice::ReadOnly)) {
+        throw std::runtime_error("manifest fixture is missing");
+    }
+    return file.readAll();
+}
+
+/** @brief 改変テスト用に署名済みfixtureをJSON objectへ変換する */
+QJsonObject validRelease() { return QJsonDocument::fromJson(fixture("release.json")).object(); }
+
+/** @brief JSON objectを元の境界と同じUTF-8 byte列へ符号化する */
+std::string encoded(const QJsonObject& object) {
+    return QJsonDocument(object).toJson(QJsonDocument::Compact).toStdString();
 }
 
 void LauncherDomainTests::comparesSemanticVersions() {
@@ -91,36 +94,60 @@ void LauncherDomainTests::mergesLocalizedCatalogWithJapaneseFallback() {
 
 void LauncherDomainTests::acceptsValidManifest() {
     const ManifestValidator validator({"downloads.koto-thing.com"});
-    QVERIFY(validator.validate(validRelease()).ok);
+    QVERIFY(validator.validate(fixture("release.json").toStdString()).ok);
     auto rootExecutable = validRelease();
-    rootExecutable.entrypoint = "game.exe";
-    rootExecutable.workingDirectory = ".";
-    rootExecutable.files.front().path = "game.exe";
-    QVERIFY(validator.validate(rootExecutable).ok);
+    rootExecutable["entrypoint"] = "game.exe";
+    rootExecutable["workingDirectory"] = ".";
+    auto file = rootExecutable["files"].toArray().first().toObject();
+    file["path"] = "game.exe";
+    rootExecutable["files"] = QJsonArray{file};
+    QVERIFY(validator.validate(encoded(rootExecutable)).ok);
+}
+
+void LauncherDomainTests::verifiesSharedManifest() {
+    const ManifestValidator validator({"downloads.koto-thing.com"});
+    const auto key = fixture("public-key.txt").trimmed().toStdString();
+    const auto release = validator.verify(fixture("release.json").toStdString(), key);
+    QCOMPARE(release.gameId.value(), std::string("sample-game"));
+    QCOMPARE(release.version.value(), std::string("1.2.3"));
+    QCOMPARE(release.totalSize, std::uint64_t(4));
+    QCOMPARE(release.files.size(), std::size_t(1));
+    QCOMPARE(release.entrypoint, std::string("bin/ゲーム.exe"));
+    QCOMPARE(release.files.front().chunks.front().url,
+             std::string("https://downloads.koto-thing.com/blobs/sha256/value"));
+    auto tampered = validRelease();
+    tampered["version"] = "1.2.4";
+    QVERIFY_EXCEPTION_THROWN((void)validator.verify(encoded(tampered), key), std::runtime_error);
+}
+
+void LauncherDomainTests::rejectsAmbiguousJsonAndUntrustedHost() {
+    const ManifestValidator validator({"downloads.koto-thing.com"});
+    auto duplicate = fixture("release.json");
+    duplicate.replace("\"schemaVersion\":1", "\"schemaVersion\":1,\"schemaVersion\":1");
+    QVERIFY(!validator.validate(duplicate.toStdString()).ok);
+    const ManifestValidator untrusted({"evil.example"});
+    QVERIFY(!untrusted.validate(fixture("release.json").toStdString()).ok);
 }
 
 void LauncherDomainTests::rejectsChunkGap() {
-    auto release = validRelease();
-    release.files.front().chunks.front().offset = 1;
+    auto bytes = fixture("release.json");
+    bytes.replace("\"offset\":0", "\"offset\":1");
     const ManifestValidator validator({"downloads.koto-thing.com"});
-    QVERIFY(!validator.validate(release).ok);
+    QVERIFY(!validator.validate(bytes.toStdString()).ok);
 }
 
 void LauncherDomainTests::rejectsChunkOverflow() {
-    auto release = validRelease();
-    release.files.front().chunks.front().size = std::numeric_limits<std::uint64_t>::max();
+    auto bytes = fixture("release.json");
+    bytes.replace("\"size\":4,\"url\"", "\"size\":18446744073709551615,\"url\"");
     const ManifestValidator validator({"downloads.koto-thing.com"});
-    QVERIFY(!validator.validate(release).ok);
+    QVERIFY(!validator.validate(bytes.toStdString()).ok);
 }
 
 void LauncherDomainTests::rejectsOversizedChunk() {
-    auto release = validRelease();
-    constexpr std::uint64_t oversized = 256ULL * 1024ULL * 1024ULL + 1;
-    release.totalSize = oversized;
-    release.files.front().size = oversized;
-    release.files.front().chunks.front().size = oversized;
+    auto bytes = fixture("release.json");
+    bytes.replace("\"size\":4,\"url\"", "\"size\":268435457,\"url\"");
     const ManifestValidator validator({"downloads.koto-thing.com"});
-    QVERIFY(!validator.validate(release).ok);
+    QVERIFY(!validator.validate(bytes.toStdString()).ok);
 }
 
 QTEST_GUILESS_MAIN(LauncherDomainTests)

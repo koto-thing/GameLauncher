@@ -6,7 +6,7 @@
 - [PandD Game Launcherを更新する手順](LAUNCHER_UPDATE_JA.md)
 - [Live2D背景の開発・登録](LIVE2D_BACKGROUNDS_JA.md)
 
-Install Qt 6.10, CMake, Ninja, Python 3.13 or newer, and vcpkg. Configure Qt through
+Install Qt 6.10, CMake, Ninja, Python 3.13 or newer, Rust 1.94.1 or newer, and vcpkg. Configure Qt through
 `CMAKE_PREFIX_PATH` or `Qt6_DIR`; no developer path is stored in the project.
 Windows builds use MSVC v143 x64 and matching MSVC Qt binaries. Provide the reviewed
 Cubism Native SDK 5-r.5 through `PANDD_CUBISM_SDK_ROOT` (environment or CMake cache).
@@ -19,12 +19,14 @@ staging-mode development.
 cmake --preset dev -DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake
 cmake --build --preset dev
 ctest --preset dev
-python -m pip install --requirement services/deployment_publisher/requirements.txt
-python -m unittest discover -s services/deployment_publisher -p "test_*.py" -v
+python -m pip install --requirement packages/contracts/requirements.txt
+cargo install --locked --path services/deployment_publisher
+cargo test --workspace --locked
+python -m unittest discover -s services/deployment_publisher/tests -p "test_*.py" -v
 python -m unittest discover -s packages/contracts -p "test_*.py" -v
 python -m unittest discover -s apps/launcher/installer -p "test_*.py" -v
 python -m unittest discover -s scripts/tests -p "test_*.py" -v
-python -m compileall -q services/deployment_publisher packages/contracts apps/launcher/installer scripts
+python -m compileall -q packages/contracts apps/launcher/installer scripts
 ```
 
 ## CLion on this Windows machine
@@ -74,7 +76,7 @@ GitHub `staging` environment requires `MANIFEST_PUBLIC_KEY_BASE64`,
 `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_ENDPOINT`. Keep credentials out of
 the repository and workflow inputs.
 
-Game releases are prepared separately with `publisher.py publish-game`. Upload the
+Game releases are prepared separately with `pandd-publisher publish-game`. Upload the
 resulting local public tree with the same bucket-scoped R2 credentials before testing
 the remote catalog; reruns preserve matching immutable objects.
 
@@ -91,3 +93,18 @@ outside the launcher installation survives:
 python -m apps.launcher.installer.e2e --ifw-root <QtIFW> --install-tree <staging> \
   --output <e2e-artifacts> --version <major.minor.patch>
 ```
+
+Launcher manifest parsing, canonical JSON, and Ed25519 verification live in
+`packages/distribution-contracts`, shared with Publisher. CMake builds the static
+CXX bridge in `apps/launcher/rust` automatically; Rust is needed at build time only.
+The root Cargo workspace and lockfile cover both applications.
+
+File hashing, chunk splitting, verified assembly, and verified copying are shared
+through `packages/file-integrity`. Launcher disk I/O uses the same CXX bridge;
+download scheduling lives in `packages/transfer`, and installation activation lives
+in the Rust launcher adapter. Qt retains application orchestration and UI callbacks.
+
+Installation activation, rollback on operation errors, and temporary cleanup live in
+`apps/launcher/rust/src/installation.rs`. The `packages/local-storage` crate shares
+root-confined removal and atomic JSON writes with Publisher. Post-commit cleanup
+warnings are logged separately from activation errors. See its README for recovery limits.

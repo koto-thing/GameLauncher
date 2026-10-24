@@ -92,6 +92,7 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 include(CTest)
+include(Rust)
 include(Cubism)
 include(Vrm)
 
@@ -211,6 +212,10 @@ add_library(launcher_core STATIC
     apps/launcher/src/infrastructure/QtRepositories.h
     apps/launcher/src/infrastructure/EditionProfile.cpp
     apps/launcher/src/infrastructure/EditionProfile.h
+    apps/launcher/src/infrastructure/InstallationStorage.cpp
+    apps/launcher/src/infrastructure/InstallationStorage.h
+    apps/launcher/src/infrastructure/FileIntegrity.cpp
+    apps/launcher/src/infrastructure/FileIntegrity.h
     apps/launcher/src/infrastructure/GameInstallationService.cpp
     apps/launcher/src/infrastructure/GameInstallationService.h
     apps/launcher/src/infrastructure/PlatformServices.cpp
@@ -221,7 +226,7 @@ add_library(launcher_core STATIC
     apps/launcher/src/infrastructure/PlayStatistics.h
 )
 target_include_directories(launcher_core PUBLIC apps/launcher/src)
-target_link_libraries(launcher_core PUBLIC Qt6::Core Qt6::Network Qt6::Concurrent Qt6::Sql OpenSSL::Crypto)
+target_link_libraries(launcher_core PUBLIC Qt6::Core Qt6::Network Qt6::Concurrent Qt6::Sql pandd_launcher_rust)
 target_compile_definitions(launcher_core PUBLIC
     PANDD_LAUNCHER_VERSION="${PROJECT_VERSION}"
     PANDD_DISTRIBUTION_ENV="${PANDD_DISTRIBUTION_ENV}"
@@ -356,6 +361,8 @@ if(BUILD_TESTING)
         apps/launcher/tests/LauncherDomainTests.cpp
     )
     target_link_libraries(LauncherDomainTests PRIVATE launcher_core Qt6::Test)
+    target_compile_definitions(LauncherDomainTests PRIVATE
+        PANDD_MANIFEST_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/packages/distribution-contracts/tests/fixtures")
     add_test(NAME LauncherDomainTests COMMAND LauncherDomainTests -o -,txt)
 
     qt_add_executable(LauncherIntegrationTests
@@ -378,7 +385,7 @@ if(BUILD_TESTING)
         parsesLauncherChangelogContract rejectsNonContractJson -o -,txt)
     add_test(NAME LauncherIntegrationDownloadTests COMMAND LauncherIntegrationTests
         resumesAndActivatesRelease reusesContentAddressedChunkAcrossReleases
-        redownloadsOnlyCorruptChunkAfterCacheCleanup importsVerifiedExistingGame
+        redownloadsOnlyCorruptChunkAfterCacheCleanup importsVerifiedExistingGame verifiesAssemblyBeforeCommit
         retriesTransientServerFailure resumesAfterMidstreamDisconnect
         fallsBackWhenRangeIsUnsupported stopsOnClientError rejectsHashMismatch
         rejectsOversizedServerResponse cancelsDownloadWithoutActivation

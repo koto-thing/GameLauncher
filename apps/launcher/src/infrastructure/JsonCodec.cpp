@@ -122,64 +122,6 @@ std::vector<Announcement> JsonCodec::parseAnnouncements(const QByteArray& data) 
     return result;
 }
 
-/** @brief リリースJSONをドメイン型へ変換する */
-GameRelease JsonCodec::parseRelease(const QByteArray& data) {
-    // 署名対象schemaのfield集合を厳密に検証
-    const auto root = parseObject(data);
-    requireExactKeys(root, {"schemaVersion", "gameId", "version", "platform", "arch",
-                            "minimumLauncherVersion", "engine", "entrypoint", "workingDirectory",
-                            "arguments", "saveDirectoryName", "totalSize", "files", "publishedAt",
-                            "signature"});
-    // release直下のscalar値をdomain型へ変換
-    GameRelease release;
-    release.schemaVersion = root.value("schemaVersion").toInt(-1);
-    release.gameId = GameId(requiredString(root, "gameId"));
-    release.version = SemanticVersion(requiredString(root, "version"));
-    release.platform = requiredString(root, "platform");
-    release.architecture = requiredString(root, "arch");
-    release.minimumLauncherVersion =
-        SemanticVersion(requiredString(root, "minimumLauncherVersion"));
-    release.engine = requiredString(root, "engine");
-    release.entrypoint = requiredString(root, "entrypoint");
-    release.workingDirectory = requiredString(root, "workingDirectory");
-    release.saveDirectoryName = requiredString(root, "saveDirectoryName");
-    release.totalSize = requiredSize(root, "totalSize");
-    release.publishedAt = requiredString(root, "publishedAt");
-    release.signature = requiredString(root, "signature");
-
-    if (!root.value("arguments").isArray() || !root.value("files").isArray()) {
-        throw std::runtime_error("missing release arrays");
-    }
-    // 起動引数を文字列だけに限定
-    for (const auto& value : root.value("arguments").toArray()) {
-        if (!value.isString()) {
-            throw std::runtime_error("invalid argument");
-        }
-        release.arguments.push_back(value.toString().toStdString());
-    }
-    // fileと配下chunkを階層どおりに変換
-    for (const auto& value : root.value("files").toArray()) {
-        const auto item = value.toObject();
-        requireExactKeys(item, {"path", "size", "sha256", "executable", "chunks"});
-        GameFile file;
-        file.path = requiredString(item, "path");
-        file.size = requiredSize(item, "size");
-        file.sha256 = requiredString(item, "sha256");
-        file.executable = requiredBoolean(item, "executable");
-        if (!item.value("chunks").isArray()) {
-            throw std::runtime_error("missing chunks");
-        }
-        for (const auto& chunkValue : item.value("chunks").toArray()) {
-            const auto chunk = chunkValue.toObject();
-            requireExactKeys(chunk, {"offset", "size", "sha256", "url"});
-            file.chunks.push_back({requiredSize(chunk, "offset"), requiredSize(chunk, "size"),
-                                   requiredString(chunk, "sha256"), requiredString(chunk, "url")});
-        }
-        release.files.push_back(std::move(file));
-    }
-    return release;
-}
-
 /** @brief ランチャーrelease JSONをドメイン型へ変換する */
 LauncherRelease JsonCodec::parseLauncherRelease(const QByteArray& data) {
     const auto root = parseObject(data);
@@ -226,14 +168,6 @@ std::vector<LauncherChangelogEntry> JsonCodec::parseLauncherChangelog(const QByt
         result.push_back(std::move(entry));
     }
     return result;
-}
-
-/** @brief signatureを除くCanonical JSONを生成する */
-QByteArray JsonCodec::canonicalReleasePayload(const QByteArray& data) {
-    // 署名fieldだけを除外して署名検証対象を生成
-    auto root = parseObject(data);
-    root.remove("signature");
-    return canonicalize(root);
 }
 
 /** @brief 導入済み一覧をJSON arrayへ変換する */
@@ -334,44 +268,6 @@ LauncherSettings JsonCodec::parseSettings(const QJsonObject& object, LauncherSet
     }
     settings.lastLauncherUpdateCheck = checkedAt.toString().toStdString();
     return settings;
-}
-
-/** @brief JSON valueをkey順・空白なしで符号化する */
-QByteArray JsonCodec::canonicalize(const QJsonValue& value) {
-    // objectはkey順へ並べて再帰的に符号化
-    if (value.isObject()) {
-        const auto object = value.toObject();
-        auto keys = object.keys();
-        std::sort(keys.begin(), keys.end());
-        QByteArray result("{");
-        bool first = true;
-        for (const auto& key : keys) {
-            if (!first) {
-                result.append(',');
-            }
-            first = false;
-            result.append(
-                QJsonDocument(QJsonArray{key}).toJson(QJsonDocument::Compact).mid(1).chopped(1));
-            result.append(':');
-            result.append(canonicalize(object.value(key)));
-        }
-        return result.append('}');
-    }
-    // arrayは入力順を保持して各要素を再帰的に符号化
-    if (value.isArray()) {
-        QByteArray result("[");
-        bool first = true;
-        for (const auto& item : value.toArray()) {
-            if (!first) {
-                result.append(',');
-            }
-            first = false;
-            result.append(canonicalize(item));
-        }
-        return result.append(']');
-    }
-    // scalarはQtのcompact JSON表現を再利用
-    return QJsonDocument(QJsonArray{value}).toJson(QJsonDocument::Compact).mid(1).chopped(1);
 }
 
 } // namespace pandd

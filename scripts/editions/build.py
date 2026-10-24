@@ -19,13 +19,21 @@ import xml.etree.ElementTree as ET
 
 from apps.launcher.installer.build import executable, configure_metadata
 from scripts.deployment.actions_control_plane import control_plane_request
-from services.deployment_publisher.publisher import (
-    CHUNK_SIZE, canonical_json, find_openssl, sign_payload, validate_contract, validate_relative_path,
+from packages.contracts.validation import (
+    CHUNK_SIZE, canonical_json, validate_contract, validate_relative_path,
 )
 
 ORIGIN = "https://downloads.koto-thing.com"
 ROOT = Path(__file__).resolve().parents[2]
 INSTALLER = ROOT / "apps/launcher/installer"
+
+
+def find_openssl() -> str:
+    """Resolve OpenSSL for independent verification of public release signatures"""
+    executable = os.environ.get("OPENSSL_EXECUTABLE") or shutil.which("openssl")
+    if not executable:
+        raise RuntimeError("OpenSSL was not found; set OPENSSL_EXECUTABLE")
+    return executable
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -166,7 +174,11 @@ def assemble(work: Path, public_key: str, private_key: Path, version: str) -> No
     definition["files"] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                            for path in sorted(profile.iterdir()) if path.is_file()}
     write_json(profile / "edition.json", definition)
-    (profile / "edition.sig").write_text(sign_payload((profile / "edition.json").read_bytes(), private_key), encoding="ascii")
+    signature = subprocess.run([
+        "pandd-publisher", "sign-file", "--source", str(profile / "edition.json"),
+        "--private-key", str(private_key),
+    ], check=True, capture_output=True, text=True).stdout.strip()
+    (profile / "edition.sig").write_text(signature, encoding="ascii")
 
 
 def package(work: Path, install_tree: Path, output: Path, version: str, ifw_root: Path | None) -> Path:

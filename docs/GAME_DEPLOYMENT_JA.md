@@ -21,6 +21,11 @@
 2. ゲーム用の `hero.png` と `thumbnail.png`
 3. Python仮想環境とdesktop uploader依存関係
 
+この文書の手動Publisherコマンドを使う場合は、Rust 1.94.1以降で
+`cargo install --locked --path services/deployment_publisher`を実行してください。
+R2への公開にはPATH上のAWS CLI v2も必要です。
+詳細は[Rust Publisher](../services/deployment_publisher/README.md)を参照してください。
+
 プロジェクトをPowerShellで開きます。
 
 ```powershell
@@ -137,7 +142,7 @@ Unityビルド一式をコピーします。上書きだけでは、Unityビル�
 ## 4. ステージング用配布ツリーを生成する
 
 ```powershell
-python services\deployment_publisher\publisher.py publish-game `
+pandd-publisher publish-game `
   --metadata local-test\metadata\release.json `
   --build-dir local-test\game-build `
   --output local-test\r2-public `
@@ -150,7 +155,7 @@ python services\deployment_publisher\publisher.py publish-game `
 お知らせも生成します。
 
 ```powershell
-python services\deployment_publisher\publisher.py publish-announcements `
+pandd-publisher publish-announcements `
   --source services\distribution-content\content\announcements `
   --output local-test\r2-public
 ```
@@ -172,7 +177,7 @@ Amazon AWSのキーではありません。R2がS3互換APIを使うため環境
 なっています。値をソースコード、Git、チャットへ貼らないでください。
 
 ```powershell
-python services\deployment_publisher\publisher.py upload `
+pandd-publisher upload `
   --output local-test\r2-public `
   --endpoint $env:R2_ENDPOINT `
   --bucket pandd-launcher-staging
@@ -222,7 +227,7 @@ notepad .env.production
 保存する必要はありません。
 
 ```powershell
-python services\deployment_publisher\publisher.py publish-game `
+pandd-publisher publish-game `
   --metadata local-test\metadata\release.json `
   --build-dir local-test\game-build `
   --output $env:PANDD_PUBLIC_OUTPUT `
@@ -231,11 +236,11 @@ python services\deployment_publisher\publisher.py publish-game `
   --platform windows `
   --arch x86_64
 
-python services\deployment_publisher\publisher.py publish-announcements `
+pandd-publisher publish-announcements `
   --source services\distribution-content\content\announcements `
   --output $env:PANDD_PUBLIC_OUTPUT
 
-python services\deployment_publisher\publisher.py upload `
+pandd-publisher upload `
   --output $env:PANDD_PUBLIC_OUTPUT `
   --endpoint $env:R2_ENDPOINT `
   --bucket $env:R2_BUCKET

@@ -8,7 +8,7 @@ import unittest
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-from services.deployment_publisher.publisher import validate_contract
+from packages.contracts.validation import validate_contract
 
 
 class ContractTests(unittest.TestCase):
