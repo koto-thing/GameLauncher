@@ -25,20 +25,19 @@ node --test tests/music-upload-policy.test.mjs tests/music-upload-runtime.test.m
 差分テストは既存 JavaScript の条件と Wasm の結果を 3520 通り比較する
 workerd テストは認可の先行、容量エラーの優先、形式拒否、正常時の予約引数を確認する
 
-## 統合担当への依頼
+## ビルド統合
 
-このブランチは PR #122 の上に積む
-共有ファイルとの競合を避けるため、以下は統合担当が接続する
+このブランチは PR #122 の `f24a18c316145ac7d48c08688a0cac9d424e6914` の上に積む
+admin-web の `rust:build` は intake と Music 両方の Wasm を生成する
+Music の predev、pretest、pretest:e2e、pretest:public は共通の Rust ビルドを呼ぶ
+共有 Music harness は両方の Wasm module を登録する
+生成 Wasm は ignore し、ソース管理に含めない
 
-- admin-web の `rust:build` に `node scripts/build-music-upload-policy.js` を追加
-- admin-web の生成物 ignore に `/lib/generated/music-upload-policy.wasm` を追加
-- CI の対象パスに Music の Rust、ビルドスクリプト、受付ポリシー、テストを追加
-- 共有 Music harness の Wasm module map にこの生成物を追加
-- 共有 Music 結合テストと admin-web の build を統合後の正確な SHA で実行
-
-生成 Wasm はソース管理に含めず、ビルド時に生成する
-共有 Music harness はこのブランチでは変更しない
-上記を接続するまで、このブランチ単独のクリーンビルドはリリース可能ではない
+既存の Music validation と Management API validation の `apps/admin-web/**` と
+`apps/music/**` の path 条件で、Rust ソース、生成スクリプト、受付ルール、共有 harness、
+各テストの変更をすべて捕捉するため、CI の path 条件を増やす必要はない
+admin-web の npm test は全体 build と Music 固有の workerd テストを含む
+統合後も最終 SHA で CI が成功したことを確認してからリリースする
 
 ## 配備とロールバック
 

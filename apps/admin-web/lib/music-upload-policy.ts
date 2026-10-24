@@ -1,4 +1,4 @@
-import module from "../../lib/generated/music-upload-policy.wasm?module";
+import module from "./generated/music-upload-policy.wasm?module";
 
 const policy = new WebAssembly.Instance(module).exports as {
   memory: WebAssembly.Memory;

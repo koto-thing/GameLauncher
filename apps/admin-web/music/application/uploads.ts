@@ -4,7 +4,7 @@ import type {
   DomainPolicy,
 } from "../../../music/src/domain/models";
 import { MusicError } from "../../../music/src/domain/models";
-import { uploadPolicy } from "../infrastructure/upload-policy";
+import { uploadPolicy } from "../../lib/music-upload-policy";
 import { authorize, requireValue } from "../../../music/src/domain/rules";
 
 export interface Upload {
