@@ -68,6 +68,8 @@ test("workerd supports static validation, atomic D1 snapshots, administrator rea
       [{ durationSeconds: 603 }, "invalid session timing"],
       [{ exitCode: 1 }, "invalid session outcome"],
       [{ dailyDurations: [{ date: japanDate, durationSeconds: 604 }] }, "invalid daily duration"],
+      [{ gameId: "unknown-game" }, "unknown game, environment, or duplicate session"],
+      [{ dailyDurations: [] }, "daily duration total does not match session"],
     ]) {
       const invalid = structuredClone(snapshot);
       Object.assign(invalid.sessions[0], overrides);
@@ -80,13 +82,53 @@ test("workerd supports static validation, atomic D1 snapshots, administrator rea
       assert.equal((await db.prepare("SELECT COUNT(*) count FROM play_sessions").first()).count, 0);
     }
 
+    // 大文字小文字だけ異なる重複もバッチ全体で拒否する
+    const duplicate = structuredClone(snapshot);
+    duplicate.sessions.push({ ...structuredClone(duplicate.sessions[0]), sessionId: sessionId.toUpperCase() });
+    const rejected = await mf.dispatchFetch("https://analytics.test/v1/play-sessions", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(duplicate),
+    });
+
+    assert.equal(rejected.status, 400);
+    assert.deepEqual(await rejected.json(), { error: "unknown game, environment, or duplicate session" });
+    assert.equal((await db.prepare("SELECT COUNT(*) count FROM play_sessions").first()).count, 0);
+
+    // Content-Length に頼らずストリーム中の一 MiB 超過を JSON 解析前に拒否する
+    const oversized = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(524_288).fill(32));
+        controller.enqueue(new Uint8Array(524_289).fill(32));
+        controller.close();
+      },
+    });
+    const tooLarge = await mf.dispatchFetch("https://analytics.test/v1/play-sessions", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: oversized, duplex: "half",
+    });
+
+    assert.equal(tooLarge.status, 413);
+    assert.deepEqual(await tooLarge.json(), { error: "request body too large" });
+    assert.equal((await db.prepare("SELECT COUNT(*) count FROM play_sessions").first()).count, 0);
+
     for (let repeat = 0; repeat < 2; repeat++) {
+      // Rust が大文字の UUID を正規化した後も同じセッションの再送として扱う
+      const payload = structuredClone(snapshot);
+      payload.installationId = installationId.toUpperCase();
+      payload.sessions[0].sessionId = sessionId.toUpperCase();
       const response = await mf.dispatchFetch("https://analytics.test/v1/play-sessions", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(snapshot),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
 
       assert.equal(response.status, 200, await response.text());
     }
+
+    // 境界ちょうどの一 MiB バッチは受理し再送として集計を維持する
+    const json = JSON.stringify(snapshot);
+    const atLimit = await mf.dispatchFetch("https://analytics.test/v1/play-sessions", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: json + " ".repeat(1_048_576 - new TextEncoder().encode(json).length),
+    });
+
+    assert.equal(atLimit.status, 200, await atLimit.text());
+    assert.equal((await db.prepare("SELECT session_id FROM play_sessions").first()).session_id, sessionId.toLowerCase());
 
     const responses = await Promise.all(Array.from({ length: 10 }, () => mf.dispatchFetch(`https://analytics.test/v1/analytics/games?from=${japanDate}&to=${endDate}&environment=production`, {
       headers: { Authorization: `Bearer ${"s".repeat(64)}` },

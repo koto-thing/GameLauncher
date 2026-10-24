@@ -1,3 +1,7 @@
+mod batch;
+
+use wasm_bindgen::prelude::*;
+
 const DAY_MS: f64 = 86_400_000.0;
 
 /// 日本時間の暦日番号を返す
@@ -24,8 +28,8 @@ fn japan_day(instant: f64) -> f64 {
 ///
 /// # 戻り値
 /// 保持期間と未来時刻の許容幅を含む条件を満たせば 1 違反すれば 0
-#[unsafe(no_mangle)]
-pub extern "C" fn valid_timing(
+#[wasm_bindgen]
+pub fn valid_timing(
     start: f64,
     observed: f64,
     ended: f64,
@@ -66,8 +70,8 @@ pub extern "C" fn valid_timing(
 ///
 /// # 戻り値
 /// 終了状態と各フィールドが整合すれば 1 違反すれば 0
-#[unsafe(no_mangle)]
-pub extern "C" fn valid_outcome(outcome: i32, exit_code: f64, crashed: i32, duration: f64) -> i32 {
+#[wasm_bindgen]
+pub fn valid_outcome(outcome: i32, exit_code: f64, crashed: i32, duration: f64) -> i32 {
     // 終了状態ごとに終了コードとクラッシュ情報とプレイ時間の組み合わせを判定する
     let valid = match outcome {
         1 => exit_code == 0.0 && crashed == 0,
@@ -91,8 +95,8 @@ pub extern "C" fn valid_outcome(outcome: i32, exit_code: f64, crashed: i32, dura
 ///
 /// # 戻り値
 /// 対象日と配分時間が許容範囲なら 1 違反すれば 0
-#[unsafe(no_mangle)]
-pub extern "C" fn valid_daily(start: f64, observed: f64, day_start: f64, duration: f64) -> i32 {
+#[wasm_bindgen]
+pub fn valid_daily(start: f64, observed: f64, day_start: f64, duration: f64) -> i32 {
     // 対象日と観測区間が重なる秒数を求め秒未満の端数を切り上げる
     let available =
         ((observed.min(day_start + DAY_MS) - start.max(day_start)).max(0.0) / 1000.0).ceil();

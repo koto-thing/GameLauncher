@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import validationModule from "../src/generated/analytics-validation.wasm";
+import * as rust from "../src/rust-validation.ts";
 
-const rust = new WebAssembly.Instance(validationModule).exports;
 const day = 86_400_000;
 
 /**
