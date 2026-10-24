@@ -1,6 +1,6 @@
 # Distribution operations
 
-Install the [Rust Publisher](../services/deployment_publisher/README.md) with
+Install the [Rust Publisher](https://github.com/koto-thing/GameLauncher/blob/master/services/deployment_publisher/README.md) with
 `cargo install --locked --path services/deployment_publisher` before running the
 commands below. R2 operations also require AWS CLI v2 on PATH.
 

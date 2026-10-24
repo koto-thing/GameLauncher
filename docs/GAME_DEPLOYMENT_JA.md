@@ -24,7 +24,7 @@
 この文書の手動Publisherコマンドを使う場合は、Rust 1.94.1以降で
 `cargo install --locked --path services/deployment_publisher`を実行してください。
 R2への公開にはPATH上のAWS CLI v2も必要です。
-詳細は[Rust Publisher](../services/deployment_publisher/README.md)を参照してください。
+詳細は[Rust Publisher](https://github.com/koto-thing/GameLauncher/blob/master/services/deployment_publisher/README.md)を参照してください。
 
 プロジェクトをPowerShellで開きます。
 

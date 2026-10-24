@@ -3,7 +3,7 @@
 Production uses `https://downloads.koto-thing.com/`, a dedicated R2 bucket and token,
 and a production-only Ed25519 manifest key. Never reuse staging credentials or keys.
 
-Manual publication commands use the [Rust Publisher](../services/deployment_publisher/README.md).
+Manual publication commands use the [Rust Publisher](https://github.com/koto-thing/GameLauncher/blob/master/services/deployment_publisher/README.md).
 Install it with `cargo install --locked --path services/deployment_publisher` and keep
 AWS CLI v2 on PATH. The publishing workflows build the executable automatically.
 

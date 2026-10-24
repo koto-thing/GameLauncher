@@ -4,7 +4,7 @@ if(CMAKE_HOST_WIN32)
     list(APPEND VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/triplets")
 endif()
 
-project(PandDGameLauncher VERSION 1.2.0 LANGUAGES CXX)
+project(PandDGameLauncher VERSION 1.3.0 LANGUAGES CXX)
 
 option(PANDD_DOCS_ONLY "Configure only the Launcher Doxygen target" OFF)
 
