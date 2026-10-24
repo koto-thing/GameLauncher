@@ -31,3 +31,27 @@ test("shipped Rust validator agrees with the original pointer rules", () => {
     }
   }
 });
+
+test("Wasm ABI rejects boundary lengths and accepts a subsequent valid call", () => {
+  // 空入力と上限付近の不正入力を例外なしで拒否する
+  const input = new Uint8Array(core.memory.buffer, core.input_ptr(), 8192);
+  input.fill(0);
+  for (const [versionLength, digestLength] of [[0, 0], [8192, 0], [0, 8192], [8193, 0], [0, 8193], [8192, 1], [0xffffffff, 0], [0, 0xffffffff], [0xffffffff, 0xffffffff]]) {
+    assert.equal(core.validate(versionLength, digestLength, 1, 3), 0);
+  }
+
+  // 容量ちょうどの有効入力を受理して境界内の読取りを確認する
+  const boundaryVersion = encoder.encode("1".repeat(8124) + ".0.0");
+  const digest = encoder.encode("a".repeat(64));
+  assert.equal(boundaryVersion.length + digest.length, 8192);
+  input.set(boundaryVersion);
+  input.set(digest, boundaryVersion.length);
+  assert.equal(core.validate(boundaryVersion.length, digest.length, 1, 3), 1);
+
+  // 境界超過を拒否した直後も短い有効入力を再利用できる
+  assert.equal(core.validate(8193, 64, 1, 3), 0);
+  const version = encoder.encode("1.2.3");
+  input.set(version);
+  input.set(digest, version.length);
+  assert.equal(core.validate(version.length, digest.length, 1, 3), 1);
+});
