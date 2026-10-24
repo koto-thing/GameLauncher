@@ -1,6 +1,6 @@
 # Rust/Wasm 検証処理
 
-リソース実測、CLI の互換修正調査、staging の読み取り専用確認と未実行の検証案は
+ローカルのリソース実測と CLI の互換修正調査は
 [Part2 検証報告](rust-part2-resource-review.md) を参照する
 
 `POST /v1/play-sessions` のスキーマ適合後のバッチ全体を
@@ -70,17 +70,16 @@ Cloudflare の本番課金 CPU や isolate のヒープ使用量とは同一視�
 
 共有 CI の analytics job は `npm run check` 前に Rust toolchain と Wasm target を
 用意し、同じバージョンの wasm-bindgen CLI をインストールする必要がある
-共有ファイルの更新は統合担当が行う
 Rust を用意しないビルド環境では生成に失敗するため、リリース前に確認する
 
 RustSec のサービス lockfile 監査は既知の脆弱性と警告ともゼロ
 一方、wasm-bindgen CLI 0.2.129 の upstream の標準 lockfile には
 TLS 関連の既知問題七件と未保守依存の警告がある
-CLI のネットワーク機能はローカルファイルの生成には使用しないが、
-共有 CI の CLI 導入方法は統合担当が機能と依存関係を評価する必要がある
+CLI のネットワーク機能はローカルファイルの生成には使用しない
+共有 CI では必要な generator 機能と固定された依存関係を検証する
 CLI の依存は配信する Wasm の依存と分けて監査する
 
-承認後も既存の Workers と既存の D1・rate-limit binding を使ってリリースする
+既存の Workers と既存の D1・rate-limit binding を使ってリリースする
 追加の DB migration は不要
 ロールバックは以前の Worker version を再配信するか、この変更を revert して
 従来のデプロイ手順を実行する
