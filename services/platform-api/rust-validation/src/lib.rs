@@ -8,6 +8,7 @@ const DAY_MS: f64 = 86_400_000.0;
 /// # 戻り値
 /// 日本時間で区切った暦日番号
 fn japan_day(instant: f64) -> f64 {
+    // 日本時間の時差を加え日単位に切り捨てて暦日番号を返す
     ((instant + 32_400_000.0) / DAY_MS).floor()
 }
 
@@ -32,7 +33,10 @@ pub extern "C" fn valid_timing(
     duration: f64,
     running: i32,
 ) -> i32 {
+    // 終了時刻の未設定を表す NaN を判別する
     let has_end = !ended.is_nan();
+
+    // 保持期間と未来時刻の許容幅に加え観測時間と終了状態の整合性を判定する
     let valid = start.is_finite()
         && observed.is_finite()
         && (!has_end || ended.is_finite())
@@ -48,6 +52,7 @@ pub extern "C" fn valid_timing(
         })
         && (!has_end || observed == ended);
 
+    // Wasm 呼出元に判定結果を整数で返す
     i32::from(valid)
 }
 
@@ -63,6 +68,7 @@ pub extern "C" fn valid_timing(
 /// 終了状態と各フィールドが整合すれば 1 違反すれば 0
 #[unsafe(no_mangle)]
 pub extern "C" fn valid_outcome(outcome: i32, exit_code: f64, crashed: i32, duration: f64) -> i32 {
+    // 終了状態ごとに終了コードとクラッシュ情報とプレイ時間の組み合わせを判定する
     let valid = match outcome {
         1 => exit_code == 0.0 && crashed == 0,
         2 => crashed != -1 && (crashed == 1 || (!exit_code.is_nan() && exit_code != 0.0)),
@@ -71,6 +77,7 @@ pub extern "C" fn valid_outcome(outcome: i32, exit_code: f64, crashed: i32, dura
         _ => false,
     };
 
+    // Wasm 呼出元に判定結果を整数で返す
     i32::from(valid)
 }
 
@@ -86,9 +93,11 @@ pub extern "C" fn valid_outcome(outcome: i32, exit_code: f64, crashed: i32, dura
 /// 対象日と配分時間が許容範囲なら 1 違反すれば 0
 #[unsafe(no_mangle)]
 pub extern "C" fn valid_daily(start: f64, observed: f64, day_start: f64, duration: f64) -> i32 {
+    // 対象日と観測区間が重なる秒数を求め秒未満の端数を切り上げる
     let available =
         ((observed.min(day_start + DAY_MS) - start.max(day_start)).max(0.0) / 1000.0).ceil();
 
+    // 対象日と配分上限を確認し一秒の許容誤差を含む判定結果を整数で返す
     i32::from(
         day_start.is_finite()
             && japan_day(day_start) >= japan_day(start)
