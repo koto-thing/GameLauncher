@@ -42,3 +42,4 @@ yarn-error.log*
 /outputs/
 /work/
 /lib/generated/intake-policy.wasm
+/lib/generated/music-upload-policy.wasm

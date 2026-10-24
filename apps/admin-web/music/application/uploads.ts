@@ -4,6 +4,7 @@ import type {
   DomainPolicy,
 } from "../../../music/src/domain/models";
 import { MusicError } from "../../../music/src/domain/models";
+import { uploadPolicy } from "../../lib/music-upload-policy";
 import { authorize, requireValue } from "../../../music/src/domain/rules";
 
 export interface Upload {
@@ -58,14 +59,11 @@ export class Uploads {
       kind === "audio"
         ? this.policy.media.maxAudioFileBytes
         : this.policy.media.maxImageFileBytes;
-    if (!Number.isSafeInteger(bytes) || bytes <= 0 || bytes > limit)
+    const result = uploadPolicy(bytes, limit, kind === "audio", digest, mime);
+    if (result === 1)
       throw new MusicError("TOO_LARGE", "投稿容量を確認してください。");
     requireValue(
-      /^[a-f0-9]{64}$/.test(digest) &&
-        (kind === "audio"
-          ? ["audio/mpeg", "audio/wav"]
-          : ["image/jpeg", "image/png", "image/webp"]
-        ).includes(mime),
+      result === 0,
       "MP3 / PCM WAV / JPEG / PNG / WebPのファイルを指定してください。",
     );
     return this.repository.begin(gameId, kind, bytes, digest, mime, actor);
