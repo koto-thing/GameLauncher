@@ -12,10 +12,12 @@ export function validPointer(data) {
   // JSONの型を確認してWasmの数値変換による受理を防ぐ
   if (typeof data?.version !== "string" || typeof data?.sha256 !== "string" ||
       typeof data?.schemaVersion !== "number" || typeof data?.size !== "number") return false;
+
   // 入力バッファーに格納できるバイト数へ制限する
   const version = encoder.encode(data.version);
   const digest = encoder.encode(data.sha256);
   if (version.length + digest.length > 8192) return false;
+
   // awaitを挟まずコピーと検証を完了してリクエスト間の干渉を防ぐ
   const input = new Uint8Array(core.memory.buffer, core.input_ptr(), 8192);
   input.set(version);
