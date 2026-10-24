@@ -1,8 +1,18 @@
+import validationModule from "./generated/analytics-validation.wasm";
 import type { ValidateFunction } from "ajv";
 import { validatePlaySessions } from "./generated/play-sessions.js";
 import type { AnalyticsEnv, PlaySessionBatch } from "./types.ts";
 
 const validateSchema = validatePlaySessions as ValidateFunction<PlaySessionBatch>;
+
+// 静的インポートした Rust Wasm を isolate ごとに一度だけ初期化する
+const rust = new WebAssembly.Instance(validationModule).exports as unknown as {
+  valid_timing(start: number, observed: number, ended: number, now: number, duration: number, running: number): number;
+  valid_outcome(outcome: number, exitCode: number, crashed: number, duration: number): number;
+  valid_daily(start: number, observed: number, dayStart: number, duration: number): number;
+};
+
+const outcomes = { running: 0, normal: 1, abnormal: 2, interrupted: 3, launch_failed: 4 };
 
 export const DAY_MS = 86_400_000;
 
@@ -16,7 +26,14 @@ export function detailCutoff(now: number): string {
   return japanDate(now - 89 * DAY_MS);
 }
 
-// Validate structure and the relationships needed for trustworthy cumulative snapshots
+/**
+ * 累積スナップショットの構造と整合性を検証する
+ * @param value 受信した JSON データ
+ * @param env 許可ゲームと実行環境
+ * @param now 検証時刻の Unix ミリ秒
+ * @returns 正規化した検証済みバッチ
+ * @throws スキーマ違反またはセッションの整合性違反
+ */
 export function validateBatch(value: unknown, env: AnalyticsEnv, now: number): PlaySessionBatch {
   if (!validateSchema(value)) {
     throw new Error("invalid session payload");
@@ -43,17 +60,13 @@ export function validateBatch(value: unknown, env: AnalyticsEnv, now: number): P
       throw new Error("invalid session timing");
     }
 
-    if (japanDate(start) < detailCutoff(now) || start > now + 300_000 || observed < start || observed > now + 300_000 ||
-        session.durationSeconds > Math.floor((observed - start) / 1000) + 2 ||
-        (session.outcome === "running" ? ended !== null : ended === null || ended < start || ended > observed) ||
-        (ended !== null && observed !== ended)) {
+    // 時刻と終了状態の意味検証を Rust に委ねる
+    if (!rust.valid_timing(start, observed, ended ?? NaN, now, session.durationSeconds, Number(session.outcome === "running"))) {
       throw new Error("invalid session timing");
     }
 
-    if ((session.outcome === "normal" && (session.exitCode !== 0 || session.crashed !== false)) ||
-        (session.outcome === "abnormal" && (session.crashed === null || (!session.crashed && (session.exitCode === null || session.exitCode === 0)))) ||
-        (["running", "interrupted", "launch_failed"].includes(session.outcome) && (session.exitCode !== null || session.crashed !== null)) ||
-        (session.outcome === "launch_failed" && session.durationSeconds !== 0)) {
+    if (!rust.valid_outcome(outcomes[session.outcome], session.exitCode ?? NaN,
+      session.crashed === null ? -1 : Number(session.crashed), session.durationSeconds)) {
       throw new Error("invalid session outcome");
     }
 
@@ -61,10 +74,10 @@ export function validateBatch(value: unknown, env: AnalyticsEnv, now: number): P
     const dates = new Set<string>();
 
     for (const part of session.dailyDurations) {
+      // 日別配分の重複はこの層で検出し時間の上限は Rust で検証する
       const dayStart = Date.parse(`${part.date}T00:00:00+09:00`);
-      const availableSeconds = Math.ceil(Math.max(0, Math.min(observed, dayStart + DAY_MS) - Math.max(start, dayStart)) / 1000);
 
-      if (dates.has(part.date) || part.date < japanDate(start) || part.date > japanDate(observed) || part.durationSeconds > availableSeconds + 1) {
+      if (dates.has(part.date) || !rust.valid_daily(start, observed, dayStart, part.durationSeconds)) {
         throw new Error("invalid daily duration");
       }
 
