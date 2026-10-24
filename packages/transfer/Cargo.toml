@@ -14,5 +14,5 @@ tempfile = "3"
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls"], optional = true }
 tokio = { version = "1", features = ["rt", "time", "macros"], optional = true }
 futures-util = { version = "0.3", optional = true }
-sha2 = { version = "0.10", optional = true }
+sha2 = { version = "0.11", optional = true }
 pandd-local-storage = { path = "../local-storage", optional = true }
