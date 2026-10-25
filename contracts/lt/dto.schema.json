@@ -1340,6 +1340,34 @@
         "newEmail": {
           "type": "string",
           "format": "email"
+        },
+        "applicationVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "verificationExpiresAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "verifiedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -1347,7 +1375,10 @@
         "applicationId",
         "version",
         "state",
-        "newEmail"
+        "newEmail",
+        "applicationVersion",
+        "verificationExpiresAt",
+        "verifiedAt"
       ]
     },
     "InvestigateEmailInput": {
@@ -1369,10 +1400,25 @@
             "newEmail": {
               "type": "string",
               "format": "email"
+            },
+            "identityChecked": {
+              "const": true
+            },
+            "identityCheckMethod": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S"
+            },
+            "identityCheckResult": {
+              "const": "confirmed"
             }
           },
           "required": [
-            "newEmail"
+            "newEmail",
+            "identityChecked",
+            "identityCheckMethod",
+            "identityCheckResult"
           ]
         }
       },
@@ -1690,6 +1736,29 @@
         "actorId",
         "occurredAt",
         "expiresAt"
+      ]
+    },
+    "EmailChangeStatus": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EmailChangeRequest"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "EmailChangeVerificationInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "token": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "token"
       ]
     }
   }

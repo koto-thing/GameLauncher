@@ -282,5 +282,32 @@
     "request": null,
     "response": "OperatorApplication",
     "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/operator/applications/:id/email-change",
+    "access": "lt.emailChange",
+    "request": null,
+    "response": "EmailChangeStatus",
+    "productionEnabled": false,
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/auth/email-change",
+    "access": "public",
+    "request": null,
+    "response": "ConfirmationPage",
+    "productionEnabled": false,
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/auth/email-change/verify",
+    "access": "public",
+    "request": "EmailChangeVerificationInput",
+    "response": "EmailAccepted",
+    "productionEnabled": false,
+    "error": "ApiError"
   }
 ]
