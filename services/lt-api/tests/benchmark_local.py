@@ -1,7 +1,7 @@
 """localhostのGET wall timeのみを測定する。CPU時間とは扱わない"""
 import urllib.request,time,json,statistics
 from pathlib import Path
-endpoints={'public_list':'http://127.0.0.1:8787/api/lt/v1/events','public_detail':'http://127.0.0.1:8787/api/lt/v1/events/open','anonymous_session':'http://127.0.0.1:8787/api/lt/v1/auth/session','operator_page_20':'http://127.0.0.1:8788/api/lt/v1/operator/events/open/applications?limit=20'}
+endpoints={'public_list':'http://127.0.0.1:18877/api/lt/v1/events','public_detail':'http://127.0.0.1:18877/api/lt/v1/events/open','anonymous_session':'http://127.0.0.1:18877/api/lt/v1/auth/session','operator_page_20':'http://127.0.0.1:18878/api/lt/v1/operator/events/open/applications?limit=20'}
 results={}
 for label,url in endpoints.items():
  times=[];sizes=[]

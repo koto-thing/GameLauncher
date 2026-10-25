@@ -4,7 +4,7 @@ from schema_assertions import assert_response
 import applicant_runtime_test as applicants
 
 def operate(path,data=None,method=None):
- req=urllib.request.Request('http://127.0.0.1:8788/api/lt/v1/operator'+path,data=None if data is None else json.dumps(data).encode(),headers={'Content-Type':'application/json'},method=method)
+ req=urllib.request.Request('http://127.0.0.1:18878/api/lt/v1/operator'+path,data=None if data is None else json.dumps(data).encode(),headers={'Content-Type':'application/json'},method=method)
  try:r=urllib.request.urlopen(req)
  except urllib.error.HTTPError as e:r=e
  raw=r.read();value=json.loads(raw) if r.headers.get('Content-Type','').startswith('application/json') else raw.decode()
@@ -53,7 +53,7 @@ class OperatorRuntime(unittest.TestCase):
  def test_unapproved_snapshot_sql_rejected(self):
   with self.assertRaises(Exception):sql("INSERT INTO lt_public_talks(id,event_id,dto,approval_operation) VALUES('unapproved','open','{}','forged')")
  def test_public_operator_header_cannot_authorize(self):
-  req=urllib.request.Request('http://127.0.0.1:8787/api/lt/v1/operator/events/open/timetable',headers={'X-Actor-Role':'admin','X-LT-Operator-Context':'{"actorId":"x","role":"admin","requestId":"x"}'})
+  req=urllib.request.Request('http://127.0.0.1:18877/api/lt/v1/operator/events/open/timetable',headers={'X-Actor-Role':'admin','X-LT-Operator-Context':'{"actorId":"x","role":"admin","requestId":"x"}'})
   with self.assertRaises(urllib.error.HTTPError) as ctx:urllib.request.urlopen(req)
   self.assertEqual(ctx.exception.code,404);ctx.exception.close()
 if __name__=='__main__':unittest.main()

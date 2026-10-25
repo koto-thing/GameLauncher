@@ -78,7 +78,7 @@ export function LtManager() {
     {error && <div role="alert"><p>{error}</p>{canRetry && <button disabled={busy} onClick={() => retry.current && void run(retry.current)}>再試行</button>}<button disabled={busy} onClick={() => void run(async () => { await loadEvents(); setEvent(null); setSelected(null); setNeedsReload(false); })}>再読込</button></div>}
     <p role="status">{busy ? "処理中…" : message}</p>
     <fieldset disabled={busy || needsReload} style={{ border: 0, padding: 0, minWidth: 0 }}>
-    {creating ? <div key="create"><button onClick={() => setCreating(false)}>作成を中断</button><h2>開催回を作成</h2><EventForm value={{ id: "", version: 1, state: "scheduled", title: "", venue: "", guidance: "", startsAt: "", timeZone: "", opensAt: "", closesAt: "", capacity: 20, talkMinutes: 10, transitionMinutes: 1 }} onSave={data => { const body = { ...data, operationId: crypto.randomUUID() }; void run(async () => { const created = await api<EventSettings>("/events", "POST", body); await loadEvents(); await open(created); setCreating(false); }); }} /></div> : selected ? <div key="application">
+    {creating ? <div key="create"><button onClick={() => setCreating(false)}>作成を中断</button><h2>開催回を作成</h2><EventForm value={{ id: "", version: 1, state: "scheduled", publishEnabled: false, title: "", venue: "", guidance: "", startsAt: "", timeZone: "", opensAt: "", closesAt: "", capacity: 20, talkMinutes: 10, transitionMinutes: 1 }} onSave={data => { const body = { ...data, operationId: crypto.randomUUID() }; void run(async () => { const created = await api<EventSettings>("/events", "POST", body); await loadEvents(); await open(created); setCreating(false); }); }} /></div> : selected ? <div key="application">
       <button onClick={() => { setSelected(null); setNote(""); setStartsAt(""); }}>申請一覧に戻る</button>
       <h2>{selected.content.title}</h2><p>審査: {selected.review} / 辞退: {selected.withdrawal}</p>
       <p>代表者メール: {selected.representativeEmail}</p><h3>申請原稿</h3><p style={{ whiteSpace: "pre-wrap" }}>{selected.content.abstract}</p><p>{selected.content.description}</p>
@@ -95,7 +95,7 @@ export function LtManager() {
       <button disabled={selected.withdrawal !== "requested"} onClick={() => review("confirm-withdrawal")}>辞退確定</button></div>
       <p>代表者メール変更は本人確認フロー未確定のため未対応です。</p>
     </div> : event ? <div key="event">
-      <button onClick={() => { setEvent(null); setApplications([]); }}>開催回一覧に戻る</button><h2>{event.title}</h2>
+      <button onClick={() => { setEvent(null); setApplications([]); }}>開催回一覧に戻る</button><h2>{event.title}</h2>{!event.publishEnabled && <p role="status">非公開・募集停止中です。受付日時を確定して保存してください。</p>}
       <EventForm value={event} onSave={value => mutate(`/events/${encodeURIComponent(event.id)}`, event.version, value, result => { const updated = result as EventSettings; setEvent(updated); setEvents(items => items.map(item => item.id === updated.id ? updated : item)); }, "PATCH")} />
       <button onClick={() => mutate(`/events/${encodeURIComponent(event.id)}/copy`, event.version, {}, async result => { await loadEvents(); await open(result as EventSettings); })}>設定をコピー</button>
       <button disabled={event.state === "cancelled"} onClick={() => setCancelConfirm(true)}>開催中止</button>
@@ -104,13 +104,13 @@ export function LtManager() {
       <ul>{applications.map(item => <li key={item.id}><button onClick={() => { void run(async () => { const detail = await api<OperatorApplication>(`/applications/${encodeURIComponent(item.id)}`); setSelected(detail); setNote(detail.operatorNote); setStartsAt(""); }); }}>{item.content.title} ({item.review})</button></li>)}</ul>
       {applicationCursor && <button onClick={() => void run(async () => { const page = await api<OperatorApplicationPage>(`/events/${encodeURIComponent(event.id)}/applications?cursor=${encodeURIComponent(applicationCursor)}`); setApplications(items => [...items, ...page.items]); setApplicationCursor(page.nextCursor); })}>申請をさらに表示</button>}
       {timetable && <TimetableEditor key={`${timetable.eventId}:${timetable.version}`} blocks={timetable.blocks} disabled={busy} onSave={blocks => mutate(`/events/${encodeURIComponent(event.id)}/timetable`, timetable.version, { blocks, expectedEventVersion: event.version }, result => { const saved = result as OperatorTimetable; setTimetable(saved); setEvent(current => current ? syncTimetableEvent(current, saved) : current); }, "PUT")} />}
-    </div> : <div key="events"><h2>開催回一覧</h2><button onClick={() => setCreating(true)}>開催回を作成</button><ul>{events.map(item => <li key={item.id}><button onClick={() => void run(() => open(item))}>{item.title} ({item.state})</button></li>)}</ul></div>}
+    </div> : <div key="events"><h2>開催回一覧</h2><button onClick={() => setCreating(true)}>開催回を作成</button><ul>{events.map(item => <li key={item.id}><button onClick={() => void run(() => open(item))}>{item.title} ({item.state}) {!item.publishEnabled && "非公開・日時未確定"}</button></li>)}</ul></div>}
     </fieldset>
   </section>;
 }
 
 /** @brief 開催設定を編集する @param props 現在値と保存処理 @returns 編集フォーム */
-function EventForm({ value, onSave }: { value: EventSettings; onSave: (value: Omit<EventSettings, "id" | "version" | "state">) => void }) {
+function EventForm({ value, onSave }: { value: EventSettings; onSave: (value: Omit<EventSettings, "id" | "version" | "state" | "publishEnabled">) => void }) {
   const [draft, setDraft] = useState(value);
   const [source, setSource] = useState(value);
   if (source.id !== value.id || source.version !== value.version) { setSource(value); setDraft(value); }

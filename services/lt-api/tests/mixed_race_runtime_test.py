@@ -4,9 +4,9 @@ from applicant_runtime_test import request
 from operator_runtime_test import operate
 
 def paused(path,data,cookie=None,method='POST'):
- headers={'Content-Type':'application/json','X-LT-Test-Pause':'after-read','Origin':'http://127.0.0.1:8787','X-LT-CSRF':'1'}
+ headers={'Content-Type':'application/json','X-LT-Test-Pause':'after-read','Origin':'http://127.0.0.1:18877','X-LT-CSRF':'1'}
  if cookie:headers['Cookie']=cookie
- base='http://127.0.0.1:8788' if path.startswith('/api/lt/v1/operator/') else 'http://127.0.0.1:8787'
+ base='http://127.0.0.1:18878' if path.startswith('/api/lt/v1/operator/') else 'http://127.0.0.1:18877'
  req=urllib.request.Request(base+path,data=json.dumps(data).encode(),headers=headers,method=method)
  try:r=urllib.request.urlopen(req)
  except urllib.error.HTTPError as e:r=e

@@ -1,6 +1,6 @@
 import unittest,json,urllib.request,urllib.error,subprocess,uuid,concurrent.futures
 from schema_assertions import assert_response
-BASE='http://127.0.0.1:8787'
+BASE='http://127.0.0.1:18877'
 def sql(command):
  p=subprocess.run(['node','node_modules/wrangler/bin/wrangler.js','d1','execute','lt-local','--local','--command',command,'--json'],capture_output=True,encoding='utf-8',check=True)
  return json.loads(p.stdout)[0]['results']
@@ -15,7 +15,7 @@ def request(path,data=None,cookie=None,method=None,origin=BASE):
  assert_response(path,req.get_method(),r.status,value)
  return r.status,value,r.headers
 def mail(email):
- req=urllib.request.Request('http://127.0.0.1:8788/test/fake-mail',data=email.encode(),headers={'Content-Type':'text/plain'},method='POST')
+ req=urllib.request.Request('http://127.0.0.1:18878/test/fake-mail',data=email.encode(),headers={'Content-Type':'text/plain'},method='POST')
  with urllib.request.urlopen(req) as response:return json.load(response)['confirmationUrl']
 
 class ApplicantRuntime(unittest.TestCase):

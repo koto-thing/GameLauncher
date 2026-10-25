@@ -1,6 +1,6 @@
 import json, urllib.request, urllib.error, unittest
 from schema_assertions import assert_response
-BASE='http://127.0.0.1:8787/api/lt/v1'
+BASE='http://127.0.0.1:18877/api/lt/v1'
 class PublicRuntime(unittest.TestCase):
  def get(self,path,status=200):
   try: r=urllib.request.urlopen(BASE+path)

@@ -31,6 +31,8 @@ async function adapter(page: Page) {
     everApproved: true,
     slotReserved: true,
     retentionExpiresAt: null,
+    eventState: "scheduled",
+    eventCancelledAt: null,
     published: null,
   }));
   const receipts = new Map<string, unknown>();
@@ -153,4 +155,20 @@ test("期限切れ・401・409・503 はエラー表示", async ({ page }) => {
     await expect(page.getByRole("alert")).toBeVisible();
     await expect(page.getByRole("button", { name: "再読み込み" })).toBeVisible();
   }
+});
+
+test("現在の親開催中止を再取得して変更操作を停止", async ({ page }) => {
+  const state = await adapter(page);
+  await page.goto("/applications");
+  await expect(page.getByRole("button", { name: "辞退依頼", exact: true })).toBeVisible();
+  for (const a of state.applications) {
+    a.eventState = "cancelled";
+    a.eventCancelledAt = "2026-10-25T09:00:00.000Z";
+  }
+  await page.reload();
+  await expect(page.getByText("この開催回は中止されました")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "辞退依頼", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "編集", exact: true })).toHaveCount(0);
+  await page.goto("/applications/qa-approved");
+  await expect(page.getByText("この開催回は中止されました")).toBeVisible();
 });

@@ -1,6 +1,7 @@
 import type { Application } from "../../../contracts/lt/v1";
 // 表示の可否は補助であり、最終認可は API が行う
 export function actions(a: Application) {
+  if (a.eventState === "cancelled") return [];
   if (a.withdrawal === "confirmed" || ["withdrawn", "rejected"].includes(a.review)) return [];
   const result: string[] = [];
   if ((!a.everApproved && ["pending", "held"].includes(a.review)) || a.review === "returned")

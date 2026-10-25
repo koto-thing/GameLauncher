@@ -93,6 +93,8 @@ export async function fixture<T>(path: string, init: RequestInit = {}): Promise<
                 everApproved: ["approved", "returned", "resubmitted"].includes(review),
                 slotReserved: ["approved", "returned", "resubmitted"].includes(review),
                 retentionExpiresAt: null,
+                eventState: "scheduled",
+                eventCancelledAt: null,
                 published: null,
               }) satisfies Application,
           ),

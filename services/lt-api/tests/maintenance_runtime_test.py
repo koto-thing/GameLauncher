@@ -3,7 +3,7 @@ from applicant_runtime_test import sql
 class MaintenanceRuntime(unittest.TestCase):
  def test_fake_delivery_deduplicated(self):
   def dispatch():
-   with urllib.request.urlopen('http://127.0.0.1:8788/test/dispatch-fake') as r:return json.load(r)
+   with urllib.request.urlopen('http://127.0.0.1:18878/test/dispatch-fake') as r:return json.load(r)
   dispatch();before=sql('SELECT count(*) AS n FROM lt_fake_deliveries')[0]['n']
   self.assertEqual(dispatch()['delivered'],0)
   self.assertEqual(sql('SELECT count(*) AS n FROM lt_fake_deliveries')[0]['n'],before)

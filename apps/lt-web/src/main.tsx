@@ -233,7 +233,11 @@ function App() {
             {!token && <p>確認リンクがありません。メール確認からやり直してください。</p>}
           </section>
         ) : editing ? (
-          form(editing)
+          editing.eventState === "cancelled" ? (
+            <p role="alert">この開催回は中止されました。編集できません。</p>
+          ) : (
+            form(editing)
+          )
         ) : path === "/applications/new" ? (
           form(null)
         ) : !data && !error ? (
@@ -248,6 +252,7 @@ function App() {
                 <p>
                   {a.review} / {a.withdrawal}
                 </p>
+                {a.eventState === "cancelled" && <p role="status">この開催回は中止されました</p>}
                 {a.retentionExpiresAt && <p>保持期限: {a.retentionExpiresAt}</p>}
                 <a href={a.materialUrl} rel="noreferrer">
                   資料
@@ -286,6 +291,9 @@ function App() {
           <section>
             <h1>{(data as Application).content.title}</h1>
             <p>{(data as Application).review}</p>
+            {(data as Application).eventState === "cancelled" && (
+              <p role="status">この開催回は中止されました</p>
+            )}
             <button onClick={() => nav("/applications")}>本人申請一覧に戻る</button>
             {actions(data as Application).includes("edit") && (
               <button onClick={() => setEditing(data as Application)}>編集</button>

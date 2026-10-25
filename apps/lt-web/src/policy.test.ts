@@ -3,6 +3,8 @@ import type { Application } from "../../../contracts/lt/v1";
 import { actions } from "./policy";
 const a = {
   content: { speakers: [{ displayName: "架空発表者" }] },
+  eventState: "scheduled",
+  eventCancelledAt: null,
   review: "pending",
   withdrawal: "none",
   everApproved: false,
@@ -19,3 +21,8 @@ describe("本人操作の表示", () => {
       actions({ ...a, review: "approved", everApproved: true, withdrawal: "requested" }),
     ).toEqual(["cancel-withdrawal"]));
 });
+
+it("開催中止は全変更操作を止める", () =>
+  expect(
+    actions({ ...a, eventState: "cancelled", everApproved: true, review: "approved" }),
+  ).toEqual([]));

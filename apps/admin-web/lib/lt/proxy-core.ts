@@ -5,12 +5,12 @@ type Actor = OperatorContext;
 export type LtInternalAdapter = { fetch(request: Request, actor: Actor): Promise<Response> };
 
 // 既知の契約コードだけを通し、内部例外の本文やヘッダーを外へ出さない
-const codes = new Set<ErrorCode>(["UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "VALIDATION", "VERSION_CONFLICT", "DUPLICATE_APPLICATION", "RECRUITMENT_CLOSED", "CAPACITY_FULL", "INVALID_TRANSITION", "TOKEN_INVALID", "RATE_LIMITED", "RETENTION_EXPIRED"]);
+const codes = new Set<ErrorCode>(["UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "VALIDATION", "VERSION_CONFLICT", "DUPLICATE_APPLICATION", "RECRUITMENT_CLOSED", "CAPACITY_FULL", "INVALID_TRANSITION", "TOKEN_INVALID", "RATE_LIMITED", "RETENTION_EXPIRED", "SERVICE_UNAVAILABLE", "NOT_IMPLEMENTED"]);
 
 /** @brief 管理エラーを共有DTOに絞って再構成する @param response 元の応答 @param requestId proxy発行ID @returns 非公開情報を除いたJSON応答 */
 async function safeError(response: Response, requestId: string): Promise<Response> {
   const input = await response.json().catch(() => null);
-  const fallback: ErrorCode = response.status === 401 ? "UNAUTHENTICATED" : response.status === 403 ? "FORBIDDEN" : response.status === 404 ? "NOT_FOUND" : response.status === 409 ? "VERSION_CONFLICT" : response.status === 429 ? "RATE_LIMITED" : response.status === 501 ? "INVALID_TRANSITION" : "VALIDATION";
+  const fallback: ErrorCode = response.status === 401 ? "UNAUTHENTICATED" : response.status === 403 ? "FORBIDDEN" : response.status === 404 ? "NOT_FOUND" : response.status === 409 ? "VERSION_CONFLICT" : response.status === 429 ? "RATE_LIMITED" : response.status === 501 ? "NOT_IMPLEMENTED" : response.status === 503 ? "SERVICE_UNAVAILABLE" : "VALIDATION";
   const error: ApiError["error"] = { code: codes.has(input?.error?.code) ? input.error.code : fallback, requestId };
   // fieldsに値や説明を混ぜず、短い識別子だけを許可する
   if (Array.isArray(input?.error?.fields)) {
