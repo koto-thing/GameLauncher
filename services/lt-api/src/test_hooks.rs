@@ -49,9 +49,12 @@ pub async fn fake_mail(
     let db = env
         .d1("DB")
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let rows=db.prepare("SELECT confirmation_url FROM lt_fake_mail WHERE recipient=?1 AND expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) ORDER BY rowid DESC LIMIT 1").bind(&[email.into()]).map_err(|e|JsValue::from_str(&e.to_string()))?.all().await.map_err(|_|JsValue::from_str("Fake mailbox unavailable"))?.results::<Value>().map_err(|_|JsValue::from_str("Invalid fake mailbox"))?;
+    let now = crate::lifecycle::reconcile(&db)
+        .await
+        .map_err(|_| JsValue::from_str("Fake mailbox unavailable"))?;
+    let rows=db.prepare("SELECT o.action_url FROM lt_login_outbox o JOIN lt_mail_jobs j ON j.id='authentication:'||o.id WHERE o.recipient=?1 AND o.expires>?2 AND o.action_url!='' AND j.transport='fake' AND j.delivered_at IS NOT NULL AND EXISTS(SELECT 1 FROM lt_mail_mode WHERE id=1 AND mode='fake') ORDER BY o.created_at DESC,o.rowid DESC LIMIT 1").bind(&[email.into(),now.into()]).map_err(|_|JsValue::from_str("Fake mailbox unavailable"))?.all().await.map_err(|_|JsValue::from_str("Fake mailbox unavailable"))?.results::<Value>().map_err(|_|JsValue::from_str("Fake mailbox unavailable"))?;
     rows.first()
-        .and_then(|r| r["confirmation_url"].as_str())
+        .and_then(|r| r["action_url"].as_str())
         .map(str::to_owned)
         .ok_or_else(|| JsValue::from_str("Fake mailbox empty"))
 }
@@ -98,9 +101,47 @@ pub async fn set_clock(
     Ok(())
 }
 
-/// 専用架空DBの保持削除を試験する。通常buildにexportしない
-/// 引数: 内部設定環境、固定形式の試験指示JSON
-/// 戻り値: 件数だけのJSON文字列
+/// 検証bundleだけでfakeの失敗分類を選択する
+/// 引数: 固定fake結果、ローカル環境
+/// 戻り値: 配送完了件数。公開fetchには登録しない
+#[worker::wasm_bindgen::prelude::wasm_bindgen]
+pub async fn test_dispatch(
+    outcome: String,
+    env: Env,
+) -> std::result::Result<u32, worker::wasm_bindgen::JsValue> {
+    use worker::wasm_bindgen::JsValue;
+    if !cfg!(feature = "local-development")
+        || env
+            .var("LOCAL_AUTH")
+            .map(|v| v.to_string())
+            .unwrap_or_default()
+            != "true"
+    {
+        return Err(JsValue::from_str("Disabled"));
+    }
+    let outcome = match outcome.as_str() {
+        "accepted" => lt_mail::Outcome::Accepted,
+        "temporary" => lt_mail::Outcome::Temporary,
+        "permanent" => lt_mail::Outcome::Permanent,
+        "uncertain" => lt_mail::Outcome::Uncertain,
+        _ => return Err(JsValue::from_str("Invalid fake outcome")),
+    };
+    let db = env
+        .d1("DB")
+        .map_err(|_| JsValue::from_str("Mail unavailable"))?;
+    crate::lifecycle::reconcile(&db)
+        .await
+        .map_err(|_| JsValue::from_str("Mail unavailable"))?;
+    let origin = env
+        .var("APP_ORIGIN")
+        .map_err(|_| JsValue::from_str("Mail unavailable"))?
+        .to_string();
+    crate::mail::dispatch(&db, &origin, outcome, 1)
+        .await
+        .map_err(|_| JsValue::from_str("Mail unavailable"))
+}
+
+/// 架空DBだけで削除batchを試験する
 #[worker::wasm_bindgen::prelude::wasm_bindgen]
 pub async fn retention_test(
     env: Env,

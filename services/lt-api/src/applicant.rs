@@ -148,20 +148,15 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
         db.batch(vec![
             // 再発行は未交換リンクだけを失効させ、使用中sessionは維持する
             db.prepare("UPDATE lt_auth_tokens SET expires=?1 WHERE email=?2 AND purpose='login' AND session_hash IS NULL AND expires>?1").bind(&[now.into(),email.clone().into()])?,
-            db.prepare("UPDATE lt_fake_mail SET expires=?1 WHERE recipient=?2 AND expires>?1").bind(&[now.into(),email.clone().into()])?,
             db.prepare(
                 "INSERT INTO lt_auth_tokens(hash,email,purpose,expires) VALUES(?1,?2,'login',?3)",
             )
             .bind(&[hash(&token).into(), email.clone().into(), expires.into()])?,
-            db.prepare("INSERT INTO lt_fake_mail VALUES(?1,?2,?3,?4)")
-                .bind(&[
-                    secret()?.into(),
-                    email.into(),
-                    format!("{origin}/auth/verify?token={token}").into(),
-                    expires.into(),
-                ])?,
+            db.prepare("INSERT INTO lt_login_outbox(id,token_hash,recipient,kind,action_url,created_at,expires) VALUES(?1,?2,?3,'emailConfirmation',?4,?5,?6)").bind(&[format!("login:{}",hash(&token)).into(),hash(&token).into(),email.into(),format!("{origin}/auth/verify?token={token}").into(),now.into(),expires.into()])?,
         ])
         .await?;
+        // 開発fakeも新しい配送engineを通し、未設定なら送らない
+        crate::mail::dispatch(&db, &origin, lt_mail::Outcome::Accepted, 1).await?;
         return Ok(Some(
             Response::from_json(&json!({"accepted":true}))?.with_status(202),
         ));

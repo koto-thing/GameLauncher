@@ -447,12 +447,13 @@ pub async fn fake_dispatch(env: Env) -> std::result::Result<JsValue, JsValue> {
     crate::lifecycle::reconcile(&db)
         .await
         .map_err(|_| JsValue::from_str("Lifecycle unavailable"))?;
-    // fake 配達 receipt と outbox の状態を同一 batch で確定する
-    let result=db.batch(vec![db.prepare("INSERT INTO lt_fake_deliveries(id,recipient,kind,delivered_at,expires) SELECT id,recipient,kind,CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER),expires FROM lt_outbox WHERE state='pending' AND (expires IS NULL OR expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER)) ON CONFLICT DO NOTHING"),db.prepare("UPDATE lt_outbox SET state='sent' WHERE state='pending' AND EXISTS(SELECT 1 FROM lt_fake_deliveries f WHERE f.id=lt_outbox.id)")]).await.map_err(|e|JsValue::from_str(&e.to_string()))?;
-    let count = result[0]
-        .meta()
-        .map_err(|e| JsValue::from_str(&e.to_string()))?
-        .and_then(|m| m.changes)
-        .unwrap_or(0);
+    // 旧fake配送を廃止し、同じmode/claim/fence経路だけを使う
+    let origin = env
+        .var("APP_ORIGIN")
+        .map_err(|_| JsValue::from_str("Mail unavailable"))?
+        .to_string();
+    let count = crate::mail::dispatch(&db, &origin, lt_mail::Outcome::Accepted, 50)
+        .await
+        .map_err(|_| JsValue::from_str("Mail unavailable"))?;
     Ok(JsValue::from_f64(count as f64))
 }

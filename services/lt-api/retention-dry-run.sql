@@ -28,3 +28,7 @@ SELECT 'event_cancellations' AS resource,count(*) AS due FROM lt_event_cancellat
 -- 全体中止だけは旧公開情報も削除候補にする。通常終了archiveは含めない
 SELECT 'cancelled_public_events' AS resource,count(*) AS due FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE e.state='cancelled' AND e.private_expires<=COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000);
 SELECT 'cancelled_public_talks' AS resource,count(*) AS due FROM lt_public_talks p JOIN lt_events e ON e.id=p.event_id WHERE e.state='cancelled' AND e.private_expires<=COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000);
+
+-- 認証outboxは開催回所属ではない。token/sessionとは独立に自身の期限で整理する
+SELECT 'login_outbox' AS resource,count(*) AS due FROM lt_login_outbox WHERE expires<=COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000);
+SELECT 'mail_jobs' AS resource,count(*) AS due FROM lt_mail_jobs WHERE expires<=CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000)/1000 AS INTEGER);

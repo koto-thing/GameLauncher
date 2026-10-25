@@ -5,76 +5,80 @@
   "bundles": {
     "development_with_test_hooks": {
       "index_bg.wasm": {
-        "bytes": 1158571,
-        "gzip_bytes": 391111
+        "bytes": 1286193,
+        "gzip_bytes": 422244
       },
       "index.js": {
-        "bytes": 25610,
-        "gzip_bytes": 6741
+        "bytes": 27387,
+        "gzip_bytes": 7324
       }
     },
     "default_private_disabled": {
       "index_bg.wasm": {
-        "bytes": 1130994,
-        "gzip_bytes": 384891
+        "bytes": 1247973,
+        "gzip_bytes": 413632
       },
       "index.js": {
-        "bytes": 24984,
-        "gzip_bytes": 6603
+        "bytes": 26601,
+        "gzip_bytes": 7164
       }
     },
     "development_without_test_hooks": {
       "index_bg.wasm": {
-        "bytes": 1135564,
-        "gzip_bytes": 386443
+        "bytes": 1251717,
+        "gzip_bytes": 414753
       },
       "index.js": {
-        "bytes": 24984,
-        "gzip_bytes": 6603
+        "bytes": 26601,
+        "gzip_bytes": 7164
       }
     }
   },
-  "runtime_tests": 41,
+  "runtime_tests": 47,
   "shared_response_schema_validation": true,
   "cpu_time_measured": false,
   "cloud_tests_run": false,
   "local_wall_time": {
     "public_list": {
       "samples": 10,
-      "median_wall_ms": 18.74,
-      "p95_wall_ms": 20.26,
+      "median_wall_ms": 24.889,
+      "p95_wall_ms": 27.944,
       "response_bytes": 741
     },
     "public_detail": {
       "samples": 10,
-      "median_wall_ms": 18.49,
-      "p95_wall_ms": 19.525,
+      "median_wall_ms": 25.251,
+      "p95_wall_ms": 27.125,
       "response_bytes": 220
     },
     "anonymous_session": {
       "samples": 10,
-      "median_wall_ms": 18.725,
-      "p95_wall_ms": 19.289,
+      "median_wall_ms": 26.478,
+      "p95_wall_ms": 27.325,
       "response_bytes": 4
     },
     "operator_page_20": {
       "samples": 10,
-      "median_wall_ms": 28.915,
-      "p95_wall_ms": 48.305,
+      "median_wall_ms": 38.219,
+      "p95_wall_ms": 47.485,
       "response_bytes": 11091
     }
   },
   "checks": {
-    "runtime_tests": "41 passed",
+    "runtime_tests": "47 passed",
     "rust_unit_tests": "1 passed",
     "shared_contract_tests": "6 passed",
     "cargo_check": "passed",
     "cargo_fmt": "passed",
-    "fresh_migrations_and_fixture": "0001-0026 passed",
-    "normal_bundles_test_hooks": "fake_mail/set_clock/pause absent",
+    "fresh_migrations_and_fixture": "0001-0029 passed",
+    "normal_bundles_test_hooks": "fake_mail/test_dispatch/set_clock/pause absent",
     "new_cli_confirmation_url_log_matches": 0,
     "default_private_api": "typed 501; public operator 404",
-    "copy_japan_timezone": "3 event regressions passed"
+    "copy_japan_timezone": "3 event regressions passed",
+    "mail_rust_unit_tests": "6 passed",
+    "mail_sqlite_claim_tests": "7 passed",
+    "mail_runtime_tests": "6 passed",
+    "fresh_mail_mode": "disabled"
   },
   "limitations": [
     "cloud_cpu_not_measured",
@@ -82,18 +86,38 @@
     "real_admin_proxy_auth_not_verified",
     "browser_ui_not_verified",
     "email_change_not_implemented",
-    "old_fake_confirmation_urls_remain_in_shared_wrangler_logs"
+    "old_fake_confirmation_urls_remain_in_shared_wrangler_logs",
+    "php_relay_not_run",
+    "real_mail_transport_not_run",
+    "mail_scheduler_not_enabled"
   ],
   "contract_tests": 6,
   "rust_unit_tests": 1,
   "automatic_lifecycle": "request reconciliation before access",
   "retention_calendar": "Asia/Tokyo +3 calendar months, month-end clamp",
   "physical_deletion_run": false,
-  "fresh_migrations": 26,
+  "fresh_migrations": 29,
   "default_private_disabled_smoke": true,
   "test_exports_absent_in_normal_bundles": true,
-  "runtime_tests_passed": 41,
+  "runtime_tests_passed": 47,
   "contract_tests_passed": 6,
-  "fresh_migrations_passed": 26,
-  "copy_japan_timezone_regression_passed": true
+  "fresh_migrations_passed": 29,
+  "copy_japan_timezone_regression_passed": true,
+  "mail_log_validation": {
+    "historical_local_fake_urls_revoked_or_already_consumed": 1,
+    "historical_project_log_files_redacted": 1,
+    "current_observer_returns_payload": false,
+    "shared_logs_modified": false
+  },
+  "mail_runtime_tests": 6,
+  "mail_rust_unit_tests": 6,
+  "mail_sqlite_claim_tests": 7,
+  "fresh_mail_mode_disabled": true,
+  "mail_migrations": [
+    "0027",
+    "0028",
+    "0029"
+  ],
+  "real_mail_sent": false,
+  "mail_scheduler_enabled": false
 }

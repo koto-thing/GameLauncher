@@ -17,4 +17,8 @@ if (typeof Api.prototype.set_clock === 'function') {
   LtOperator.prototype.testClock = function(value) { return Api.prototype.set_clock.call(this, value, this.env); };
 }
 
+if (typeof Api.prototype.test_dispatch === 'function') {
+  LtOperator.prototype.testDispatch = function(outcome) { return Api.prototype.test_dispatch.call(this, outcome, this.env); };
+}
+
 if(typeof Api.prototype.retention_test === "function"){LtOperator.prototype.testRetention=function(input){return Api.prototype.retention_test.call(this,this.env,input);};}

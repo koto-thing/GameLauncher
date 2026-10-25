@@ -117,7 +117,7 @@ python tests/prepare_fresh.py
 
 fixtureは空のローカルDBに一度投入。prepare_freshは毎回新しいworkspace内persist先を作り、既存DBを削除せず全migrationとfixtureを確認する。確認linkはtest側が別ポートのfake-mail受取口から取得し、CLIのJSON出力には出さない。material URLの自動fetchはしない。
 
-全41件のactual local Worker+D1+named RPC試験を実施。公開漏洩/IDOR/token replay/Origin/既知長とchunked本文上限/重複申請/最後1枠同時承認/敗者副作用ゼロ/二重通知/期限/保持archive/状態遷移/募集重複/時間割/辞退取消競合/全体中止競合を確認。JSON成功応答と契約エラーを共有Schemaで検証する。新規8運営ケースと異種操作raceを含む。ログはgit対象外のtest-results.txt。
+全47件のactual local Worker+D1+named RPC試験を実施。公開漏洩/IDOR/token replay/Origin/既知長とchunked本文上限/重複申請/最後1枠同時承認/敗者副作用ゼロ/二重通知/期限/保持archive/状態遷移/募集重複/時間割/辞退取消競合/全体中止競合を確認。JSON成功応答と契約エラーを共有Schemaで検証する。新規8運営ケースと異種操作raceを含む。ログはgit対象外のtest-results.txt。
 
 異種操作raceは`runtime-tests`だけにある読取後700ms遅延と観測headerを使い、旧DTO読取→並行時間割保存完了→旧読取元の再承認/本人編集/再提出書込という順序を実証。認証や所有者検証は省略しない。通常buildにはこのmodule/遅延/headerが存在しないことをbundleでも確認。通常開発に戻す場合はruntime-testsを外してbuildする。
 
@@ -143,3 +143,6 @@ runtime-testsとlocal-developmentを両方指定した検証bundleだけが固�
 
 
 状態追補の検証中に解決した問題: 初回のD1 CLIがfixture準備で終了コード1となったためstderrを捕捉するように修正し、同じHTTP並列試験を再実行。新しい時計試験の後処理は蓄積fixtureを1件ずつCLI復元して遅くなったため、自分のテストPythonだけを停止し、保存済みログの元設定を一括復元した。現在はSQLファイルを使う一括後処理でWindowsのcommand長上限も避ける。HTTPの競合試験は並列のまま。中止旧公開情報のdry-run追加で古い「publicという文字が一切ない」というテスト前提を修正し、通常archive除外/実データ不変を検証する。
+
+
+メール接続（0027〜0029）: [mail-connection-plan.md](mail-connection-plan.md)に接続/排他/期限を記載する。新しい認証outboxと共通配送engineを使用し、旧fake配送は独立動作しない。DBのmodeは既定disabledで、runtime試験だけがfakeへ明示変更する。Envelope秒とAPIミリ秒をfloor変換し、各APIのreconcileで期限切れの確認URL/job payloadを論理消去する。物理削除・本番有効化・外部送信は行っていない。保管担当向けの所属と単位はmail-retention-boundary.jsonを参照。

@@ -65,7 +65,7 @@ class LifecycleRuntime(unittest.TestCase):
   self.assertEqual(operate('/events/'+id)[0],404)
   # 遅延によって期限後outboxが配送されない
   with urllib.request.urlopen('http://127.0.0.1:18878/test/dispatch-fake') as r:json.load(r)
-  self.assertEqual(sql("SELECT count(*) AS n FROM lt_fake_deliveries f JOIN lt_outbox o ON o.id=f.id WHERE o.application_id='"+app['id']+"'")[0]['n'],0)
+  self.assertEqual(sql("SELECT count(*) AS n FROM lt_mail_jobs f JOIN lt_outbox o ON f.id='application:'||o.id WHERE f.delivered_at IS NOT NULL AND o.application_id='"+app['id']+"'")[0]['n'],0)
  def test_retention_exact_boundary_uses_planned_end(self):
   event=self.create();id=event['id'];cookie,email,body,app,approve=self.application(event)
   clock('2030-04-02T01:14:59.999Z');cookie=self.login_for(email)

@@ -5,6 +5,7 @@ mod applicant_dto;
 mod events;
 mod input;
 mod lifecycle;
+mod mail;
 mod operations;
 mod operator;
 mod receipts;
@@ -13,7 +14,7 @@ mod retention;
 mod test_hooks;
 mod views;
 #[cfg(feature = "runtime-tests")]
-pub use test_hooks::{fake_mail, retention_test, set_clock};
+pub use test_hooks::{retention_test, fake_mail, set_clock, test_dispatch};
 mod timetable;
 pub use operator::{fake_dispatch, operator_request};
 

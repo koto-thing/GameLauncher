@@ -4,7 +4,7 @@
 
 ## 接続API
 
-API Cargo.toml に `lt-mail = { path = "../lt-mail", features = ["worker-runtime"] }` を追加し、内部schedulerから `runtime::enqueue(&db,&Envelope)` と `runtime::dispatch_one(&db,&Transport,unique_attempt_id)` を呼ぶ。提案SQL `proposals/outbox-dispatch.sql` の番号はAPI担当が決める。D1は同じworker 0.8.7。wasm32 targetでcheckする。
+API Cargo.toml に `lt-mail = { path = "../lt-mail", features = ["worker-runtime"] }` を追加し、内部schedulerから `runtime::enqueue(&db,&Envelope,Clock::System)` と `runtime::dispatch_one(&db,&Transport,unique_attempt_id,Clock::System)` を呼ぶ。提案SQL `proposals/outbox-dispatch.sql` の番号はAPI担当が決める。D1は同じworker 0.8.7。wasm32 targetでcheckする。
 
 Envelope = {id,recipient,kind,expires,action_url}。expiresはepoch秒（既存outboxはミリ秒）。idは既存outbox idと同一。宛先・kindは元outboxに一致しなければ投入不可。jobの配達有効期間は最大24時間という暫定実装上限。確認リンクは1時間以下。保持期限が先ならそちらを優先。未確定保持期限は無期限配達を意味せず、APIが短い配達期限を指定する。確認メールもAPI担当がpurpose付き確認tokenと同じtransactionでoutboxへ投入する必要がある。現在のlt_fake_mailをこのcrateが勝手に読み取ることはない。
 
@@ -33,3 +33,6 @@ flock付きprivate receiptで同じidを二重送信しない。mail()呼出前�
 cargo test --locked --offline、cargo check --locked --offline --target wasm32-unknown-unknown --features worker-runtime、cargo fmt --check、python -m unittest discover -s tests -v。Rustは成功/一時失敗/恒久失敗/期限/不明/上限、SQLiteは実際にRustが使うclaim SQLの二重実行・mode・期限・fence・保持削除連動を検証する。
 
 最終ローカル検証: Rust unit 6件、SQLite claim/競合 7件、wasm32 worker-runtime check、fmt checkが成功。API本体への接続とPHP実行・実送信は未検証。
+
+
+API接続追補: 配送元はlt_mail_outbox viewで、申請通知と独立したlogin通知をnamespace付きIDで統合する。APIが0027〜0029の番号付きmigrationを所有する。固定Clockはtest-clock featureだけで使用でき、APIのruntime-testsから渡す。通常はClock::System。lt_mail_jobsのtransport/delivered_atが配送receiptとなり、旧fake dispatcherへfallbackしない。HTTP transportはAPI側では生成しない。

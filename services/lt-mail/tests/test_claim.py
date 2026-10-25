@@ -5,10 +5,11 @@ ROOT=Path(__file__).parents[1]
 class ClaimTests(unittest.TestCase):
  def setUp(self):
   self.db=sqlite3.connect(':memory:')
-  self.db.execute("CREATE TABLE lt_outbox(id TEXT PRIMARY KEY,recipient TEXT,kind TEXT,state TEXT,expires INTEGER)")
+  self.db.execute("CREATE TABLE lt_outbox(id TEXT PRIMARY KEY,recipient TEXT,kind TEXT,state TEXT,expires INTEGER,created_at INTEGER)")
+  self.db.execute("CREATE TABLE lt_login_outbox(id TEXT PRIMARY KEY,recipient TEXT,kind TEXT,state TEXT,expires INTEGER,created_at INTEGER,action_url TEXT)")
   self.db.executescript((ROOT/'proposals/outbox-dispatch.sql').read_text(encoding='utf-8'))
-  self.db.execute("INSERT INTO lt_outbox VALUES('a','fixture@example.invalid','approved','pending',999000)")
-  self.db.execute("INSERT INTO lt_mail_jobs(id,envelope,expires) VALUES('a','{}',999)")
+  self.db.execute("INSERT INTO lt_outbox VALUES('a','fixture@example.invalid','approved','pending',999000,0)")
+  self.db.execute("INSERT INTO lt_mail_jobs(id,envelope,expires) VALUES('application:a','{}',999)")
   self.claim=next(q for q in re.findall(r'"([^"\n]+)"',(ROOT/"src/runtime.rs").read_text(encoding="utf-8")) if q.startswith("UPDATE lt_mail_jobs SET state=") and "RETURNING envelope" in q)
  def tearDown(self): self.db.close()
  def test_disabled(self):self.assertEqual(self.db.execute(self.claim,('one',1,'http')).fetchall(),[])
@@ -40,7 +41,7 @@ class ClaimTests(unittest.TestCase):
  def test_wrong_fence(self):
   self.db.execute("UPDATE lt_mail_mode SET mode='fake'")
   self.db.execute(self.claim,('one',1,'fake')).fetchall()
-  self.assertEqual(self.db.execute("UPDATE lt_mail_jobs SET state='sent' WHERE id='a' AND fence='two' AND state='leased'").rowcount,0)
+  self.assertEqual(self.db.execute("UPDATE lt_mail_jobs SET state='sent' WHERE id='application:a' AND fence='two' AND state='leased'").rowcount,0)
  def test_retention_shortens_and_delete_cascades(self):
   self.db.execute("UPDATE lt_outbox SET expires=500000")
   self.assertEqual(self.db.execute('SELECT expires FROM lt_mail_jobs').fetchone()[0],500)
