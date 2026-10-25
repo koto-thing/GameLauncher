@@ -12,3 +12,7 @@ export class LtOperator extends Api {
 if (typeof Api.prototype.fake_mail === 'function') {
   LtOperator.prototype.testMail = function(email) { return Api.prototype.fake_mail.call(this, email, this.env); };
 }
+
+if (typeof Api.prototype.set_clock === 'function') {
+  LtOperator.prototype.testClock = function(value) { return Api.prototype.set_clock.call(this, value, this.env); };
+}

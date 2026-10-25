@@ -22,6 +22,7 @@ class EventRuntime(unittest.TestCase):
    patch['operationId']=uuid.uuid4().hex;self.assertEqual(operate('/events/'+id,patch,'PATCH')[0],409)
    status,copy=operate('/events/'+id+'/copy',{'expectedVersion':2,'operationId':uuid.uuid4().hex,'data':{}});self.assertEqual(status,200);created.append(copy['id'])
    for key in ['venue','capacity','talkMinutes','transitionMinutes']:self.assertEqual(copy[key],updated[key])
+   self.assertEqual(copy['timeZone'],'Asia/Tokyo');self.assertFalse(copy['publishEnabled'])
    self.assertNotEqual(copy['id'],id);self.assertNotEqual(copy['title'],updated['title']);self.assertEqual(sql("SELECT count(*) AS n FROM lt_applications WHERE event_id='"+copy['id']+"'")[0]['n'],0)
    h=applicants.ApplicantRuntime();cookie,_=h.login();p=h.payload();p['eventId']=id
    status,app,_=request('/api/lt/v1/applications',p,cookie);self.assertEqual(status,200);talk=app['id']

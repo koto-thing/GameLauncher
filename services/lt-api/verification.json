@@ -5,18 +5,18 @@
   "bundles": {
     "development_with_test_hooks": {
       "index_bg.wasm": {
-        "bytes": 1062852,
-        "gzip_bytes": 368977
+        "bytes": 1158571,
+        "gzip_bytes": 391111
       },
       "index.js": {
-        "bytes": 25458,
-        "gzip_bytes": 6724
+        "bytes": 25610,
+        "gzip_bytes": 6741
       }
     },
     "default_private_disabled": {
       "index_bg.wasm": {
-        "bytes": 1039314,
-        "gzip_bytes": 360884
+        "bytes": 1130994,
+        "gzip_bytes": 384891
       },
       "index.js": {
         "bytes": 24984,
@@ -25,8 +25,8 @@
     },
     "development_without_test_hooks": {
       "index_bg.wasm": {
-        "bytes": 1046942,
-        "gzip_bytes": 363370
+        "bytes": 1135564,
+        "gzip_bytes": 386443
       },
       "index.js": {
         "bytes": 24984,
@@ -34,45 +34,47 @@
       }
     }
   },
-  "runtime_tests": 33,
+  "runtime_tests": 41,
   "shared_response_schema_validation": true,
   "cpu_time_measured": false,
   "cloud_tests_run": false,
   "local_wall_time": {
     "public_list": {
       "samples": 10,
-      "median_wall_ms": 8.881,
-      "p95_wall_ms": 10.232,
+      "median_wall_ms": 18.74,
+      "p95_wall_ms": 20.26,
       "response_bytes": 741
     },
     "public_detail": {
       "samples": 10,
-      "median_wall_ms": 8.163,
-      "p95_wall_ms": 10.234,
+      "median_wall_ms": 18.49,
+      "p95_wall_ms": 19.525,
       "response_bytes": 220
     },
     "anonymous_session": {
       "samples": 10,
-      "median_wall_ms": 8.545,
-      "p95_wall_ms": 9.62,
+      "median_wall_ms": 18.725,
+      "p95_wall_ms": 19.289,
       "response_bytes": 4
     },
     "operator_page_20": {
       "samples": 10,
-      "median_wall_ms": 14.316,
-      "p95_wall_ms": 17.895,
-      "response_bytes": 10111
+      "median_wall_ms": 28.915,
+      "p95_wall_ms": 48.305,
+      "response_bytes": 11091
     }
   },
   "checks": {
-    "runtime_tests": "33 passed",
+    "runtime_tests": "41 passed",
     "rust_unit_tests": "1 passed",
     "shared_contract_tests": "6 passed",
     "cargo_check": "passed",
     "cargo_fmt": "passed",
-    "fresh_migrations_and_fixture": "0001-0024 passed",
-    "normal_bundles_test_hooks": "absent",
-    "new_cli_confirmation_url_log_matches": 0
+    "fresh_migrations_and_fixture": "0001-0026 passed",
+    "normal_bundles_test_hooks": "fake_mail/set_clock/pause absent",
+    "new_cli_confirmation_url_log_matches": 0,
+    "default_private_api": "typed 501; public operator 404",
+    "copy_japan_timezone": "3 event regressions passed"
   },
   "limitations": [
     "cloud_cpu_not_measured",
@@ -80,7 +82,18 @@
     "real_admin_proxy_auth_not_verified",
     "browser_ui_not_verified",
     "email_change_not_implemented",
-    "start_end_confirmation_route_not_in_shared_contract",
     "old_fake_confirmation_urls_remain_in_shared_wrangler_logs"
-  ]
+  ],
+  "contract_tests": 6,
+  "rust_unit_tests": 1,
+  "automatic_lifecycle": "request reconciliation before access",
+  "retention_calendar": "Asia/Tokyo +3 calendar months, month-end clamp",
+  "physical_deletion_run": false,
+  "fresh_migrations": 26,
+  "default_private_disabled_smoke": true,
+  "test_exports_absent_in_normal_bundles": true,
+  "runtime_tests_passed": 41,
+  "contract_tests_passed": 6,
+  "fresh_migrations_passed": 26,
+  "copy_japan_timezone_regression_passed": true
 }

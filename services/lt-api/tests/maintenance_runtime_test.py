@@ -9,9 +9,12 @@ class MaintenanceRuntime(unittest.TestCase):
   self.assertEqual(sql('SELECT count(*) AS n FROM lt_fake_deliveries')[0]['n'],before)
  def test_retention_is_read_only_and_archive_excluded(self):
   before=sql('SELECT count(*) AS n FROM lt_applications')[0]['n']
+  public_before=sql('SELECT (SELECT count(*) FROM lt_public_events)+(SELECT count(*) FROM lt_public_talks) AS n')[0]['n']
   r=subprocess.run(['node','node_modules/wrangler/bin/wrangler.js','d1','execute','lt-local','--local','--file','retention-dry-run.sql','--json'],capture_output=True,encoding='utf-8',check=True)
   values=json.loads(r.stdout)
   self.assertEqual(sql('SELECT count(*) AS n FROM lt_applications')[0]['n'],before)
-  self.assertNotIn('public',r.stdout)
+  self.assertEqual(sql('SELECT (SELECT count(*) FROM lt_public_events)+(SELECT count(*) FROM lt_public_talks) AS n')[0]['n'],public_before)
+  resources={row.get('resource','') for result in values for row in result['results']}
+  self.assertEqual({name for name in resources if 'public' in name},{'cancelled_public_events','cancelled_public_talks'})
   self.assertTrue(values[0]['success'])
 if __name__=='__main__':unittest.main()

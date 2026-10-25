@@ -4,13 +4,15 @@ mod applicant;
 mod applicant_dto;
 mod events;
 mod input;
+mod lifecycle;
 mod operations;
 mod operator;
 mod receipts;
 #[cfg(feature = "runtime-tests")]
 mod test_hooks;
+mod views;
 #[cfg(feature = "runtime-tests")]
-pub use test_hooks::fake_mail;
+pub use test_hooks::{fake_mail, set_clock};
 mod timetable;
 pub use operator::{fake_dispatch, operator_request};
 
@@ -32,6 +34,12 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
             )?
             .with_status(409),
         ),
+        Err(error) if error.to_string().contains("LT_RETENTION_EXPIRED") => Some(
+            Response::from_json(
+                &json!({"error":{"code":"RETENTION_EXPIRED","requestId":"applicant"}}),
+            )?
+            .with_status(410),
+        ),
         Err(error) => return Err(error),
     };
     let mut response = if let Some(response) = private {
@@ -42,12 +50,13 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
             Response::error("Not found", 404)?
         } else {
             let db = env.d1("DB")?;
+            let now = crate::lifecycle::reconcile(&db).await?;
             let sql = if talk {
-                "SELECT p.dto FROM lt_public_talks p JOIN lt_events e ON e.id=p.event_id WHERE p.approval_operation IS NOT NULL AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1 AND p.id=?2"
+                "SELECT p.dto FROM lt_public_talks p JOIN lt_events e ON e.id=p.event_id WHERE p.approval_operation IS NOT NULL AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER) AND e.id=?1 AND p.id=?2"
             } else if p.len() == 5 {
-                "SELECT p.dto,e.state,(SELECT closes FROM lt_recruitment WHERE event_id=e.id) AS closes,(SELECT capacity FROM lt_recruitment WHERE event_id=e.id) AS capacity,(SELECT reserved FROM lt_recruitment WHERE event_id=e.id) AS reserved FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND t.approval_operation IS NOT NULL)) AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1"
+                "SELECT p.dto,e.state,(SELECT closes FROM lt_recruitment WHERE event_id=e.id) AS closes,(SELECT capacity FROM lt_recruitment WHERE event_id=e.id) AS capacity,(SELECT reserved FROM lt_recruitment WHERE event_id=e.id) AS reserved FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND t.approval_operation IS NOT NULL)) AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER) AND e.id=?1"
             } else {
-                "SELECT p.dto,e.state,(SELECT closes FROM lt_recruitment WHERE event_id=e.id) AS closes,(SELECT capacity FROM lt_recruitment WHERE event_id=e.id) AS capacity,(SELECT reserved FROM lt_recruitment WHERE event_id=e.id) AS reserved FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND t.approval_operation IS NOT NULL)) AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) ORDER BY e.id"
+                "SELECT p.dto,e.state,(SELECT closes FROM lt_recruitment WHERE event_id=e.id) AS closes,(SELECT capacity FROM lt_recruitment WHERE event_id=e.id) AS capacity,(SELECT reserved FROM lt_recruitment WHERE event_id=e.id) AS reserved FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND t.approval_operation IS NOT NULL)) AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER) ORDER BY e.id"
             };
             let mut stmt = db.prepare(sql);
             if talk {
@@ -65,7 +74,7 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
                 )?;
                 if !talk && row["closes"].is_number() {
                     saved["recruitment"] = json!(if row["state"] != "scheduled"
-                        || row["closes"].as_f64().unwrap() <= Date::now().as_millis() as f64
+                        || row["closes"].as_f64().unwrap() <= now
                     {
                         "closed"
                     } else if row["reserved"].as_i64() >= row["capacity"].as_i64() {
@@ -90,9 +99,11 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
             }
         }
     } else if path.starts_with("/api/lt/v1/operator/") {
-        Response::error("Not found", 404)?
+        Response::from_json(&json!({"error":{"code":"NOT_FOUND","requestId":"public"}}))?
+            .with_status(404)
     } else {
-        Response::error("Not implemented", 501)?
+        Response::from_json(&json!({"error":{"code":"NOT_IMPLEMENTED","requestId":"public"}}))?
+            .with_status(501)
     };
     // 全体中止をキャッシュで遅らせない
     response.headers_mut().set("Cache-Control", "no-store")?;

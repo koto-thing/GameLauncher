@@ -59,6 +59,10 @@ pub async fn operator_request(
         Err(e) if e.to_string().contains("LT_CAPACITY_FULL") => {
             error("CAPACITY_FULL", 409, &context).map_err(|e| JsValue::from_str(&e.to_string()))?
         }
+        Err(e) if e.to_string().contains("LT_RETENTION_EXPIRED") => {
+            error("RETENTION_EXPIRED", 410, &context)
+                .map_err(|e| JsValue::from_str(&e.to_string()))?
+        }
         Err(e) => return Err(JsValue::from_str(&e.to_string())),
     };
     Ok(response.into())
@@ -80,7 +84,7 @@ fn error(code: &str, status: u16, c: &OperatorContext) -> Result<Response> {
 async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Response> {
     // RPC context だけで本番を有効化せず、開発ビルドにも限定する
     if !cfg!(feature = "local-development") || env.var("LOCAL_AUTH")?.to_string() != "true" {
-        return Response::error("Not implemented", 501);
+        return error("NOT_IMPLEMENTED", 501, c);
     }
     if c.actor_id.is_empty() || c.request_id.is_empty() {
         return error("FORBIDDEN", 403, c);
@@ -90,6 +94,7 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     let path = req.path();
     let p: Vec<_> = path.trim_matches('/').split('/').collect();
     let db = env.d1("DB")?;
+    let now = crate::lifecycle::reconcile(&db).await?;
     if !p.starts_with(&["api", "lt", "v1", "operator"]) {
         return error("NOT_FOUND", 404, c);
     }
@@ -100,7 +105,7 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
         if matches!(c.role, Role::Assistant) {
             return error("FORBIDDEN", 403, c);
         }
-        return Response::error("Email identity verification is not defined", 501);
+        return error("NOT_IMPLEMENTED", 501, c);
     }
     if req.method() == Method::Put && p.len() == 7 && p[4] == "events" && p[6] == "timetable" {
         return crate::timetable::save(req, &db, p[5], &c.actor_id, &c.request_id).await;
@@ -120,20 +125,17 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
             .results::<Value>()?;
         return if let Some(row) = rows.first() {
             let mut dto: Value = serde_json::from_str(row["dto"].as_str().unwrap())?;
-            if crate::applicant::expired(&dto, Date::now().as_millis() as f64) {
+            if crate::applicant::expired(&dto, now) {
                 return error("RETENTION_EXPIRED", 410, c);
             }
             dto["operatorNote"] = row["operator_note"].clone();
-            Response::from_json(
-                &crate::applicant_dto::operator(&dto)
-                    .ok_or_else(|| Error::RustError("Invalid operator DTO".into()))?,
-            )
+            Response::from_json(&crate::views::app(&db, &dto, true).await?)
         } else {
             error("NOT_FOUND", 404, c)
         };
     }
     if req.method() == Method::Get && p.len() == 7 && p[4] == "events" && p[6] == "timetable" {
-        let rows=db.prepare("SELECT s.version,s.blocks,e.version AS event_version FROM lt_schedule s JOIN lt_events e ON e.id=s.event_id WHERE s.event_id=?1 AND (e.private_expires IS NULL OR e.private_expires>unixepoch('subsec')*1000)").bind(&[p[5].into()])?.all().await?.results::<Value>()?;
+        let rows=db.prepare("SELECT s.version,s.blocks,e.version AS event_version FROM lt_schedule s JOIN lt_events e ON e.id=s.event_id WHERE s.event_id=?1 AND (e.private_expires IS NULL OR e.private_expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))").bind(&[p[5].into()])?.all().await?.results::<Value>()?;
         return if let Some(r) = rows.first() {
             Response::from_json(
                 &json!({"eventId":p[5],"version":r["version"],"eventVersion":r["event_version"],"blocks":serde_json::from_str::<Value>(r["blocks"].as_str().unwrap())?}),
@@ -157,7 +159,7 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
         return review(req, &db, c, p[5], p[6]).await;
     }
     if req.method() != Method::Post || p.len() != 7 || p[4] != "applications" || p[6] != "approve" {
-        return Response::error("Not implemented", 501);
+        return error("NOT_IMPLEMENTED", 501, c);
     }
     let input: Approve = match crate::input::json(req).await {
         Ok(v) => v,
@@ -195,7 +197,7 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     .iter()
     .map(|b| format!("{b:02x}"))
     .collect::<String>();
-    let replay=db.prepare("SELECT payload_hash,result AS dto FROM lt_operator_operations WHERE EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=lt_operator_operations.application_id AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now'))) AND operation_id=?1 AND actor=?2 AND (expires IS NULL OR expires>CAST(unixepoch('subsec')*1000 AS INTEGER))").bind(&[input.operation_id.clone().into(),c.actor_id.clone().into()])?.all().await?.results::<Value>()?;
+    let replay=db.prepare("SELECT payload_hash,result AS dto FROM lt_operator_operations WHERE EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=lt_operator_operations.application_id AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch'))) AND operation_id=?1 AND actor=?2 AND (expires IS NULL OR expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER))").bind(&[input.operation_id.clone().into(),c.actor_id.clone().into()])?.all().await?.results::<Value>()?;
     if let Some(r) = replay.first() {
         if r["payload_hash"] != payload {
             return error("VERSION_CONFLICT", 409, c);
@@ -204,17 +206,14 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
         if dto.get("operatorNote").is_none() {
             dto["operatorNote"] = json!("");
         }
-        return Response::from_json(
-            &crate::applicant_dto::operator(&dto)
-                .ok_or_else(|| Error::RustError("Invalid operator DTO".into()))?,
-        );
+        return Response::from_json(&crate::views::app(&db, &dto, true).await?);
     }
     let rows=db.prepare("SELECT a.dto,a.operator_note,r.talk_minutes FROM lt_applications a JOIN lt_recruitment r ON r.event_id=a.event_id WHERE a.id=?1").bind(&[p[5].into()])?.all().await?.results::<Value>()?;
     let Some(row) = rows.first() else {
         return error("NOT_FOUND", 404, c);
     };
     let mut dto: Value = serde_json::from_str(row["dto"].as_str().unwrap())?;
-    if crate::applicant::expired(&dto, Date::now().as_millis() as f64) {
+    if crate::applicant::expired(&dto, now) {
         return error("RETENTION_EXPIRED", 410, c);
     }
     let end = js_sys::Date::new(&(start + row["talk_minutes"].as_f64().unwrap() * 60000.0).into())
@@ -241,7 +240,7 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     dto["slotReserved"] = json!(true);
     dto["published"] = published;
     // UPDATE 0件では trigger は動かず、枠・公開版・outbox・audit は作られない
-    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=?4 WHERE id=?5 AND version=?6 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND json_extract(dto,'$.everApproved')=0 AND json_extract(dto,'$.review') IN ('pending','held') AND json_extract(dto,'$.withdrawal')='none' AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id JOIN lt_public_events pe ON pe.event_id=e.id WHERE e.id=lt_applications.event_id AND json_extract(pe.dto,'$.startsAt')<=?10 AND COALESCE(json_extract(s.blocks,'$[#-1].endsAt'),json_extract(pe.dto,'$.startsAt'))=?10 AND COALESCE(json_extract(s.blocks,'$[#-1].kind'),'opening')!='closing' AND e.version=?7 AND s.version=?8 AND e.publish_enabled=1 AND e.state IN ('scheduled','started') AND NOT EXISTS(SELECT 1 FROM json_each(s.blocks) b WHERE json_extract(b.value,'$.startsAt')<?9 AND json_extract(b.value,'$.endsAt')>?10))").bind(&[dto.to_string().into(),input.operation_id.clone().into(),payload.clone().into(),c.actor_id.clone().into(),p[5].into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into(),(input.data.expected_schedule_version as f64).into(),end.into(),input.data.starts_at.into()])?.run().await?;
+    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=?4 WHERE id=?5 AND version=?6 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch')) AND json_extract(dto,'$.everApproved')=0 AND json_extract(dto,'$.review') IN ('pending','held') AND json_extract(dto,'$.withdrawal')='none' AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id JOIN lt_public_events pe ON pe.event_id=e.id WHERE e.id=lt_applications.event_id AND json_extract(pe.dto,'$.startsAt')<=?10 AND COALESCE(json_extract(s.blocks,'$[#-1].endsAt'),json_extract(pe.dto,'$.startsAt'))=?10 AND COALESCE(json_extract(s.blocks,'$[#-1].kind'),'opening')!='closing' AND e.version=?7 AND s.version=?8 AND e.publish_enabled=1 AND e.state IN ('scheduled','started') AND NOT EXISTS(SELECT 1 FROM json_each(s.blocks) b WHERE json_extract(b.value,'$.startsAt')<?9 AND json_extract(b.value,'$.endsAt')>?10))").bind(&[dto.to_string().into(),input.operation_id.clone().into(),payload.clone().into(),c.actor_id.clone().into(),p[5].into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into(),(input.data.expected_schedule_version as f64).into(),end.into(),input.data.starts_at.into()])?.run().await?;
     if changed.meta()?.unwrap().changes.unwrap_or(0) == 0 {
         if let Some(response) = crate::receipts::response(
             &db,
@@ -258,10 +257,7 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
         return error("VERSION_CONFLICT", 409, c);
     }
     dto["operatorNote"] = row["operator_note"].clone();
-    Response::from_json(
-        &crate::applicant_dto::operator(&dto)
-            .ok_or_else(|| Error::RustError("Invalid operator DTO".into()))?,
-    )
+    Response::from_json(&crate::views::app(&db, &dto, true).await?)
 }
 
 /// 差し戻しと再承認などを版条件で適用する
@@ -274,6 +270,7 @@ async fn review(
     id: &str,
     action: &str,
 ) -> Result<Response> {
+    let now = crate::lifecycle::now(db).await?;
     let v: Value = match crate::input::json(req).await {
         Ok(v) => v,
         Err(_) => return error("VALIDATION", 422, c),
@@ -308,7 +305,7 @@ async fn review(
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect::<String>();
-    let replay=db.prepare("SELECT result,payload_hash FROM lt_operator_operations WHERE EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=lt_operator_operations.application_id AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now'))) AND actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>CAST(unixepoch('subsec')*1000 AS INTEGER))").bind(&[c.actor_id.clone().into(),op.into()])?.all().await?.results::<Value>()?;
+    let replay=db.prepare("SELECT result,payload_hash FROM lt_operator_operations WHERE EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=lt_operator_operations.application_id AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch'))) AND actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER))").bind(&[c.actor_id.clone().into(),op.into()])?.all().await?.results::<Value>()?;
     if let Some(r) = replay.first() {
         if r["payload_hash"] != payload {
             return error("VERSION_CONFLICT", 409, c);
@@ -317,10 +314,7 @@ async fn review(
         if dto.get("operatorNote").is_none() {
             dto["operatorNote"] = json!("");
         }
-        return Response::from_json(
-            &crate::applicant_dto::operator(&dto)
-                .ok_or_else(|| Error::RustError("Invalid operator DTO".into()))?,
-        );
+        return Response::from_json(&crate::views::app(&db, &dto, true).await?);
     }
     let rows = db
         .prepare("SELECT dto,operator_note FROM lt_applications WHERE id=?1")
@@ -332,10 +326,10 @@ async fn review(
         return error("NOT_FOUND", 404, c);
     };
     let mut dto: Value = serde_json::from_str(row["dto"].as_str().unwrap())?;
-    if crate::applicant::expired(&dto, Date::now().as_millis() as f64) {
+    if crate::applicant::expired(&dto, now) {
         return error("RETENTION_EXPIRED", 410, c);
     }
-    if crate::applicant::expired(&dto, Date::now().as_millis() as f64) {
+    if crate::applicant::expired(&dto, now) {
         return error("RETENTION_EXPIRED", 410, c);
     }
     if dto["version"] != v["expectedVersion"] {
@@ -347,7 +341,7 @@ async fn review(
         }
         return error("VERSION_CONFLICT", 409, c);
     }
-    if crate::applicant::expired(&dto, Date::now().as_millis() as f64) {
+    if crate::applicant::expired(&dto, now) {
         return error("RETENTION_EXPIRED", 410, c);
     }
     #[cfg(feature = "runtime-tests")]
@@ -406,7 +400,7 @@ async fn review(
     } else {
         -1.0
     };
-    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=CASE WHEN json_type(?1,'$.published')='object' THEN json_set(?1,'$.published.startsAt',json_extract(dto,'$.published.startsAt'),'$.published.endsAt',json_extract(dto,'$.published.endsAt')) ELSE ?1 END,operation_id=?2,payload_hash=?3,actor_id=?4,operator_note=COALESCE(?8,operator_note),active=CASE WHEN json_extract(?1,'$.review') IN ('rejected','withdrawn') THEN 0 ELSE 1 END WHERE id=?5 AND version=?6 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND (?7<0 OR e.version=?7))").bind(&[dto.to_string().into(),op.into(),payload.clone().into(),c.actor_id.clone().into(),id.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into(),expected_event.into(),data.get("note").and_then(Value::as_str).map(JsValue::from_str).unwrap_or(JsValue::NULL)])?.run().await?;
+    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=CASE WHEN json_type(?1,'$.published')='object' THEN json_set(?1,'$.published.startsAt',json_extract(dto,'$.published.startsAt'),'$.published.endsAt',json_extract(dto,'$.published.endsAt')) ELSE ?1 END,operation_id=?2,payload_hash=?3,actor_id=?4,operator_note=COALESCE(?8,operator_note),active=CASE WHEN json_extract(?1,'$.review') IN ('rejected','withdrawn') THEN 0 ELSE 1 END WHERE id=?5 AND version=?6 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch')) AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND (?7<0 OR e.version=?7))").bind(&[dto.to_string().into(),op.into(),payload.clone().into(),c.actor_id.clone().into(),id.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into(),expected_event.into(),data.get("note").and_then(Value::as_str).map(JsValue::from_str).unwrap_or(JsValue::NULL)])?.run().await?;
     if changed.meta()?.unwrap().changes.unwrap_or(0) == 0 {
         if let Some(response) =
             crate::receipts::response(&db, "operator", &c.actor_id, op, &payload, &c.request_id)
@@ -427,10 +421,7 @@ async fn review(
         .get("note")
         .cloned()
         .unwrap_or(row["operator_note"].clone());
-    let response = Response::from_json(
-        &crate::applicant_dto::operator(&dto)
-            .ok_or_else(|| Error::RustError("Invalid operator DTO".into()))?,
-    )?;
+    let response = Response::from_json(&crate::views::app(&db, &dto, true).await?)?;
     #[cfg(feature = "runtime-tests")]
     let response = crate::test_hooks::annotate(response, observed)?;
     Ok(response)
@@ -453,8 +444,11 @@ pub async fn fake_dispatch(env: Env) -> std::result::Result<JsValue, JsValue> {
     let db = env
         .d1("DB")
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    crate::lifecycle::reconcile(&db)
+        .await
+        .map_err(|_| JsValue::from_str("Lifecycle unavailable"))?;
     // fake 配達 receipt と outbox の状態を同一 batch で確定する
-    let result=db.batch(vec![db.prepare("INSERT INTO lt_fake_deliveries(id,recipient,kind,delivered_at,expires) SELECT id,recipient,kind,CAST(unixepoch('subsec')*1000 AS INTEGER),expires FROM lt_outbox WHERE state='pending' AND (expires IS NULL OR expires>CAST(unixepoch('subsec')*1000 AS INTEGER)) ON CONFLICT DO NOTHING"),db.prepare("UPDATE lt_outbox SET state='sent' WHERE state='pending' AND EXISTS(SELECT 1 FROM lt_fake_deliveries f WHERE f.id=lt_outbox.id)")]).await.map_err(|e|JsValue::from_str(&e.to_string()))?;
+    let result=db.batch(vec![db.prepare("INSERT INTO lt_fake_deliveries(id,recipient,kind,delivered_at,expires) SELECT id,recipient,kind,CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER),expires FROM lt_outbox WHERE state='pending' AND (expires IS NULL OR expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER)) ON CONFLICT DO NOTHING"),db.prepare("UPDATE lt_outbox SET state='sent' WHERE state='pending' AND EXISTS(SELECT 1 FROM lt_fake_deliveries f WHERE f.id=lt_outbox.id)")]).await.map_err(|e|JsValue::from_str(&e.to_string()))?;
     let count = result[0]
         .meta()
         .map_err(|e| JsValue::from_str(&e.to_string()))?

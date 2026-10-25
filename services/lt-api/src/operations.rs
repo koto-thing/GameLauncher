@@ -18,6 +18,7 @@ pub async fn list(
     event: &str,
     request_id: &str,
 ) -> Result<Response> {
+    let now = crate::lifecycle::now(db).await?;
     let url = req.url()?;
     let params = url
         .query_pairs()
@@ -61,10 +62,7 @@ pub async fn list(
     let Some(parent) = parent.first() else {
         return error("NOT_FOUND", 404, request_id);
     };
-    if parent["private_expires"]
-        .as_f64()
-        .is_some_and(|v| v <= Date::now().as_millis() as f64)
-    {
+    if parent["private_expires"].as_f64().is_some_and(|v| v <= now) {
         return error("RETENTION_EXPIRED", 410, request_id);
     }
     let cursor = params.get("cursor").map(|s| s.as_ref()).unwrap_or("");
@@ -76,19 +74,17 @@ pub async fn list(
         };
         submitted = r["submitted"].as_str().unwrap().into();
     }
-    let rows=db.prepare("SELECT id,dto,operator_note FROM lt_applications WHERE event_id=?1 AND (?2='' OR json_extract(dto,'$.review')=?2) AND (?3='' OR json_extract(dto,'$.withdrawal')=?3) AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND (?4='' OR json_extract(dto,'$.firstSubmittedAt')>?5 OR (json_extract(dto,'$.firstSubmittedAt')=?5 AND id>?4)) ORDER BY json_extract(dto,'$.firstSubmittedAt'),id LIMIT ?6").bind(&[event.into(),review.into(),withdrawal.into(),cursor.into(),submitted.into(),((limit+1) as f64).into()])?.all().await?.results::<Value>()?;
+    let rows=db.prepare("SELECT id,dto,operator_note FROM lt_applications WHERE event_id=?1 AND (?2='' OR json_extract(dto,'$.review')=?2) AND (?3='' OR json_extract(dto,'$.withdrawal')=?3) AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch')) AND (?4='' OR json_extract(dto,'$.firstSubmittedAt')>?5 OR (json_extract(dto,'$.firstSubmittedAt')=?5 AND id>?4)) ORDER BY json_extract(dto,'$.firstSubmittedAt'),id LIMIT ?6").bind(&[event.into(),review.into(),withdrawal.into(),cursor.into(),submitted.into(),((limit+1) as f64).into()])?.all().await?.results::<Value>()?;
     let more = rows.len() > limit as usize;
     let mut items = Vec::new();
     let mut last = String::new();
     for row in rows.iter().take(limit as usize) {
         let mut dto: Value = serde_json::from_str(row["dto"].as_str().unwrap())?;
         dto["operatorNote"] = row["operator_note"].clone();
-        items.push(
-            crate::applicant_dto::operator(&dto)
-                .ok_or_else(|| Error::RustError("Invalid operator DTO".into()))?,
-        );
+        items.push(dto);
         last = row["id"].as_str().unwrap().into();
     }
+    let items = crate::views::list(db, items, true).await?;
     Response::from_json(&json!({"items":items,"nextCursor":if more{Some(last)}else{None}}))
 }
 
@@ -102,6 +98,20 @@ pub async fn cancel(
     actor: &str,
     request_id: &str,
 ) -> Result<Response> {
+    // 期限後の中止再送もreceipt参照前に拒否する
+    let now = crate::lifecycle::now(db).await?;
+    let parent = db
+        .prepare("SELECT private_expires FROM lt_events WHERE id=?1")
+        .bind(&[event.into()])?
+        .all()
+        .await?
+        .results::<Value>()?;
+    if parent
+        .first()
+        .is_some_and(|r| r["private_expires"].as_f64().is_some_and(|v| v <= now))
+    {
+        return error("RETENTION_EXPIRED", 410, request_id);
+    }
     let value: Value = match crate::input::json(req).await {
         Ok(v) => v,
         Err(_) => return error("VALIDATION", 422, request_id),
@@ -122,17 +132,21 @@ pub async fn cancel(
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect::<String>();
-    let prior=db.prepare("SELECT result,payload_hash FROM lt_event_cancellations WHERE actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>unixepoch('subsec')*1000)").bind(&[actor.into(),op.into()])?.all().await?.results::<Value>()?;
+    let prior=db.prepare("SELECT result,payload_hash FROM lt_event_cancellations WHERE actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))").bind(&[actor.into(),op.into()])?.all().await?.results::<Value>()?;
     if let Some(row) = prior.first() {
         return if row["payload_hash"] == hash {
-            Response::from_json(&serde_json::from_str::<Value>(
-                row["result"].as_str().unwrap(),
-            )?)
+            Response::from_json(
+                &crate::views::event(
+                    db,
+                    &serde_json::from_str::<Value>(row["result"].as_str().unwrap())?,
+                )
+                .await?,
+            )
         } else {
             error("VERSION_CONFLICT", 409, request_id)
         };
     }
-    let result=db.prepare("UPDATE lt_events SET state='cancelled',publish_enabled=0,version=version+1,cancel_actor=?1,cancel_operation=?2,cancel_hash=?3 WHERE id=?4 AND version=?5 AND state IN ('scheduled','started') AND (private_expires IS NULL OR private_expires>unixepoch('subsec')*1000)").bind(&[actor.into(),op.into(),hash.clone().into(),event.into(),(value["expectedVersion"].as_u64().unwrap() as f64).into()])?.run().await?;
+    let result=db.prepare("UPDATE lt_events SET state='cancelled',publish_enabled=0,version=version+1,cancel_actor=?1,cancel_operation=?2,cancel_hash=?3 WHERE id=?4 AND version=?5 AND state IN ('scheduled','started') AND (private_expires IS NULL OR private_expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))").bind(&[actor.into(),op.into(),hash.clone().into(),event.into(),(value["expectedVersion"].as_u64().unwrap() as f64).into()])?.run().await?;
     if result.meta()?.unwrap().changes.unwrap_or(0) == 0 {
         if let Some(response) =
             crate::receipts::response(db, "cancel", actor, op, &hash, request_id).await?
@@ -162,6 +176,7 @@ pub async fn withdraw(
     note: &str,
     request_id: &str,
 ) -> Result<Response> {
+    let now = crate::lifecycle::now(db).await?;
     if let Some(response) =
         crate::receipts::response(db, "operator", actor, op, hash, request_id).await?
     {
@@ -169,7 +184,7 @@ pub async fn withdraw(
     }
     let attempt = crate::applicant::secret()?;
     let event = planned["eventId"].as_str().unwrap();
-    let rows=db.prepare("SELECT e.version AS event_version,e.state,s.version AS schedule_version,s.blocks,p.dto FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id JOIN lt_public_events p ON p.event_id=e.id WHERE e.id=?1 AND e.state!='cancelled' AND (e.private_expires IS NULL OR e.private_expires>unixepoch('subsec')*1000)").bind(&[event.into()])?.all().await?.results::<Value>()?;
+    let rows=db.prepare("SELECT e.version AS event_version,e.state,s.version AS schedule_version,s.blocks,p.dto FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id JOIN lt_public_events p ON p.event_id=e.id WHERE e.id=?1 AND e.state!='cancelled' AND (e.private_expires IS NULL OR e.private_expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))").bind(&[event.into()])?.all().await?.results::<Value>()?;
     let Some(row) = rows.first() else {
         return error("VERSION_CONFLICT", 409, request_id);
     };
@@ -177,7 +192,7 @@ pub async fn withdraw(
     let mut blocks: Vec<Value> = serde_json::from_str(row["blocks"].as_str().unwrap())?;
     let before = row["state"] == "scheduled"
         && chrono::DateTime::parse_from_rfc3339(public["startsAt"].as_str().unwrap())
-            .map(|d| d.timestamp_millis() as f64 > Date::now().as_millis() as f64)
+            .map(|d| d.timestamp_millis() as f64 > now)
             .unwrap_or(false);
     // 開催前は発表と直後入替を取り除き、その後の休憩・閉会も同じ差分で移動する
     if before {
@@ -229,7 +244,7 @@ pub async fn withdraw(
     dto["published"]["cancelled"] = json!(true);
     dto["published"]["version"] = dto["version"].clone();
     // 勝者申請のop/version/hashにだけ時間割変更を従属させる
-    let changed=db.batch(vec![db.prepare("UPDATE lt_applications SET dto=json_set(?1,'$.published.startsAt',json_extract(dto,'$.published.startsAt'),'$.published.endsAt',json_extract(dto,'$.published.endsAt')),version=version+1,active=0,operation_id=?2,payload_hash=?3,actor_id=?4,operator_note=?5,transition_id=?10 WHERE id=?6 AND version=?7 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND json_extract(dto,'$.withdrawal')='requested' AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id WHERE e.id=lt_applications.event_id AND e.version=?8 AND s.version=?9 AND e.state!='cancelled')").bind(&[dto.to_string().into(),op.into(),hash.into(),actor.into(),note.into(),id.into(),(version as f64).into(),row["event_version"].as_f64().unwrap().into(),row["schedule_version"].as_f64().unwrap().into(),attempt.clone().into()])?,db.prepare("UPDATE lt_schedule SET blocks=?1,version=version+1,operation_id=?2,actor_id=?3,payload_hash=?4 WHERE event_id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=?7 AND a.version=?8 AND a.operation_id=?9 AND a.payload_hash=?4 AND a.actor_id=?3 AND json_extract(a.dto,'$.withdrawal')='confirmed' AND a.transition_id=?10)").bind(&[serde_json::to_string(&blocks)?.into(),format!("{op}:timetable").into(),actor.into(),hash.into(),event.into(),row["schedule_version"].as_f64().unwrap().into(),id.into(),((version+1) as f64).into(),op.into(),attempt.into()])?]).await?;
+    let changed=db.batch(vec![db.prepare("UPDATE lt_applications SET dto=json_set(?1,'$.published.startsAt',json_extract(dto,'$.published.startsAt'),'$.published.endsAt',json_extract(dto,'$.published.endsAt')),version=version+1,active=0,operation_id=?2,payload_hash=?3,actor_id=?4,operator_note=?5,transition_id=?10 WHERE id=?6 AND version=?7 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch')) AND json_extract(dto,'$.withdrawal')='requested' AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id WHERE e.id=lt_applications.event_id AND e.version=?8 AND s.version=?9 AND e.state!='cancelled')").bind(&[dto.to_string().into(),op.into(),hash.into(),actor.into(),note.into(),id.into(),(version as f64).into(),row["event_version"].as_f64().unwrap().into(),row["schedule_version"].as_f64().unwrap().into(),attempt.clone().into()])?,db.prepare("UPDATE lt_schedule SET blocks=?1,version=version+1,operation_id=?2,actor_id=?3,payload_hash=?4 WHERE event_id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=?7 AND a.version=?8 AND a.operation_id=?9 AND a.payload_hash=?4 AND a.actor_id=?3 AND json_extract(a.dto,'$.withdrawal')='confirmed' AND a.transition_id=?10)").bind(&[serde_json::to_string(&blocks)?.into(),format!("{op}:timetable").into(),actor.into(),hash.into(),event.into(),row["schedule_version"].as_f64().unwrap().into(),id.into(),((version+1) as f64).into(),op.into(),attempt.into()])?]).await?;
     if changed[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
         if let Some(response) =
             crate::receipts::response(db, "operator", actor, op, hash, request_id).await?
@@ -246,8 +261,5 @@ pub async fn withdraw(
         .results::<Value>()?;
     dto = serde_json::from_str(saved[0]["dto"].as_str().unwrap())?;
     dto["operatorNote"] = json!(note);
-    Response::from_json(
-        &crate::applicant_dto::operator(&dto)
-            .ok_or_else(|| Error::RustError("Invalid operator DTO".into()))?,
-    )
+    Response::from_json(&crate::views::app(db, &dto, true).await?)
 }

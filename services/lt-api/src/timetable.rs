@@ -114,6 +114,7 @@ pub async fn save(
     actor: &str,
     request_id: &str,
 ) -> Result<Response> {
+    let now = crate::lifecycle::now(db).await?;
     let error = |code: &str, status: u16| -> Result<Response> {
         Ok(
             Response::from_json(&json!({"error":{"code":code,"requestId":request_id}}))?
@@ -138,7 +139,7 @@ pub async fn save(
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect::<String>();
-    let replay=db.prepare("SELECT result,payload_hash FROM lt_schedule_operations WHERE EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_schedule_operations.event_id AND (e.private_expires IS NULL OR e.private_expires>unixepoch('subsec')*1000)) AND actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>CAST(unixepoch('subsec')*1000 AS INTEGER))").bind(&[actor.into(),input.operation_id.clone().into()])?.all().await?.results::<Value>()?;
+    let replay=db.prepare("SELECT result,payload_hash FROM lt_schedule_operations WHERE EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_schedule_operations.event_id AND (e.private_expires IS NULL OR e.private_expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))) AND actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER))").bind(&[actor.into(),input.operation_id.clone().into()])?.all().await?.results::<Value>()?;
     if let Some(r) = replay.first() {
         return if r["payload_hash"] == hash {
             Response::from_json(&serde_json::from_str::<Value>(
@@ -152,10 +153,7 @@ pub async fn save(
     let Some(row) = rows.first() else {
         return error("NOT_FOUND", 404);
     };
-    if row["private_expires"]
-        .as_f64()
-        .is_some_and(|x| x <= Date::now().as_millis() as f64)
-    {
+    if row["private_expires"].as_f64().is_some_and(|x| x <= now) {
         return error("RETENTION_EXPIRED", 410);
     }
     let public: Value = serde_json::from_str(row["dto"].as_str().unwrap())?;
@@ -187,7 +185,7 @@ pub async fn save(
         }
     }
     // 保存版のversionと親event版を同じUPDATEで照合する
-    let changed=db.prepare("UPDATE lt_schedule SET blocks=?1,version=version+1,operation_id=?2,actor_id=?3,payload_hash=?4 WHERE event_id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_schedule.event_id AND e.version=?7 AND e.state!='cancelled' AND (e.private_expires IS NULL OR e.private_expires>CAST(unixepoch('subsec')*1000 AS INTEGER)))").bind(&[raw["data"]["blocks"].to_string().into(),input.operation_id.clone().into(),actor.into(),hash.clone().into(),event.into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into()])?.run().await?;
+    let changed=db.prepare("UPDATE lt_schedule SET blocks=?1,version=version+1,operation_id=?2,actor_id=?3,payload_hash=?4 WHERE event_id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_schedule.event_id AND e.version=?7 AND e.state!='cancelled' AND (e.private_expires IS NULL OR e.private_expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER)))").bind(&[raw["data"]["blocks"].to_string().into(),input.operation_id.clone().into(),actor.into(),hash.clone().into(),event.into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into()])?.run().await?;
     if changed.meta()?.unwrap().changes.unwrap_or(0) == 0 {
         if let Some(response) = crate::receipts::response(
             db,

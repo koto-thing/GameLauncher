@@ -99,11 +99,11 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
             .unwrap_or_default()
             != "true"
     {
-        return Ok(Some(Response::error("Not implemented", 501)?));
+        return Ok(Some(error("NOT_IMPLEMENTED", 501)?));
     }
     let origin = env.var("APP_ORIGIN")?.to_string();
-    let now = Date::now().as_millis() as f64;
     let db = env.d1("DB")?;
+    let now = crate::lifecycle::reconcile(&db).await?;
     // GET 確認は token を読まず消費しない。ブラウザーが明示 POST する
     if path == "/auth/verify" && req.method() == Method::Get {
         return Ok(Some(Response::from_html(
@@ -146,6 +146,9 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
         let token = secret()?;
         let expires = now + 3600000.0;
         db.batch(vec![
+            // 再発行は未交換リンクだけを失効させ、使用中sessionは維持する
+            db.prepare("UPDATE lt_auth_tokens SET expires=?1 WHERE email=?2 AND purpose='login' AND session_hash IS NULL AND expires>?1").bind(&[now.into(),email.clone().into()])?,
+            db.prepare("UPDATE lt_fake_mail SET expires=?1 WHERE recipient=?2 AND expires>?1").bind(&[now.into(),email.clone().into()])?,
             db.prepare(
                 "INSERT INTO lt_auth_tokens(hash,email,purpose,expires) VALUES(?1,?2,'login',?3)",
             )
@@ -172,12 +175,7 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
             return Ok(Some(error("TOKEN_INVALID", 400)?));
         }
         let session = secret()?;
-        let hours = env
-            .var("SESSION_HOURS")?
-            .to_string()
-            .parse::<u32>()
-            .unwrap_or(24)
-            .clamp(1, 24);
+        let hours = 24u32;
         let expires = now + (hours as f64) * 3600000.0;
         // 条件付き単一 UPDATE が消費と session 発行を原子的に行う
         let rows=db.prepare("UPDATE lt_auth_tokens SET session_hash=?1,session_expires=?2 WHERE hash=?3 AND purpose='login' AND expires>?4 AND session_hash IS NULL RETURNING email").bind(&[hash(&session).into(),expires.into(),hash(v["token"].as_str().unwrap()).into(),now.into()])?.all().await?.results::<Value>()?;
@@ -224,7 +222,7 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
     if path.starts_with("/api/lt/v1/applications") {
         return Ok(Some(applications(req, &db, owner, now).await?));
     }
-    Ok(Some(Response::error("Not implemented", 501)?))
+    Ok(Some(error("NOT_IMPLEMENTED", 501)?))
 }
 
 /// 所有者を検証して本人申請を取得する
@@ -254,21 +252,14 @@ async fn applications(
             .iter()
             .map(|r| serde_json::from_str(r["dto"].as_str().unwrap()).unwrap())
             .collect();
-        let active: Vec<Value> = items
-            .iter()
-            .filter(|v| !expired(v, now))
-            .filter_map(crate::applicant_dto::sanitize)
-            .collect();
+        let active = crate::views::list(db, items.clone(), false).await?;
         return if p.len() == 4 {
             Response::from_json(&json!({"items":active,"nextCursor":null}))
         } else if let Some(v) = items.first() {
             if expired(v, now) {
                 error("RETENTION_EXPIRED", 410)
             } else {
-                Response::from_json(
-                    &crate::applicant_dto::sanitize(v)
-                        .ok_or_else(|| Error::RustError("Invalid applicant DTO".into()))?,
-                )
+                Response::from_json(&crate::views::app(db, v, false).await?)
             }
         } else {
             error("NOT_FOUND", 404)
@@ -293,7 +284,7 @@ async fn applications(
     ]
     .contains(&action);
     if !submit && !edit && !transition {
-        return Response::error("Not implemented", 501);
+        return error("NOT_IMPLEMENTED", 501);
     }
     let data = if submit { &v } else { &v["data"] };
     if !(if submit {
@@ -317,14 +308,16 @@ async fn applications(
     }
     let op = v["operationId"].as_str().unwrap();
     let payload = hash(&format!("{}:{path}:{}", req.method(), v));
-    let replay=db.prepare("SELECT payload_hash,result FROM lt_applicant_operations WHERE EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=lt_applicant_operations.application_id AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now'))) AND actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>CAST(unixepoch('subsec')*1000 AS INTEGER))").bind(&[owner.into(),op.into()])?.all().await?.results::<Value>()?;
+    let replay=db.prepare("SELECT payload_hash,result FROM lt_applicant_operations WHERE EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=lt_applicant_operations.application_id AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch'))) AND actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER))").bind(&[owner.into(),op.into()])?.all().await?.results::<Value>()?;
     if let Some(r) = replay.first() {
         return if r["payload_hash"] == payload {
             Response::from_json(
-                &crate::applicant_dto::sanitize(&serde_json::from_str::<Value>(
-                    r["result"].as_str().unwrap(),
-                )?)
-                .ok_or_else(|| Error::RustError("Invalid applicant DTO".into()))?,
+                &crate::views::app(
+                    db,
+                    &serde_json::from_str::<Value>(r["result"].as_str().unwrap())?,
+                    false,
+                )
+                .await?,
             )
         } else {
             error("VERSION_CONFLICT", 409)
@@ -332,6 +325,19 @@ async fn applications(
     }
     if submit {
         let event = v["eventId"].as_str().unwrap();
+        // 終了後に遅れて送信された操作も固定保持期限を先に検査する
+        let parent = db
+            .prepare("SELECT private_expires FROM lt_events WHERE id=?1")
+            .bind(&[event.into()])?
+            .all()
+            .await?
+            .results::<Value>()?;
+        if parent
+            .first()
+            .is_some_and(|r| r["private_expires"].as_f64().is_some_and(|v| v <= now))
+        {
+            return error("RETENTION_EXPIRED", 410);
+        }
         let duplicate = db
             .prepare("SELECT id FROM lt_applications WHERE email=?1 AND event_id=?2 AND active=1")
             .bind(&[owner.into(), event.into()])?
@@ -379,10 +385,7 @@ async fn applications(
             }
             return error("RECRUITMENT_CLOSED", 409);
         }
-        return Response::from_json(
-            &crate::applicant_dto::sanitize(&dto)
-                .ok_or_else(|| Error::RustError("Invalid applicant DTO".into()))?,
-        );
+        return Response::from_json(&crate::views::app(db, &dto, false).await?);
     }
     let id = p[4];
     let existing = db
@@ -438,7 +441,7 @@ async fn applications(
         "cancel-withdrawal" => dto["withdrawal"] = json!("none"),
         _ => {}
     }
-    let result=db.batch(vec![db.prepare("UPDATE lt_applications SET version=version+1,dto=json_set(?1,'$.published',json_extract(dto,'$.published')),operation_id=?2,payload_hash=?3,actor_id=NULL,active=CASE WHEN json_extract(?1,'$.review')='withdrawn' THEN 0 ELSE 1 END WHERE id=?4 AND email=?5 AND version=?6 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND (e.state IN ('scheduled','started') OR (e.state='ended' AND json_extract(lt_applications.dto,'$.everApproved')=1 AND json_extract(lt_applications.dto,'$.review')='returned')))").bind(&[dto.to_string().into(),op.into(),payload.clone().into(),id.into(),owner.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into()])?,db.prepare("INSERT INTO lt_applicant_operations(actor,operation_id,payload_hash,application_id,result) SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
+    let result=db.batch(vec![db.prepare("UPDATE lt_applications SET version=version+1,dto=json_set(?1,'$.published',json_extract(dto,'$.published')),operation_id=?2,payload_hash=?3,actor_id=NULL,active=CASE WHEN json_extract(?1,'$.review')='withdrawn' THEN 0 ELSE 1 END WHERE id=?4 AND email=?5 AND version=?6 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch')) AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND (e.state IN ('scheduled','started') OR (e.state='ended' AND json_extract(lt_applications.dto,'$.everApproved')=1 AND json_extract(lt_applications.dto,'$.review')='returned')))").bind(&[dto.to_string().into(),op.into(),payload.clone().into(),id.into(),owner.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into()])?,db.prepare("INSERT INTO lt_applicant_operations(actor,operation_id,payload_hash,application_id,result) SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
     if result[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
         if let Some(response) =
             crate::receipts::response(db, "applicant", owner, op, &payload, "applicant").await?
@@ -455,10 +458,7 @@ async fn applications(
         .await?
         .results::<Value>()?;
     let dto: Value = serde_json::from_str(saved[0]["dto"].as_str().unwrap())?;
-    let response = Response::from_json(
-        &crate::applicant_dto::sanitize(&dto)
-            .ok_or_else(|| Error::RustError("Invalid applicant DTO".into()))?,
-    )?;
+    let response = Response::from_json(&crate::views::app(db, &dto, false).await?)?;
     #[cfg(feature = "runtime-tests")]
     let response = crate::test_hooks::annotate(response, observed)?;
     Ok(response)

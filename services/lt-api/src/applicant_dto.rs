@@ -24,6 +24,8 @@ struct Content {
 struct Application {
     id: String,
     event_id: String,
+    event_state: String,
+    event_cancelled_at: Option<String>,
     version: u64,
     content: Content,
     material_url: String,

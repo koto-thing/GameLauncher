@@ -15,7 +15,7 @@ def assert_response(path,method,status,value):
   if route.get('representation')=='html':return
   if status==204:value=None
   if status>=400:
-   if not isinstance(value,dict):return  # 501の追加enumは親の承認待ち
+   if not isinstance(value,dict):raise AssertionError('Expected typed API error')
    name=route['error']
   else:name=route['response']
   validator=Draft202012Validator(schema|{'$ref':'#/$defs/'+name},format_checker=FormatChecker())

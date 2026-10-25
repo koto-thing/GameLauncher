@@ -1,9 +1,16 @@
 import unittest,json,urllib.request,urllib.error,subprocess,uuid,concurrent.futures
+from pathlib import Path
 from schema_assertions import assert_response
 BASE='http://127.0.0.1:18877'
 def sql(command):
- p=subprocess.run(['node','node_modules/wrangler/bin/wrangler.js','d1','execute','lt-local','--local','--command',command,'--json'],capture_output=True,encoding='utf-8',check=True)
- return json.loads(p.stdout)[0]['results']
+ # 長いfixture復元SQLをファイル引数にしてWindowsのcommand長制限を避ける
+ path=Path('.wrangler')/('test-sql-'+uuid.uuid4().hex+'.sql');path.write_text(command,encoding='utf-8')
+ try:
+  p=subprocess.run(['node','node_modules/wrangler/bin/wrangler.js','d1','execute','lt-local','--local','--file',str(path),'--json'],capture_output=True,encoding='utf-8')
+  if p.returncode:raise RuntimeError('Local D1 CLI failed: '+p.stderr[-3000:])
+  return json.loads(p.stdout)[0]['results']
+ finally:path.unlink(missing_ok=True)
+
 def request(path,data=None,cookie=None,method=None,origin=BASE):
  headers={'Origin':origin,'X-LT-CSRF':'1','Content-Type':'application/json'}
  if cookie:headers['Cookie']=cookie

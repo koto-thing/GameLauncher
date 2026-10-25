@@ -14,19 +14,19 @@ pub async fn response(
 ) -> Result<Option<Response>> {
     let sql = match kind {
         "applicant" => {
-            "SELECT r.result,r.payload_hash FROM lt_applicant_operations r JOIN lt_applications a ON a.id=r.application_id WHERE r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>unixepoch('subsec')*1000) AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+            "SELECT r.result,r.payload_hash FROM lt_applicant_operations r JOIN lt_applications a ON a.id=r.application_id WHERE r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000)) AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch'))"
         }
         "operator" => {
-            "SELECT r.result,r.payload_hash FROM lt_operator_operations r JOIN lt_applications a ON a.id=r.application_id WHERE r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>unixepoch('subsec')*1000) AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+            "SELECT r.result,r.payload_hash FROM lt_operator_operations r JOIN lt_applications a ON a.id=r.application_id WHERE r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000)) AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch'))"
         }
         "event" => {
-            "SELECT r.result,r.payload_hash FROM lt_event_operations r JOIN lt_events e ON e.id=r.event_id WHERE r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>unixepoch('subsec')*1000) AND (e.private_expires IS NULL OR e.private_expires>unixepoch('subsec')*1000)"
+            "SELECT r.result,r.payload_hash FROM lt_event_operations r JOIN lt_events e ON e.id=r.event_id WHERE r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000)) AND (e.private_expires IS NULL OR e.private_expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))"
         }
         "schedule" => {
-            "SELECT r.result,r.payload_hash FROM lt_schedule_operations r JOIN lt_events e ON e.id=r.event_id WHERE r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>unixepoch('subsec')*1000) AND (e.private_expires IS NULL OR e.private_expires>unixepoch('subsec')*1000)"
+            "SELECT r.result,r.payload_hash FROM lt_schedule_operations r JOIN lt_events e ON e.id=r.event_id WHERE r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000)) AND (e.private_expires IS NULL OR e.private_expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))"
         }
         "cancel" => {
-            "SELECT r.result,r.payload_hash FROM lt_event_cancellations r JOIN lt_events e ON e.id=r.event_id WHERE r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>unixepoch('subsec')*1000) AND (e.private_expires IS NULL OR e.private_expires>unixepoch('subsec')*1000)"
+            "SELECT r.result,r.payload_hash FROM lt_event_cancellations r JOIN lt_events e ON e.id=r.event_id WHERE r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000)) AND (e.private_expires IS NULL OR e.private_expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))"
         }
         _ => return Err(Error::RustError("Unknown receipt scope".into())),
     };
@@ -49,10 +49,10 @@ pub async fn response(
     }
     let value: Value = serde_json::from_str(row["result"].as_str().unwrap())?;
     let value = match kind {
-        "applicant" => crate::applicant_dto::sanitize(&value),
-        "operator" => crate::applicant_dto::operator(&value),
-        _ => Some(value),
-    }
-    .ok_or_else(|| Error::RustError("Invalid receipt DTO".into()))?;
+        "applicant" => crate::views::app(db, &value, false).await?,
+        "operator" => crate::views::app(db, &value, true).await?,
+        "event" | "cancel" => crate::views::event(db, &value).await?,
+        _ => value,
+    };
     Ok(Some(Response::from_json(&value)?))
 }

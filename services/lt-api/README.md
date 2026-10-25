@@ -1,6 +1,6 @@
 # LT API（ローカル実装）
 
-公開・本人・内部運営の共有routeをRust Worker/D1で実装。本人確認手順が未確定の例外メール変更3routeだけ未対応。実メール・本番DB・本番binding/secret・物理削除・push/PR/merge/deployは行っていない。
+公開・本人・内部運営の共有routeをRust Worker/D1で実装。例外メール変更3routeは次の分割実装として未対応。実メール・本番DB・本番binding/secret・物理削除・push/PR/merge/deployは行っていない。
 
 ## 起動と境界
 
@@ -45,19 +45,19 @@
 | POST | `/api/lt/v1/operator/applications/:id/hold` | `OperatorApplication` | 内部RPC実装 |
 | POST | `/api/lt/v1/operator/applications/:id/reject` | `OperatorApplication` | 内部RPC実装 |
 | POST | `/api/lt/v1/operator/applications/:id/confirm-withdrawal` | `OperatorApplication` | 内部RPC実装 |
-| POST | `/api/lt/v1/operator/applications/:id/email-change/investigate` | `EmailChangeRequest` | 未対応（本人確認手順未定） |
-| POST | `/api/lt/v1/operator/applications/:id/email-change/send-verification` | `EmailChangeRequest` | 未対応（本人確認手順未定） |
-| POST | `/api/lt/v1/operator/applications/:id/email-change/confirm` | `EmailChangeRequest` | 未対応（本人確認手順未定） |
+| POST | `/api/lt/v1/operator/applications/:id/email-change/investigate` | `EmailChangeRequest` | 未対応（次の分割実装） |
+| POST | `/api/lt/v1/operator/applications/:id/email-change/send-verification` | `EmailChangeRequest` | 未対応（次の分割実装） |
+| POST | `/api/lt/v1/operator/applications/:id/email-change/confirm` | `EmailChangeRequest` | 未対応（次の分割実装） |
 | GET | `/api/lt/v1/auth/session` | `SessionStatus` | 実装 |
 | GET | `/api/lt/v1/operator/events/:id` | `EventSettings` | 内部RPC実装 |
 | GET | `/api/lt/v1/operator/events/:id/timetable` | `OperatorTimetable` | 内部RPC実装 |
 | GET | `/api/lt/v1/operator/applications/:id` | `OperatorApplication` | 内部RPC実装 |
 
-例外メール変更はassistantを403、admin/executiveも未対応501とし、任意上書きを実装していない。共有enumへのNOT_IMPLEMENTED/SERVICE_UNAVAILABLE追加は親で承認確認中のため未変更。501は不適切な既存業務codeへ割り当てずplain text。GET /auth/verifyはrepresentation=htmlに従う確認HTMLであり、sessionはPOSTだけが発行する（共有routeのresponse名ApplicantSessionは親側の整理事項）。契約にDELETE/start/endの専用routeはないため追加していない。
+例外メール変更はassistantを403、admin/executiveも未対応501とし、任意上書きを実装していない。共有追補のNOT_IMPLEMENTED/SERVICE_UNAVAILABLEを取り込み、未対応操作は型付き501を返す。GET /auth/verifyはrepresentation=htmlに従う確認HTMLであり、sessionはPOSTだけが発行する（共有routeのresponse名ApplicantSessionは親側の整理事項）。契約にDELETE/start/endの専用routeはないため追加していない。
 
 ## 業務と競合
 
-確認linkはWebCrypto乱数256bit、SHA-256のみ保存、login purpose、1時間。GETは消費せずURLからtokenを除去、POST単一条件付きUPDATEで消費とsession発行を原子的に処理。cookieはhost-only `__Host-`、HttpOnly/Secure/SameSite=Strict。sessionは1〜24時間の開発設定（24時間が未確定提案）。変更操作は厳密Origin、X-LT-CSRF:1、JSONを要求。fake確認linkは試験専用buildの別ポートからのみ取得し、公開のtest bypassなし。
+確認linkはWebCrypto乱数256bit、SHA-256のみ保存、login purpose、1時間。GETは消費せずURLからtokenを除去、POST単一条件付きUPDATEで消費とsession発行を原子的に処理。cookieはhost-only `__Host-`、HttpOnly/Secure/SameSite=Strict。sessionはユーザー確定の24時間固定。変更操作は厳密Origin、X-LT-CSRF:1、JSONを要求。fake確認linkは試験専用buildの別ポートからのみ取得し、公開のtest bypassなし。
 
 本人DTOは具体型で再構築し運営メモを含めない。所有者、固定保持期限、version、状態を検証。受付期間・親状態・満枠・資料URL・入力を提出時に再検証し、同一本人/回の有効申請はunique制約。終端申請は戻さず、受付内なら別IDで新規提出できる。
 
@@ -73,13 +73,13 @@
 
 ## コピーと未定の提案
 
-コピーするのは会場・持ち時間・入替・枠上限の4項目だけ。申請、公開本文、token/session、元stateは複製しない。コピー回は内部publish_enabled=0で必ず非公開・募集不可。提案日時が来ても開かず、運営が受付日時を変更して設定を保存するまで有効化しない。公開/募集と事業状態を分離しているため、EventSettings.stateはscheduledでも公開とは限らない（現契約には公開ready属性がない）。
+コピーするのは会場・持ち時間・入替・枠上限の4項目だけ。申請、公開本文、token/session、元stateは複製しない。コピー回は内部publish_enabled=0で必ず非公開・募集不可。提案日時が来ても開かず、運営が受付日時を変更して設定を保存するまで有効化しない。公開/募集と事業状態を分離しているため、EventSettings.stateはscheduledでも公開とは限らない（publishEnabledで判定する）。
 
 EmptyMutationには新タイトル/日時の欄がないため、独立した開発提案値としてタイトルLT会、案内空、UTC、観測時刻の30日後開始、7日前募集開始/1時間前締切を使う。自動公開はしない。日時を確定する操作では他回の半開募集期間との重複をDBで拒否し、同時募集1回を守る。
 
 枠上限は予約数未満に減らせない。承認/時間割がある共通時間や開始日時の変更は不整合を避けて409。初回承認は時間割末尾へ連続追加し、末尾が閉会なら先に時間割を編集する。任意途中挿入の自動再配置は未実装。時間割未作成の終了日時は枠上限×（発表+入替）の開発上の仮計算で、保存後は全block末尾に置換する。
 
-開始後判定は開始日時と格納stateを使用する。終了/開始の明示確定専用routeや自動state遷移schedulerは共有契約にないため未実装。保持起点はended/cancelledの内部確定で固定する。実運営で終了確定UI/自動終了が必要なら、親側で契約と起点を決める必要がある。
+開始後判定は開始日時と格納stateを使用する。公開/本人/内部運営APIとfake配送の処理前にRustでreconcileし、scheduled→started→endedを条件付きUPDATEする。本番cronは未設定。終了は時間割の最後の入替/休憩/閉会blockまで含む。空の時間割は長さ0として予定開始時刻にendedとなる。publishEnabled=falseのコピーは自動開始/終了させない。終了確定時にended_atを予定終了時刻で固定し、遅れた観測/時刻訂正/再送で状態や期限を延ばさない。中止は優先し、cancelled_atを一度だけ固定する。保持期限は固定した終了/中止時刻をAsia/Tokyoで3暦月進め、該当日がなければ月末へ補正する。
 
 ## outbox・保持
 
@@ -97,6 +97,8 @@ EmptyMutationには新タイトル/日時の欄がないため、独立した開
 npm ci
 cargo install worker-build --version 0.8.7 --locked --root .tools
 .tools/bin/worker-build --release . --features local-development,runtime-tests
+$env:WRANGLER_LOG_PATH = Join-Path $PWD '.wrangler/logs'
+$env:WRANGLER_SEND_METRICS = 'false'
 node node_modules/wrangler/bin/wrangler.js d1 migrations apply lt-local --local
 node node_modules/wrangler/bin/wrangler.js d1 execute lt-local --local --file tests/fixture.sql
 node node_modules/wrangler/bin/wrangler.js dev --local --port 8787 --ip 127.0.0.1
@@ -115,7 +117,7 @@ python tests/prepare_fresh.py
 
 fixtureは空のローカルDBに一度投入。prepare_freshは毎回新しいworkspace内persist先を作り、既存DBを削除せず全migrationとfixtureを確認する。確認linkはtest側が別ポートのfake-mail受取口から取得し、CLIのJSON出力には出さない。material URLの自動fetchはしない。
 
-全33件のactual local Worker+D1+named RPC試験を実施。公開漏洩/IDOR/token replay/Origin/既知長とchunked本文上限/重複申請/最後1枠同時承認/敗者副作用ゼロ/二重通知/期限/保持archive/状態遷移/募集重複/時間割/辞退取消競合/全体中止競合を確認。JSON成功応答と契約エラーを共有Schemaで検証する。新規8運営ケースと異種操作raceを含む。ログはgit対象外のtest-results.txt。
+全41件のactual local Worker+D1+named RPC試験を実施。公開漏洩/IDOR/token replay/Origin/既知長とchunked本文上限/重複申請/最後1枠同時承認/敗者副作用ゼロ/二重通知/期限/保持archive/状態遷移/募集重複/時間割/辞退取消競合/全体中止競合を確認。JSON成功応答と契約エラーを共有Schemaで検証する。新規8運営ケースと異種操作raceを含む。ログはgit対象外のtest-results.txt。
 
 異種操作raceは`runtime-tests`だけにある読取後700ms遅延と観測headerを使い、旧DTO読取→並行時間割保存完了→旧読取元の再承認/本人編集/再提出書込という順序を実証。認証や所有者検証は省略しない。通常buildにはこのmodule/遅延/headerが存在しないことをbundleでも確認。通常開発に戻す場合はruntime-testsを外してbuildする。
 
@@ -131,3 +133,13 @@ bundleの非圧縮/gzipとlocal GET wall timeはverification.json。測定スク
 
 
 検証上のログ問題: 初期ハーネスがD1管理CLIでfake確認URLを取得したため、Wranglerの共有ログに架空tokenのURLが残ることを確認。現在はruntime-tests専用exportと127.0.0.1:8788のPOST /test/fake-mailで受け取り、URL/tokenを出力しない。通常buildには受取exportがなく、公開fetchにtest routeはない。実メール/本番情報は含まれない。既存共有ログは他作業との共有・物理削除範囲外のため変更していない。
+
+
+状態追補: Application/OperatorApplicationのeventState/eventCancelledAtとEventSettings.publishEnabledを全GET/list/mutation/replayで現在の親行から合成する。receiptの本文/versionは元操作の結果を維持するが、親状態と保持期限は毎回最新を優先する。ログインsessionは確定方針どおり24時間固定。確認linkは1時間、再発行は同一メールの未使用login tokenだけを同じD1 batchで失効させ、既存sessionは維持する。
+
+runtime-testsとlocal-developmentを両方指定した検証bundleだけが固定時計を持つ。test proxyのPOST /test/clockは内部RPC専用で、公開fetchには登録しない。通常bundleにはset_clock/fake_mail exportも停止hookも含めず、固定時計が残っていれば実時刻へ戻してから処理する。これらは本番認証の代替ではない。
+
+保管担当との境界: retention-dry-run.sqlはSELECTのみ。全体中止のlt_public_events/lt_public_talksも期限到達後の削除候補件数に含める。通常終了の公開archiveは含めない。物理削除の別担当はevent.id/private_expires/stateとapplication.event_idを境界として独立SQLを作成できるが、API側の番号付きmigrationと接続は本担当が統合する。lt_auth_tokens/lt_fake_mail/lt_auth_rateは開催回所属ではなく、独立した自身の期限切れ整理とする。メール一致で別開催分のsession/tokenを削除しない。新しいメール変更tableは未作成で、接続前に所属一覧を追加する。
+
+
+状態追補の検証中に解決した問題: 初回のD1 CLIがfixture準備で終了コード1となったためstderrを捕捉するように修正し、同じHTTP並列試験を再実行。新しい時計試験の後処理は蓄積fixtureを1件ずつCLI復元して遅くなったため、自分のテストPythonだけを停止し、保存済みログの元設定を一括復元した。現在はSQLファイルを使う一括後処理でWindowsのcommand長上限も避ける。HTTPの競合試験は並列のまま。中止旧公開情報のdry-run追加で古い「publicという文字が一切ない」というテスト前提を修正し、通常archive除外/実データ不変を検証する。

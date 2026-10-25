@@ -75,14 +75,12 @@ fn valid(s: &Settings) -> bool {
 /// 引数: DB、開催ID
 /// 戻り値: 設定またはNone
 pub async fn detail(db: &D1Database, id: &str) -> Result<Option<Value>> {
-    let rows=db.prepare("SELECT p.dto,e.version,e.state,e.private_expires,r.opens,r.closes,r.capacity,r.talk_minutes,r.transition_minutes FROM lt_events e JOIN lt_public_events p ON p.event_id=e.id JOIN lt_recruitment r ON r.event_id=e.id WHERE e.id=?1").bind(&[id.into()])?.all().await?.results::<Value>()?;
+    let now = crate::lifecycle::now(db).await?;
+    let rows=db.prepare("SELECT p.dto,e.version,e.state,e.publish_enabled,e.private_expires,r.opens,r.closes,r.capacity,r.talk_minutes,r.transition_minutes FROM lt_events e JOIN lt_public_events p ON p.event_id=e.id JOIN lt_recruitment r ON r.event_id=e.id WHERE e.id=?1").bind(&[id.into()])?.all().await?.results::<Value>()?;
     let Some(r) = rows.first() else {
         return Ok(None);
     };
-    if r["private_expires"]
-        .as_f64()
-        .is_some_and(|x| x <= Date::now().as_millis() as f64)
-    {
+    if r["private_expires"].as_f64().is_some_and(|x| x <= now) {
         return Ok(None);
     }
     let p: Value = serde_json::from_str(r["dto"].as_str().unwrap())?;
@@ -93,7 +91,7 @@ pub async fn detail(db: &D1Database, id: &str) -> Result<Option<Value>> {
             .unwrap()
     };
     Ok(Some(
-        json!({"id":id,"version":r["version"],"state":r["state"],"title":p["title"],"venue":p["venue"],"guidance":p["guidance"],"startsAt":p["startsAt"],"timeZone":p["timeZone"],"opensAt":instant(&r["opens"]),"closesAt":instant(&r["closes"]),"capacity":r["capacity"],"talkMinutes":r["talk_minutes"],"transitionMinutes":r["transition_minutes"]}),
+        json!({"id":id,"version":r["version"],"state":r["state"],"publishEnabled":r["publish_enabled"]==1,"title":p["title"],"venue":p["venue"],"guidance":p["guidance"],"startsAt":p["startsAt"],"timeZone":p["timeZone"],"opensAt":instant(&r["opens"]),"closesAt":instant(&r["closes"]),"capacity":r["capacity"],"talkMinutes":r["talk_minutes"],"transitionMinutes":r["transition_minutes"]}),
     ))
 }
 
@@ -106,6 +104,7 @@ pub async fn handle(
     actor: &str,
     request_id: &str,
 ) -> Result<Option<Response>> {
+    let now = crate::lifecycle::now(db).await?;
     let path = req.path();
     let p: Vec<_> = path.trim_matches('/').split('/').collect();
     if p.len() < 5 || p[4] != "events" || p.len() > 7 {
@@ -160,12 +159,16 @@ pub async fn handle(
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect::<String>();
-    let prior=db.prepare("SELECT result,payload_hash FROM lt_event_operations WHERE EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_event_operations.event_id AND (e.private_expires IS NULL OR e.private_expires>unixepoch('subsec')*1000)) AND actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>unixepoch('subsec')*1000)").bind(&[actor.into(),op.clone().into()])?.all().await?.results::<Value>()?;
+    let prior=db.prepare("SELECT result,payload_hash FROM lt_event_operations WHERE EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_event_operations.event_id AND (e.private_expires IS NULL OR e.private_expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))) AND actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))").bind(&[actor.into(),op.clone().into()])?.all().await?.results::<Value>()?;
     if let Some(r) = prior.first() {
         return if r["payload_hash"] == hash {
-            Ok(Some(Response::from_json(&serde_json::from_str::<Value>(
-                r["result"].as_str().unwrap(),
-            )?)?))
+            Ok(Some(Response::from_json(
+                &crate::views::event(
+                    db,
+                    &serde_json::from_str::<Value>(r["result"].as_str().unwrap())?,
+                )
+                .await?,
+            )?))
         } else {
             error("VERSION_CONFLICT", 409)
         };
@@ -195,7 +198,7 @@ pub async fn handle(
             return error("VERSION_CONFLICT", 409);
         }
         // コピーするのは指定4項目のみ。他の値は独立した開発提案初期値
-        let start = Date::now().as_millis() as f64 + 30.0 * 86400000.0;
+        let start = now + 30.0 * 86400000.0;
         let instant = |t: f64| {
             js_sys::Date::new(&t.into())
                 .to_iso_string()
@@ -205,7 +208,7 @@ pub async fn handle(
         Settings {
             title: "LT会".into(),
             guidance: String::new(),
-            time_zone: "UTC".into(),
+            time_zone: "Asia/Tokyo".into(),
             venue: old["venue"].as_str().unwrap().into(),
             capacity: old["capacity"].as_u64().unwrap() as u32,
             talk_minutes: old["talkMinutes"].as_u64().unwrap() as u32,
