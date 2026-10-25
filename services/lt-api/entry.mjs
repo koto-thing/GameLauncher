@@ -1,11 +1,17 @@
 // 信頼済み proxy は named service binding の operate のみを呼ぶ
 // JSON 本文は解析せず Rust にそのまま渡す
 import Api from './build/index.js';
-export default Api;
+import { traceSynthetic } from './host-metrics.mjs';
+export default class LtHttp extends Api {
+  async fetch(request) {
+    traceSynthetic(request, this.env, true);
+    return super.fetch(request);
+  }
+}
 export class LtOperator extends Api {
   async dispatchFake() { return super.fake_dispatch(this.env); }
   async fetch() { return new Response('Not found', { status: 404 }); }
-  async operate(context, request) { return super.operator_request(context, request, this.env); }
+  async operate(context, request) { traceSynthetic(request,this.env,true,"operator"); return super.operator_request(context, request, this.env); }
 }
 
 // 試験用Rust exportがあるbuildだけに受取口を作る
