@@ -9,10 +9,22 @@ const messages: Record<string, string> = {
 };
 /** 同一オリジンの API を呼び、サーバーの認証・状態エラーを保持する */
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  // 絶対 URL とリダイレクトを許可せず、認証情報の転送を防ぐ
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\"))
+    throw new Error("API パスが不正です");
+  const method = (init.method ?? "GET").toUpperCase();
+  const mutation = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+  const headers = new Headers(init.headers);
+  headers.delete("X-LT-CSRF");
+  if (mutation) {
+    headers.set("Content-Type", "application/json");
+    headers.set("X-LT-CSRF", "1");
+  }
   const response = await fetch(`/api/lt/v1${path}`, {
     ...init,
     credentials: "same-origin",
-    headers: { "Content-Type": "application/json", ...init.headers },
+    headers,
+    redirect: "error",
   });
   // HTTP エラーを成功へ置き換えない
   if (!response.ok) {

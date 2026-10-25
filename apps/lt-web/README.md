@@ -42,3 +42,7 @@ fixture mutation は API の実認証/永続保存を証明しない。PATCH/辞
 3ケース成功: PC の新規申請→複数発表者→二重クリック保存→編集→再読込→戻る、390px の差し戻し→キーボード Enter 再提出→辞退依頼→取消、期限切れ/401/409/503 のエラー表示。最初の実行では戻る遷移に古いDTOが描画される不具合を検出し、nav/popstateでdataを消す修正後に全成功。
 qa/desktop.png と qa/mobile.png を保存し、実画像を目視。横はみ出し・重なりなし。fixture明示あり。実バックエンド結合・本番cookie/Originの確認は別工程。
 実行: npm exec -- playwright test。vp dev を5180へ自動起動し、テスト終了時に停止する。テストは通常 build へ含めない。
+
+## CSRF ヘッダー接続
+
+POST/PUT/PATCH/DELETE に X-LT-CSRF:1 と application/json を強制し、GET には付けない。credentials:same-origin を維持し、絶対URL/ネットワークパスを拒否、redirect:error で外部転送を防ぐ。サーバーの Origin 完全一致検証と cookie 認証を置き換えない。backend 実結合は別工程。
