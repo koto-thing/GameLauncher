@@ -60,5 +60,38 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(policy["retentionMode"],"dry-run")
         self.assertEqual(len(policy["notificationKinds"]),7)
 
+    # 全ルートの入出力を Schema に結び、生成型との不一致を拒否する
+    def test_route_schema_type_consistency(self):
+        from generate_types import generate
+        schema = load("dto.schema.json")
+        Draft202012Validator.check_schema(schema)
+        self.assertEqual((ROOT / "v1.ts").read_text(encoding="utf-8"), generate())
+        for route in load("routes.json"):
+            for key in ["request", "response", "error"]:
+                name = route[key]
+                if name is not None:
+                    self.assertIn(name, schema["$defs"], (route["path"], key))
+            self.assertNotEqual(route["request"], "OperatorContext")
+        public = load("public-talk.schema.json")
+        self.assertEqual(schema["$defs"]["PublicTalk"], {k:v for k,v in public.items() if not k.startswith("$")})
+
+    # 承認入力の競合条件と更新不可フィールドを検証する
+    def test_mutation_boundaries(self):
+        schema = load("dto.schema.json")
+        schema["$ref"] = "#/$defs/ApproveInput"
+        validator = Draft202012Validator(schema, format_checker=FormatChecker())
+        value = {"expectedVersion":1,"operationId":"op-demo","data":{"startsAt":"2027-01-01T04:00:00.000Z","expectedEventVersion":1,"expectedScheduleVersion":1}}
+        validator.validate(value)
+        for key in list(value["data"]):
+            bad = copy.deepcopy(value)
+            del bad["data"][key]
+            self.assertFalse(validator.is_valid(bad), key)
+        for key in ["actorId","role","capability"]:
+            self.assertFalse(validator.is_valid(dict(value, **{key:"admin"})))
+        props = schema["$defs"]["UpdateEventInput"]["properties"]["data"]["properties"]
+        for key in ["state","id","version"]:
+            self.assertNotIn(key,props)
+        self.assertFalse(load("policy.json")["guards"]["reject"]["everApproved"])
+
 if __name__ == "__main__":
     unittest.main()

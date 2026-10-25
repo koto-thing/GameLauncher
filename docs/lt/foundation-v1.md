@@ -18,7 +18,7 @@
 
 ## ワイヤ形式
 
-`contracts/lt/v1.ts` が共有型、`dto.schema.json` が主要 DTO の厳格な JSON Schema、`routes.json` がルート一覧。Schema は部分的な基盤であり、全 mutation payload の実行時 validator 完成を意味しない。`Mutation.data` は各操作の具体型で追加検証する。HTTP 時刻は UTC RFC3339 ミリ秒3桁 Z、version は1以上の整数、ID は不透明な文字列。開催 timeZone は IANA 名を設定し、Asia/Tokyo は未確定。ページングは items / nextCursor。HTTP status は認証401、権限403、非公開・不存在404、競合409、入力422、期限切れリンク400、頻度429。期限切れ私有データは RETENTION_EXPIRED、存在秘匿が必要な他人のリソースは NOT_FOUND。
+`contracts/lt/v1.ts` が共有型、`dto.schema.json` が主要 DTO の厳格な JSON Schema、`routes.json` がルート一覧。全 routes の request / response / error は dto.schema.json の定義名を参照する。v1.ts は generate_types.py から生成する。JSON Schema は形を検証し、役割・時刻順序・状態・所有権は実装側で検証する。HTTP 時刻は UTC RFC3339 ミリ秒3桁 Z、version は1以上の整数、ID は不透明な文字列。開催 timeZone は IANA 名を設定し、Asia/Tokyo は未確定。ページングは items / nextCursor。HTTP status は認証401、権限403、非公開・不存在404、競合409、入力422、期限切れリンク400、頻度429。期限切れ私有データは RETENTION_EXPIRED、存在秘匿が必要な他人のリソースは NOT_FOUND。
 
 公開 DTO は公開 snapshot と公開 Event から許可項目のみ生成する。申請レコードから私有項目を削る実装は禁止。本人 DTO に運営メモ・監査履歴は含めない。キャンセル済み開催回は一覧・詳細・直接URL・API・キャッシュを非公開にし、自動時刻判定で復活させない。
 
@@ -61,3 +61,16 @@ Vite Plus公式 guide と create を2026-10-25確認。公開 apps/lt-web のみ
 ## 検証と未完了
 
 `python -m unittest discover -s contracts/lt -p test_contracts.py -v`。依存は requirements-test.txt、データは example.invalid の架空値。Schema拒否テストはサービスの認可・DB原子性・CSRFの実装検証ではない。後続で全 mutation schema、Rust型とvalidator、D1競合、HTTPルート分離、ブラウザー結合、既存認証回帰を追加する。本番送信・削除・デプロイは行わない。
+
+
+## 追補: 操作別契約
+
+SubmitApplication に operationId を含める。ApproveInput は application expectedVersion に加え expectedEventVersion / expectedScheduleVersion / startsAt を必須とする。ReapproveInput は application と event version、SaveTimetableInput は schedule expectedVersion と expectedEventVersion を検証する。コピー・中止は event expectedVersion。EmailChangeActionInput は application expectedVersion と expectedRequestVersion の双方を検証する。対象 version が変われば409として読み取りからやり直し、暗黙の再実行はしない。容量競合を防げるかは後続 SQL テストで実証する。
+
+UpdateEventInput は id / version / state を受け付けない。ReviewInput はメモだけ、初回承認と再承認は別入力。新規作成は expectedVersion を持たず operationId で冪等化する。reject は everApproved=false のみ。公開版訂正や未確定の例外手順は、汎用PATCHで迂回実装しない。
+
+運営の開催詳細・申請詳細・時間割GET、本人session GETを追加。sessionなしは200 null、本人詳細は404。OperatorTimetable は非公開回でも返せる管理専用型。ApiError.error.fields は任意の path / code 配列で値や私有情報を返さない。確認 POST の返却は ApplicantSession、Set-Cookie はHTTP側。EmailAccepted は常に accepted:true。GET /auth/verify は HTML でありtokenを検証・消費せず、POSTだけが原子的に交換する。
+
+OperatorContext は内部サービス呼び出し専用で、HTTPブラウザーのrequest DTOではない。actorId / role / requestId を信頼済みproxyだけが生成し、capabilityはAPIがroleから導出する。context自体を受け取れたことを認証根拠にせず、内部binding/到達制限を検証する。メール変更のpurpose分離と調査・失効・再発行ルールの確定まで productionEnabled=false を維持する。
+
+この追補は形と境界の契約であり、D1原子性・CSRF・内部binding認可・メールトークン一回性を実証したものではない。

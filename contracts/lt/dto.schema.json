@@ -616,6 +616,27 @@
             "requestId": {
               "type": "string",
               "minLength": 1
+            },
+            "fields": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "path",
+                  "code"
+                ]
+              }
             }
           },
           "required": [
@@ -648,6 +669,975 @@
         "expectedVersion",
         "operationId",
         "data"
+      ]
+    },
+    "EmptyData": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {},
+      "required": []
+    },
+    "EmptyResponse": {
+      "type": "null"
+    },
+    "EmailVerificationInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "token": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "token"
+      ]
+    },
+    "EmailRequestInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email"
+        }
+      },
+      "required": [
+        "email"
+      ]
+    },
+    "EmailAccepted": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "const": true
+        }
+      },
+      "required": [
+        "accepted"
+      ]
+    },
+    "ApplicantSession": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expiresAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "expiresAt"
+      ]
+    },
+    "SessionStatus": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApplicantSession"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "OperatorContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "enum": [
+            "admin",
+            "executive",
+            "assistant"
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "actorId",
+        "role",
+        "requestId"
+      ]
+    },
+    "EventSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "enum": [
+            "scheduled",
+            "started",
+            "ended",
+            "cancelled"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "venue": {
+          "type": "string",
+          "minLength": 1
+        },
+        "guidance": {
+          "type": "string"
+        },
+        "startsAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "format": "date-time"
+        },
+        "timeZone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "opensAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "format": "date-time"
+        },
+        "closesAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "format": "date-time"
+        },
+        "capacity": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "talkMinutes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "transitionMinutes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "state",
+        "title",
+        "venue",
+        "guidance",
+        "startsAt",
+        "timeZone",
+        "opensAt",
+        "closesAt",
+        "capacity",
+        "talkMinutes",
+        "transitionMinutes"
+      ]
+    },
+    "CreateEventInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "venue": {
+          "type": "string",
+          "minLength": 1
+        },
+        "guidance": {
+          "type": "string"
+        },
+        "startsAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "format": "date-time"
+        },
+        "timeZone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "opensAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "format": "date-time"
+        },
+        "closesAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "format": "date-time"
+        },
+        "capacity": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "talkMinutes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "transitionMinutes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "title",
+        "venue",
+        "guidance",
+        "startsAt",
+        "timeZone",
+        "opensAt",
+        "closesAt",
+        "capacity",
+        "talkMinutes",
+        "transitionMinutes",
+        "operationId"
+      ]
+    },
+    "UpdateEventInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "venue": {
+              "type": "string",
+              "minLength": 1
+            },
+            "guidance": {
+              "type": "string"
+            },
+            "startsAt": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "format": "date-time"
+            },
+            "timeZone": {
+              "type": "string",
+              "minLength": 1
+            },
+            "opensAt": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "format": "date-time"
+            },
+            "closesAt": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "format": "date-time"
+            },
+            "capacity": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "talkMinutes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "transitionMinutes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "title",
+            "venue",
+            "guidance",
+            "startsAt",
+            "timeZone",
+            "opensAt",
+            "closesAt",
+            "capacity",
+            "talkMinutes",
+            "transitionMinutes"
+          ]
+        }
+      },
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ]
+    },
+    "EmptyMutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "$ref": "#/$defs/EmptyData"
+        }
+      },
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ]
+    },
+    "EditApplicationInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "content": {
+              "$ref": "#/$defs/TalkContent"
+            },
+            "materialUrl": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://"
+            }
+          },
+          "required": [
+            "content",
+            "materialUrl"
+          ]
+        }
+      },
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ]
+    },
+    "ApproveInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "startsAt": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "format": "date-time"
+            },
+            "expectedEventVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "expectedScheduleVersion": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "startsAt",
+            "expectedEventVersion",
+            "expectedScheduleVersion"
+          ]
+        }
+      },
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ]
+    },
+    "ReviewInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": []
+        }
+      },
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ]
+    },
+    "ReapproveInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "expectedEventVersion": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "expectedEventVersion"
+          ]
+        }
+      },
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ]
+    },
+    "ScheduleBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "talk",
+            "transition",
+            "opening",
+            "break",
+            "closing"
+          ]
+        },
+        "talkId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "startsAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "format": "date-time"
+        },
+        "endsAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "startsAt",
+        "endsAt"
+      ]
+    },
+    "SaveTimetableInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "blocks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ScheduleBlock"
+              }
+            },
+            "expectedEventVersion": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "blocks",
+            "expectedEventVersion"
+          ]
+        }
+      },
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ]
+    },
+    "OperatorTimetable": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "eventVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScheduleBlock"
+          }
+        }
+      },
+      "required": [
+        "eventId",
+        "version",
+        "eventVersion",
+        "blocks"
+      ]
+    },
+    "EmailChangeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "applicationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "enum": [
+            "investigating",
+            "verificationPending",
+            "verified",
+            "confirmed",
+            "cancelled"
+          ]
+        },
+        "newEmail": {
+          "type": "string",
+          "format": "email"
+        }
+      },
+      "required": [
+        "id",
+        "applicationId",
+        "version",
+        "state",
+        "newEmail"
+      ]
+    },
+    "InvestigateEmailInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "newEmail": {
+              "type": "string",
+              "format": "email"
+            }
+          },
+          "required": [
+            "newEmail"
+          ]
+        }
+      },
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ]
+    },
+    "EmailChangeActionInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requestId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expectedRequestVersion": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "requestId",
+            "expectedRequestVersion"
+          ]
+        }
+      },
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ]
+    },
+    "PublicEventPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PublicEvent"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ]
+    },
+    "ConfirmationPage": {
+      "type": "string"
+    },
+    "ApplicationPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Application"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ]
+    },
+    "EventSettingsPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EventSettings"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ]
+    },
+    "OperatorApplicationPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OperatorApplication"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ]
+    },
+    "ReviewState": {
+      "enum": [
+        "pending",
+        "held",
+        "approved",
+        "returned",
+        "resubmitted",
+        "rejected",
+        "withdrawn"
+      ]
+    },
+    "WithdrawalState": {
+      "enum": [
+        "none",
+        "requested",
+        "confirmed"
+      ]
+    },
+    "EventState": {
+      "enum": [
+        "scheduled",
+        "started",
+        "ended",
+        "cancelled"
+      ]
+    },
+    "Speaker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "affiliation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "profile": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "displayName"
+      ]
+    },
+    "ErrorCode": {
+      "enum": [
+        "UNAUTHENTICATED",
+        "FORBIDDEN",
+        "NOT_FOUND",
+        "VALIDATION",
+        "VERSION_CONFLICT",
+        "DUPLICATE_APPLICATION",
+        "RECRUITMENT_CLOSED",
+        "CAPACITY_FULL",
+        "INVALID_TRANSITION",
+        "TOKEN_INVALID",
+        "RATE_LIMITED",
+        "RETENTION_EXPIRED"
+      ]
+    },
+    "NotificationKind": {
+      "enum": [
+        "submitted",
+        "approved",
+        "returned",
+        "reapproved",
+        "rejected",
+        "withdrawalConfirmed",
+        "eventCancelled"
+      ]
+    },
+    "NotificationOutbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "applicationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "$ref": "#/$defs/NotificationKind"
+        },
+        "recipient": {
+          "type": "string",
+          "format": "email"
+        },
+        "expiresAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "format": "date-time"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "sent",
+            "failed"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "operationId",
+        "applicationId",
+        "kind",
+        "recipient",
+        "expiresAt",
+        "state"
+      ]
+    },
+    "AuditEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "occurredAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "format": "date-time"
+        },
+        "expiresAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "operationId",
+        "action",
+        "actorId",
+        "occurredAt",
+        "expiresAt"
       ]
     }
   }

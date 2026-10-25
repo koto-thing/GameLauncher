@@ -85,6 +85,10 @@
     },
     "confirm-withdrawal": {
       "withdrawal": "requested"
+    },
+    "reject": {
+      "everApproved": false
     }
-  }
+  },
+  "emailChangeProductionEnabled": false
 }
