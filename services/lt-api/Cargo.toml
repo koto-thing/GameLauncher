@@ -26,3 +26,10 @@ production-api = []
 runtime-tests = ["lt-mail/test-clock"]
 
 [workspace]
+
+# Wasmの初回実行負荷を比較する単一release候補
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = "debuginfo"
