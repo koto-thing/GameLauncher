@@ -1,0 +1,19 @@
+{
+  "status": "boundary agreement needed before delete SQL integration",
+  "baseCommit": "7165397a00254720a43aeae06e8a5e933658190f",
+  "conflicts": [
+    "lt_events has private_expires but no immutable original ended/cancelled timestamp. Existing 0009 trigger uses execution now +3 months; this does not prove the approved Japan calendar month-end rule or delayed-run invariance.",
+    "Tokens, sessions, fake_mail and auth_rate are global identities, not event-scoped. Deleting by applicant email can affect a different event or a fresh login. An event-only cascade must not remove these unconditionally.",
+    "API owner is changing state/email-change tables. A closed inventory and linkage for those tables is required before claiming all private data is removed."
+  ],
+  "proposal": {
+    "anchor": "API owner records immutable terminalKind, terminalAt and privateExpiresAt in the same atomic terminal transition. Compute +3 calendar months at Asia/Tokyo same local time with missing day clamped to month end. Never derive from sweep time, mutable settings or current public endsAt. Existing rows with no reliable anchor fail closed and appear in dry-run unknown-anchor count.",
+    "deleteBoundary": "This task supplies independent SQL statements only, using captured due event/application/outbox IDs. API owner supplies atomic caller transaction/batch and immutable anchors. No numbered migration or API source changes here.",
+    "normalEvent": "Remove private applications, representative contact/material URL, operator notes, receipts, audit, queues/deliveries, event config and private operation snapshots. Keep public event/talk archive including individually cancelled talk snapshots; keep minimum parent event row required by archive foreign keys.",
+    "cancelledEvent": "Same private cleanup plus public event/talk snapshots and schedule. Keep only non-personal immutable anchor/tombstone as needed for idempotence; never resurrect older public rows.",
+    "auth": "Preserve global tokens/sessions when attribution is uncertain or another application remains. Optional separate orphan cleanup may delete expired token/session/fake mail records for captured email only after checking no remaining event application references. Hash-only rate data requires independent expiry policy, not email-wide deletion.",
+    "transaction": "Freeze candidates and linked IDs inside one transaction before any delete. Delete child records before applications/outbox; rollback on any failure. D1 integration must use one atomic batch or demonstrated transaction mechanism, not independent calls. Replay from same anchor is a no-op.",
+    "tests": "Dedicated fictional SQLite database with actual migrations, due-minus-1ms/equal/plus-1ms boundary, Jan31/leap-year/month-end/Japan calendar dates, delayed sweep, immutable timestamp edits rejected, normal archive and individually cancelled talk retained, whole cancellation archive removed, other event/shared email/global accounts unchanged, injected mid-delete failure full rollback, retry and repeated sweeps safe.",
+    "production": "No scheduler, production enablement or production SQL execution; dry-run stays default until separately approved."
+  }
+}
