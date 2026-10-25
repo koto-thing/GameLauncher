@@ -76,8 +76,9 @@ try:
     worker('wrangler.toml', 18877, 'api')
     ready('http://127.0.0.1:18877/api/lt/v1/auth/session')
     worker('tests/proxy.toml', 18878, 'proxy')
-    worker('tests/integration-bridge.toml', 18879, 'bridge')
+    # 独立Wranglerの同時起動を避け、実RPC応答で準備完了してから次のbinding callerを起動する
     ready('http://127.0.0.1:18878/api/lt/v1/operator/events')
+    worker('tests/integration-bridge.toml', 18879, 'bridge')
     run([sys.executable, 'tests/run_runtime.py'])
     with urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:18878/test/clock', data=b'real', method='POST')) as response:
         assert response.status == 200

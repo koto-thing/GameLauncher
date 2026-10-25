@@ -14,6 +14,9 @@ def startup_diagnostics(text, code):
         'runtime_start_failed': r'runtime failed to start|ERR_RUNTIME_FAILURE',
         'registry_invalid': r'Unexpected end of JSON input|Expected property name or',
         'permission_denied': r'EACCES|EPERM|permission denied',
+        'resource_exhausted': r'EAGAIN|resource temporarily unavailable|pthread_create|too many open files|no space left on device',
+        'socket_setup_failed': r'failed[^\n]*(?:bind\(|listen\(|socket\()|bind\([^\n]*failed',
+        'file_missing': r'ENOENT|no such file or directory',
     }
     found = [name for name, pattern in categories.items() if re.search(pattern, text, re.I)]
     if code < 0 and 'runtime_crash' not in found:
@@ -27,4 +30,6 @@ def startup_diagnostics(text, code):
         'exceptionTypes': [name for name in exceptions if re.search(r'\b' + re.escape(name) + r'\b', text)],
         'errorCodes': [name for name in error_codes if re.search(r'\b' + re.escape(name) + r'\b', text)],
         'knownModules': [name for name in modules if re.search(r'\b' + re.escape(name) + r'\b', text)],
+        # C++ runtime配布物の相対source位置だけを許可し、任意のホストpathは捨てる
+        'runtimeSources': sorted(set(re.findall(r'\b(?:workerd|kj)/[A-Za-z0-9_/-]+\.(?:c\+\+|h):[0-9]+', text))),
     }

@@ -29,3 +29,10 @@ class StartupDiagnosticsTests(unittest.TestCase):
         self.assertEqual(startup_diagnostics('connect ECONNREFUSED', 1)['classification'], ['connection_refused'])
         self.assertEqual(startup_diagnostics('ERR_RUNTIME_FAILURE runtime failed to start', 1)['classification'], ['runtime_start_failed'])
         self.assertEqual(startup_diagnostics('', -9)['classification'], ['runtime_crash'])
+
+    def test_runtime_resource_and_source_details_are_static(self):
+        """runtimeソース位置とOS分類以外の可変な値を返さない"""
+        result = startup_diagnostics('workerd/io/worker.c++:123: pthread_create resource temporarily unavailable /private/synthetic-secret.js:5', 1)
+        self.assertEqual(result['classification'], ['resource_exhausted'])
+        self.assertEqual(result['runtimeSources'], ['workerd/io/worker.c++:123'])
+        self.assertNotIn('synthetic-secret', json.dumps(result))
