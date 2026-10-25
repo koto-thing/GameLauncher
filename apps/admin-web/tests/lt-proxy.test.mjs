@@ -36,7 +36,7 @@ test("Origin無しと外部Originの書込みを拒否する", async () => {
 
 test("メール変更は上書きしない・本人用ルートへ到達しない", async () => {
   const path = url.replace("events", "applications/a/email-change/confirm");
-  for (const [role, status] of [["assistant", 403], ["executive", 501], ["admin", 501]]) {
+  for (const [role, status] of [["assistant", 403], ["executive", 503], ["admin", 503]]) {
     assert.equal((await proxyLtCore(new Request(path, { method: "POST", headers: { origin: "https://admin.example.invalid" } }), identity(role))).status, status);
   }
   assert.equal((await proxyLtCore(new Request(url.replace("operator/events", "applications/other")), identity("admin"))).status, 404);
@@ -89,7 +89,7 @@ test("専用未接続・未実装コードを共有契約に合わせる", async
  const unavailable=await proxyLtCore(new Request(url), identity("admin"));
  assert.equal((await unavailable.json()).error.code,"SERVICE_UNAVAILABLE");
  const unsupported=await proxyLtCore(new Request(url+'/x/email-change/confirm',{method:"POST",headers:{origin:"https://admin.example.invalid"}}),identity("executive"));
- assert.equal((await unsupported.json()).error.code,"NOT_IMPLEMENTED");
+ assert.equal((await unsupported.json()).error.code,"SERVICE_UNAVAILABLE");
 });
 
 test("メール変更状態GETもassistantを拒否する", async () => {

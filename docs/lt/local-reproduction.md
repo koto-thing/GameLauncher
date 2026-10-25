@@ -1,13 +1,13 @@
 # LT ローカル統合の再現と残件
 
-対象は `feature/koto/LtIntegrationPart1`、コード確認点は `c49e217`。メール変更APIは統合待ちであり、この文書は最終全件成功の宣言ではない。元の dirty checkout と他担当 worktree を使わず、隔離した統合領域で実行する。古い経過記録は `integration-local.md`、現在の構成と実行順は本書を参照する。
+対象は `feature/koto/LtIntegrationPart1`、通常状態・メール変更API/UI・retentionをローカル統合済み。最終検証記録は `final-local-verification.json` を参照する。元の dirty checkout と他担当 worktree を使わず、隔離した統合領域で実行する。古い経過記録は `integration-local.md`、現在の構成と実行順は本書を参照する。
 
 ## 前提と隔離
 
 - ロックファイルに従うプロジェクトローカル依存を使う。Node／パッケージマネージャーをグローバルに変更しない。公開UIは React + Vite Plus、既存管理UIは React/Vinext のまま。
 - Rust toolchain は `services/lt-api/rust-toolchain.toml`、worker-build は既存の 0.8.7 を使う。以下の `worker-build` はその既存実行ファイルへのパスに置き換える。
 - 全サーバーは `127.0.0.1` に限定する。以下の Wrangler 設定はローカル専用で、本番配備には使わない。D1 コマンドは必ず `--local` を付ける。
-- 通常APIのDB ID末尾は `000046`、retention専用は `000036`。いずれも架空データ専用。過去の実行済みDBは再利用せず、再現時は設定コピーで未使用のローカルDB ID・worker名と全binding先を揃える。DBを切り替えたら関連proxyも再起動する。既存DBの削除やresetを再現手順に含めない。
+- 通常APIのDB ID末尾は `000047`、retention専用は `000036`。いずれも架空データ専用。過去の実行済みDBは再利用せず、再現時は設定コピーで未使用のローカルDB ID・worker名と全binding先を揃える。DBを切り替えたら関連proxyも再起動する。既存DBの削除やresetを再現手順に含めない。
 - 時刻固定・fake mail・削除テストを同時実行しない。CLIとHTTPが同じDBを参照することを、架空開催の状態を変更して公開HTTPでも確認してから進める。
 
 ## 起動
@@ -54,9 +54,9 @@ node tests/lt-route-browser/server.mjs
 
 次は順番に実行し、時刻・DB・bundleを共有する試験を並列化しない。
 
-1. `services/lt-api` で `python tests/run_runtime.py`。架空DBのmail modeをfakeへ変更し、固定時刻も使う。メール接続時点の全47件は成功済み。直近の公開募集状態修正後はretention回帰を実行済みで、全47件の再実行とは区別する。
+1. `services/lt-api` で `python tests/run_runtime.py`。架空DBのmail modeをfakeへ変更し、固定時刻も使う。メール変更を含む最終ローカル統合で全58件成功。試験順序・時刻を守り、今後の変更後には再検証する。
 2. `apps/admin-web` で `node --test tests/lt-binding-integration.test.mjs tests/lt-route-integration.test.mjs tests/lt-proxy.test.mjs tests/lt-operator-state.test.mjs tests/lt-timetable.test.mjs tests/operations-roles.test.mjs tests/operator-admissions.test.mjs tests/session-lifetime.test.mjs`。実proxyの401/403、失効会員・role不足、Origin、偽造header、未設定binding503、成功mutationを確認する。
-3. `apps/lt-web` で `node_modules/.bin/playwright.cmd test --config playwright.live.config.ts`。初回確認→申請→実管理route承認→公開→差し戻し→編集→再承認→時間割→辞退／全体中止を確認する。テストは架空DBの募集状態を書き換えるので、API回帰と分離する。通常状態統合の区切り `9e351a89` で成功済み。
+3. `apps/lt-web` で `node_modules/.bin/playwright.cmd test --config playwright.live.config.ts`。初回確認→申請→実管理route承認→公開→差し戻し→編集→再承認→時間割→辞退／全体中止を確認する。テストは架空DBの募集状態を書き換えるので、API回帰と分離する。最終ローカル統合treeで通常flowとメール変更の2本が成功。
 4. retentionは別DB・別ポートで実行する。下記は生成した架空データを実際に削除するテストであり、運用DBでは実行しない。
 
 ```powershell
@@ -69,7 +69,7 @@ node node_modules/wrangler/bin/wrangler.js dev --local --config tests/retention-
 python tests/retention_runtime_test.py -v
 ```
 
-`c49e217` で成功。固定期限直前拒否／境界、JST3暦月・月末、30段階削除＋7段階孤立認証掃除の各失敗時rollback、正常公開保持／中止公開削除／別開催保護、未知schema停止、募集設定削除後の公開一覧・詳細のclosed維持を含む。証跡は `services/lt-api/retention/d1-verification.json`。本番削除機能の有効化を意味しない。
+最終ローカル統合treeで成功。固定期限直前拒否／境界、JST3暦月・月末、38段階削除＋10段階孤立認証掃除の各失敗時rollback、正常公開保持／中止公開削除／別開催保護、未知schema停止、募集設定削除後の公開一覧・詳細のclosed維持を含む。証跡は `services/lt-api/retention/d1-verification.json`。本番削除機能の有効化を意味しない。
 
 ## 最終統合後に再実行するもの
 
@@ -88,4 +88,4 @@ python tests/retention_runtime_test.py -v
 - 公開開始／開始・終了状態のAPI観測時reconcileは実装済み。本番cron/schedulerは未設定。無アクセス時の定期実行・監視・障害時再試行は本番接続前の作業。
 - 物理削除はruntime-tests＋local-developmentの明示テストに限定し、通常buildから除外。本番scheduler／自動削除は無効。実ユーザーデータ削除の有効化は別途確認が必要。
 - 本番ドメイン、同一ホストの公開API／本人cookie構成、既存管理認証と内部binding、D1配備、秘密設定は未実施。fixture cookie／固定role proxy／HTTP bridgeを配備しない。
-- メール変更API・UI・契約一式は統合待ち。到着後にschema inventoryと削除処理を追従し、最終treeで上記試験を再実行してから完成判定する。push／PR／merge／deployは本書の作業範囲外。
+- メール変更API・UI・契約一式と0040 schemaの保持削除処理は統合済み。今後schemaを変更した場合も厳格inventoryと削除処理を追従して上記試験を再実行する。push／PR／merge／deployは本書の作業範囲外。

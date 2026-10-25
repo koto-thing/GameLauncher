@@ -56,6 +56,10 @@ class RetentionD1(unittest.TestCase):
   ck,em=helper.login();b=helper.payload();b['eventId']=cancelled['id'];self.assertEqual(a.request('/api/lt/v1/applications',b,ck)[0],200);self.assertEqual(op('/events/'+cancelled['id']+'/cancel',mutation(1))[0],200)
   # 生きている孤立sessionは初回削除で残し、後のsweepで期限後に掃除する
   sql("INSERT INTO lt_auth_tokens(hash,email,purpose,expires,session_hash,session_expires) VALUES('"+live+"','"+email+"','login',0,'retention-session-"+suffix+"',1903824001000)")
+  # 各私有子を架空データで作り、全失敗点と別開催保護を実D1で確認する
+  for target,event_id in [(app,normal['id']),(otherapp,other['id'])]:
+   aid=target['id'];rid='change-'+aid;token='change-token-'+aid
+   sql("INSERT INTO lt_email_changes(id,application_id,event_id,state,current,old_email,new_email,actor,identity_method,identity_result,checked_at,expires) VALUES('"+rid+"','"+aid+"','"+event_id+"','verificationPending',1,'old@example.invalid','new@example.invalid','fixture','fixture','confirmed','2030-01-01T00:00:00.000Z',"+str(expiry)+");INSERT INTO lt_email_change_tokens VALUES('"+token+"','"+rid+"','email_change',"+str(expiry)+",0);INSERT INTO lt_email_change_payloads SELECT id,'"+token+"','https://example.invalid/auth/email-change/verify?token=fixture' FROM lt_outbox WHERE application_id='"+aid+"' LIMIT 1;INSERT INTO lt_email_change_operations VALUES('fixture','"+rid+"','fixture','"+aid+"','"+rid+"',"+str(expiry)+");INSERT INTO lt_email_change_audit VALUES('"+rid+"','"+rid+"','"+aid+"','"+event_id+"','fixture','fixture','2030-01-01T00:00:00.000Z',"+str(expiry)+")")
   from datetime import datetime,timezone
   as_instant=lambda ms:datetime.fromtimestamp(ms/1000,timezone.utc).isoformat(timespec='milliseconds').replace('+00:00','Z')
   clock(as_instant(expiry-1))
@@ -68,7 +72,7 @@ class RetentionD1(unittest.TestCase):
   self.assertEqual(call(url,payload)[0],200)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_applications WHERE event_id='"+normal['id']+"'")[0]['n'],1)
   # 全statementの直後にCHECK違反を注入。各回同じ私有申請と公開provenanceを維持する
-  files=['prepare-archive-proposal.sql','delete-event.sql','d1-mail-cleanup.sql','delete-expired-orphan-auth.sql','delete-expired-rate.sql']
+  files=['prepare-archive-proposal.sql','delete-email-change.sql','delete-event.sql','d1-mail-cleanup.sql','delete-expired-orphan-auth.sql','delete-expired-rate.sql']
   from pathlib import Path
   commands=6+sum(len([v for v in '\n'.join(l for l in (Path('retention')/f).read_text(encoding='utf-8-sig').splitlines() if not l.lstrip().startswith('--')).split(';') if v.strip()]) for f in files)
   before=call(url,{'snapshot':True})[1]
@@ -90,13 +94,21 @@ class RetentionD1(unittest.TestCase):
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_mail_jobs WHERE id IN (SELECT 'application:'||id FROM lt_outbox WHERE application_id='"+app['id']+"')")[0]['n'],0)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_login_outbox WHERE expires<=1903824000000")[0]['n'],0)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_applications WHERE event_id='"+other['id']+"'")[0]['n'],1)
+  for table in ['lt_email_changes','lt_email_change_operations','lt_email_change_audit']:
+   self.assertEqual(sql("SELECT count(*) AS n FROM "+table+" WHERE application_id='"+app['id']+"'")[0]['n'],0)
+   self.assertEqual(sql("SELECT count(*) AS n FROM "+table+" WHERE application_id='"+otherapp['id']+"'")[0]['n'],1)
+  self.assertEqual(sql("SELECT count(*) AS n FROM lt_email_change_tokens WHERE request_id='change-"+app['id']+"'")[0]['n'],0)
+
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_auth_tokens WHERE hash='"+live+"'")[0]['n'],1)
+  # 送信待ちjobへ複製された確認URLも短期期限で消す
+  sql("INSERT OR REPLACE INTO lt_mail_jobs(id,envelope,state,transport,attempts,next_at,expires) SELECT 'application:'||outbox_id,'{\"fixturePrivate\":\"confirmation-url-copy\"}','pending','fake',0,0,9999999999 FROM lt_email_change_payloads WHERE token_hash='change-token-"+otherapp['id']+"'")
   clock('2031-01-01T00:00:00.000Z')
   before_auth=call(url,{'snapshot':True})[1]
-  for index in range(7):
+  for index in range(10):
    self.assertEqual(call(url,{'authOnly':True,'delete':True,'failAfter':index})[0],409)
    self.assertEqual(call(url,{'snapshot':True})[1],before_auth,index)
   self.assertEqual(call(url,{'authOnly':True,'delete':True})[0],200)
+  self.assertEqual(sql("SELECT count(*) AS n FROM lt_mail_jobs WHERE envelope LIKE '%confirmation-url-copy%'")[0]['n'],0)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_auth_tokens WHERE hash='"+live+"'")[0]['n'],0)
   self.assertEqual(call(url,{'eventId':cancelled['id'],'delete':True})[0],200)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_public_events WHERE event_id='"+cancelled['id']+"'")[0]['n'],0)

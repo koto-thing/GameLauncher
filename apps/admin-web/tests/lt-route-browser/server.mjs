@@ -6,7 +6,7 @@ import ts from 'typescript';
 import { fixture } from '../helpers/role-fixture.mjs';
 import { proxyLtCore } from '../../lib/lt/proxy-core.ts';
 const cleanups=[];
-const f=await fixture({after:fn=>cleanups.push(fn)});
+const f=await fixture({after:fn=>cleanups.push(fn)},{role:"executive"});
 function load(path,deps){const exports={}; const source=ts.transpileModule(readFileSync(new URL(path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;new Function('require','exports',source)(name=>{if(!(name in deps))throw Error(name);return deps[name]},exports);return exports;}
 const {ltInternalAdapter}=load('../../lib/lt/internal-adapter.ts',{});
 const env={LT_INTERNAL:{async operate(context,request){return fetch('http://127.0.0.1:18879',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context,path:new URL(request.url).pathname,method:request.method,body:request.method==='GET'?null:await request.text()})});}}};

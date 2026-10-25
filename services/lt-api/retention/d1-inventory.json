@@ -69,6 +69,10 @@
     [
       "transition_id",
       "TEXT"
+    ],
+    [
+      "email_fence",
+      "TEXT"
     ]
   ],
   "lt_approval_receipts": [
@@ -192,6 +196,168 @@
     ],
     [
       "now_ms",
+      "INTEGER"
+    ]
+  ],
+  "lt_email_change_audit": [
+    [
+      "id",
+      "TEXT"
+    ],
+    [
+      "request_id",
+      "TEXT"
+    ],
+    [
+      "application_id",
+      "TEXT"
+    ],
+    [
+      "event_id",
+      "TEXT"
+    ],
+    [
+      "actor",
+      "TEXT"
+    ],
+    [
+      "action",
+      "TEXT"
+    ],
+    [
+      "occurred_at",
+      "TEXT"
+    ],
+    [
+      "expires",
+      "INTEGER"
+    ]
+  ],
+  "lt_email_change_operations": [
+    [
+      "actor",
+      "TEXT"
+    ],
+    [
+      "operation_id",
+      "TEXT"
+    ],
+    [
+      "payload_hash",
+      "TEXT"
+    ],
+    [
+      "application_id",
+      "TEXT"
+    ],
+    [
+      "request_id",
+      "TEXT"
+    ],
+    [
+      "expires",
+      "INTEGER"
+    ]
+  ],
+  "lt_email_change_payloads": [
+    [
+      "outbox_id",
+      "TEXT"
+    ],
+    [
+      "token_hash",
+      "TEXT"
+    ],
+    [
+      "action_url",
+      "TEXT"
+    ]
+  ],
+  "lt_email_change_tokens": [
+    [
+      "hash",
+      "TEXT"
+    ],
+    [
+      "request_id",
+      "TEXT"
+    ],
+    [
+      "purpose",
+      "TEXT"
+    ],
+    [
+      "expires",
+      "INTEGER"
+    ],
+    [
+      "used",
+      "INTEGER"
+    ]
+  ],
+  "lt_email_changes": [
+    [
+      "id",
+      "TEXT"
+    ],
+    [
+      "application_id",
+      "TEXT"
+    ],
+    [
+      "event_id",
+      "TEXT"
+    ],
+    [
+      "version",
+      "INTEGER"
+    ],
+    [
+      "state",
+      "TEXT"
+    ],
+    [
+      "current",
+      "INTEGER"
+    ],
+    [
+      "old_email",
+      "TEXT"
+    ],
+    [
+      "new_email",
+      "TEXT"
+    ],
+    [
+      "actor",
+      "TEXT"
+    ],
+    [
+      "identity_method",
+      "TEXT"
+    ],
+    [
+      "identity_result",
+      "TEXT"
+    ],
+    [
+      "checked_at",
+      "TEXT"
+    ],
+    [
+      "token_hash",
+      "TEXT"
+    ],
+    [
+      "verification_expires",
+      "INTEGER"
+    ],
+    [
+      "verified_at",
+      "TEXT"
+    ],
+    [
+      "expires",
       "INTEGER"
     ]
   ],
@@ -484,7 +650,7 @@
     ],
     [
       "action_url",
-      "TEXT"
+      "BLOB"
     ]
   ],
   "lt_operator_operations": [

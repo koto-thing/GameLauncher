@@ -37,10 +37,9 @@ export async function proxyLtCore(request: Request, authenticate: (request: Requ
     if (!["GET", "POST", "PATCH", "PUT"].includes(request.method)) throw new Response("Method not allowed", { status: 405 });
     if (request.method !== "GET") assertBrowserWrite(request);
 
-    // 本人確認フローが確定するまでメール変更は接続しない
-    if (/\/email-change(?:\/|$)/.test(url.pathname)) {
-      if (user.role === "assistant") throw new Response("Forbidden", { status: 403 });
-      throw new Response("本人確認フロー未確定のため未対応です", { status: 501 });
+    // 例外メール変更は状態取得もAdmin・幹部に限定する
+    if (/\/email-change(?:\/|$)/.test(url.pathname) && user.role === "assistant") {
+      throw new Response("Forbidden", { status: 403 });
     }
     if (!adapter) throw new Response("LT 内部サービスは未接続です", { status: 503 });
 

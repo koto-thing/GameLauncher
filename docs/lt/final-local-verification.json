@@ -1,0 +1,77 @@
+{
+  "baseline": "10b3937; integrated c739fb22/fa9199c/d6209635/eaec9a6c, duplicate lease omitted",
+  "scope": "isolated local fixtures only",
+  "api": {
+    "actualWorkerD1Rpc": 58,
+    "responseSchemaValidated": true,
+    "freshMigrations": 31,
+    "freshMailMode": "disabled"
+  },
+  "contracts": 9,
+  "rustApiUnit": 1,
+  "rustMailUnit": 6,
+  "mailSqliteClaim": 9,
+  "retentionSqliteReference": 10,
+  "retention": {
+    "actualD1Passed": true,
+    "eventBatchFailurePositions": 38,
+    "authBatchFailurePositions": 10,
+    "sameTableViewCountsAfterEachFailure": true,
+    "emailChangePrivateChildren": true,
+    "otherEventProtected": true,
+    "unknownSchemaRefused": true,
+    "archivePreservedAndClosed": true,
+    "productionEnabled": false,
+    "expiredMailJobConfirmationUrlScrubbed": true
+  },
+  "publicUi": {
+    "unit": 22,
+    "fixtureChrome": 9,
+    "actualChromeJourneys": 2,
+    "checkTypesBuild": true,
+    "widths": [
+      1280,
+      390
+    ]
+  },
+  "adminUi": {
+    "isolatedUiAuthRoleTests": 49,
+    "actualSignedProxyRouteBindingTests": 2,
+    "lintTypesBuild": true,
+    "externalOAuth": "not exercised; signed fixture and membership database"
+  },
+  "emailJourney": [
+    "manual identity record",
+    "fake verification delivery",
+    "GET non consuming and token removed from URL",
+    "explicit POST new-address verification without login",
+    "operator refresh",
+    "final confirm",
+    "old session rejected",
+    "new email login and target visible",
+    "new owner cannot read other event application",
+    "old email login cannot read transferred target",
+    "other event owner unchanged"
+  ],
+  "bundles": {
+    "defaultPrivateDisabled": true,
+    "publicOperatorRoute404": true,
+    "testExportsAbsentInDefaultAndDevelopmentOnly": true,
+    "variants": 3
+  },
+  "remainingOperational": [
+    "real PHP execution and real external delivery unverified",
+    "production domain/routing/internal binding/D1/secret setup not performed",
+    "production scheduler and retention activation disabled; separate confirmation required",
+    "Cloudflare free CPU budget and JS/Wasm costs unmeasured",
+    "external OAuth integration unverified"
+  ],
+  "realMailSent": false,
+  "realUserDataDeleted": false,
+  "productionTouched": false,
+  "pushed": false,
+  "ownIgnoredGeneratedLogs": {
+    "filesChecked": 17,
+    "tokenUrlMatches": 0
+  }
+}

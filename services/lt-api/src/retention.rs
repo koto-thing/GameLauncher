@@ -57,6 +57,7 @@ pub async fn sweep(
     // 全DMLを同じD1 batchに閉じる。0行UPDATEを成功guardにしない
     for file in [
         include_str!("../retention/prepare-archive-proposal.sql"),
+        include_str!("../retention/delete-email-change.sql"),
         include_str!("../retention/delete-event.sql"),
         include_str!("../retention/d1-mail-cleanup.sql"),
         include_str!("../retention/delete-expired-orphan-auth.sql"),

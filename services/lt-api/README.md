@@ -86,11 +86,11 @@ EmptyMutationには新タイトル/日時の欄がないため、独立した開
 
 ## outbox・保持
 
-7種類の業務通知と別枠の確認linkをfake adapterだけで扱う。fake配達receiptとoutbox状態を同じbatchで確定し二重配達を抑制。期限後は配達しない。実SMTP/API送信のexactly-onceを保証する実装ではない。再発行時の旧確認linkを失効させるか等は未定。
+7種類の業務通知、ログイン確認、例外メール変更通知は共通outbox/lease dispatcherへ接続済み。既定送信無効で、ローカルではfakeのみ検証した。HTTP/PHP候補は無効のまま。送信結果不明・lease失効はuncertainへ隔離し、実SMTP/APIのexactly-onceは保証しない。再発行は旧未使用リンクを失効させる。
 
-非公開データは終了/中止の初回確定からUTC暦3か月を固定提案とし、申請、本人/運営operation receipt、承認receipt、audit、outbox、fake配達、設定と時間割receiptへ継承。token/session/fake確認mailは自身の短期期限。編集/再承認で固定期限を延長しない。公開archiveは独立snapshotと公開承認証跡を使い、私有期限後も維持する（全体中止は非公開）。月末丸め/保持起点/timeZoneの最終決定は未定。既存架空回の不明な終了時刻は導入観測時刻という明記した提案で補完。
+非公開データの保持期限は固定した予定終了日時／中止確定日時からAsia/Tokyoで3暦月後（月末補正）とし、後の編集・観測・再送で延長しない。本人／運営の読取・mutation・receipt再送・配送は期限で拒否する。公開archiveは独立保持し、全体中止は公開対象を削除する。物理削除はretention/とsrc/retention.rsのローカルruntime-tests限定実装で検証し、本番有効化は別途確認が必要。
 
-`retention-dry-run.sql`は件数SELECTのみで、公開archiveを対象にしない。物理行は残るがAPI取得/再送/配達を期限で拒否する。削除実行や本番cronは存在しない。期限未設定outboxは別件数で報告し、推測削除しない。
+`retention-dry-run.sql`は候補SELECTのみ。実D1 atomic batchによる架空データ削除の検証はtests/retention_runtime_test.pyを参照。通常buildに削除exportはなく、本番cronは未設定。
 
 ## 再現と検証
 
@@ -142,7 +142,7 @@ bundleの非圧縮/gzipとlocal GET wall timeはverification.json。測定スク
 
 runtime-testsとlocal-developmentを両方指定した検証bundleだけが固定時計を持つ。test proxyのPOST /test/clockは内部RPC専用で、公開fetchには登録しない。通常bundleにはset_clock/fake_mail exportも停止hookも含めず、固定時計が残っていれば実時刻へ戻してから処理する。これらは本番認証の代替ではない。
 
-保管担当との境界: retention-dry-run.sqlはSELECTのみ。全体中止のlt_public_events/lt_public_talksも期限到達後の削除候補件数に含める。通常終了の公開archiveは含めない。物理削除の別担当はevent.id/private_expires/stateとapplication.event_idを境界として独立SQLを作成できるが、API側の番号付きmigrationと接続は本担当が統合する。lt_auth_tokens/lt_fake_mail/lt_auth_rateは開催回所属ではなく、独立した自身の期限切れ整理とする。メール一致で別開催分のsession/tokenを削除しない。新しいメール変更tableは未作成で、接続前に所属一覧を追加する。
+保管境界: retention/d1-inventory.jsonとd1-schema-guard.sqlは0001〜0029・0030・0040の表／ビュー／列／型を厳格照合する。メール変更の5表はdelete-email-change.sql、期限切れ確認URL/tokenはd1-mail-cleanup.sqlで処理し、outbox・申請より先に私有子を削除する。未知schemaは停止する。認証token/sessionは開催回と独立した自身の期限に従い、メール一致だけで別開催の有効認証を削除しない。
 
 
 状態追補の検証中に解決した問題: 初回のD1 CLIがfixture準備で終了コード1となったためstderrを捕捉するように修正し、同じHTTP並列試験を再実行。新しい時計試験の後処理は蓄積fixtureを1件ずつCLI復元して遅くなったため、自分のテストPythonだけを停止し、保存済みログの元設定を一括復元した。現在はSQLファイルを使う一括後処理でWindowsのcommand長上限も避ける。HTTPの競合試験は並列のまま。中止旧公開情報のdry-run追加で古い「publicという文字が一切ない」というテスト前提を修正し、通常archive除外/実データ不変を検証する。

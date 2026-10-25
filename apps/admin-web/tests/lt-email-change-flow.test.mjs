@@ -9,7 +9,7 @@ test('unknown outcome reuses identical body and operationId; double click sends 
  const second=flow.act('investigate',{newEmail:'different@example.invalid'});fail=false;release();await second;assert.deepEqual(calls[0],calls[1]);
 });
 test('cannot confirm before verification or after request replacement refresh',async()=>{
- let current=status('verificationPending');const calls=[];const flow=new EmailChangeFlow(1,async(action,body)=>{calls.push(action);if(!action)return current;throw Error('network');});await flow.refresh();await assert.rejects(flow.act('confirm'));assert.deepEqual(calls,['']);
+ let current=status('verificationPending');const calls=[];const flow=new EmailChangeFlow(1,async(action)=>{calls.push(action);if(!action)return current;throw Error('network');});await flow.refresh();await assert.rejects(flow.act('confirm'));assert.deepEqual(calls,['']);
  current=status('verified',2);await flow.refresh();await assert.rejects(flow.act('confirm'));const old=flow.pending.body.operationId;
  current=status('verificationPending',1,'replacement');await flow.refresh();assert.equal(flow.pending,null);await assert.rejects(flow.act('confirm'));assert.notEqual(flow.current.id,'request');assert.ok(old);
 });

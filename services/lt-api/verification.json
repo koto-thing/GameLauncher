@@ -5,18 +5,18 @@
   "bundles": {
     "development_with_test_hooks": {
       "index_bg.wasm": {
-        "bytes": 1403430,
-        "gzip_bytes": 451604
+        "bytes": 1515004,
+        "gzip_bytes": 478163
       },
       "index.js": {
-        "bytes": 27543,
-        "gzip_bytes": 7342
+        "bytes": 27705,
+        "gzip_bytes": 7372
       }
     },
     "default_private_disabled": {
       "index_bg.wasm": {
-        "bytes": 1366933,
-        "gzip_bytes": 443145
+        "bytes": 1367791,
+        "gzip_bytes": 443259
       },
       "index.js": {
         "bytes": 26601,
@@ -25,8 +25,8 @@
     },
     "development_without_test_hooks": {
       "index_bg.wasm": {
-        "bytes": 1370745,
-        "gzip_bytes": 444023
+        "bytes": 1371595,
+        "gzip_bytes": 444127
       },
       "index.js": {
         "bytes": 26601,
@@ -80,8 +80,8 @@
     "shared_contract_tests": "9 passed",
     "cargo_check": "passed",
     "cargo_fmt": "passed",
-    "fresh_migrations_and_fixture": "0001-0029 +0040 passed",
-    "normal_bundles_test_hooks": "fake_mail/change_mail/test_dispatch/set_clock/pause absent",
+    "fresh_migrations_and_fixture": "0001-0029 +0030 +0040 passed",
+    "normal_bundles_test_hooks": "fake_mail/change_mail/test_dispatch/set_clock/retention_test/pause absent",
     "new_cli_confirmation_url_log_matches": 0,
     "default_private_api": "typed 501; public operator 404",
     "copy_japan_timezone": "3 event regressions passed",
@@ -89,29 +89,33 @@
     "mail_sqlite_claim_tests": "9 passed",
     "mail_runtime_tests": "6 passed",
     "fresh_mail_mode": "disabled",
-    "email_change_runtime_tests": "11 passed, plus final response-race targeted rerun"
+    "email_change_runtime_tests": "11 passed, plus final response-race targeted rerun",
+    "real_admin_proxy": "signed fixture -> actual auth/Origin proxy -> named binding -> Rust passed",
+    "browser_ui": "2 real Chrome journeys passed; 9 fixture Chrome passed",
+    "own_ignored_generated_logs": "17 checked; 0 token URL matches",
+    "retention_actual_d1": "38 event batch and 10 independent cleanup failure positions; rollback passed"
   },
   "limitations": [
     "cloud_cpu_not_measured",
     "cloud_tests_not_run",
-    "real_admin_proxy_auth_not_verified",
-    "browser_ui_not_verified",
-    "old_fake_confirmation_urls_remain_in_shared_wrangler_logs",
     "php_relay_not_run",
     "real_mail_transport_not_run",
-    "mail_scheduler_not_enabled"
+    "mail_scheduler_not_enabled",
+    "external_github_oauth_not_run_signed_fixture_only"
   ],
   "contract_tests": 9,
   "rust_unit_tests": 1,
   "automatic_lifecycle": "request reconciliation before access",
   "retention_calendar": "Asia/Tokyo +3 calendar months, month-end clamp",
-  "physical_deletion_run": false,
+  "physical_deletion_run": true,
+  "physical_deletion_scope": "generated_local_retention_fixture_only",
+  "production_deletion_enabled": false,
   "fresh_migrations": 30,
   "default_private_disabled_smoke": true,
   "test_exports_absent_in_normal_bundles": true,
   "runtime_tests_passed": 58,
   "contract_tests_passed": 9,
-  "fresh_migrations_passed": 30,
+  "fresh_migrations_passed": 31,
   "copy_japan_timezone_regression_passed": true,
   "mail_log_validation": {
     "historical_local_fake_urls_revoked_or_already_consumed": 1,

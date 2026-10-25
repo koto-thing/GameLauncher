@@ -1,12 +1,12 @@
 {
   "migration": "0030_retention_batch.sql",
-  "knownSchema": "0001-0029 plus 0030; exact tables/views/columns/types",
+  "knownSchema": "0001-0029 plus 0030 and 0040; exact tables/views/columns/types",
   "destructiveBuild": "local-development + runtime-tests only",
   "default": "dry-run",
   "actualD1": {
     "passed": true,
     "databaseIdSuffix": "000036",
-    "statementsPerBatch": 30,
+    "statementsPerBatch": 38,
     "failureAfterEveryStatement": true,
     "rollbackObservation": "all registered table/view row counts unchanged after each injected CHECK failure",
     "cases": [
@@ -20,9 +20,13 @@
       "later expired orphan session removed",
       "mail source and job cleanup",
       "archive marker exact match required",
-      "unknown table/view/column refused"
+      "unknown table/view/column refused",
+      "email-change private children removed before application/outbox",
+      "other event email-change history protected",
+      "expired/used email-change payload and token cleanup",
+      "expired confirmation URL copy scrubbed from pending mail job"
     ],
-    "independentAuthCleanupStatements": 7,
+    "independentAuthCleanupStatements": 10,
     "independentAuthFailureRollback": true
   },
   "sqliteReferenceTests": 10,
@@ -34,7 +38,7 @@
     "production scheduler/deletion activation requires separate confirmation",
     "real SMTP/PHP execution not verified"
   ],
-  "apiRegressionTests": 47,
+  "apiRegressionTests": 58,
   "mailRustTests": 6,
   "normalBundlesTestExportsAbsent": [
     "default",
