@@ -1,6 +1,8 @@
 use serde_json::{Value, json};
 use worker::*;
 mod applicant;
+mod operator;
+pub use operator::{fake_dispatch, operator_request};
 
 mod public_dto;
 
@@ -31,7 +33,7 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
         } else {
             let db = env.d1("DB")?;
             let sql = if talk {
-                "SELECT p.dto FROM lt_public_talks p JOIN lt_events e ON e.id=p.event_id WHERE e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1 AND p.id=?2"
+                "SELECT p.dto FROM lt_public_talks p JOIN lt_events e ON e.id=p.event_id WHERE p.approval_operation IS NOT NULL AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1 AND p.id=?2"
             } else if p.len() == 5 {
                 "SELECT p.dto FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1"
             } else {

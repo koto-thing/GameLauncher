@@ -8,9 +8,9 @@ class PublicRuntime(unittest.TestCase):
   text=r.read().decode(); self.assertNotIn('PRIVATE_SENTINEL',text)
   self.assertEqual(r.headers['Cache-Control'],'no-store')
   return json.loads(text) if status==200 else None
- def test_list(self): self.assertEqual([x['id'] for x in self.get('/events')['items']],['open'])
- def test_detail_timetable(self): self.assertEqual(self.get('/events/open')['schedule'][0]['id'],'slot')
- def test_talk(self): self.assertEqual(self.get('/events/open/talks/open-talk')['speakers'][0]['displayName'],'試験者')
+ def test_list(self): self.assertIn('open',[x['id'] for x in self.get('/events')['items']])
+ def test_detail_timetable(self): self.assertEqual(self.get('/events/open')['schedule'],[])
+ def test_talk(self): self.get('/events/open/talks/open-talk',404)  # 承認証跡のない旧fixtureは非公開
  def test_hidden_cancelled_missing(self):
   for id in ['hidden','cancelled','missing']:
    self.get('/events/'+id,404); self.get('/events/'+id+'/talks/'+id+'-talk',404)

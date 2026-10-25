@@ -14,7 +14,7 @@ def request(path,data=None,cookie=None,method=None,origin=BASE):
 class ApplicantRuntime(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
-  sql("INSERT INTO lt_recruitment VALUES('open',0,9999999999999,20,0) ON CONFLICT DO NOTHING")
+  sql("INSERT INTO lt_recruitment(event_id,opens,closes,capacity,reserved) VALUES('open',0,9999999999999,20,0) ON CONFLICT DO NOTHING")
  def login(self):
   email=uuid.uuid4().hex+'@example.invalid'
   self.assertEqual(request('/api/lt/v1/auth/email',{'email':email})[0],202)

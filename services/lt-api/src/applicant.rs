@@ -254,10 +254,15 @@ async fn applications(
             .iter()
             .map(|r| serde_json::from_str(r["dto"].as_str().unwrap()).unwrap())
             .collect();
+        let active: Vec<Value> = items.iter().filter(|v| !expired(v, now)).cloned().collect();
         return if p.len() == 4 {
-            Response::from_json(&json!({"items":items,"nextCursor":null}))
+            Response::from_json(&json!({"items":active,"nextCursor":null}))
         } else if let Some(v) = items.first() {
-            Response::from_json(v)
+            if expired(v, now) {
+                error("RETENTION_EXPIRED", 410)
+            } else {
+                Response::from_json(v)
+            }
         } else {
             error("NOT_FOUND", 404)
         };
@@ -268,7 +273,19 @@ async fn applications(
     };
     let submit = req.method() == Method::Post && p.len() == 4;
     let edit = req.method() == Method::Patch && p.len() == 5;
-    if !submit && !edit {
+    let action = if req.method() == Method::Post && p.len() == 6 {
+        p[5]
+    } else {
+        ""
+    };
+    let transition = [
+        "resubmit",
+        "withdraw",
+        "request-withdrawal",
+        "cancel-withdrawal",
+    ]
+    .contains(&action);
+    if !submit && !edit && !transition {
         return Response::error("Not implemented", 501);
     }
     let data = if submit { &v } else { &v["data"] };
@@ -281,9 +298,13 @@ async fn applications(
     } else {
         object(&v, &["expectedVersion", "operationId", "data"], &[])
             && v["expectedVersion"].as_u64().is_some_and(|n| n > 0)
-            && object(data, &["content", "materialUrl"], &[])
+            && if edit {
+                object(data, &["content", "materialUrl"], &[])
+            } else {
+                object(data, &[], &[])
+            }
     }) || !text(&v["operationId"])
-        || !content(&data["content"], &data["materialUrl"])
+        || ((submit || edit) && !content(&data["content"], &data["materialUrl"]))
     {
         return error("VALIDATION", 422);
     }
@@ -334,21 +355,54 @@ async fn applications(
         return error("NOT_FOUND", 404);
     };
     let mut dto: Value = serde_json::from_str(old["dto"].as_str().unwrap())?;
+    if expired(&dto, now) {
+        return error("RETENTION_EXPIRED", 410);
+    }
     if dto["version"] != v["expectedVersion"] {
         return error("VERSION_CONFLICT", 409);
     }
-    if !["pending", "held", "returned", "resubmitted"]
-        .contains(&dto["review"].as_str().unwrap_or(""))
-        || (dto["everApproved"] == true && dto["review"] != "returned")
-    {
+    let review = dto["review"].as_str().unwrap_or("");
+    let ever = dto["everApproved"] == true;
+    let withdrawal = dto["withdrawal"].as_str().unwrap_or("");
+    let allowed = if edit {
+        (!ever && ["pending", "held"].contains(&review)) || (ever && review == "returned")
+    } else {
+        match action {
+            "resubmit" => review == "returned",
+            "withdraw" => !ever && ["pending", "held", "returned", "resubmitted"].contains(&review),
+            "request-withdrawal" => ever && withdrawal == "none" && review != "withdrawn",
+            "cancel-withdrawal" => withdrawal == "requested",
+            _ => false,
+        }
+    };
+    if !allowed {
         return error("INVALID_TRANSITION", 409);
     }
     dto["version"] = json!(v["expectedVersion"].as_u64().unwrap() + 1);
-    dto["content"] = data["content"].clone();
-    dto["materialUrl"] = data["materialUrl"].clone();
-    let result=db.batch(vec![db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3 WHERE id=?4 AND email=?5 AND version=?6").bind(&[dto.to_string().into(),op.into(),payload.into(),id.into(),owner.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into()])?,db.prepare("INSERT INTO lt_applicant_operations SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
+    if edit {
+        dto["content"] = data["content"].clone();
+        dto["materialUrl"] = data["materialUrl"].clone();
+    }
+    match action {
+        "resubmit" => dto["review"] = json!("resubmitted"),
+        "withdraw" => dto["review"] = json!("withdrawn"),
+        "request-withdrawal" => dto["withdrawal"] = json!("requested"),
+        "cancel-withdrawal" => dto["withdrawal"] = json!("none"),
+        _ => {}
+    }
+    let result=db.batch(vec![db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=NULL,active=CASE WHEN json_extract(?1,'$.review')='withdrawn' THEN 0 ELSE 1 END WHERE id=?4 AND email=?5 AND version=?6").bind(&[dto.to_string().into(),op.into(),payload.into(),id.into(),owner.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into()])?,db.prepare("INSERT INTO lt_applicant_operations SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
     if result[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
         return error("VERSION_CONFLICT", 409);
     }
     Response::from_json(&dto)
+}
+
+/// 私有申請の固定保持期限を判定する
+/// 引数: 申請、現在のミリ秒
+/// 戻り値: 期限切れか
+fn expired(dto: &Value, now: f64) -> bool {
+    dto["retentionExpiresAt"].as_str().is_some_and(|s| {
+        let millis = js_sys::Date::new(&s.into()).get_time();
+        !millis.is_finite() || millis <= now
+    })
 }
