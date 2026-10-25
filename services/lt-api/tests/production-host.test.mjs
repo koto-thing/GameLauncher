@@ -30,11 +30,11 @@ test('production host defers Wasm until permitted processing and preserves conte
     assert.equal(loads,0);
     assert.equal((await http.fetch(new Request('https://example.invalid/api/lt/v1/events'))).status,200);
     assert.equal(loads,1);
-    env.LT_PRIVATE_API_ENABLED='true';
+    env.LT_OPERATOR_API_ENABLED='true';
     const context={actorId:'fixture',role:'assistant',requestId:'fixture'};
     assert.deepEqual((await (await operator.operate(context,request)).json()).context,context);
     assert.equal(loads,1);
-    env.LT_MAINTENANCE_ENABLED='true';assert.equal(await http.scheduled({}),'scheduled');
+    env.LT_PRIVATE_API_ENABLED='true';env.LT_MAINTENANCE_ENABLED='true';assert.equal(await http.scheduled({}),'scheduled');
     assert.equal('testMail' in operator,false);assert.equal('testClock' in operator,false);
   } finally {delete globalThis.ltCpuFixtureModule;}
 });

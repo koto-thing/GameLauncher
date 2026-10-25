@@ -93,7 +93,7 @@ fn error(code: &str, status: u16, c: &OperatorContext) -> Result<Response> {
 /// 戻り値: 運営 DTO または未対応応答
 async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Response> {
     // RPC context だけで本番を有効化せず、開発ビルドにも限定する
-    if !crate::gate::private_enabled(env) {
+    if !crate::gate::operator_enabled(env) {
         return error("NOT_IMPLEMENTED", 501, c);
     }
     if c.actor_id.is_empty() || c.request_id.is_empty() {

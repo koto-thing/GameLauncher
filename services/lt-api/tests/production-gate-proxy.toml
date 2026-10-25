@@ -1,0 +1,11 @@
+# 既存のローカル固定contextハーネス。実OAuthの証明には使わない。
+name = "lt-production-gate-local-proxy"
+main = "proxy.mjs"
+compatibility_date = "2026-10-25"
+workers_dev = false
+preview_urls = false
+
+[[services]]
+binding = "LT_INTERNAL"
+service = "lt-production-gate-local"
+entrypoint = "LtOperator"

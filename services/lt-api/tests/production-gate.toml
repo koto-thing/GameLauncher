@@ -1,0 +1,20 @@
+# ローカル実Worker試験専用。配備しない。
+name = "lt-production-gate-local"
+main = "../production-entry.mjs"
+compatibility_date = "2026-10-25"
+workers_dev = false
+preview_urls = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lt-production-gate-local"
+database_id = "00000000-0000-0000-0000-000000000049"
+migrations_dir = "../migrations"
+
+[vars]
+APP_ORIGIN = "https://example.invalid"
+LOCAL_AUTH = "false"
+LT_PRIVATE_API_ENABLED = "false"
+LT_OPERATOR_API_ENABLED = "true"
+LT_MAINTENANCE_ENABLED = "false"
+LT_SYNTHETIC_METRICS = "true"

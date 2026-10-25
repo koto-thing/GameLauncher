@@ -23,8 +23,17 @@ async function safeError(response: Response, requestId: string): Promise<Respons
   return Response.json({ error } satisfies ApiError, { status: response.status, headers: { "Cache-Control": "no-store, private" } });
 }
 /** @brief 最新の在籍と役割を検証し、内部専用アダプターへ渡す @param request ブラウザー要求 @param adapter 内部接続 @returns 非キャッシュ応答 */
-export async function proxyLtCore(request: Request, authenticate: (request: Request) => Promise<{ githubUserId: string; role: string | null }>, adapter?: LtInternalAdapter): Promise<Response> {
+export async function proxyLtCore(request: Request, authenticate: (request: Request) => Promise<{ githubUserId: string; role: string | null }>, adapter?: LtInternalAdapter, metricsEnabled = false): Promise<Response> {
   const requestId = crypto.randomUUID();
+  let dispatched = false;
+  // 相関IDは常にサーバー生成。cookie/actor/body/ブラウザー指定IDは記録しない
+  const finish = (response: Response): Response => {
+    if (metricsEnabled) {
+      response.headers.set("X-LT-Request-ID", requestId);
+      console.log(JSON.stringify({ltOperatorProxy:true,requestId,dispatched,status:response.status}));
+    }
+    return response;
+  };
   try {
     // Cookie の署名、在籍、役割を既存認証で再検証する
     const user = await authenticate(request);
@@ -56,11 +65,12 @@ export async function proxyLtCore(request: Request, authenticate: (request: Requ
       body,
       redirect: "error",
     });
+    dispatched = true;
     const result = await adapter.fetch(internal, { actorId: user.githubUserId, role: user.role, requestId });
-    if (!result.ok) return safeError(result, requestId);
-    return new Response(result.body, { status: result.status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store, private" } });
+    if (!result.ok) return finish(await safeError(result, requestId));
+    return finish(new Response(result.body, { status: result.status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store, private" } }));
   } catch (error) {
     const response = error instanceof Response ? error : new Response("Unavailable", { status: 503 });
-    return safeError(response, requestId);
+    return finish(await safeError(response, requestId));
   }
 }

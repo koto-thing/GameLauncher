@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {earlyResponse,privateResponse} from '../host-gate.mjs';
+import {earlyResponse,privateResponse,operatorResponse} from '../host-gate.mjs';
 
 test('disabled private paths never read DB or accept forged role headers',async()=>{
   const env={get DB(){throw Error('DB must not be accessed');}};
@@ -23,4 +23,13 @@ test('active private requests remain subject to Rust auth and lifecycle validati
 });
 test('normal public reads always reach the Rust lifecycle and allowlist',()=>{
   assert.equal(earlyResponse(new Request('https://example.invalid/api/lt/v1/events'),{}),undefined);
+});
+
+test('operator gate defaults closed and does not open applicant HTTP',()=>{
+  assert.equal(operatorResponse({}).status,501);
+  assert.equal(operatorResponse({LT_PRIVATE_API_ENABLED:'true'}).status,501);
+  const operatorOnly={LT_OPERATOR_API_ENABLED:'true'};
+  assert.equal(operatorResponse(operatorOnly),undefined);
+  assert.equal(privateResponse(operatorOnly).status,501);
+  assert.equal(earlyResponse(new Request('https://example.invalid/api/lt/v1/auth/session'),operatorOnly).status,501);
 });

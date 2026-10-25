@@ -5,6 +5,11 @@ export function privateResponse(env) {
   if (env.LT_PRIVATE_API_ENABLED !== "true" && env.LOCAL_AUTH !== "true") return error("NOT_IMPLEMENTED",501);
 }
 
+// 運営RPCだけを有効にしても本人HTTP APIは開かない
+export function operatorResponse(env) {
+  if (env.LT_OPERATOR_API_ENABLED !== "true" && env.LOCAL_AUTH !== "true") return error("NOT_IMPLEMENTED",501);
+}
+
 export function earlyResponse(request, env) {
   const path = new URL(request.url).pathname;
   if (path === "/api/lt/v1/operator" || path.startsWith("/api/lt/v1/operator/")) return error("NOT_FOUND",404);

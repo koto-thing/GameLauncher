@@ -5,7 +5,8 @@ import { ltInternalAdapter, type LtBindingEnv } from "@/lib/lt/internal-adapter"
 /** @brief 既存認証を通した要求を内部RPCへ接続する @param request HTTP要求 @returns 管理応答 */
 async function handle(request: Request): Promise<Response> {
   // binding未設定時は既存proxyの503で閉じる
-  return proxyLt(request, ltInternalAdapter(env as unknown as LtBindingEnv));
+  const bindings = env as unknown as LtBindingEnv;
+  return proxyLt(request, ltInternalAdapter(bindings), bindings.LT_SYNTHETIC_METRICS === "true");
 }
 
 export const GET = handle;

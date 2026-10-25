@@ -40,7 +40,7 @@ jobs:
       - name: Check contracts and Rust engines
         run: |
           python -m unittest discover -s contracts/lt -p 'test*.py' -v
-          python -m unittest discover -s services/lt-api/tests -p 'test_cpu_tail_parser.py' -v
+          python -m unittest discover -s services/lt-api/tests -p 'test_*cpu*parser.py' -v
           node --test services/lt-api/tests/host-gate.test.mjs services/lt-api/tests/production-host.test.mjs services/lt-api/tests/host-metrics.test.mjs
           cargo test --locked --manifest-path services/lt-api/Cargo.toml --features production-api
           cargo test --locked --manifest-path services/lt-api/Cargo.toml --features local-development,runtime-tests
@@ -75,3 +75,7 @@ jobs:
           python tests/measure_bundle.py default_private_disabled
           .tools/bin/worker-build --release . --features local-development
           python tests/measure_bundle.py development_without_test_hooks
+          .tools/bin/worker-build --release . --features production-api
+          python tests/measure_bundle.py production_explicit_gates_disabled
+          node node_modules/wrangler/bin/wrangler.js deploy --dry-run --config wrangler.production.toml --outdir .wrangler/ci-production-dry-run
+          python tests/verify_production_gate.py

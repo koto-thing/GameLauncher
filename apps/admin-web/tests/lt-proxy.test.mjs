@@ -96,3 +96,30 @@ test("メール変更状態GETもassistantを拒否する", async () => {
  const request=new Request(url.replace("events","applications/a/email-change"));
  assert.equal((await proxyLtCore(request,identity("assistant"))).status,403);
 });
+
+
+test("相関ログはサーバー生成IDだけを使い、偽装header・actor・本文を保存しない", async()=>{
+  const logs=[];const original=console.log;console.log=value=>logs.push(JSON.parse(value));
+  let serverId;
+  try {
+    const response=await proxyLtCore(new Request(url,{method:"POST",headers:{origin:"https://admin.example.invalid","content-type":"application/json",cookie:"PRIVATE_COOKIE","x-lt-request-id":"PRIVATE_FORGED_ID"},body:JSON.stringify({secret:"PRIVATE_BODY"})}),identity("admin"),{fetch:async(request,context)=>{
+      serverId=context.requestId;
+      assert.equal(request.headers.get("x-lt-request-id"),null);
+      return Response.json({items:[]});
+    }},true);
+    assert.equal(response.headers.get("X-LT-Request-ID"),serverId);
+  } finally {console.log=original;}
+  assert.deepEqual(logs,[{ltOperatorProxy:true,requestId:serverId,dispatched:true,status:200}]);
+  assert.doesNotMatch(JSON.stringify(logs),/PRIVATE|fixture-operator|role|actor/);
+});
+
+test("認証拒否はRPC未呼出しとして記録し、計測無効ならログもheaderも出さない",async()=>{
+  const logs=[];const original=console.log;console.log=value=>logs.push(JSON.parse(value));
+  try {
+    const rejected=await proxyLtCore(new Request(url),async()=>{throw new Response(null,{status:401});},undefined,true);
+    assert.equal(logs[0].status,401);assert.equal(logs[0].dispatched,false);
+    assert.equal((await rejected.json()).error.requestId,logs[0].requestId);
+    const quiet=await proxyLtCore(new Request(url),identity("admin"));
+    assert.equal(quiet.headers.get("X-LT-Request-ID"),null);assert.equal(logs.length,1);
+  } finally {console.log=original;}
+});
