@@ -3,7 +3,7 @@ from applicant_runtime_test import sql,request
 class PublicGuard(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
-  sql("UPDATE lt_events SET public_opens_at=0; UPDATE lt_public_events SET dto=json_set(json_remove(dto,'$.representativeEmail'),'$.schedule',json('[]'))")
+  sql("UPDATE lt_events SET public_opens_at=0 WHERE id='open'; UPDATE lt_public_events SET dto=json_set(json_remove(dto,'$.representativeEmail'),'$.schedule',json('[]')) WHERE event_id='open'")
  def test_future_gate_all_routes(self):
   sql("UPDATE lt_events SET public_opens_at=9999999999999 WHERE id='open'")
   try:

@@ -6,7 +6,7 @@ BEGIN SELECT RAISE(ABORT,'LT_OPERATION_CONFLICT'); END;
 CREATE TRIGGER lt_operator_receipt AFTER UPDATE ON lt_applications
 WHEN NEW.actor_id IS NOT NULL AND (NEW.operation_id!=OLD.operation_id OR NEW.actor_id IS NOT OLD.actor_id)
 BEGIN
- INSERT INTO lt_operator_operations VALUES(NEW.actor_id,NEW.operation_id,NEW.id,NEW.payload_hash,json_set(NEW.dto,'$.operatorNote',NEW.operator_note));
+ INSERT INTO lt_operator_operations(actor,operation_id,application_id,payload_hash,result) VALUES(NEW.actor_id,NEW.operation_id,NEW.id,NEW.payload_hash,json_set(NEW.dto,'$.operatorNote',NEW.operator_note));
  INSERT INTO lt_outbox(id,operation_id,application_id,kind,recipient)
  SELECT NEW.operation_id||':'||NEW.id,NEW.operation_id,NEW.id,
  CASE WHEN json_extract(NEW.dto,'$.review')='returned' THEN 'returned' WHEN json_extract(NEW.dto,'$.review')='rejected' THEN 'rejected' WHEN json_extract(OLD.dto,'$.review')='resubmitted' AND json_extract(NEW.dto,'$.review')='approved' THEN 'reapproved' ELSE 'withdrawalConfirmed' END,NEW.email

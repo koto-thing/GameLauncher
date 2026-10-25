@@ -64,3 +64,17 @@ actual local Worker+D1+named service RPCで公開6、公開ガード2、本人4�
 CPUの精密計測・クラウド試験なし。ローカル壁時計はCPU時間ではなく、無料枠適合は未保証。bundleサイズは検証記録参照。本人機能のメール正規化は小文字化、レート制限はメールhashごと5回/時間の開発提案で、全体濫用制御は本番前に追加検討が必要。
 
 公式資料: https://developers.cloudflare.com/workers/languages/rust/ 、https://developers.cloudflare.com/d1/worker-api/d1-database/ 、https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/ 。worker-rs RPCは公式rpc-server例と固定worker-buildの生成コードを確認して採用。
+
+## 保持・DTOレビュー対応（追加）
+
+終了/中止の初回確定からUTC暦3か月を固定提案値として設定し、申請、承認receipt、本人/運営operation receipt、audit、outbox、fake配達に継承する（0009/0010）。本人/運営の詳細・変更・再送は、receipt自身だけでなく現行申請の期限も再照合する。申請一覧も期限後を除外。確認token/session/fakeメールは自身の短期期限を使用する。削除処理は依然存在せず、dry-runのみ。保持開始時点・暦月・UTCの採用は仕様未定に対する安全な提案。
+
+本人DTOは具体型で許可項目を再構成し、rootのoperatorNoteやnested content/speakerの誤混入を返さない。運営noteは保存列から読み、operation再送でも保存結果を保持する。公開した終了済み回は差し戻し→本人訂正→再承認が可能で、公開アーカイブと最初の固定保持期限を維持する。
+
+追加テスト: privacy_runtime_test.py（期限後のdetail/list/replay拒否、private canary、運営メモ保持）。全runtime試験はtests/run_runtime.pyで直列実行し、test-results.txtへログ保存する。固定assistantのproxyハーネスはRust内部境界の試験であり、実管理proxyのセッション/在籍/役割認証を証明しない。実proxyとの結合検証は未実施。
+
+検証中、並行したローカルDB準備・試験で一度D1_ERROR「Failed to get session commit token」による500が発生した。API側に盲目的な再試行は追加していない。独立したDB準備完了後に直列回帰を再実施する。通常sandboxのsocket制限とは別のlocal runtimeエラーとして記録する。
+
+開催設定CRUD/copy、時間割PUT、辞退確定と繰上げ、全体中止mutation/outboxは引き続き未実装。今回の追加変更で成功扱いにはしていない。保持dry-runの対象はaudit/receipt/fake配達/auth rateにも拡張済み。
+
+最終直列回帰: tests/run_runtime.py の7ファイル、全19件PASS。最終ログはローカルtest-results.txt（生成物、git対象外）。dry-runのcompound SELECT上限は独立SELECTへ分割して解消し、maintenance試験PASS。commit-tokenエラーは最後の単一直列実行では再現しなかった。別の空ローカルDBへ0001〜0010を適用してfixture投入成功、その後0011の適用も成功。0011は導入前の終了時刻が不明な架空回に限り、導入観測時刻を保持開始提案とする。既存のdirty checkout・本番DBには適用していない。

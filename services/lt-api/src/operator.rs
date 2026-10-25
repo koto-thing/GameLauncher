@@ -98,7 +98,10 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
             .results::<Value>()?;
         return if let Some(row) = rows.first() {
             let mut dto: Value = serde_json::from_str(row["dto"].as_str().unwrap())?;
-            dto["operatorNote"] = json!("");
+            if crate::applicant::expired(&dto, Date::now().as_millis() as f64) {
+                return error("RETENTION_EXPIRED", 410, c);
+            }
+            dto["operatorNote"] = row["operator_note"].clone();
             Response::from_json(&dto)
         } else {
             error("NOT_FOUND", 404, c)
@@ -167,13 +170,15 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     .iter()
     .map(|b| format!("{b:02x}"))
     .collect::<String>();
-    let replay=db.prepare("SELECT payload_hash,result AS dto FROM lt_operator_operations WHERE operation_id=?1 AND actor=?2").bind(&[input.operation_id.clone().into(),c.actor_id.clone().into()])?.all().await?.results::<Value>()?;
+    let replay=db.prepare("SELECT payload_hash,result AS dto FROM lt_operator_operations WHERE EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=lt_operator_operations.application_id AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now'))) AND operation_id=?1 AND actor=?2 AND (expires IS NULL OR expires>CAST(unixepoch('subsec')*1000 AS INTEGER))").bind(&[input.operation_id.clone().into(),c.actor_id.clone().into()])?.all().await?.results::<Value>()?;
     if let Some(r) = replay.first() {
         if r["payload_hash"] != payload {
             return error("VERSION_CONFLICT", 409, c);
         }
         let mut dto: Value = serde_json::from_str(r["dto"].as_str().unwrap())?;
-        dto["operatorNote"] = json!("");
+        if dto.get("operatorNote").is_none() {
+            dto["operatorNote"] = json!("");
+        }
         return Response::from_json(&dto);
     }
     let rows=db.prepare("SELECT a.dto,r.talk_minutes FROM lt_applications a JOIN lt_recruitment r ON r.event_id=a.event_id WHERE a.id=?1").bind(&[p[5].into()])?.all().await?.results::<Value>()?;
@@ -181,6 +186,9 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
         return error("NOT_FOUND", 404, c);
     };
     let mut dto: Value = serde_json::from_str(row["dto"].as_str().unwrap())?;
+    if crate::applicant::expired(&dto, Date::now().as_millis() as f64) {
+        return error("RETENTION_EXPIRED", 410, c);
+    }
     let end = js_sys::Date::new(&(start + row["talk_minutes"].as_f64().unwrap() * 60000.0).into())
         .to_iso_string()
         .as_string()
@@ -209,7 +217,9 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     if changed.meta()?.unwrap().changes.unwrap_or(0) == 0 {
         return error("VERSION_CONFLICT", 409, c);
     }
-    dto["operatorNote"] = json!("");
+    if dto.get("operatorNote").is_none() {
+        dto["operatorNote"] = json!("");
+    }
     Response::from_json(&dto)
 }
 
@@ -257,13 +267,15 @@ async fn review(
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect::<String>();
-    let replay=db.prepare("SELECT result,payload_hash FROM lt_operator_operations WHERE actor=?1 AND operation_id=?2").bind(&[c.actor_id.clone().into(),op.into()])?.all().await?.results::<Value>()?;
+    let replay=db.prepare("SELECT result,payload_hash FROM lt_operator_operations WHERE EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=lt_operator_operations.application_id AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now'))) AND actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>CAST(unixepoch('subsec')*1000 AS INTEGER))").bind(&[c.actor_id.clone().into(),op.into()])?.all().await?.results::<Value>()?;
     if let Some(r) = replay.first() {
         if r["payload_hash"] != payload {
             return error("VERSION_CONFLICT", 409, c);
         }
         let mut dto: Value = serde_json::from_str(r["result"].as_str().unwrap())?;
-        dto["operatorNote"] = json!("");
+        if dto.get("operatorNote").is_none() {
+            dto["operatorNote"] = json!("");
+        }
         return Response::from_json(&dto);
     }
     let rows = db
@@ -276,8 +288,17 @@ async fn review(
         return error("NOT_FOUND", 404, c);
     };
     let mut dto: Value = serde_json::from_str(row["dto"].as_str().unwrap())?;
+    if crate::applicant::expired(&dto, Date::now().as_millis() as f64) {
+        return error("RETENTION_EXPIRED", 410, c);
+    }
+    if crate::applicant::expired(&dto, Date::now().as_millis() as f64) {
+        return error("RETENTION_EXPIRED", 410, c);
+    }
     if dto["version"] != v["expectedVersion"] {
         return error("VERSION_CONFLICT", 409, c);
+    }
+    if crate::applicant::expired(&dto, Date::now().as_millis() as f64) {
+        return error("RETENTION_EXPIRED", 410, c);
     }
     let state = dto["review"].as_str().unwrap_or("");
     let ever = dto["everApproved"] == true;
@@ -320,11 +341,14 @@ async fn review(
     } else {
         -1.0
     };
-    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=?4,operator_note=COALESCE(?8,operator_note),active=CASE WHEN json_extract(?1,'$.review') IN ('rejected','withdrawn') THEN 0 ELSE 1 END WHERE id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND e.state IN ('scheduled','started') AND (?7<0 OR e.version=?7))").bind(&[dto.to_string().into(),op.into(),payload.into(),c.actor_id.clone().into(),id.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into(),expected_event.into(),data.get("note").and_then(Value::as_str).map(JsValue::from_str).unwrap_or(JsValue::NULL)])?.run().await?;
+    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=?4,operator_note=COALESCE(?8,operator_note),active=CASE WHEN json_extract(?1,'$.review') IN ('rejected','withdrawn') THEN 0 ELSE 1 END WHERE id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND e.state IN ('scheduled','started','ended') AND (?7<0 OR e.version=?7))").bind(&[dto.to_string().into(),op.into(),payload.into(),c.actor_id.clone().into(),id.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into(),expected_event.into(),data.get("note").and_then(Value::as_str).map(JsValue::from_str).unwrap_or(JsValue::NULL)])?.run().await?;
     if changed.meta()?.unwrap().changes.unwrap_or(0) == 0 {
         return error("VERSION_CONFLICT", 409, c);
     }
-    dto["operatorNote"] = data.get("note").cloned().unwrap_or(json!(""));
+    dto["operatorNote"] = data
+        .get("note")
+        .cloned()
+        .unwrap_or(row["operator_note"].clone());
     Response::from_json(&dto)
 }
 
@@ -346,7 +370,7 @@ pub async fn fake_dispatch(env: Env) -> std::result::Result<JsValue, JsValue> {
         .d1("DB")
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
     // fake 配達 receipt と outbox の状態を同一 batch で確定する
-    let result=db.batch(vec![db.prepare("INSERT INTO lt_fake_deliveries SELECT id,recipient,kind,CAST(unixepoch('subsec')*1000 AS INTEGER) FROM lt_outbox WHERE state='pending' AND (expires IS NULL OR expires>CAST(unixepoch('subsec')*1000 AS INTEGER)) ON CONFLICT DO NOTHING"),db.prepare("UPDATE lt_outbox SET state='sent' WHERE state='pending' AND EXISTS(SELECT 1 FROM lt_fake_deliveries f WHERE f.id=lt_outbox.id)")]).await.map_err(|e|JsValue::from_str(&e.to_string()))?;
+    let result=db.batch(vec![db.prepare("INSERT INTO lt_fake_deliveries(id,recipient,kind,delivered_at,expires) SELECT id,recipient,kind,CAST(unixepoch('subsec')*1000 AS INTEGER),expires FROM lt_outbox WHERE state='pending' AND (expires IS NULL OR expires>CAST(unixepoch('subsec')*1000 AS INTEGER)) ON CONFLICT DO NOTHING"),db.prepare("UPDATE lt_outbox SET state='sent' WHERE state='pending' AND EXISTS(SELECT 1 FROM lt_fake_deliveries f WHERE f.id=lt_outbox.id)")]).await.map_err(|e|JsValue::from_str(&e.to_string()))?;
     let count = result[0]
         .meta()
         .map_err(|e| JsValue::from_str(&e.to_string()))?

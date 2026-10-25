@@ -254,14 +254,21 @@ async fn applications(
             .iter()
             .map(|r| serde_json::from_str(r["dto"].as_str().unwrap()).unwrap())
             .collect();
-        let active: Vec<Value> = items.iter().filter(|v| !expired(v, now)).cloned().collect();
+        let active: Vec<Value> = items
+            .iter()
+            .filter(|v| !expired(v, now))
+            .filter_map(crate::applicant_dto::sanitize)
+            .collect();
         return if p.len() == 4 {
             Response::from_json(&json!({"items":active,"nextCursor":null}))
         } else if let Some(v) = items.first() {
             if expired(v, now) {
                 error("RETENTION_EXPIRED", 410)
             } else {
-                Response::from_json(v)
+                Response::from_json(
+                    &crate::applicant_dto::sanitize(v)
+                        .ok_or_else(|| Error::RustError("Invalid applicant DTO".into()))?,
+                )
             }
         } else {
             error("NOT_FOUND", 404)
@@ -310,12 +317,15 @@ async fn applications(
     }
     let op = v["operationId"].as_str().unwrap();
     let payload = hash(&format!("{}:{path}:{}", req.method(), v));
-    let replay=db.prepare("SELECT payload_hash,result FROM lt_applicant_operations WHERE actor=?1 AND operation_id=?2").bind(&[owner.into(),op.into()])?.all().await?.results::<Value>()?;
+    let replay=db.prepare("SELECT payload_hash,result FROM lt_applicant_operations WHERE EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=lt_applicant_operations.application_id AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now'))) AND actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>CAST(unixepoch('subsec')*1000 AS INTEGER))").bind(&[owner.into(),op.into()])?.all().await?.results::<Value>()?;
     if let Some(r) = replay.first() {
         return if r["payload_hash"] == payload {
-            Response::from_json(&serde_json::from_str::<Value>(
-                r["result"].as_str().unwrap(),
-            )?)
+            Response::from_json(
+                &crate::applicant_dto::sanitize(&serde_json::from_str::<Value>(
+                    r["result"].as_str().unwrap(),
+                )?)
+                .ok_or_else(|| Error::RustError("Invalid applicant DTO".into()))?,
+            )
         } else {
             error("VERSION_CONFLICT", 409)
         };
@@ -338,11 +348,14 @@ async fn applications(
             .unwrap();
         let dto = json!({"id":id,"eventId":event,"version":1,"content":data["content"],"materialUrl":data["materialUrl"],"representativeEmail":owner,"review":"pending","withdrawal":"none","firstSubmittedAt":date,"everApproved":false,"slotReserved":false,"retentionExpiresAt":null,"published":null});
         // 同一 batch の後続は勝った operation を持つ申請だけに従属する
-        let inserted=db.batch(vec![db.prepare("INSERT INTO lt_applications(id,event_id,email,version,dto,operation_id,payload_hash) SELECT ?1,?2,?3,1,?4,?5,?6 FROM lt_recruitment r JOIN lt_events e ON e.id=r.event_id WHERE r.event_id=?2 AND e.state='scheduled' AND r.opens<=?7 AND r.closes>?7 AND r.reserved<r.capacity AND NOT EXISTS(SELECT 1 FROM lt_applications WHERE event_id=?2 AND email=?3 AND active=1) ON CONFLICT DO NOTHING").bind(&[id.clone().into(),event.into(),owner.into(),dto.to_string().into(),op.into(),payload.clone().into(),now.into()])?,db.prepare("INSERT INTO lt_applicant_operations SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
+        let inserted=db.batch(vec![db.prepare("INSERT INTO lt_applications(id,event_id,email,version,dto,operation_id,payload_hash) SELECT ?1,?2,?3,1,?4,?5,?6 FROM lt_recruitment r JOIN lt_events e ON e.id=r.event_id WHERE r.event_id=?2 AND e.state='scheduled' AND r.opens<=?7 AND r.closes>?7 AND r.reserved<r.capacity AND NOT EXISTS(SELECT 1 FROM lt_applications WHERE event_id=?2 AND email=?3 AND active=1) ON CONFLICT DO NOTHING").bind(&[id.clone().into(),event.into(),owner.into(),dto.to_string().into(),op.into(),payload.clone().into(),now.into()])?,db.prepare("INSERT INTO lt_applicant_operations(actor,operation_id,payload_hash,application_id,result) SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
         if inserted[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
             return error("RECRUITMENT_CLOSED", 409);
         }
-        return Response::from_json(&dto);
+        return Response::from_json(
+            &crate::applicant_dto::sanitize(&dto)
+                .ok_or_else(|| Error::RustError("Invalid applicant DTO".into()))?,
+        );
     }
     let id = p[4];
     let existing = db
@@ -390,17 +403,20 @@ async fn applications(
         "cancel-withdrawal" => dto["withdrawal"] = json!("none"),
         _ => {}
     }
-    let result=db.batch(vec![db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=NULL,active=CASE WHEN json_extract(?1,'$.review')='withdrawn' THEN 0 ELSE 1 END WHERE id=?4 AND email=?5 AND version=?6").bind(&[dto.to_string().into(),op.into(),payload.into(),id.into(),owner.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into()])?,db.prepare("INSERT INTO lt_applicant_operations SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
+    let result=db.batch(vec![db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=NULL,active=CASE WHEN json_extract(?1,'$.review')='withdrawn' THEN 0 ELSE 1 END WHERE id=?4 AND email=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND (e.state IN ('scheduled','started') OR (e.state='ended' AND json_extract(lt_applications.dto,'$.everApproved')=1 AND json_extract(lt_applications.dto,'$.review')='returned')))").bind(&[dto.to_string().into(),op.into(),payload.into(),id.into(),owner.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into()])?,db.prepare("INSERT INTO lt_applicant_operations(actor,operation_id,payload_hash,application_id,result) SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
     if result[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
         return error("VERSION_CONFLICT", 409);
     }
-    Response::from_json(&dto)
+    Response::from_json(
+        &crate::applicant_dto::sanitize(&dto)
+            .ok_or_else(|| Error::RustError("Invalid applicant DTO".into()))?,
+    )
 }
 
 /// 私有申請の固定保持期限を判定する
 /// 引数: 申請、現在のミリ秒
 /// 戻り値: 期限切れか
-fn expired(dto: &Value, now: f64) -> bool {
+pub(crate) fn expired(dto: &Value, now: f64) -> bool {
     dto["retentionExpiresAt"].as_str().is_some_and(|s| {
         let millis = js_sys::Date::new(&s.into()).get_time();
         !millis.is_finite() || millis <= now

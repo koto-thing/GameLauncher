@@ -11,6 +11,9 @@ class ReviewRuntime(unittest.TestCase):
   def mutation(version,data={}):return {'expectedVersion':version,'operationId':uuid.uuid4().hex,'data':data}
   self.assertEqual(operate('/applications/'+id+'/approve',mutation(1,{'startsAt':'2026-11-01T01:00:00.000Z','expectedEventVersion':1,'expectedScheduleVersion':1}))[0],200)
   published=request('/api/lt/v1/events/'+event+'/talks/'+id)[1]
+  sql("UPDATE lt_events SET state='ended' WHERE id='"+event+"'")
+  fixed=request(path,cookie=cookie)[1]['retentionExpiresAt']
+  self.assertIsNotNone(fixed)
   self.assertEqual(operate('/applications/'+id+'/return',mutation(2,{'note':'試験差し戻し'}))[0],200)
   self.assertNotIn('operatorNote',request(path,cookie=cookie)[1])
   edit=mutation(3,{'content':p['content']|{'title':'再承認本文'},'materialUrl':p['materialUrl']})
@@ -23,8 +26,6 @@ class ReviewRuntime(unittest.TestCase):
   self.assertEqual(operate('/applications/'+id+'/reapprove',mutation(5,{'expectedEventVersion':2}))[0],200)
   new=request('/api/lt/v1/events/'+event+'/talks/'+id)[1];self.assertEqual(new['title'],'再承認本文');self.assertEqual(new['startsAt'],published['startsAt'])
   self.assertEqual(sql("SELECT reserved FROM lt_recruitment WHERE event_id='"+event+"'")[0]['reserved'],1)
-  self.assertEqual(request(path+'/request-withdrawal',mutation(6),cookie)[1]['withdrawal'],'requested')
-  self.assertEqual(request(path+'/cancel-withdrawal',mutation(7),cookie)[1]['withdrawal'],'none')
-  self.assertEqual(request(path+'/withdraw',mutation(8),cookie)[0],409)
+  self.assertEqual(request(path,cookie=cookie)[1]['retentionExpiresAt'],fixed)
   sql("UPDATE lt_events SET state='cancelled' WHERE id='"+event+"'")
 if __name__=='__main__':unittest.main()

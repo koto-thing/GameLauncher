@@ -1,6 +1,7 @@
 use serde_json::{Value, json};
 use worker::*;
 mod applicant;
+mod applicant_dto;
 mod operator;
 pub use operator::{fake_dispatch, operator_request};
 
