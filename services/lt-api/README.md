@@ -11,3 +11,5 @@
 公式確認: https://developers.cloudflare.com/workers/languages/rust/ 、https://developers.cloudflare.com/d1/worker-api/d1-database/ 。worker 0.8.7 は cargo search で公式 registry 確認。D1 batch は UPDATE 0件で停止しないため、業務実装時は勝者 receipt に副作用を従属させる必要がある。
 
 bundle/CPU は未計測。無料枠適合は未保証。クラウド試験・本番操作なし。
+
+共有追補 7c0e93d87250ba4f6be200d0ff9e3e260f9a707b を cd2fd50 として取り込み済み。具体的 mutation 型、OperatorContext、承認の親 version を確認。業務 API 実装にはまだ到達していない。
