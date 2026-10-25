@@ -9,7 +9,15 @@ const event: PublicEvent = {
   endsAt: "2030-01-01T02:00:00.000Z",
   timeZone: "Asia/Tokyo",
   recruitment: "open",
-  schedule: [],
+  schedule: [
+    {
+      id: "fixture-slot",
+      kind: "talk",
+      talkId: "fixture-talk",
+      startsAt: "2030-01-01T15:00:00.000Z",
+      endsAt: "2030-01-01T15:10:00.000Z",
+    },
+  ],
 };
 const reviews: Application["review"][] = [
   "pending",
@@ -21,9 +29,43 @@ const reviews: Application["review"][] = [
   "withdrawn",
 ];
 // 開発専用の架空データ。mutation は実接続と誤認させず失敗を返す
-export async function fixture<T>(path: string): Promise<T> {
+export async function fixture<T>(path: string, init: RequestInit = {}): Promise<T> {
   const [route, query] = path.split("?");
   const second = new URLSearchParams(query).has("cursor");
+  if (route === "/applications/fixture-expired") throw new Error("RETENTION_EXPIRED (fixture)");
+  if (route === "/applications/fixture-unauthenticated")
+    throw new Error("UNAUTHENTICATED (fixture)");
+  if (route?.includes("/talks/"))
+    return {
+      id: "fixture-talk",
+      eventId: event.id,
+      version: 1,
+      title: "架空発表",
+      abstract: "開発 fixture",
+      speakers: [{ displayName: "架空発表者" }],
+      startsAt: "2030-01-01T15:00:00.000Z",
+      endsAt: "2030-01-01T15:10:00.000Z",
+      cancelled: true,
+    } as T;
+  if (route?.startsWith("/applications/")) {
+    const [, , id, action] = route.split("/");
+    const page = await fixture<{ items: Application[] }>("/applications");
+    const application = page.items.find((a) => a.id === id);
+    if (!application) throw new Error("NOT_FOUND (fixture)");
+    if (init.method) {
+      const input = JSON.parse(String(init.body));
+      if (input.expectedVersion !== application.version)
+        throw new Error("VERSION_CONFLICT (fixture)");
+      if (init.method === "PATCH")
+        return { ...application, ...input.data, version: application.version + 1 } as T;
+      if (action === "request-withdrawal")
+        return { ...application, withdrawal: "requested", version: 2 } as T;
+      if (action === "cancel-withdrawal")
+        return { ...application, withdrawal: "none", version: 2 } as T;
+      throw new Error("INVALID_TRANSITION (fixture)");
+    }
+    return application as T;
+  }
   if (route === "/events")
     return { items: second ? [] : [event], nextCursor: second ? null : "fixture-next" } as T;
   if (route === `/events/${event.id}`) return event as T;

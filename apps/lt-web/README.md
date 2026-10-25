@@ -27,3 +27,10 @@ CSRF: 同一オリジン API + credentials:same-origin のみ。ブラウザー�
 5177 はホスト側 Get-NetTCPConnection で 127.0.0.1 LISTEN（PID58992）を確認したが HTTP GET は5秒 timeout。strictPort 再起動は競合で終了コード1。設定変更せず5178へ fixture dev を起動すると HTTP200、Chrome の一覧 DOM（fixture 明示・開催回・次ページ）を確認できた。その後の本人申請クリックは CDP DOM.getContentQuads timeout のため PC/スマホ幅/キーボード/二重送信の完遂には至らず、スクリーンショット未取得。
 再送 ID は sessionStorage にランダム operationId と SHA-256 指紋のみを保持。本文・メール・token は保存しない。同じタブの再読込後も同じ payload の操作を照合可能。成功したフォーム操作は削除。状態 mutation は version を指紋に含み、再読込後の version 変化で別操作となる。
 独立レビュー対応: /applications/:id を detail API にルーティング、本人詳細と一覧へ戻るを追加。複数発表者の affiliation/profile 保持テスト済み。登壇中止と発表開始終了を追加。時間割/詳細は一覧に存在する開催回の timeZone を使用（一覧外の回は UTC 原文となるため、イベント detail の独立取得が残課題）。cursor の URL 記録と popstate 復元を追加したがブラウザー実証は未完了。開催回選択肢の全ページ取得と要求されたエラー状態のブラウザー試験は未完了。
+
+## 最新の完了範囲
+開催回選択肢は nextCursor がなくなるまで全ページを取得し、同じ cursor の循環はエラーにする。直接発表詳細を開く場合も対象 event detail を独立取得し、timeZone が取得できるまで本文の成功表示へ進まない。取得失敗を UTC 原文へ置き換えない。
+詳細/登壇中止/本人編集/辞退取消/期限切れ/未認証/競合 fixture と結合テストを追加。JST の日付跨ぎ、任意 description の欠落、発表者任意情報の保持を検証。
+最終チェック: vp check --fix、tsc、vp test run（5ファイル14件）、vp build 成功。
+ブラウザー QA は未完了。プロジェクト node_modules の playwright / @playwright/test と通常 ms-playwright cache は存在しないことを読み取り確認。Chrome CDP のタイムアウトを繰り返さず停止。公式 Playwright の専用 context 検証は未実施で、既存通常ブラウザー設定やセッションを変更していない。
+fixture mutation は API の実認証/永続保存を証明しない。PATCH/辞退取消の応答だけをメモリー上で模擬し、一覧再取得時に元データとなる制限がある。backend 結合の前提である。

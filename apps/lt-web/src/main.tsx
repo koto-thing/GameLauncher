@@ -12,9 +12,10 @@ import { actions } from "./policy";
 import "./style.css";
 import { ApplicationForm } from "./ApplicationForm";
 import { operation } from "./operation";
+import { allEvents, formatInstant } from "./events";
 const devFixture = import.meta.env.DEV && import.meta.env.VITE_LT_FIXTURE === "true";
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  if (devFixture) return (await import("./fixture")).fixture<T>(path);
+  if (devFixture) return (await import("./fixture")).fixture<T>(path, init);
   return request<T>(path, init);
 }
 const labels: Record<string, string> = {
@@ -30,6 +31,7 @@ let token =
 if (token) history.replaceState(null, "", location.pathname);
 function App() {
   const [events, setEvents] = useState<PublicEventPage>({ items: [], nextCursor: null });
+  const [detailEvent, setDetailEvent] = useState<PublicEvent | null>(null);
   const [session, setSession] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [path, setPath] = useState(location.pathname),
@@ -40,9 +42,9 @@ function App() {
     [revision, reload] = useState(0),
     [editing, setEditing] = useState<Application | null>(null);
   useEffect(() => {
-    api<PublicEventPage>("/events")
+    allEvents(api)
       .then(setEvents)
-      .catch(() => {});
+      .catch((e) => setError(e.message));
     api<{ expiresAt: string } | null>("/auth/session")
       .then((s) => setSession(s?.expiresAt ?? null))
       .catch(() => setSession(null));
@@ -59,6 +61,7 @@ function App() {
   useEffect(() => {
     let active = true;
     setData(null);
+    setDetailEvent(null);
     setError("");
     setEditing(null);
     const endpoint =
@@ -69,7 +72,14 @@ function App() {
           : "/events";
     if (path === "/auth/verify" || path === "/login" || path === "/applications/new") return;
     api(endpoint + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""))
-      .then((d) => {
+      .then(async (d) => {
+        if (path.startsWith("/events/")) {
+          const eventId = path.split("/")[2];
+          const event = path.includes("/talks/")
+            ? await api<PublicEvent>(`/events/${eventId}`)
+            : (d as PublicEvent);
+          if (active) setDetailEvent(event);
+        }
         if (active) setData(d);
       })
       .catch((e) => {
@@ -100,14 +110,11 @@ function App() {
     }
   }
   function date(value: string, eventId: string) {
-    const zone = events.items.find((e) => e.id === eventId)?.timeZone;
-    return zone
-      ? new Intl.DateTimeFormat("ja-JP", {
-          dateStyle: "long",
-          timeStyle: "short",
-          timeZone: zone,
-        }).format(new Date(value))
-      : value;
+    const zone =
+      detailEvent?.id === eventId
+        ? detailEvent.timeZone
+        : events.items.find((e) => e.id === eventId)?.timeZone;
+    return zone ? formatInstant(value, zone) : "開催タイムゾーンを取得できません";
   }
   function form(a: Application | null) {
     return (
