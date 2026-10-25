@@ -74,3 +74,12 @@ UpdateEventInput は id / version / state を受け付けない。ReviewInput �
 OperatorContext は内部サービス呼び出し専用で、HTTPブラウザーのrequest DTOではない。actorId / role / requestId を信頼済みproxyだけが生成し、capabilityはAPIがroleから導出する。context自体を受け取れたことを認証根拠にせず、内部binding/到達制限を検証する。メール変更のpurpose分離と調査・失効・再発行ルールの確定まで productionEnabled=false を維持する。
 
 この追補は形と境界の契約であり、D1原子性・CSRF・内部binding認可・メールトークン一回性を実証したものではない。
+
+
+## 開催状態の追補
+
+Application / OperatorApplication は eventState: scheduled | started | ended | cancelled と eventCancelledAt: Instant | null を必須とする。親開催の現在値をサーバーが毎回合成し、本人一覧・詳細・mutation・receipt再送の全応答で適用する。中止以外はeventCancelledAt=null、中止では確定日時を返す。古いreceiptの親状態をそのまま返してはならない。公開DTOにはこの私有応答向け追加項目を流用しない。
+
+EventSettings は publishEnabled:boolean を必須とする。copy直後はfalse、日時を明示確定する保存まで非公開・募集不可。CreateEventInput / UpdateEventInput にpublishEnabledを受け付けず、サーバーの専用規則で決定する。
+
+予定開始日時で自動開始、最終枠（入替・閉会含む）の終了日時で自動終了することは確定要件。schedulerと固定保持起算点の実装・検証が必要で、機能自体を未確定扱いにしない。本人UIはeventState=cancelledなら中止を表示し変更操作を止める。代表メール変更の本人確認手順は引き続き未確定。

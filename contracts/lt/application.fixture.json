@@ -33,5 +33,7 @@
     "startsAt": "2027-01-01T04:00:00.000Z",
     "endsAt": "2027-01-01T04:10:00.000Z",
     "cancelled": false
-  }
+  },
+  "eventState": "scheduled",
+  "eventCancelledAt": null
 }

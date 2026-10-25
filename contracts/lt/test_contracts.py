@@ -40,6 +40,8 @@ class ContractTests(unittest.TestCase):
         fixture = load("application.fixture.json")
         validator.validate(fixture)
         self.assertNotEqual(fixture["content"]["title"], fixture["published"]["title"])
+        self.assertEqual(fixture["eventState"], "scheduled")
+        self.assertIsNone(fixture["eventCancelledAt"])
         fixture["operatorNote"] = "private"
         self.assertFalse(validator.is_valid(fixture))
 
