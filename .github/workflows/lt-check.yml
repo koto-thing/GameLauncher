@@ -46,6 +46,7 @@ jobs:
           cargo fmt --check --manifest-path services/lt-mail/Cargo.toml
           python -m unittest discover -s services/lt-mail/tests -v
           python -m unittest discover -s services/lt-api/retention -p test_retention.py -v
+          python services/lt-mail/tests/php_no_send.py
       - name: Install Chrome for both browser suites
         working-directory: apps/lt-web
         run: npx --no-install playwright install --with-deps chrome
@@ -56,6 +57,8 @@ jobs:
           npm run check
           npx --no-install tsc --noEmit
           npm run build
+          node --test worker.test.mjs
+          node ../../services/lt-api/node_modules/wrangler/bin/wrangler.js deploy --dry-run --config wrangler.jsonc --outdir .wrangler/ci-public-dry-run
           npx --no-install playwright test
       - name: Build local Worker with test hooks
         working-directory: services/lt-api
