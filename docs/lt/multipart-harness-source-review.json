@@ -1,0 +1,16 @@
+{
+  "source": "Installed lockfile Wrangler 4.152.0 wrangler-dist/cli.js and cli.d.ts",
+  "isolation": {
+    "resolveWorkerInputs": "cli.js:375950 sets registry undefined, persist false, watch false, inspector false and server port 0",
+    "createSession": "cli.js:375987 creates a fresh primary DevEnv/MultiworkerRuntimeController per harness; auxiliaries share only that primary runtime",
+    "teardownSession": "cli.js:376113 awaits teardown of all session DevEnvs",
+    "conclusion": "No evidence for global dev-registry collision from identical names. Do not rename Workers or override registry speculatively."
+  },
+  "readiness": {
+    "createSession": "Awaits Promise.all(waitForProxyReady, waitForReloadComplete, updateConfig) before resolving",
+    "listen": "Awaits completed startServerSession and primary proxy ready",
+    "conclusion": "Not HTTP-listen-only. Initial runtime reload is awaited. Does not issue a D1/R2 health transaction, but multipart test already exercises DB auth, create, R2 upload and seal before the late failure. No basis for arbitrary sleeps or retries."
+  },
+  "diagnostic": "On 500, getLogs() is reduced immediately to fixed categories and counts. No original message, body, URL, cookie or secret is printed. No 500 is retried or accepted.",
+  "remaining": "Exact network-disconnection cause and process liveness at failure remain unconfirmed. Source review does not justify application or binding changes."
+}

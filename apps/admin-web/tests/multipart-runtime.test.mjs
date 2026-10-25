@@ -13,7 +13,11 @@ import { createAdminTestHarness } from './helpers/admin-worker-harness.mjs';
  const fetchComplete=async (...args)=>{
    const response=await server.fetch(...args);
    const body=await response.arrayBuffer();
-   if(response.status===500) console.info(JSON.stringify({stage:'multipart-response',request:completedRequests+1,previousResponsesConsumed:completedRequests,status:500}));
+   if(response.status===500) {
+ const logs=server.getLogs();
+ const categories=logs.map(log=>{const text=String(log.message);return /Network connection lost|disconnected|connection reset/i.test(text)?'network':/exit|terminated|crash/i.test(text)?'runtime_exit':/reload|restart/i.test(text)?'reload':/D1_ERROR|SQLITE_/i.test(text)?'database':/TypeError/i.test(text)?'type_error':/ReferenceError/i.test(text)?'reference_error':/exception/i.test(text)?'exception':'other';});
+ console.info(JSON.stringify({stage:'multipart-response',request:completedRequests+1,previousResponsesConsumed:completedRequests,status:500,runtimeLogCount:logs.length,categories}));
+ }
    completedRequests++;
    return new Response(body,{status:response.status,statusText:response.statusText,headers:response.headers});
  };
