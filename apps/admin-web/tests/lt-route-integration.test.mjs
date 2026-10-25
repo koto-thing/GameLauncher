@@ -19,7 +19,7 @@ test('actual UI route uses internal binding after signed session validation', as
  const binding = {async operate(context,request) {
    calls++; assert.equal(context.actorId,f.actor.githubUserId); assert.equal(context.role,'assistant');
    assert.equal(request.headers.get('cookie'),null); assert.equal(request.headers.get('x-role'),null);
-   return fetch('http://127.0.0.1:18919',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context,path:new URL(request.url).pathname,method:request.method,body:request.method==='GET'?null:await request.text()})});
+   return fetch('http://127.0.0.1:18879',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context,path:new URL(request.url).pathname,method:request.method,body:request.method==='GET'?null:await request.text()})});
  }};
  const env = {LT_INTERNAL:binding};
  const route = load('../app/api/lt/v1/operator/[...path]/route.ts',{'cloudflare:workers':{env},'@/lib/lt/proxy':{proxyLt:(request,adapter)=>proxyLtCore(request,r=>f.auth.requireRecentIdentity(r),adapter)},'@/lib/lt/internal-adapter':{ltInternalAdapter}});
@@ -31,7 +31,8 @@ test('actual UI route uses internal binding after signed session validation', as
  assert.equal(calls,0);
  const response = await route.GET(request({headers:{'x-role':'admin','x-actor-id':'forged'}}));
  assert.equal(response.status,200); assert.ok(Array.isArray((await response.json()).items));
- const created=await route.POST(request({method:"POST",headers:{Origin:"http://127.0.0.1:18920","Content-Type":"application/json","x-role":"admin"},body:JSON.stringify({title:"Local route Rust event",venue:"Example",guidance:"",startsAt:"2049-01-01T04:00:00.000Z",timeZone:"UTC",opensAt:"2048-12-01T00:00:00.000Z",closesAt:"2048-12-31T00:00:00.000Z",capacity:1,talkMinutes:5,transitionMinutes:1,operationId:crypto.randomUUID()})})); assert.equal(created.status,200);
+ const start=Date.UTC(2200,0,1)+Math.floor(Math.random()*1000000000)*60000;
+ const created=await route.POST(request({method:"POST",headers:{Origin:"http://127.0.0.1:18920","Content-Type":"application/json","x-role":"admin"},body:JSON.stringify({title:"Local route Rust event",venue:"Example",guidance:"",startsAt:new Date(start).toISOString(),timeZone:"UTC",opensAt:new Date(start-120000).toISOString(),closesAt:new Date(start-60000).toISOString(),capacity:1,talkMinutes:5,transitionMinutes:1,operationId:crypto.randomUUID()})})); assert.equal(created.status,200);
  delete env.LT_INTERNAL; assert.equal((await route.GET(request())).status,503); env.LT_INTERNAL=binding;
  f.sql.prepare("DELETE FROM platform_roles WHERE github_user_id='1'").run();
  assert.equal((await route.GET(request())).status,401);
