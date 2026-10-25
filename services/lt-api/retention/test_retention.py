@@ -147,6 +147,12 @@ class D1SchemaGuardTests(unittest.TestCase):
         self.addCleanup(self.db.close)
         for migration in sorted((ROOT.parent / 'migrations').glob('*.sql')):
             self.db.executescript(migration.read_text(encoding='utf-8-sig'))
+        # compound viewの推論型はSQLite版に依存するため、この単体fixtureだけD1の実測契約へ固定する
+        # migrationと実viewの検証は実Worker/D1回帰で行い、本番guardの型検査は変更しない
+        inventory = json.loads((ROOT / 'd1-inventory.json').read_text(encoding='utf-8'))
+        self.db.execute('DROP VIEW lt_mail_outbox')
+        columns = ', '.join('"' + name + '" ' + kind for name, kind in inventory['lt_mail_outbox'])
+        self.db.execute('CREATE TABLE lt_mail_outbox (' + columns + ')')
         self.guard = (ROOT / 'd1-schema-guard.sql').read_text(encoding='utf-8')
 
     def matches(self):
@@ -198,6 +204,12 @@ class D1SchemaGuardTests(unittest.TestCase):
     def test_renamed_lt_column_is_rejected(self):
         """既知LT列の名前が変わった場合も拒否する"""
         self.db.execute('ALTER TABLE lt_clock RENAME COLUMN now_ms TO changed_clock')
+        self.assertEqual(self.matches(), 0)
+
+    def test_changed_mail_action_url_type_is_rejected(self):
+        """D1契約に固定したメールURL列も型差異を拒否する"""
+        self.db.execute('DROP TABLE lt_mail_outbox')
+        self.db.execute('CREATE TABLE lt_mail_outbox(id, recipient TEXT, kind TEXT, state TEXT, expires INTEGER, created_at INTEGER, action_url TEXT)')
         self.assertEqual(self.matches(), 0)
 
     def test_changed_lt_column_type_is_rejected(self):
