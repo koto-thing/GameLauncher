@@ -78,6 +78,13 @@ class RetentionD1(unittest.TestCase):
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_applications WHERE event_id='"+normal['id']+"'")[0]['n'],1)
   status,result=call(url,payload|{'delete':True});self.assertEqual(status,200);self.assertFalse(result['dryRun']);self.assertEqual(result['statements'],commands)
   self.assertEqual(a.request('/api/lt/v1/events/'+normal['id']+'/talks/'+app['id'])[0],200)
+  # 募集設定の削除後も終了済み公開アーカイブの受付状態は一覧・詳細ともclosed
+  self.assertEqual(sql("SELECT count(*) AS n FROM lt_recruitment WHERE event_id='"+normal['id']+"'")[0]['n'],0)
+  status,detail,_=a.request('/api/lt/v1/events/'+normal['id'])
+  self.assertEqual(status,200);self.assertEqual(detail['recruitment'],'closed')
+  status,listing,_=a.request('/api/lt/v1/events')
+  self.assertEqual(status,200)
+  self.assertEqual(next(item for item in listing['items'] if item['id']==normal['id'])['recruitment'],'closed')
   self.assertEqual(sql("SELECT approval_operation AS marker FROM lt_public_talks WHERE id='"+app['id']+"'")[0]['marker'],'lt-archive:v1')
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_applications WHERE event_id='"+normal['id']+"'")[0]['n'],0)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_mail_jobs WHERE id IN (SELECT 'application:'||id FROM lt_outbox WHERE application_id='"+app['id']+"')")[0]['n'],0)

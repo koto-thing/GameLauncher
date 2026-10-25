@@ -75,7 +75,10 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
                         .as_str()
                         .ok_or_else(|| Error::RustError("Invalid snapshot".into()))?,
                 )?;
-                if !talk && row["closes"].is_number() {
+                // 終了後は募集設定を削除しても受付終了を維持する
+                if !talk && row["state"] != "scheduled" {
+                    saved["recruitment"] = json!("closed");
+                } else if !talk && row["closes"].is_number() {
                     saved["recruitment"] = json!(if row["state"] != "scheduled"
                         || row["closes"].as_f64().unwrap() <= now
                     {
