@@ -12,6 +12,7 @@ export function ServiceNavigation() {
         <a href="/game">公開申請・設定</a>
         <a href="/editions">物理配布版</a>
         <a href="/music">Music Uploader</a>
+        <a href="/lt">LT会</a>
         <a href="/members">運営メンバー</a>
       </nav>
       <ThemeToggle />
