@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 // 既定は無効。設定はWeb公開領域外のファイルだけを読む
+// 外部エラーの引数に宛先や確認URLを残さない
+ini_set('display_errors', '0');
+ini_set('zend.exception_ignore_args', '1');
+set_error_handler(static function (): bool { return true; });
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 function reply(int $status, string $result): never {
@@ -55,7 +59,9 @@ if (file_put_contents($rateFile,json_encode($times),LOCK_EX)===false || file_put
 if ($v['expires']<=time()) reply(410,'permanent');
 $subject='LT notification';
 $body="LT会からのお知らせです。\n種別: ".$v['kind']."\n".$url."\nお問い合わせ: panddmail@gmail.com\n";
-$ok=mail($v['recipient'],$subject,$body,['From'=>$c['from'],'Reply-To'=>'panddmail@gmail.com','Content-Type'=>'text/plain; charset=UTF-8']);
+try {
+ $ok=mail($v['recipient'],$subject,$body,['From'=>$c['from'],'Reply-To'=>'panddmail@gmail.com','Content-Type'=>'text/plain; charset=UTF-8']);
+} catch (Throwable $e) { reply(409,'uncertain'); }
 if (!$ok) reply(409,'uncertain');
 if (file_put_contents($file,json_encode(['hash'=>$hash,'state'=>'accepted','expires'=>$v['expires']]),LOCK_EX)===false) reply(409,'uncertain');
 reply(200,'accepted');
