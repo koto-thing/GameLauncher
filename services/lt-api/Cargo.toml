@@ -1,0 +1,12 @@
+[package]
+name = "lt-api"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+worker = { version = "=0.8.7", features = ["d1"] }
+
+[workspace]
