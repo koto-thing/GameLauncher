@@ -18,5 +18,3 @@ DELETE FROM lt_public_talks WHERE event_id IN (SELECT event_id FROM retention_du
 DELETE FROM lt_public_events WHERE event_id IN (SELECT event_id FROM retention_due WHERE kind='cancelled');
 -- 外部キーと再実行のため個人情報を含まない開催回tombstoneは保持する
 UPDATE lt_events SET cancel_actor=NULL,cancel_operation=NULL,cancel_hash=NULL WHERE id IN (SELECT event_id FROM retention_due);
-
-
