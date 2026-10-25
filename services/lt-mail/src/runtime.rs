@@ -77,13 +77,23 @@ pub async fn dispatch_one(
     };
     let mut e: Envelope = serde_json::from_str(row["envelope"].as_str().unwrap())?;
     // claim後に短縮された保持期限を送信直前にもう一度反映する
-    let latest=db.prepare("SELECT MIN(j.expires,CAST(COALESCE(o.expires,j.expires*1000)/1000 AS INTEGER)) AS expires FROM lt_mail_jobs j JOIN lt_mail_outbox o ON o.id=j.id WHERE j.id=?1 AND j.fence=?2 AND j.state='leased' AND o.state='pending' AND EXISTS(SELECT 1 FROM lt_mail_mode WHERE id=1 AND mode=?3)").bind(&[e.id.clone().into(),fence.into(),mode.into()])?.all().await?.results::<Value>()?;
+    let latest=db.prepare("SELECT MIN(j.expires,CAST(COALESCE(o.expires,j.expires*1000)/1000 AS INTEGER)) AS expires,j.lease_until AS lease_until FROM lt_mail_jobs j JOIN lt_mail_outbox o ON o.id=j.id WHERE j.id=?1 AND j.fence=?2 AND j.state='leased' AND o.state='pending' AND EXISTS(SELECT 1 FROM lt_mail_mode WHERE id=1 AND mode=?3)").bind(&[e.id.clone().into(),fence.into(),mode.into()])?.all().await?.results::<Value>()?;
     let Some(current) = latest.first() else {
         return Ok(0);
     };
     e.expires = e.expires.min(current["expires"].as_i64().unwrap());
-    if e.expires <= clock.now() {
+    // claim時のnowを使い回さず、DB再照会後の送信直前時刻で判定する
+    let send_now = clock.now();
+    if e.expires <= send_now {
         db.prepare("UPDATE lt_mail_jobs SET state='expired',envelope='{}',lease_until=NULL WHERE id=?1 AND fence=?2 AND state='leased'").bind(&[e.id.clone().into(),fence.into()])?.run().await?;
+        return Ok(0);
+    }
+    // 同じworkerが遅延しても期限切れleaseで送信しない
+    if current["lease_until"]
+        .as_i64()
+        .is_none_or(|until| until <= send_now)
+    {
+        db.prepare("UPDATE lt_mail_jobs SET state='uncertain',lease_until=NULL WHERE id=?1 AND fence=?2 AND state='leased' AND (lease_until IS NULL OR lease_until<=?3)").bind(&[e.id.clone().into(),fence.into(),(send_now as f64).into()])?.run().await?;
         return Ok(0);
     }
     let outcome = match t {

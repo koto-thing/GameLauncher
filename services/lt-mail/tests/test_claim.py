@@ -47,4 +47,32 @@ class ClaimTests(unittest.TestCase):
   self.assertEqual(self.db.execute('SELECT expires FROM lt_mail_jobs').fetchone()[0],500)
   self.db.execute('DELETE FROM lt_outbox')
   self.assertEqual(self.db.execute('SELECT count(*) FROM lt_mail_jobs').fetchone()[0],0)
+ def test_same_worker_delayed_after_claim_does_not_send(self):
+  source=(ROOT/'src/runtime.rs').read_text(encoding='utf-8')
+  latest=next(q for q in re.findall(r'"([^"\n]+)"',source) if q.startswith('SELECT MIN(j.expires'))
+  isolate=next(q for q in re.findall(r'"([^"\n]+)"',source) if q.startswith("UPDATE lt_mail_jobs SET state='uncertain',lease_until=NULL"))
+  # 同じworkerがclaimして停止し、別dispatchのlease掃除を一切呼ばずに再開する
+  for send_now in [121,122,500]:
+   with self.subTest(send_now=send_now):
+    self.db.execute("UPDATE lt_mail_jobs SET state='pending',fence=NULL,lease_until=NULL")
+    self.db.execute("UPDATE lt_mail_mode SET mode='fake'")
+    self.db.execute(self.claim,('one',1,'fake')).fetchall()
+    expiry,lease_until=self.db.execute(latest,('application:a','one','fake')).fetchone()
+    sent=[]
+    if lease_until is None or lease_until<=send_now:
+     self.db.execute(isolate,('application:a','one',send_now))
+    else:sent.append('fake-send')
+    self.assertEqual(sent,[])
+    self.assertEqual(self.db.execute('SELECT state,lease_until FROM lt_mail_jobs').fetchone(),('uncertain',None))
+  # 実装がclaim時刻nowではなく再照会後のclock.now()を使用することも確認する
+  self.assertLess(source.index('let latest='),source.index('let send_now = clock.now();'))
+  self.assertLess(source.index('until <= send_now'),source.index('let outcome = match t'))
+ def test_before_lease_boundary_remains_sendable_and_other_fence_is_safe(self):
+  source=(ROOT/'src/runtime.rs').read_text(encoding='utf-8')
+  isolate=next(q for q in re.findall(r'"([^"\n]+)"',source) if q.startswith("UPDATE lt_mail_jobs SET state='uncertain',lease_until=NULL"))
+  self.db.execute("UPDATE lt_mail_mode SET mode='fake'")
+  self.db.execute(self.claim,('one',1,'fake')).fetchall()
+  self.assertEqual(self.db.execute(isolate,('application:a','one',120)).rowcount,0)
+  self.assertEqual(self.db.execute(isolate,('application:a','other',121)).rowcount,0)
+  self.assertEqual(self.db.execute('SELECT state FROM lt_mail_jobs').fetchone()[0],'leased')
 if __name__=='__main__':unittest.main()
