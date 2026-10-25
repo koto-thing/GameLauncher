@@ -1,0 +1,71 @@
+name: LT validation
+
+on:
+  pull_request:
+    paths: ['apps/lt-web/**', 'apps/admin-web/**', 'services/lt-api/**', 'services/lt-mail/**', 'contracts/lt/**', 'scripts/lt/**', 'rust-toolchain.toml', '.github/workflows/lt-check.yml']
+  push:
+    branches: [master]
+    paths: ['apps/lt-web/**', 'apps/admin-web/**', 'services/lt-api/**', 'services/lt-mail/**', 'contracts/lt/**', 'scripts/lt/**', 'rust-toolchain.toml', '.github/workflows/lt-check.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lt-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.13'
+      - name: Install local dependencies
+        run: |
+          rustup toolchain install 1.94.1 --profile minimal --component rustfmt --target wasm32-unknown-unknown
+          cargo install worker-build --version 0.8.7 --locked --root services/lt-api/.tools
+          npm ci --prefix services/lt-api
+          npm ci --prefix apps/admin-web
+          npm ci --prefix apps/lt-web
+          python -m pip install -r contracts/lt/requirements-test.txt
+      - name: Check contracts and Rust engines
+        run: |
+          python -m unittest discover -s contracts/lt -p 'test*.py' -v
+          cargo test --locked --manifest-path services/lt-api/Cargo.toml --features local-development,runtime-tests
+          cargo fmt --check --manifest-path services/lt-api/Cargo.toml
+          cargo test --locked --manifest-path services/lt-mail/Cargo.toml
+          cargo fmt --check --manifest-path services/lt-mail/Cargo.toml
+          python -m unittest discover -s services/lt-mail/tests -v
+          python -m unittest discover -s services/lt-api/retention -p test_retention.py -v
+      - name: Install Chrome for both browser suites
+        working-directory: apps/lt-web
+        run: npx --no-install playwright install --with-deps chrome
+      - name: Check public UI and fixture browser flows
+        working-directory: apps/lt-web
+        run: |
+          npm test
+          npm run check
+          npx --no-install tsc --noEmit
+          npm run build
+          npx --no-install playwright test
+      - name: Build local Worker with test hooks
+        working-directory: services/lt-api
+        run: .tools/bin/worker-build --release . --features local-development,runtime-tests
+      - name: Verify actual Worker/D1, signed management proxy and both UIs
+        run: python scripts/lt/verify-runtime-ci.py
+      - name: Verify distributable bundles exclude test exports
+        working-directory: services/lt-api
+        run: |
+          .tools/bin/worker-build --release .
+          python tests/measure_bundle.py default_private_disabled
+          .tools/bin/worker-build --release . --features local-development
+          python tests/measure_bundle.py development_without_test_hooks

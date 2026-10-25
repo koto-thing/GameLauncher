@@ -1,13 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture } from './helpers/role-fixture.mjs';
+import { createLtBindingFixture } from './helpers/lt-binding-fixture.mjs';
 import { proxyLtCore } from '../lib/lt/proxy-core.ts';
 
 // 既存authの署名Cookie・在籍・role検証を実proxyとRust RPCへ接続する
 const base='http://127.0.0.1:8792/api/lt/v1/operator';
-const adapter={async fetch(request,context){ return fetch('http://127.0.0.1:18879',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context,path:new URL(request.url).pathname,method:request.method,body:request.method==='GET'?null:await request.text()})}); }};
-test('signed GitHub fixture → real proxy → named binding → Rust',async t=>{
+
+test('signed GitHub fixture through real proxy to explicit internal RPC fixture',async t=>{
  const f=await fixture(t);
+ const binding=createLtBindingFixture();
+ const adapter={fetch:(request,context)=>binding.operate(context,request)};
  const auth=request=>f.auth.requireRecentIdentity(request);
  const cookie=(await f.auth.createSessionCookie(f.actor,new Request(base))).split(';')[0];
  const request=(path,options={})=>new Request(base+path,{...options,headers:{cookie,...options.headers}});
@@ -16,6 +19,7 @@ test('signed GitHub fixture → real proxy → named binding → Rust',async t=>
  assert.equal((await proxyLtCore(request('/events'),auth)).status,503);
  assert.equal((await proxyLtCore(request('/applications/x/email-change/confirm',{method:'POST',headers:{Origin:'http://127.0.0.1:8792','Content-Type':'application/json'},body:'{}'}),auth,adapter)).status,403);
  const result=await proxyLtCore(request('/events',{headers:{'x-role':'admin','x-actor-id':'forged'}}),auth,adapter);
+ assert.equal(binding.calls.length,1); assert.equal(binding.calls[0].context.actorId,f.actor.githubUserId); assert.equal(binding.calls[0].context.role,'assistant');
  assert.equal(result.status,200); assert.ok(Array.isArray((await result.json()).items));
  // 通常操作成功でも主体は署名Cookieからのみ取得する
  const year=4000+Math.floor(Math.random()*2000);

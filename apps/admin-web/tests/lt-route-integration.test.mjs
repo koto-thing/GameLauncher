@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { fixture } from './helpers/role-fixture.mjs';
+import { createLtBindingFixture } from './helpers/lt-binding-fixture.mjs';
 import { proxyLtCore } from '../lib/lt/proxy-core.ts';
 
-// 実routeを依存注入してロードし、署名CookieからRustまで確認する
+// 実routeを依存注入してロードし、署名Cookieから内部RPC境界まで確認する
 function load(path, dependencies) {
  const exports = {};
  const source = ts.transpileModule(readFileSync(new URL(path, import.meta.url),'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
@@ -16,10 +17,11 @@ test('actual UI route uses internal binding after signed session validation', as
  const f = await fixture(t);
  const {ltInternalAdapter} = load('../lib/lt/internal-adapter.ts',{});
  let calls = 0;
+ const internal=createLtBindingFixture();
  const binding = {async operate(context,request) {
    calls++; assert.equal(context.actorId,f.actor.githubUserId); assert.equal(context.role,'assistant');
    assert.equal(request.headers.get('cookie'),null); assert.equal(request.headers.get('x-role'),null);
-   return fetch('http://127.0.0.1:18879',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context,path:new URL(request.url).pathname,method:request.method,body:request.method==='GET'?null:await request.text()})});
+   return internal.operate(context,request);
  }};
  const env = {LT_INTERNAL:binding};
  const route = load('../app/api/lt/v1/operator/[...path]/route.ts',{'cloudflare:workers':{env},'@/lib/lt/proxy':{proxyLt:(request,adapter)=>proxyLtCore(request,r=>f.auth.requireRecentIdentity(r),adapter)},'@/lib/lt/internal-adapter':{ltInternalAdapter}});
