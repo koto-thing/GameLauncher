@@ -1,0 +1,27 @@
+// LT v1 の共有型。実行時検証は JSON Schema を利用する
+export type Instant = string; // UTC RFC3339、ミリ秒3桁、末尾 Z
+export type Id = string;
+export type Version = number; // 1 以上の整数
+export type Role = "admin" | "executive" | "assistant" | null;
+export type Capability = "lt.operate" | "lt.emailChange";
+export type ReviewState = "pending" | "held" | "approved" | "returned" | "resubmitted" | "rejected" | "withdrawn";
+export type WithdrawalState = "none" | "requested" | "confirmed";
+export type EventState = "scheduled" | "started" | "ended" | "cancelled";
+export type Speaker = { displayName: string; affiliation?: string; profile?: string };
+export type TalkContent = { title: string; abstract: string; description?: string; speakers: Speaker[] };
+export type PublicTalk = TalkContent & { id: Id; eventId: Id; version: Version; startsAt: Instant; endsAt: Instant; cancelled: boolean };
+export type ScheduleBlock = { id: Id; kind: "talk" | "transition" | "opening" | "break" | "closing"; talkId?: Id; startsAt: Instant; endsAt: Instant };
+export type PublicEvent = { id: Id; version: Version; title: string; venue: string; guidance: string; startsAt: Instant; endsAt: Instant; timeZone: string; recruitment: "upcoming" | "open" | "full" | "closed"; schedule: ScheduleBlock[] };
+export type Application = { id: Id; eventId: Id; version: Version; content: TalkContent; materialUrl: string; representativeEmail: string; review: ReviewState; withdrawal: WithdrawalState; firstSubmittedAt: Instant; everApproved: boolean; slotReserved: boolean; retentionExpiresAt: Instant | null; published: PublicTalk | null };
+export type OperatorApplication = Application & { operatorNote: string };
+export type EventSettings = { id: Id; version: Version; state: EventState; title: string; venue: string; guidance: string; startsAt: Instant; timeZone: string; opensAt: Instant; closesAt: Instant; capacity: number; talkMinutes: number; transitionMinutes: number };
+export type Mutation<T> = { expectedVersion: Version; operationId: Id; data: T };
+export type SubmitApplication = { eventId: Id; content: TalkContent; materialUrl: string };
+export type EmailChangeRequest = { id: Id; applicationId: Id; version: Version; state: "investigating" | "verificationPending" | "verified" | "confirmed" | "cancelled"; newEmail: string };
+export type ErrorCode = "UNAUTHENTICATED" | "FORBIDDEN" | "NOT_FOUND" | "VALIDATION" | "VERSION_CONFLICT" | "DUPLICATE_APPLICATION" | "RECRUITMENT_CLOSED" | "CAPACITY_FULL" | "INVALID_TRANSITION" | "TOKEN_INVALID" | "RATE_LIMITED" | "RETENTION_EXPIRED";
+export type ApiError = { error: { code: ErrorCode; requestId: Id } };
+export type Page<T> = { items: T[]; nextCursor: string | null };
+export type ApplicantSession = { expiresAt: Instant }; // メールやトークンを公開 DTO に渡さない
+export type NotificationKind = "submitted" | "approved" | "returned" | "reapproved" | "rejected" | "withdrawalConfirmed" | "eventCancelled";
+export type NotificationOutbox = { id: Id; operationId: Id; applicationId: Id; kind: NotificationKind; recipient: string; expiresAt: Instant; state: "pending" | "sent" | "failed" };
+export type AuditEntry = { id: Id; operationId: Id; action: string; actorId: Id; occurredAt: Instant; expiresAt: Instant };

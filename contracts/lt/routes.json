@@ -1,0 +1,219 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/events",
+    "access": "public",
+    "request": null,
+    "response": "Page<PublicEvent>"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/events/:eventId",
+    "access": "public",
+    "request": null,
+    "response": "PublicEvent"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/events/:eventId/talks/:talkId",
+    "access": "public",
+    "request": null,
+    "response": "PublicTalk"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/auth/email",
+    "access": "public",
+    "request": "{email:string}",
+    "response": "202 generic"
+  },
+  {
+    "method": "GET",
+    "path": "/auth/verify",
+    "access": "public",
+    "request": null,
+    "response": "confirmation page; no token consumption"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/auth/verify",
+    "access": "public",
+    "request": "{token:string}",
+    "response": "ApplicantSession + cookie"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/auth/logout",
+    "access": "applicant",
+    "request": null,
+    "response": "204"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/applications",
+    "access": "applicant",
+    "request": null,
+    "response": "Page<Application>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/applications",
+    "access": "applicant",
+    "request": "SubmitApplication + operationId",
+    "response": "Application"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/applications/:id",
+    "access": "owner",
+    "request": null,
+    "response": "Application"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/lt/v1/applications/:id",
+    "access": "owner",
+    "request": "Mutation<{content:TalkContent,materialUrl:string}>",
+    "response": "Application"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/applications/:id/resubmit",
+    "access": "owner",
+    "request": "Mutation<{}>",
+    "response": "Application"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/applications/:id/withdraw",
+    "access": "owner",
+    "request": "Mutation<{}>",
+    "response": "Application"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/applications/:id/request-withdrawal",
+    "access": "owner",
+    "request": "Mutation<{}>",
+    "response": "Application"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/applications/:id/cancel-withdrawal",
+    "access": "owner",
+    "request": "Mutation<{}>",
+    "response": "Application"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/operator/events",
+    "access": "lt.operate",
+    "request": null,
+    "response": "Page<EventSettings>"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/events",
+    "access": "lt.operate",
+    "request": "Omit<EventSettings,id|version|state> + operationId",
+    "response": "EventSettings"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/lt/v1/operator/events/:id",
+    "access": "lt.operate",
+    "request": "Mutation<EventSettings>",
+    "response": "EventSettings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/events/:id/copy",
+    "access": "lt.operate",
+    "request": "Mutation<{}>",
+    "response": "EventSettings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/events/:id/cancel",
+    "access": "lt.operate",
+    "request": "Mutation<{}>",
+    "response": "EventSettings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/operator/events/:id/applications",
+    "access": "lt.operate",
+    "request": null,
+    "response": "Page<OperatorApplication>"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/lt/v1/operator/events/:id/timetable",
+    "access": "lt.operate",
+    "request": "Mutation<{blocks:ScheduleBlock[]}>",
+    "response": "PublicEvent"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/approve",
+    "access": "lt.operate",
+    "request": "Mutation<{note?:string,startsAt?:Instant}>",
+    "response": "OperatorApplication"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/return",
+    "access": "lt.operate",
+    "request": "Mutation<{note?:string,startsAt?:Instant}>",
+    "response": "OperatorApplication"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/reapprove",
+    "access": "lt.operate",
+    "request": "Mutation<{note?:string,startsAt?:Instant}>",
+    "response": "OperatorApplication"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/hold",
+    "access": "lt.operate",
+    "request": "Mutation<{note?:string,startsAt?:Instant}>",
+    "response": "OperatorApplication"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/reject",
+    "access": "lt.operate",
+    "request": "Mutation<{note?:string,startsAt?:Instant}>",
+    "response": "OperatorApplication"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/confirm-withdrawal",
+    "access": "lt.operate",
+    "request": "Mutation<{note?:string,startsAt?:Instant}>",
+    "response": "OperatorApplication"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/email-change/investigate",
+    "access": "lt.emailChange",
+    "request": "Mutation<{requestId?:Id,newEmail?:string}>",
+    "response": "EmailChangeRequest"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/email-change/send-verification",
+    "access": "lt.emailChange",
+    "request": "Mutation<{requestId?:Id,newEmail?:string}>",
+    "response": "EmailChangeRequest"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/email-change/confirm",
+    "access": "lt.emailChange",
+    "request": "Mutation<{requestId?:Id,newEmail?:string}>",
+    "response": "EmailChangeRequest"
+  }
+]

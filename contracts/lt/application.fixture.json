@@ -1,0 +1,37 @@
+{
+  "id": "application-demo",
+  "eventId": "event-demo",
+  "version": 1,
+  "content": {
+    "title": "架空の原稿",
+    "abstract": "非公開の原稿",
+    "speakers": [
+      {
+        "displayName": "例"
+      }
+    ]
+  },
+  "materialUrl": "https://example.invalid/slides",
+  "representativeEmail": "speaker@example.invalid",
+  "review": "returned",
+  "withdrawal": "none",
+  "firstSubmittedAt": "2027-01-01T00:00:00.000Z",
+  "everApproved": true,
+  "slotReserved": true,
+  "retentionExpiresAt": null,
+  "published": {
+    "title": "架空の発表",
+    "abstract": "契約検証用の架空データ",
+    "speakers": [
+      {
+        "displayName": "サンプル登壇者"
+      }
+    ],
+    "id": "talk-demo",
+    "eventId": "event-demo",
+    "version": 1,
+    "startsAt": "2027-01-01T04:00:00.000Z",
+    "endsAt": "2027-01-01T04:10:00.000Z",
+    "cancelled": false
+  }
+}

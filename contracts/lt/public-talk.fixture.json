@@ -1,0 +1,15 @@
+{
+  "title": "架空の発表",
+  "abstract": "契約検証用の架空データ",
+  "speakers": [
+    {
+      "displayName": "サンプル登壇者"
+    }
+  ],
+  "id": "talk-demo",
+  "eventId": "event-demo",
+  "version": 1,
+  "startsAt": "2027-01-01T04:00:00.000Z",
+  "endsAt": "2027-01-01T04:10:00.000Z",
+  "cancelled": false
+}

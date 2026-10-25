@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "capabilities": {
+    "lt.operate": [
+      "admin",
+      "executive",
+      "assistant"
+    ],
+    "lt.emailChange": [
+      "admin",
+      "executive"
+    ]
+  },
+  "confirmLinkSeconds": 3600,
+  "sessionSeconds": {
+    "proposed": 86400,
+    "productionEnabled": false
+  },
+  "mailAdapter": "fake",
+  "retentionMode": "dry-run",
+  "transitions": {
+    "approve": [
+      "pending",
+      "held"
+    ],
+    "return": [
+      "approved"
+    ],
+    "reapprove": [
+      "resubmitted"
+    ],
+    "hold": [
+      "pending"
+    ],
+    "reject": [
+      "pending",
+      "held",
+      "returned",
+      "resubmitted"
+    ],
+    "withdraw": [
+      "pending",
+      "held",
+      "returned",
+      "resubmitted"
+    ]
+  },
+  "notificationKinds": [
+    "submitted",
+    "approved",
+    "returned",
+    "reapproved",
+    "rejected",
+    "withdrawalConfirmed",
+    "eventCancelled"
+  ],
+  "guards": {
+    "withdraw": {
+      "everApproved": false
+    },
+    "edit": {
+      "beforeApproval": [
+        "pending",
+        "held"
+      ],
+      "afterApproval": [
+        "returned"
+      ]
+    },
+    "approve": {
+      "everApproved": false,
+      "requiresStartTime": true,
+      "requiresCapacity": true
+    },
+    "reapprove": {
+      "everApproved": true,
+      "changesSlotCount": false
+    },
+    "request-withdrawal": {
+      "everApproved": true,
+      "withdrawal": "none"
+    },
+    "cancel-withdrawal": {
+      "withdrawal": "requested"
+    },
+    "confirm-withdrawal": {
+      "withdrawal": "requested"
+    }
+  }
+}
