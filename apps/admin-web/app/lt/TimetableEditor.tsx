@@ -1,4 +1,5 @@
 "use client";
+import { moveSchedule } from "../../lib/lt/timetable";
 import { useState } from "react";
 import type { ScheduleBlock } from "../../../../contracts/lt/v1";
 
@@ -7,9 +8,7 @@ export function TimetableEditor({ blocks, onSave, disabled }: { blocks: Schedule
   const [draft, setDraft] = useState(blocks);
   const [error, setError] = useState("");
   function move(index: number, offset: number) {
-    const next = [...draft];
-    [next[index], next[index + offset]] = [next[index + offset], next[index]];
-    setDraft(next);
+    setDraft(moveSchedule(draft, index, offset));
   }
   function save() {
     if (draft.some(block => !Number.isFinite(Date.parse(block.startsAt)) || !Number.isFinite(Date.parse(block.endsAt)) || Date.parse(block.startsAt) >= Date.parse(block.endsAt))) { setError("各項目の開始・終了日時を確認してください"); return; }
@@ -20,8 +19,8 @@ export function TimetableEditor({ blocks, onSave, disabled }: { blocks: Schedule
     {error && <p role="alert">{error}</p>}
     <ol>{draft.map((block, index) => <li key={block.id}>
       <p>{({ talk: "発表", transition: "転換", opening: "開会", break: "休憩", closing: "閉会" })[block.kind]} {block.talkId}</p>
-      <label>開始 (UTC)<input value={block.startsAt} onChange={e => setDraft(items => items.map(item => item.id === block.id ? { ...item, startsAt: e.target.value } : item))} /></label>
-      <label>終了 (UTC)<input value={block.endsAt} onChange={e => setDraft(items => items.map(item => item.id === block.id ? { ...item, endsAt: e.target.value } : item))} /></label>
+      <label>開始 (UTC)<input value={block.startsAt} onInput={e => { const value = e.currentTarget.value; setDraft(items => items.map(item => item.id === block.id ? { ...item, startsAt: value } : item)); }} /></label>
+      <label>終了 (UTC)<input value={block.endsAt} onInput={e => { const value = e.currentTarget.value; setDraft(items => items.map(item => item.id === block.id ? { ...item, endsAt: value } : item)); }} /></label>
       <button type="button" disabled={index === 0} onClick={() => move(index, -1)}>上へ</button><button type="button" disabled={index === draft.length - 1} onClick={() => move(index, 1)}>下へ</button>
       {block.kind !== "talk" && <button type="button" onClick={() => setDraft(items => items.filter(item => item.id !== block.id))}>削除</button>}
     </li>)}</ol>

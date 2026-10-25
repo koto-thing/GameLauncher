@@ -1,0 +1,23 @@
+{
+  "scope": "LT admin part 1",
+  "contractSourceCommit": "7c0e93d87250ba4f6be200d0ff9e3e260f9a707b",
+  "checks": {
+    "typescript": "passed: tsc --noEmit --incremental false",
+    "lint": "passed: eslint app/lt lib/lt app/api/lt/v1/operator/[...path]/route.ts",
+    "tests": "passed: 39 tests across LT proxy/timetable and existing operations roles, admissions, migration, session lifetime",
+    "build": "passed: npm run build including Rust policy generation, schema generation, Music manager and Vinext",
+    "browser": "Chrome local fixture: PC and 390px mobile; keyboard approval, return, reapproval, 409 reload guidance, 503 retry, timetable invalid input then successful save, create interruption; mobile body scrollWidth 375 at innerWidth 390"
+  },
+  "unverified": [
+    "Rust API integration and real internal service binding",
+    "D1 mutation atomicity, outbox and mail delivery (outside this assignment)",
+    "Browser acceptance for every event copy/cancel and withdrawal branch; controls are implemented but not all branches were exercised"
+  ],
+  "production": "No binding, secret, permission, real mail, production SQL, retention deletion, push, PR, merge or deploy configured or executed. Runtime route authenticates then returns 503 while no internal adapter is configured.",
+  "proposals": {
+    "newEventFormDefaults": "capacity 20, talkMinutes 10, transitionMinutes 1 are editable proposal values, not confirmed requirements",
+    "session": "Existing GameLauncher session policy is reused; no applicant 24h session production activation"
+  },
+  "localBrowserFixture": "node tests/lt-browser/server.mjs; http://127.0.0.1:4179; explicit fictional fixture only, not imported by production entrypoints",
+  "environment": "npm ci initially failed ENOTFOUND in sandbox; approved escalation succeeded against official registry. Initial build lacked apps/music dependencies; approved npm ci there resolved it. Wrangler log path was scoped to this command/worktree. Browser localhost initially unreachable from sandbox; approved host-local fixture server resolved it. No ACL/UAC/owner changes."
+}

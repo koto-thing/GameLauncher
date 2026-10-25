@@ -1,6 +1,7 @@
+import type { OperatorContext } from "../../../../contracts/lt/v1.ts";
 import { assertBrowserWrite } from "../request-security.ts";
 
-type Actor = { id: string; role: "admin" | "executive" | "assistant" };
+type Actor = OperatorContext;
 export type LtInternalAdapter = { fetch(request: Request, actor: Actor): Promise<Response> };
 
 /** @brief 最新の在籍と役割を検証し、内部専用アダプターへ渡す @param request ブラウザー要求 @param adapter 内部接続 @returns 非キャッシュ応答 */
@@ -28,13 +29,16 @@ export async function proxyLtCore(request: Request, authenticate: (request: Requ
     const headers = new Headers();
     const contentType = request.headers.get("content-type");
     if (contentType) headers.set("content-type", contentType);
+    const body = request.method === "GET" ? undefined : await request.arrayBuffer();
+    if (body && body.byteLength > 65536) throw new Response("Too large", { status: 413 });
+    if (body && !contentType?.startsWith("application/json")) throw new Response("JSON required", { status: 415 });
     const internal = new Request(`https://lt.internal${url.pathname}${url.search}`, {
       method: request.method,
       headers,
-      body: request.method === "GET" ? undefined : await request.arrayBuffer(),
+      body,
       redirect: "error",
     });
-    const result = await adapter.fetch(internal, { id: user.githubUserId, role: user.role });
+    const result = await adapter.fetch(internal, { actorId: user.githubUserId, role: user.role, requestId: crypto.randomUUID() });
     return new Response(result.body, { status: result.status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store, private" } });
   } catch (error) {
     const response = error instanceof Response ? error : new Response("Unavailable", { status: 503 });
@@ -42,4 +46,3 @@ export async function proxyLtCore(request: Request, authenticate: (request: Requ
     return response;
   }
 }
-
