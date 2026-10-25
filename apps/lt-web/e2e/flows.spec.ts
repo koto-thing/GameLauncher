@@ -160,7 +160,7 @@ test("期限切れ・401・409・503 はエラー表示", async ({ page }) => {
 test("現在の親開催中止を再取得して変更操作を停止", async ({ page }) => {
   const state = await adapter(page);
   await page.goto("/applications");
-  await expect(page.getByRole("button", { name: "辞退依頼", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "辞退依頼", exact: true })).toHaveCount(2);
   for (const a of state.applications) {
     a.eventState = "cancelled";
     a.eventCancelledAt = "2026-10-25T09:00:00.000Z";

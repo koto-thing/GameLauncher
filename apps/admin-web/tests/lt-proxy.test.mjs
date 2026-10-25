@@ -83,3 +83,11 @@ test("内部APIのerrorは既知codeとfieldsだけに再構成する", async ()
   assert.equal(JSON.stringify(payload).includes("secret"), false);
   assert.equal(response.headers.get("set-cookie"), null);
 });
+
+
+test("専用未接続・未実装コードを共有契約に合わせる", async () => {
+ const unavailable=await proxyLtCore(new Request(url), identity("admin"));
+ assert.equal((await unavailable.json()).error.code,"SERVICE_UNAVAILABLE");
+ const unsupported=await proxyLtCore(new Request(url+'/x/email-change/confirm',{method:"POST",headers:{origin:"https://admin.example.invalid"}}),identity("executive"));
+ assert.equal((await unsupported.json()).error.code,"NOT_IMPLEMENTED");
+});
