@@ -138,4 +138,61 @@ class RetentionTests(unittest.TestCase):
             self.db.execute("UPDATE lt_public_talks SET dto='{}' WHERE id='normal'")
         self.db.rollback()
 
+class D1SchemaGuardTests(unittest.TestCase):
+    """既知のD1管理表だけを除外し、アプリの未知schemaを拒否する"""
+
+    def setUp(self):
+        """全migrationを架空のメモリDBへ適用する"""
+        self.db = sqlite3.connect(':memory:')
+        self.addCleanup(self.db.close)
+        for migration in sorted((ROOT.parent / 'migrations').glob('*.sql')):
+            self.db.executescript(migration.read_text(encoding='utf-8-sig'))
+        self.guard = (ROOT / 'd1-schema-guard.sql').read_text(encoding='utf-8')
+
+    def matches(self):
+        """製品が読み込むSQLそのものでschemaを照合する"""
+        return self.db.execute('SELECT (' + self.guard + ')').fetchone()[0]
+
+    def test_known_schema_without_cf_kv(self):
+        """管理表がないローカル環境も受理する"""
+        self.assertEqual(self.matches(), 1)
+
+    def test_cf_kv_table_is_allowed_without_reading_its_columns(self):
+        """既知管理表はtable種別だけを確認し内部列を参照しない"""
+        self.db.execute('CREATE TABLE _cf_KV(fixture_metadata BLOB)')
+        self.assertEqual(self.matches(), 1)
+
+    def test_cf_kv_view_is_rejected(self):
+        """同名viewを管理表として許可しない"""
+        self.db.execute('CREATE VIEW _cf_KV AS SELECT 1 AS fixture_metadata')
+        self.assertEqual(self.matches(), 0)
+
+    def test_unknown_application_table_is_rejected(self):
+        """未知の私有表を無視しない"""
+        self.db.execute('CREATE TABLE _cf_KV(fixture_metadata BLOB)')
+        self.db.execute('CREATE TABLE lt_unknown_private(value TEXT)')
+        self.assertEqual(self.matches(), 0)
+
+    def test_unknown_cf_prefixed_table_is_rejected(self):
+        """Cloudflare風の名前だけでは除外しない"""
+        self.db.execute('CREATE TABLE _cf_KV(fixture_metadata BLOB)')
+        self.db.execute('CREATE TABLE _cf_unknown_private(value TEXT)')
+        self.assertEqual(self.matches(), 0)
+
+    def test_extra_lt_column_is_rejected(self):
+        """LT表に追加された未知の列を拒否する"""
+        self.db.execute('ALTER TABLE lt_clock ADD COLUMN private_extra TEXT')
+        self.assertEqual(self.matches(), 0)
+
+    def test_renamed_lt_column_is_rejected(self):
+        """既知LT列の名前が変わった場合も拒否する"""
+        self.db.execute('ALTER TABLE lt_clock RENAME COLUMN now_ms TO changed_clock')
+        self.assertEqual(self.matches(), 0)
+
+    def test_changed_lt_column_type_is_rejected(self):
+        """表件数が同じでもLT列の型差異を拒否する"""
+        self.db.execute('DROP TABLE lt_clock')
+        self.db.execute('CREATE TABLE lt_clock(id INTEGER PRIMARY KEY, now_ms TEXT)')
+        self.assertEqual(self.matches(), 0)
+
 if __name__=='__main__': unittest.main()
