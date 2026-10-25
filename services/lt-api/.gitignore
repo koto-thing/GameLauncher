@@ -1,1 +1,5 @@
 /target/
+/.tools/
+/node_modules/
+/.wrangler/
+/build/

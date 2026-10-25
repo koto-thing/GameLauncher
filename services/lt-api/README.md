@@ -1,15 +1,37 @@
-# LT API 実装状況
+# LT 公開 API 最小縦断
 
-これは未完成の安全な入口のみ。業務 API は 501、公開入口の運営 URL は 404。認証・申請・承認を成功扱いにしない。
+共有追補 7c0e93d を cd2fd50 として取り込み済み。
 
-管理接続予定: 別の workers.dev 無効・公開 route なし Worker にサービス binding で接続する。現在その Worker は未実装。公開 Worker に actor header による認可を追加しない。proxy は毎回在籍と admin/executive/assistant を再検証し、ブラウザー由来 actor 情報を破棄する。メール変更は admin/executive のみ、本人確認手順未確定のため未対応を維持する。
+実装: GET /api/lt/v1/events、同 /:eventId、同 /:eventId/talks/:talkId。時間割は契約の PublicEvent.schedule に含む。公開版だけを読み、親が draft/cancelled の場合は一覧・詳細・発表をすべて除外する。私有項目はネストも許可リストで除去。キャッシュは no-store。運営 URL は偽造 actor header でも404。
 
-確認リンク1時間、session24時間は後者のみ設定可能な提案。現在 token/session 発行なし。メール送信、DB 接続、削除、外部資料 fetch は実装していない。
+migration は公開読み取り用だけ。私有申請・承認・スケジュール更新は未実装。保存する DTO の完全な schema validation は未実装で、現在は fixture のみが書き込む。運営操作と承認処理を追加する前に書込 validator が必須。一覧は全件返却し nextCursor=null のため大量件数への対応は今後必要。
 
-未実装: D1 migration、公開 snapshot、時間割、本人申請、token POST 交換、状態遷移、outbox fake adapter、保持 dry-run、全受入テスト。SQLite だけの試験を D1 実機ローカル検証として代用しない。
+## ローカル再現
 
-公式確認: https://developers.cloudflare.com/workers/languages/rust/ 、https://developers.cloudflare.com/d1/worker-api/d1-database/ 。worker 0.8.7 は cargo search で公式 registry 確認。D1 batch は UPDATE 0件で停止しないため、業務実装時は勝者 receipt に副作用を従属させる必要がある。
+Rust 1.94.1、worker/worker-build 0.8.7、Wrangler 4.152.0。
 
-bundle/CPU は未計測。無料枠適合は未保証。クラウド試験・本番操作なし。
+```
+npm ci
+cargo install worker-build --version 0.8.7 --locked --root .tools
+.tools/bin/worker-build --release
+node node_modules/wrangler/bin/wrangler.js d1 migrations apply lt-local --local
+node node_modules/wrangler/bin/wrangler.js d1 execute lt-local --local --file tests/fixture.sql
+node node_modules/wrangler/bin/wrangler.js dev --local --port 8787 --ip 127.0.0.1
+python tests/runtime_test.py -v
+cargo check --locked --offline
+cargo test --locked --offline
+```
 
-共有追補 7c0e93d87250ba4f6be200d0ff9e3e260f9a707b を cd2fd50 として取り込み済み。具体的 mutation 型、OperatorContext、承認の親 version を確認。業務 API 実装にはまだ到達していない。
+fixture は空のローカル DB に一度投入する。実メール・本番 DB・クラウド試験なし。database_id はローカル用ゼロ値。deploy は禁止。
+
+2026-10-25 検証: migration/fixture 成功、cargo check/test 成功（単体1件）、最適化 Wasm build 成功、actual local Worker/D1 HTTP 6テスト成功。通常 sandbox の HTTP は WinError10013 で失敗し、正式な昇格で同じローカルテストを実行して成功。
+
+bundle: Wasm 271951 bytes、JS 22899 bytes、shim 164 bytes（非圧縮）。fixture の HTTP はログ上約6〜15ms、6テスト全体0.218秒。これはローカル壁時計でCPU時間ではなく、無料枠適合を保証しない。CPU計測・クラウド試験未実施。
+
+## 次の縦断
+
+本人認証/申請は未着手。確認リンク1時間は確定、session24時間は設定可能な提案で本番無効。GET非消費、POST原子的交換、ハッシュ保存、Origin/CSRF、fake mail、所有者照合をまとめて実装する必要がある。token replay/期限/IDOR/同時申請/承認競合/outbox/保持 dry-run は未検証。未実装 API は501。
+
+管理は別の公開 route/worker.dev のない Worker とサービス binding を予定。公開入口へ actor header 認可を追加しない。proxy は毎回在籍・roleを再検証し、OperatorContext を内部境界で渡す。API は role から capability を導出する。メール変更はadmin/executiveのみ、本人確認手順が未確定なので未対応を維持する。
+
+公式参照: https://developers.cloudflare.com/workers/languages/rust/ 、https://developers.cloudflare.com/d1/worker-api/d1-database/ 。D1 batch の0行 UPDATE は停止条件にならないため、後続の承認実装は勝者 receipt に全副作用を従属させる。
