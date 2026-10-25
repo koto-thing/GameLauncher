@@ -253,7 +253,14 @@ function App() {
                   {a.review} / {a.withdrawal}
                 </p>
                 {a.eventState === "cancelled" && <p role="status">この開催回は中止されました</p>}
-                {a.eventState === "cancelled" && a.eventCancelledAt && <p>中止確定日時 (UTC): <time dateTime={a.eventCancelledAt}>{formatInstant(a.eventCancelledAt, "UTC")}</time></p>}
+                {a.eventState === "cancelled" && a.eventCancelledAt && (
+                  <p>
+                    中止確定日時 (UTC):{" "}
+                    <time dateTime={a.eventCancelledAt}>
+                      {formatInstant(a.eventCancelledAt, "UTC")}
+                    </time>
+                  </p>
+                )}
                 {a.retentionExpiresAt && <p>保持期限: {a.retentionExpiresAt}</p>}
                 <a href={a.materialUrl} rel="noreferrer">
                   資料
@@ -291,7 +298,12 @@ function App() {
         ) : path.startsWith("/applications/") && data ? (
           <section>
             <h1>{(data as Application).content.title}</h1>
-            <p>{(data as Application).review}</p>{(data as Application).eventCancelledAt && <p>中止確定日時 (UTC): {formatInstant((data as Application).eventCancelledAt!, "UTC")}</p>}
+            <p>{(data as Application).review}</p>
+            {(data as Application).eventCancelledAt && (
+              <p>
+                中止確定日時 (UTC): {formatInstant((data as Application).eventCancelledAt!, "UTC")}
+              </p>
+            )}
             {(data as Application).eventState === "cancelled" && (
               <p role="status">この開催回は中止されました</p>
             )}
