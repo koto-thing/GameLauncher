@@ -2,8 +2,8 @@
 
 | 環境 | 所有コンポーネント | 扱えるデータ | 禁止される能力 |
 | --- | --- | --- | --- |
-| platform | Store、Community、Platform API | Platform DB、Community DB、Analytics D1、UGC R2 | Intake、配信先書き込み、署名鍵 |
-| distribution | Docs Portal、Launcher、Launcher配布ページ・取得Worker、Music公開UI、静的配信コンテンツ | 公開ドキュメント、署名済みManifest、公開downloads、公開音源 | DB書き込み、決済secret、署名鍵 |
+| platform | Store、Community、Platform API、LT API・Mail | Platform DB、Community DB、Analytics D1、UGC R2、LT専用D1・通知outbox | Intake、配信先書き込み、署名鍵 |
+| distribution | Docs Portal、Launcher、Launcher配布ページ・取得Worker、Music公開UI、LT公開UI、静的配信コンテンツ | 公開ドキュメント、署名済みManifest、公開downloads、公開音源 | DB書き込み、決済secret、署名鍵 |
 | operations | Admin Web、Docs Editor Worker、Intake Uploader、Publisher | Deployment DB、Docs専用D1、非公開Intake | Platform session secret、Platform DB直接操作 |
 
 ## Intake / Staging / Production
@@ -18,3 +18,5 @@ Music管理UIは既存Admin Webに組み込み、認証・権限・D1更新はop
 Intakeは未検証Artifactを置く非公開領域です。Stagingは検証用の配信環境、Productionは利用者向け配信環境です。bucket、資格情報、署名鍵、GitHub Environmentを分離し、ProductionはStaging成功物の同一性を確認して昇格します。
 
 信頼境界を変更するときは `infrastructure/trust-boundaries.json` と [プラットフォーム構成](../PLATFORM_ARCHITECTURE_JA.md) を同じ変更で更新し、構成境界テストを実行します。
+
+LTの公開UIはdistribution、専用D1・申請・session/token・snapshot/outboxを所有するAPIと通知配送はplatformに置く。LT専用認証をPlatform sessionと共有せず、公開UIにはDB bindingや送信資格情報を渡さない。管理操作はAdmin Webが権限を再検証したService Bindingのみから受け付ける。
