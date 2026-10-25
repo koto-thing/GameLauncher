@@ -63,3 +63,23 @@ test("fake内部adapterは同一操作の再送とstale versionを区別する",
   assert.equal((await proxyLtCore(request("stale"), identity("executive"), adapter)).status, 409);
   assert.equal(version, 2);
 });
+
+test("認証・未接続エラーはrequestId付きJSONになり内部本文を漏らさない", async () => {
+  for (const status of [401, 403, 501, 503]) {
+    const response = await proxyLtCore(new Request(url), async () => { throw new Response("internal-secret", { status }); });
+    const payload = await response.json();
+    assert.equal(response.status, status);
+    assert.ok(payload.error.requestId);
+    assert.equal(JSON.stringify(payload).includes("internal-secret"), false);
+    assert.equal(response.headers.get("content-type"), "application/json");
+  }
+});
+
+test("内部APIのerrorは既知codeとfieldsだけに再構成する", async () => {
+  const response = await proxyLtCore(new Request(url), identity("admin"), { fetch: async () => Response.json({ error: { code: "VALIDATION", requestId: "secret-upstream-id", detail: "secret", fields: [{ path: "data.title", code: "required", value: "secret" }, { path: "secret@example.invalid", code: "bad" }] }, secret: "do-not-return" }, { status: 422, headers: { "Set-Cookie": "secret" } }) });
+  const payload = await response.json();
+  assert.deepEqual(payload.error.fields, [{ path: "data.title", code: "required" }]);
+  assert.notEqual(payload.error.requestId, "secret-upstream-id");
+  assert.equal(JSON.stringify(payload).includes("secret"), false);
+  assert.equal(response.headers.get("set-cookie"), null);
+});

@@ -1,11 +1,30 @@
-import type { OperatorContext } from "../../../../contracts/lt/v1.ts";
+import type { ApiError, ErrorCode, OperatorContext } from "../../../../contracts/lt/v1.ts";
 import { assertBrowserWrite } from "../request-security.ts";
 
 type Actor = OperatorContext;
 export type LtInternalAdapter = { fetch(request: Request, actor: Actor): Promise<Response> };
 
+// 既知の契約コードだけを通し、内部例外の本文やヘッダーを外へ出さない
+const codes = new Set<ErrorCode>(["UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "VALIDATION", "VERSION_CONFLICT", "DUPLICATE_APPLICATION", "RECRUITMENT_CLOSED", "CAPACITY_FULL", "INVALID_TRANSITION", "TOKEN_INVALID", "RATE_LIMITED", "RETENTION_EXPIRED"]);
+
+/** @brief 管理エラーを共有DTOに絞って再構成する @param response 元の応答 @param requestId proxy発行ID @returns 非公開情報を除いたJSON応答 */
+async function safeError(response: Response, requestId: string): Promise<Response> {
+  const input = await response.json().catch(() => null);
+  const fallback: ErrorCode = response.status === 401 ? "UNAUTHENTICATED" : response.status === 403 ? "FORBIDDEN" : response.status === 404 ? "NOT_FOUND" : response.status === 409 ? "VERSION_CONFLICT" : response.status === 429 ? "RATE_LIMITED" : response.status === 501 ? "INVALID_TRANSITION" : "VALIDATION";
+  const error: ApiError["error"] = { code: codes.has(input?.error?.code) ? input.error.code : fallback, requestId };
+  // fieldsに値や説明を混ぜず、短い識別子だけを許可する
+  if (Array.isArray(input?.error?.fields)) {
+    error.fields = input.error.fields.filter((field: unknown): field is { path: string; code: string } => {
+      if (!field || typeof field !== "object") return false;
+      const item = field as Record<string, unknown>;
+      return typeof item.path === "string" && /^[A-Za-z0-9_.[\]]{1,80}$/.test(item.path) && typeof item.code === "string" && /^[A-Za-z0-9_]{1,40}$/.test(item.code);
+    }).slice(0, 20).map((field: { path: string; code: string }) => ({ path: field.path, code: field.code }));
+  }
+  return Response.json({ error } satisfies ApiError, { status: response.status, headers: { "Cache-Control": "no-store, private" } });
+}
 /** @brief 最新の在籍と役割を検証し、内部専用アダプターへ渡す @param request ブラウザー要求 @param adapter 内部接続 @returns 非キャッシュ応答 */
 export async function proxyLtCore(request: Request, authenticate: (request: Request) => Promise<{ githubUserId: string; role: string | null }>, adapter?: LtInternalAdapter): Promise<Response> {
+  const requestId = crypto.randomUUID();
   try {
     // Cookie の署名、在籍、役割を既存認証で再検証する
     const user = await authenticate(request);
@@ -38,11 +57,11 @@ export async function proxyLtCore(request: Request, authenticate: (request: Requ
       body,
       redirect: "error",
     });
-    const result = await adapter.fetch(internal, { actorId: user.githubUserId, role: user.role, requestId: crypto.randomUUID() });
+    const result = await adapter.fetch(internal, { actorId: user.githubUserId, role: user.role, requestId });
+    if (!result.ok) return safeError(result, requestId);
     return new Response(result.body, { status: result.status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store, private" } });
   } catch (error) {
     const response = error instanceof Response ? error : new Response("Unavailable", { status: 503 });
-    response.headers.set("Cache-Control", "no-store, private");
-    return response;
+    return safeError(response, requestId);
   }
 }
