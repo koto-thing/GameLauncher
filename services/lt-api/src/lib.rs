@@ -1,90 +1,41 @@
 use serde_json::{Value, json};
 use worker::*;
+mod applicant;
 
-/// 公開許可項目を取り出す
-/// 引数: 保存済み公開版、登壇内容フラグ
-/// 戻り値: 私有項目を除去した公開 DTO
-fn public_dto(v: &Value, talk: bool) -> Value {
-    let keys: &[&str] = if talk {
-        &[
-            "id",
-            "eventId",
-            "version",
-            "title",
-            "abstract",
-            "description",
-            "startsAt",
-            "endsAt",
-            "cancelled",
-        ]
-    } else {
-        &[
-            "id",
-            "version",
-            "title",
-            "venue",
-            "guidance",
-            "startsAt",
-            "endsAt",
-            "timeZone",
-            "recruitment",
-        ]
-    };
-    let mut dto = json!({});
-    // 私有申請項目は保存内容に混在していても返さない
-    for k in keys {
-        if let Some(x) = v.get(*k) {
-            dto[*k] = x.clone();
-        }
-    }
-    let (field, allowed): (&str, &[&str]) = if talk {
-        ("speakers", &["displayName", "affiliation", "profile"])
-    } else {
-        ("schedule", &["id", "kind", "talkId", "startsAt", "endsAt"])
-    };
-    dto[field] = Value::Array(
-        v[field]
-            .as_array()
-            .map(|a| {
-                a.iter()
-                    .map(|x| {
-                        let mut out = json!({});
-                        for k in allowed {
-                            if let Some(y) = x.get(*k) {
-                                out[*k] = y.clone();
-                            }
-                        }
-                        out
-                    })
-                    .collect()
-            })
-            .unwrap_or_default(),
-    );
-    dto
-}
+mod public_dto;
 
 /// 公開 HTTP と D1 読み取りを Rust で処理する
 /// 引数: HTTP リクエスト、環境、コンテキスト
 /// 戻り値: 公開 DTO または拒否応答
 #[event(fetch)]
-pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
+pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
     let path = req.path();
     let p: Vec<_> = path.trim_matches('/').split('/').collect();
     // 運営ルートは公開入口に登録しない
-    let mut response = if req.method() == Method::Get
-        && p.starts_with(&["api", "lt", "v1", "events"])
-    {
+    let private = match applicant::handle(&mut req, &env).await {
+        Ok(value) => value,
+        Err(error) if error.to_string().contains("LT_OPERATION_CONFLICT") => Some(
+            Response::from_json(
+                &json!({"error":{"code":"VERSION_CONFLICT","requestId":"applicant"}}),
+            )?
+            .with_status(409),
+        ),
+        Err(error) => return Err(error),
+    };
+    let mut response = if let Some(response) = private {
+        response
+    } else if req.method() == Method::Get && p.starts_with(&["api", "lt", "v1", "events"]) {
         let talk = p.len() == 7 && p[5] == "talks";
         if p.len() != 4 && p.len() != 5 && !talk {
             Response::error("Not found", 404)?
         } else {
             let db = env.d1("DB")?;
             let sql = if talk {
-                "SELECT p.dto FROM lt_public_talks p JOIN lt_events e ON e.id=p.event_id WHERE e.state IN ('scheduled','started','ended') AND e.id=?1 AND p.id=?2"
+                "SELECT p.dto FROM lt_public_talks p JOIN lt_events e ON e.id=p.event_id WHERE e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1 AND p.id=?2"
             } else if p.len() == 5 {
-                "SELECT p.dto FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE e.state IN ('scheduled','started','ended') AND e.id=?1"
+                "SELECT p.dto FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1"
             } else {
-                "SELECT p.dto FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE e.state IN ('scheduled','started','ended') ORDER BY e.id"
+                "SELECT p.dto FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) ORDER BY e.id"
             };
             let mut stmt = db.prepare(sql);
             if talk {
@@ -100,7 +51,9 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                         .as_str()
                         .ok_or_else(|| Error::RustError("Invalid snapshot".into()))?,
                 )?;
-                items.push(public_dto(&saved, talk));
+                if let Some(dto) = public_dto::validate(&saved, talk) {
+                    items.push(dto);
+                }
             }
             if p.len() == 4 {
                 Response::from_json(&json!({"items":items,"nextCursor":null}))?
@@ -124,18 +77,4 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .headers_mut()
         .set("Referrer-Policy", "no-referrer")?;
     Ok(response)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn private_fields_are_removed_recursively() {
-        let dto = public_dto(
-            &json!({"representativeEmail":"private","schedule":[{"id":"s","operatorNote":"private"}]}),
-            false,
-        );
-        assert!(dto.get("representativeEmail").is_none());
-        assert!(dto["schedule"][0].get("operatorNote").is_none());
-    }
 }

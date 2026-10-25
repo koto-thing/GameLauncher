@@ -9,3 +9,7 @@ binding = "DB"
 database_name = "lt-local"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
+[vars]
+LOCAL_AUTH = "true"
+APP_ORIGIN = "http://127.0.0.1:8787"
+SESSION_HOURS = "24"
