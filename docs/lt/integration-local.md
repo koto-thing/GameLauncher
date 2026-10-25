@@ -1,3 +1,5 @@
+> Current local startup, verification order and pending production work: [local-reproduction.md](local-reproduction.md). This file records earlier integration checkpoints.
+
 # ローカル統合検証
 
 統合branch: feature/koto/LtIntegrationPart1。元dirty checkoutと各担当worktreeは編集しない。
