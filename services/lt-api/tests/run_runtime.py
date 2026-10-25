@@ -2,7 +2,7 @@ import subprocess,sys,os
 sys.stdout.reconfigure(encoding='utf-8',errors='replace')
 os.environ['PYTHONIOENCODING']='utf-8'
 from pathlib import Path
-files=['public_guard_test.py','runtime_test.py','applicant_runtime_test.py','operator_runtime_test.py','review_runtime_test.py','maintenance_runtime_test.py','privacy_runtime_test.py','events_runtime_test.py']
+files=['public_guard_test.py','runtime_test.py','applicant_runtime_test.py','operator_runtime_test.py','review_runtime_test.py','maintenance_runtime_test.py','privacy_runtime_test.py','events_runtime_test.py','operations_runtime_test.py','mixed_race_runtime_test.py']
 logs=[]
 for name in files:
  r=subprocess.run([sys.executable,'tests/'+name,'-v'],capture_output=True,text=True,encoding='utf-8',errors='replace')

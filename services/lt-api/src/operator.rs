@@ -96,8 +96,20 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     if let Some(response) = crate::events::handle(req, &db, &c.actor_id, &c.request_id).await? {
         return Ok(response);
     }
+    if p.len() == 8 && p[4] == "applications" && p[6] == "email-change" {
+        if matches!(c.role, Role::Assistant) {
+            return error("FORBIDDEN", 403, c);
+        }
+        return Response::error("Email identity verification is not defined", 501);
+    }
     if req.method() == Method::Put && p.len() == 7 && p[4] == "events" && p[6] == "timetable" {
         return crate::timetable::save(req, &db, p[5], &c.actor_id, &c.request_id).await;
+    }
+    if req.method() == Method::Get && p.len() == 7 && p[4] == "events" && p[6] == "applications" {
+        return crate::operations::list(req, &db, p[5], &c.request_id).await;
+    }
+    if req.method() == Method::Post && p.len() == 7 && p[4] == "events" && p[6] == "cancel" {
+        return crate::operations::cancel(req, &db, p[5], &c.actor_id, &c.request_id).await;
     }
     if req.method() == Method::Get && p.len() == 6 && p[4] == "applications" {
         let rows = db
@@ -112,7 +124,10 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
                 return error("RETENTION_EXPIRED", 410, c);
             }
             dto["operatorNote"] = row["operator_note"].clone();
-            Response::from_json(&dto)
+            Response::from_json(
+                &crate::applicant_dto::operator(&dto)
+                    .ok_or_else(|| Error::RustError("Invalid operator DTO".into()))?,
+            )
         } else {
             error("NOT_FOUND", 404, c)
         };
@@ -144,7 +159,7 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     if req.method() != Method::Post || p.len() != 7 || p[4] != "applications" || p[6] != "approve" {
         return Response::error("Not implemented", 501);
     }
-    let input: Approve = match req.json().await {
+    let input: Approve = match crate::input::json(req).await {
         Ok(v) => v,
         Err(_) => return error("VALIDATION", 422, c),
     };
@@ -189,9 +204,12 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
         if dto.get("operatorNote").is_none() {
             dto["operatorNote"] = json!("");
         }
-        return Response::from_json(&dto);
+        return Response::from_json(
+            &crate::applicant_dto::operator(&dto)
+                .ok_or_else(|| Error::RustError("Invalid operator DTO".into()))?,
+        );
     }
-    let rows=db.prepare("SELECT a.dto,r.talk_minutes FROM lt_applications a JOIN lt_recruitment r ON r.event_id=a.event_id WHERE a.id=?1").bind(&[p[5].into()])?.all().await?.results::<Value>()?;
+    let rows=db.prepare("SELECT a.dto,a.operator_note,r.talk_minutes FROM lt_applications a JOIN lt_recruitment r ON r.event_id=a.event_id WHERE a.id=?1").bind(&[p[5].into()])?.all().await?.results::<Value>()?;
     let Some(row) = rows.first() else {
         return error("NOT_FOUND", 404, c);
     };
@@ -223,14 +241,27 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     dto["slotReserved"] = json!(true);
     dto["published"] = published;
     // UPDATE 0件では trigger は動かず、枠・公開版・outbox・audit は作られない
-    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=?4 WHERE id=?5 AND version=?6 AND json_extract(dto,'$.everApproved')=0 AND json_extract(dto,'$.review') IN ('pending','held') AND json_extract(dto,'$.withdrawal')='none' AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id JOIN lt_public_events pe ON pe.event_id=e.id WHERE e.id=lt_applications.event_id AND json_extract(pe.dto,'$.startsAt')<=?10 AND COALESCE(json_extract(s.blocks,'$[#-1].endsAt'),json_extract(pe.dto,'$.startsAt'))=?10 AND COALESCE(json_extract(s.blocks,'$[#-1].kind'),'opening')!='closing' AND e.version=?7 AND s.version=?8 AND e.state IN ('scheduled','started') AND NOT EXISTS(SELECT 1 FROM json_each(s.blocks) b WHERE json_extract(b.value,'$.startsAt')<?9 AND json_extract(b.value,'$.endsAt')>?10))").bind(&[dto.to_string().into(),input.operation_id.into(),payload.into(),c.actor_id.clone().into(),p[5].into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into(),(input.data.expected_schedule_version as f64).into(),end.into(),input.data.starts_at.into()])?.run().await?;
+    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=?4 WHERE id=?5 AND version=?6 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND json_extract(dto,'$.everApproved')=0 AND json_extract(dto,'$.review') IN ('pending','held') AND json_extract(dto,'$.withdrawal')='none' AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id JOIN lt_public_events pe ON pe.event_id=e.id WHERE e.id=lt_applications.event_id AND json_extract(pe.dto,'$.startsAt')<=?10 AND COALESCE(json_extract(s.blocks,'$[#-1].endsAt'),json_extract(pe.dto,'$.startsAt'))=?10 AND COALESCE(json_extract(s.blocks,'$[#-1].kind'),'opening')!='closing' AND e.version=?7 AND s.version=?8 AND e.publish_enabled=1 AND e.state IN ('scheduled','started') AND NOT EXISTS(SELECT 1 FROM json_each(s.blocks) b WHERE json_extract(b.value,'$.startsAt')<?9 AND json_extract(b.value,'$.endsAt')>?10))").bind(&[dto.to_string().into(),input.operation_id.clone().into(),payload.clone().into(),c.actor_id.clone().into(),p[5].into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into(),(input.data.expected_schedule_version as f64).into(),end.into(),input.data.starts_at.into()])?.run().await?;
     if changed.meta()?.unwrap().changes.unwrap_or(0) == 0 {
+        if let Some(response) = crate::receipts::response(
+            &db,
+            "operator",
+            &c.actor_id,
+            &input.operation_id,
+            &payload,
+            &c.request_id,
+        )
+        .await?
+        {
+            return Ok(response);
+        }
         return error("VERSION_CONFLICT", 409, c);
     }
-    if dto.get("operatorNote").is_none() {
-        dto["operatorNote"] = json!("");
-    }
-    Response::from_json(&dto)
+    dto["operatorNote"] = row["operator_note"].clone();
+    Response::from_json(
+        &crate::applicant_dto::operator(&dto)
+            .ok_or_else(|| Error::RustError("Invalid operator DTO".into()))?,
+    )
 }
 
 /// 差し戻しと再承認などを版条件で適用する
@@ -243,7 +274,7 @@ async fn review(
     id: &str,
     action: &str,
 ) -> Result<Response> {
-    let v: Value = match req.json().await {
+    let v: Value = match crate::input::json(req).await {
         Ok(v) => v,
         Err(_) => return error("VALIDATION", 422, c),
     };
@@ -286,7 +317,10 @@ async fn review(
         if dto.get("operatorNote").is_none() {
             dto["operatorNote"] = json!("");
         }
-        return Response::from_json(&dto);
+        return Response::from_json(
+            &crate::applicant_dto::operator(&dto)
+                .ok_or_else(|| Error::RustError("Invalid operator DTO".into()))?,
+        );
     }
     let rows = db
         .prepare("SELECT dto,operator_note FROM lt_applications WHERE id=?1")
@@ -305,11 +339,19 @@ async fn review(
         return error("RETENTION_EXPIRED", 410, c);
     }
     if dto["version"] != v["expectedVersion"] {
+        if let Some(response) =
+            crate::receipts::response(db, "operator", &c.actor_id, op, &payload, &c.request_id)
+                .await?
+        {
+            return Ok(response);
+        }
         return error("VERSION_CONFLICT", 409, c);
     }
     if crate::applicant::expired(&dto, Date::now().as_millis() as f64) {
         return error("RETENTION_EXPIRED", 410, c);
     }
+    #[cfg(feature = "runtime-tests")]
+    let observed = crate::test_hooks::pause(req, &dto).await?;
     let state = dto["review"].as_str().unwrap_or("");
     let ever = dto["everApproved"] == true;
     let allowed = match action {
@@ -340,9 +382,22 @@ async fn review(
             dto["published"] = published;
             dto["review"] = json!("approved");
         }
-        // 時間割の繰上げは未実装のため、確定を成功扱いにしない
+        // 辞退確定は枠解放と時間割変更を同じbatchにまとめる
         "confirm-withdrawal" => {
-            return Response::error("Withdrawal scheduling is not implemented", 501);
+            return crate::operations::withdraw(
+                &db,
+                &dto,
+                id,
+                v["expectedVersion"].as_u64().unwrap(),
+                op,
+                &payload,
+                &c.actor_id,
+                data.get("note")
+                    .and_then(Value::as_str)
+                    .unwrap_or(row["operator_note"].as_str().unwrap_or("")),
+                &c.request_id,
+            )
+            .await;
         }
         _ => {}
     }
@@ -351,15 +406,34 @@ async fn review(
     } else {
         -1.0
     };
-    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=?4,operator_note=COALESCE(?8,operator_note),active=CASE WHEN json_extract(?1,'$.review') IN ('rejected','withdrawn') THEN 0 ELSE 1 END WHERE id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND e.state IN ('scheduled','started','ended') AND (?7<0 OR e.version=?7))").bind(&[dto.to_string().into(),op.into(),payload.into(),c.actor_id.clone().into(),id.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into(),expected_event.into(),data.get("note").and_then(Value::as_str).map(JsValue::from_str).unwrap_or(JsValue::NULL)])?.run().await?;
+    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=CASE WHEN json_type(?1,'$.published')='object' THEN json_set(?1,'$.published.startsAt',json_extract(dto,'$.published.startsAt'),'$.published.endsAt',json_extract(dto,'$.published.endsAt')) ELSE ?1 END,operation_id=?2,payload_hash=?3,actor_id=?4,operator_note=COALESCE(?8,operator_note),active=CASE WHEN json_extract(?1,'$.review') IN ('rejected','withdrawn') THEN 0 ELSE 1 END WHERE id=?5 AND version=?6 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND (?7<0 OR e.version=?7))").bind(&[dto.to_string().into(),op.into(),payload.clone().into(),c.actor_id.clone().into(),id.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into(),expected_event.into(),data.get("note").and_then(Value::as_str).map(JsValue::from_str).unwrap_or(JsValue::NULL)])?.run().await?;
     if changed.meta()?.unwrap().changes.unwrap_or(0) == 0 {
+        if let Some(response) =
+            crate::receipts::response(&db, "operator", &c.actor_id, op, &payload, &c.request_id)
+                .await?
+        {
+            return Ok(response);
+        }
         return error("VERSION_CONFLICT", 409, c);
     }
+    let saved = db
+        .prepare("SELECT dto,operator_note FROM lt_applications WHERE id=?1")
+        .bind(&[id.into()])?
+        .all()
+        .await?
+        .results::<Value>()?;
+    dto = serde_json::from_str(saved[0]["dto"].as_str().unwrap())?;
     dto["operatorNote"] = data
         .get("note")
         .cloned()
         .unwrap_or(row["operator_note"].clone());
-    Response::from_json(&dto)
+    let response = Response::from_json(
+        &crate::applicant_dto::operator(&dto)
+            .ok_or_else(|| Error::RustError("Invalid operator DTO".into()))?,
+    )?;
+    #[cfg(feature = "runtime-tests")]
+    let response = crate::test_hooks::annotate(response, observed)?;
+    Ok(response)
 }
 
 /// ローカル outbox を fake adapter に一度だけ渡す

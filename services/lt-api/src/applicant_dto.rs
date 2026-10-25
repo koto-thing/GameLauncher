@@ -47,3 +47,17 @@ pub fn sanitize(value: &Value) -> Option<Value> {
     }
     serde_json::to_value(dto).ok()
 }
+
+/// 運営DTOも本人の具体型から構築し、保存メモだけを加える
+/// 引数: 運営用申請
+/// 戻り値: 許可項目だけの運営DTO
+pub fn operator(value: &Value) -> Option<Value> {
+    let mut result = sanitize(value)?;
+    result["operatorNote"] = Value::String(
+        value
+            .get("operatorNote")
+            .map_or(Some(""), Value::as_str)?
+            .to_owned(),
+    );
+    Some(result)
+}

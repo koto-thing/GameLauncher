@@ -16,7 +16,7 @@ fn hash(s: &str) -> String {
 /// 暗号学的乱数を生成する
 /// 引数: なし
 /// 戻り値: 256 bit の token
-fn secret() -> Result<String> {
+pub(crate) fn secret() -> Result<String> {
     let crypto = js_sys::Reflect::get(&js_sys::global(), &"crypto".into())?
         .unchecked_into::<web_sys::Crypto>();
     let mut bytes = [0u8; 32];
@@ -123,7 +123,7 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
         return Ok(Some(error("FORBIDDEN", 403)?));
     }
     if path == "/api/lt/v1/auth/email" && req.method() == Method::Post {
-        let v: Value = match req.json().await {
+        let v: Value = match crate::input::json(req).await {
             Ok(v) => v,
             Err(_) => return Ok(Some(error("VALIDATION", 422)?)),
         };
@@ -164,7 +164,7 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
         ));
     }
     if path == "/api/lt/v1/auth/verify" && req.method() == Method::Post {
-        let v: Value = match req.json().await {
+        let v: Value = match crate::input::json(req).await {
             Ok(v) => v,
             Err(_) => return Ok(Some(error("TOKEN_INVALID", 400)?)),
         };
@@ -274,7 +274,7 @@ async fn applications(
             error("NOT_FOUND", 404)
         };
     }
-    let v: Value = match req.json().await {
+    let v: Value = match crate::input::json(req).await {
         Ok(v) => v,
         Err(_) => return error("VALIDATION", 422),
     };
@@ -339,6 +339,12 @@ async fn applications(
             .await?
             .results::<Value>()?;
         if !duplicate.is_empty() {
+            if let Some(response) =
+                crate::receipts::response(db, "applicant", owner, op, &payload, "applicant").await?
+            {
+                return Ok(response);
+            }
+
             return error("DUPLICATE_APPLICATION", 409);
         }
         let id = secret()?;
@@ -348,8 +354,29 @@ async fn applications(
             .unwrap();
         let dto = json!({"id":id,"eventId":event,"version":1,"content":data["content"],"materialUrl":data["materialUrl"],"representativeEmail":owner,"review":"pending","withdrawal":"none","firstSubmittedAt":date,"everApproved":false,"slotReserved":false,"retentionExpiresAt":null,"published":null});
         // 同一 batch の後続は勝った operation を持つ申請だけに従属する
-        let inserted=db.batch(vec![db.prepare("INSERT INTO lt_applications(id,event_id,email,version,dto,operation_id,payload_hash) SELECT ?1,?2,?3,1,?4,?5,?6 FROM lt_recruitment r JOIN lt_events e ON e.id=r.event_id WHERE r.event_id=?2 AND e.state='scheduled' AND r.opens<=?7 AND r.closes>?7 AND r.reserved<r.capacity AND NOT EXISTS(SELECT 1 FROM lt_applications WHERE event_id=?2 AND email=?3 AND active=1) ON CONFLICT DO NOTHING").bind(&[id.clone().into(),event.into(),owner.into(),dto.to_string().into(),op.into(),payload.clone().into(),now.into()])?,db.prepare("INSERT INTO lt_applicant_operations(actor,operation_id,payload_hash,application_id,result) SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
+        let inserted=db.batch(vec![db.prepare("INSERT INTO lt_applications(id,event_id,email,version,dto,operation_id,payload_hash) SELECT ?1,?2,?3,1,?4,?5,?6 FROM lt_recruitment r JOIN lt_events e ON e.id=r.event_id WHERE r.event_id=?2 AND e.publish_enabled=1 AND e.state='scheduled' AND r.opens<=?7 AND r.closes>?7 AND r.reserved<r.capacity AND NOT EXISTS(SELECT 1 FROM lt_applications WHERE event_id=?2 AND email=?3 AND active=1) ON CONFLICT DO NOTHING").bind(&[id.clone().into(),event.into(),owner.into(),dto.to_string().into(),op.into(),payload.clone().into(),now.into()])?,db.prepare("INSERT INTO lt_applicant_operations(actor,operation_id,payload_hash,application_id,result) SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
         if inserted[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
+            if let Some(response) =
+                crate::receipts::response(db, "applicant", owner, op, &payload, "applicant").await?
+            {
+                return Ok(response);
+            }
+
+            let duplicates = db
+                .prepare(
+                    "SELECT id FROM lt_applications WHERE event_id=?1 AND email=?2 AND active=1",
+                )
+                .bind(&[event.into(), owner.into()])?
+                .all()
+                .await?
+                .results::<Value>()?;
+            if !duplicates.is_empty() {
+                return error("DUPLICATE_APPLICATION", 409);
+            }
+            let full=db.prepare("SELECT event_id FROM lt_recruitment WHERE event_id=?1 AND reserved>=capacity AND opens<=?2 AND closes>?2").bind(&[event.into(),now.into()])?.all().await?.results::<Value>()?;
+            if !full.is_empty() {
+                return error("CAPACITY_FULL", 409);
+            }
             return error("RECRUITMENT_CLOSED", 409);
         }
         return Response::from_json(
@@ -372,8 +399,16 @@ async fn applications(
         return error("RETENTION_EXPIRED", 410);
     }
     if dto["version"] != v["expectedVersion"] {
+        if let Some(response) =
+            crate::receipts::response(db, "applicant", owner, op, &payload, "applicant").await?
+        {
+            return Ok(response);
+        }
+
         return error("VERSION_CONFLICT", 409);
     }
+    #[cfg(feature = "runtime-tests")]
+    let observed = crate::test_hooks::pause(req, &dto).await?;
     let review = dto["review"].as_str().unwrap_or("");
     let ever = dto["everApproved"] == true;
     let withdrawal = dto["withdrawal"].as_str().unwrap_or("");
@@ -403,14 +438,30 @@ async fn applications(
         "cancel-withdrawal" => dto["withdrawal"] = json!("none"),
         _ => {}
     }
-    let result=db.batch(vec![db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=NULL,active=CASE WHEN json_extract(?1,'$.review')='withdrawn' THEN 0 ELSE 1 END WHERE id=?4 AND email=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND (e.state IN ('scheduled','started') OR (e.state='ended' AND json_extract(lt_applications.dto,'$.everApproved')=1 AND json_extract(lt_applications.dto,'$.review')='returned')))").bind(&[dto.to_string().into(),op.into(),payload.into(),id.into(),owner.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into()])?,db.prepare("INSERT INTO lt_applicant_operations(actor,operation_id,payload_hash,application_id,result) SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
+    let result=db.batch(vec![db.prepare("UPDATE lt_applications SET version=version+1,dto=json_set(?1,'$.published',json_extract(dto,'$.published')),operation_id=?2,payload_hash=?3,actor_id=NULL,active=CASE WHEN json_extract(?1,'$.review')='withdrawn' THEN 0 ELSE 1 END WHERE id=?4 AND email=?5 AND version=?6 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND (e.state IN ('scheduled','started') OR (e.state='ended' AND json_extract(lt_applications.dto,'$.everApproved')=1 AND json_extract(lt_applications.dto,'$.review')='returned')))").bind(&[dto.to_string().into(),op.into(),payload.clone().into(),id.into(),owner.into(),(v["expectedVersion"].as_u64().unwrap() as f64).into()])?,db.prepare("INSERT INTO lt_applicant_operations(actor,operation_id,payload_hash,application_id,result) SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
     if result[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
+        if let Some(response) =
+            crate::receipts::response(db, "applicant", owner, op, &payload, "applicant").await?
+        {
+            return Ok(response);
+        }
+
         return error("VERSION_CONFLICT", 409);
     }
-    Response::from_json(
+    let saved = db
+        .prepare("SELECT dto FROM lt_applications WHERE id=?1 AND email=?2")
+        .bind(&[id.into(), owner.into()])?
+        .all()
+        .await?
+        .results::<Value>()?;
+    let dto: Value = serde_json::from_str(saved[0]["dto"].as_str().unwrap())?;
+    let response = Response::from_json(
         &crate::applicant_dto::sanitize(&dto)
             .ok_or_else(|| Error::RustError("Invalid applicant DTO".into()))?,
-    )
+    )?;
+    #[cfg(feature = "runtime-tests")]
+    let response = crate::test_hooks::annotate(response, observed)?;
+    Ok(response)
 }
 
 /// 私有申請の固定保持期限を判定する

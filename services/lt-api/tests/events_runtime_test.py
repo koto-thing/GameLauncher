@@ -37,7 +37,9 @@ class EventRuntime(unittest.TestCase):
    self.assertEqual(request('/api/lt/v1/events/'+id)[1]['endsAt'],blocks[-1]['endsAt'])
    self.assertEqual(operate('/events/'+id+'/timetable',save,'PUT')[1],table)
    save['operationId']=uuid.uuid4().hex;self.assertEqual(operate('/events/'+id+'/timetable',save,'PUT')[0],409)
-   save['expectedVersion']=3;save['operationId']=uuid.uuid4().hex;status,table=operate('/events/'+id+'/timetable',save,'PUT');self.assertEqual(status,200);self.assertEqual(table['version'],4)
+   save['expectedVersion']=3;save['operationId']=uuid.uuid4().hex
+   with concurrent.futures.ThreadPoolExecutor() as pool:responses=list(pool.map(lambda _:operate('/events/'+id+'/timetable',save,'PUT'),range(2)))
+   self.assertEqual([r[0] for r in responses],[200,200]);self.assertEqual(responses[0][1],responses[1][1]);table=responses[0][1];self.assertEqual(table['version'],4)
    bad=save|{'expectedVersion':4,'operationId':uuid.uuid4().hex,'data':{'expectedEventVersion':3,'blocks':[b for b in blocks if b['kind']!='transition']}};self.assertEqual(operate('/events/'+id+'/timetable',bad,'PUT')[0],422)
    nullblocks=json.loads(json.dumps(blocks));nullblocks[2]['talkId']=None
    self.assertEqual(operate('/events/'+id+'/timetable',save|{'expectedVersion':4,'operationId':uuid.uuid4().hex,'data':{'expectedEventVersion':3,'blocks':nullblocks}},'PUT')[0],422)

@@ -7,3 +7,8 @@ export class LtOperator extends Api {
   async fetch() { return new Response('Not found', { status: 404 }); }
   async operate(context, request) { return super.operator_request(context, request, this.env); }
 }
+
+// 試験用Rust exportがあるbuildだけに受取口を作る
+if (typeof Api.prototype.fake_mail === 'function') {
+  LtOperator.prototype.testMail = function(email) { return Api.prototype.fake_mail.call(this, email, this.env); };
+}

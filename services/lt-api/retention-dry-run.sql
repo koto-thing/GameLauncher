@@ -23,3 +23,4 @@ SELECT 'auth_rate',count(*) FROM lt_auth_rate WHERE bucket<CAST(unixepoch('subse
 SELECT 'event_configs' AS resource,count(*) AS due FROM lt_event_configs WHERE expires<=unixepoch('subsec')*1000;
 SELECT 'event_operations' AS resource,count(*) AS due FROM lt_event_operations WHERE expires<=unixepoch('subsec')*1000;
 SELECT 'schedule_operations' AS resource,count(*) AS due FROM lt_schedule_operations WHERE expires<=unixepoch('subsec')*1000;
+SELECT 'event_cancellations' AS resource,count(*) AS due FROM lt_event_cancellations WHERE expires<=unixepoch('subsec')*1000;

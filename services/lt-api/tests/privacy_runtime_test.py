@@ -18,5 +18,6 @@ class PrivacyRuntime(unittest.TestCase):
   self.assertNotIn(id,json.dumps(request('/api/lt/v1/applications',cookie=cookie)[1]))
   status,value,_=request('/api/lt/v1/applications',p,cookie);self.assertNotEqual(status,200);self.assertNotIn('PRIVATE_CANARY',json.dumps(value))
   self.assertEqual(operate('/applications/'+id)[0],410)
+  self.assertNotIn(id,json.dumps(operate('/events/open/applications?review=held&limit=100')[1]))
   self.assertEqual(operate('/applications/'+id+'/hold',op)[0],410)
 if __name__=='__main__':unittest.main()

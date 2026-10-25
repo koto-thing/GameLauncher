@@ -145,7 +145,7 @@ pub async fn handle(
     if !create && !copy && !update {
         return Ok(None);
     }
-    let mut raw: Value = match req.json().await {
+    let mut raw: Value = match crate::input::json(req).await {
         Ok(v) => v,
         Err(_) => return error("VALIDATION", 422),
     };
@@ -244,12 +244,17 @@ pub async fn handle(
             .collect::<String>()
     };
     let result = if update {
-        db.prepare("UPDATE lt_event_configs SET dto=?1,actor=?2,operation_id=?3,payload_hash=?4,expected_version=?5 WHERE id=?6").bind(&[dto.into(),actor.into(),op.clone().into(),hash.into(),(expected as f64).into(),id.clone().into()])?.run().await
+        db.prepare("UPDATE lt_event_configs SET dto=?1,actor=?2,operation_id=?3,payload_hash=?4,expected_version=?5 WHERE id=?6").bind(&[dto.into(),actor.into(),op.clone().into(),hash.clone().into(),(expected as f64).into(),id.clone().into()])?.run().await
     } else {
-        db.prepare("INSERT INTO lt_event_configs(id,dto,actor,operation_id,payload_hash,source_id,source_version) VALUES(?1,?2,?3,?4,?5,?6,?7)").bind(&[id.clone().into(),dto.into(),actor.into(),op.clone().into(),hash.into(),if copy{JsValue::from_str(p[5])}else{JsValue::NULL},if copy{JsValue::from_f64(expected as f64)}else{JsValue::NULL}])?.run().await
+        db.prepare("INSERT INTO lt_event_configs(id,dto,actor,operation_id,payload_hash,source_id,source_version) VALUES(?1,?2,?3,?4,?5,?6,?7)").bind(&[id.clone().into(),dto.into(),actor.into(),op.clone().into(),hash.clone().into(),if copy{JsValue::from_str(p[5])}else{JsValue::NULL},if copy{JsValue::from_f64(expected as f64)}else{JsValue::NULL}])?.run().await
     };
     match result {
         Err(e) => {
+            if let Some(response) =
+                crate::receipts::response(db, "event", actor, &op, &hash, request_id).await?
+            {
+                return Ok(Some(response));
+            }
             let text = e.to_string();
             if text.contains("LT_RECRUITMENT_OVERLAP") {
                 return error("RECRUITMENT_CLOSED", 409);

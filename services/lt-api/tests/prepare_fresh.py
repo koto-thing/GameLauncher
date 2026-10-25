@@ -1,7 +1,9 @@
-import subprocess,sys
+import subprocess,sys,uuid
 sys.stdout.reconfigure(encoding='utf-8',errors='replace')
+target='.wrangler/fresh-validation-'+uuid.uuid4().hex
+print(target,flush=True)
 base=['node','node_modules/wrangler/bin/wrangler.js','d1']
-commands=[base+['migrations','apply','lt-local','--local','--persist-to','.wrangler/fresh-final-settings'],base+['execute','lt-local','--local','--persist-to','.wrangler/fresh-final-settings','--file','tests/fixture.sql']]
+commands=[base+['migrations','apply','lt-local','--local','--persist-to',target],base+['execute','lt-local','--local','--persist-to',target,'--file','tests/fixture.sql']]
 for label,cmd in zip(['fresh migrations','fresh fixture'],commands):
  result=subprocess.run(cmd,capture_output=True,text=True,encoding='utf-8',errors='replace')
  print(label+(': PASS' if result.returncode==0 else ': FAIL'),flush=True)

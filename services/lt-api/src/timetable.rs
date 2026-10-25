@@ -120,7 +120,7 @@ pub async fn save(
                 .with_status(status),
         )
     };
-    let raw: Value = match req.json().await {
+    let raw: Value = match crate::input::json(req).await {
         Ok(v) => v,
         Err(_) => return error("VALIDATION", 422),
     };
@@ -159,7 +159,7 @@ pub async fn save(
         return error("RETENTION_EXPIRED", 410);
     }
     let public: Value = serde_json::from_str(row["dto"].as_str().unwrap())?;
-    let required=db.prepare("SELECT id FROM lt_applications WHERE event_id=?1 AND json_extract(dto,'$.slotReserved')=1").bind(&[event.into()])?.all().await?.results::<Value>()?.iter().filter_map(|r|r["id"].as_str().map(str::to_owned)).collect::<BTreeSet<_>>();
+    let required=db.prepare("SELECT a.id FROM lt_applications a WHERE a.event_id=?1 AND (json_extract(a.dto,'$.slotReserved')=1 OR (json_extract(a.dto,'$.withdrawal')='confirmed' AND EXISTS(SELECT 1 FROM lt_schedule s,json_each(s.blocks) b WHERE s.event_id=a.event_id AND json_extract(b.value,'$.talkId')=a.id)))").bind(&[event.into()])?.all().await?.results::<Value>()?.iter().filter_map(|r|r["id"].as_str().map(str::to_owned)).collect::<BTreeSet<_>>();
     if !valid(
         &input.data.blocks,
         &required,
@@ -169,9 +169,38 @@ pub async fn save(
     ) {
         return error("VALIDATION", 422);
     }
+    // 開始後に予定を残した中止発表は、その予定時刻を後続保存でも維持する
+    let cancelled=db.prepare("SELECT id,dto FROM lt_applications WHERE event_id=?1 AND json_extract(dto,'$.withdrawal')='confirmed'").bind(&[event.into()])?.all().await?.results::<Value>()?;
+    for row in cancelled {
+        if let Some(block) = input
+            .data
+            .blocks
+            .iter()
+            .find(|b| b.talk_id.as_deref() == row["id"].as_str())
+        {
+            let old: Value = serde_json::from_str(row["dto"].as_str().unwrap())?;
+            if old["published"]["startsAt"] != block.starts_at
+                || old["published"]["endsAt"] != block.ends_at
+            {
+                return error("VALIDATION", 422);
+            }
+        }
+    }
     // 保存版のversionと親event版を同じUPDATEで照合する
-    let changed=db.prepare("UPDATE lt_schedule SET blocks=?1,version=version+1,operation_id=?2,actor_id=?3,payload_hash=?4 WHERE event_id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_schedule.event_id AND e.version=?7 AND e.state!='cancelled' AND (e.private_expires IS NULL OR e.private_expires>CAST(unixepoch('subsec')*1000 AS INTEGER)))").bind(&[raw["data"]["blocks"].to_string().into(),input.operation_id.into(),actor.into(),hash.into(),event.into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into()])?.run().await?;
+    let changed=db.prepare("UPDATE lt_schedule SET blocks=?1,version=version+1,operation_id=?2,actor_id=?3,payload_hash=?4 WHERE event_id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_schedule.event_id AND e.version=?7 AND e.state!='cancelled' AND (e.private_expires IS NULL OR e.private_expires>CAST(unixepoch('subsec')*1000 AS INTEGER)))").bind(&[raw["data"]["blocks"].to_string().into(),input.operation_id.clone().into(),actor.into(),hash.clone().into(),event.into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into()])?.run().await?;
     if changed.meta()?.unwrap().changes.unwrap_or(0) == 0 {
+        if let Some(response) = crate::receipts::response(
+            db,
+            "schedule",
+            actor,
+            &input.operation_id,
+            &hash,
+            request_id,
+        )
+        .await?
+        {
+            return Ok(response);
+        }
         return error("VERSION_CONFLICT", 409);
     }
     Response::from_json(

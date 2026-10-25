@@ -117,7 +117,8 @@ pub fn validate(value: &Value, talk: bool) -> Option<Value> {
                 .any(|s| s.is_empty())
             || !instant(&dto.starts_at)
             || !instant(&dto.ends_at)
-            || dto.starts_at >= dto.ends_at
+            || dto.starts_at > dto.ends_at
+            || dto.starts_at == dto.ends_at && !dto.schedule.is_empty()
             || dto.schedule.iter().any(|b| {
                 b.id.is_empty()
                     || !instant(&b.starts_at)
