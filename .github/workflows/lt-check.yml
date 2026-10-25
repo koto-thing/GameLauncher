@@ -39,6 +39,7 @@ jobs:
           python -m pip install -r contracts/lt/requirements-test.txt
       - name: Check contracts and Rust engines
         run: |
+          python -m unittest discover -s scripts/lt -p 'test_*.py' -v
           python -m unittest discover -s contracts/lt -p 'test*.py' -v
           python -m unittest discover -s services/lt-api/tests -p 'test_*cpu*parser.py' -v
           node --test services/lt-api/tests/host-gate.test.mjs services/lt-api/tests/production-host.test.mjs services/lt-api/tests/host-metrics.test.mjs

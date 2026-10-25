@@ -1,6 +1,7 @@
 """CIの架空DBで実Worker・認証proxy・ブラウザー・保持処理を順番に検証する"""
 from pathlib import Path
-import json, os, re, signal, subprocess, sys, time, urllib.request
+import json, os, signal, subprocess, sys, time, urllib.request
+from fixture_diagnostics import startup_diagnostics
 
 ROOT = Path(__file__).resolve().parents[2]
 API = ROOT / 'services/lt-api'
@@ -35,14 +36,8 @@ def start(args, cwd, label, port):
 
 def exit_classification(path, code):
     # 分類だけを出し、ログ行や例外本文を公開しない。原因確定の代わりにはしない
-    text = path.read_text(encoding='utf-8', errors='replace').lower() if path.exists() else ''
-    if re.search(r'eaddrinuse|address already in use', text):
-        return 'address_in_use'
-    if re.search(r'could not find service|couldn.t resolve service|entrypoint.+does not exist', text):
-        return 'binding_missing'
-    if code < 0 or re.search(r'fatal error|segmentation fault|javascript heap out of memory|worker runtime.+crash', text):
-        return 'runtime_crash'
-    return 'other'
+    text = path.read_text(encoding='utf-8', errors='replace') if path.exists() else ''
+    return startup_diagnostics(text, code)
 
 
 def stopped_fixtures():
