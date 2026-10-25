@@ -19,6 +19,7 @@ class RetentionTests(unittest.TestCase):
         self.db.execute('PRAGMA foreign_keys=ON')
         self.addCleanup(self.db.close)
         for path in sorted((ROOT.parent/'migrations').glob('*.sql')):
+            if path.name[:4] > '0024': continue  # 独立成果の旧schema回帰。現行schemaはD1 runtimeで検証
             self.db.executescript(path.read_text(encoding='utf-8-sig'))
         self.db.executescript((ROOT/'archive-marker-schema-proposal.sql').read_text(encoding='utf-8-sig'))
         # 業務APIの代わりに架空fixtureを直接構築し、削除前には全triggerを復元する

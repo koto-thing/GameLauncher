@@ -8,11 +8,12 @@ mod lifecycle;
 mod operations;
 mod operator;
 mod receipts;
+mod retention;
 #[cfg(feature = "runtime-tests")]
 mod test_hooks;
 mod views;
 #[cfg(feature = "runtime-tests")]
-pub use test_hooks::{fake_mail, set_clock};
+pub use test_hooks::{fake_mail, retention_test, set_clock};
 mod timetable;
 pub use operator::{fake_dispatch, operator_request};
 
@@ -52,11 +53,11 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
             let db = env.d1("DB")?;
             let now = crate::lifecycle::reconcile(&db).await?;
             let sql = if talk {
-                "SELECT p.dto FROM lt_public_talks p JOIN lt_events e ON e.id=p.event_id WHERE p.approval_operation IS NOT NULL AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER) AND e.id=?1 AND p.id=?2"
+                "SELECT p.dto FROM lt_public_talks p JOIN lt_events e ON e.id=p.event_id WHERE (p.approval_operation IS NOT NULL AND (p.approval_operation!='lt-archive:v1' OR EXISTS(SELECT 1 FROM lt_archive_markers m WHERE m.talk_id=p.id AND m.event_id=p.event_id AND json(m.snapshot_json)=json(p.dto)))) AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER) AND e.id=?1 AND p.id=?2"
             } else if p.len() == 5 {
-                "SELECT p.dto,e.state,(SELECT closes FROM lt_recruitment WHERE event_id=e.id) AS closes,(SELECT capacity FROM lt_recruitment WHERE event_id=e.id) AS capacity,(SELECT reserved FROM lt_recruitment WHERE event_id=e.id) AS reserved FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND t.approval_operation IS NOT NULL)) AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER) AND e.id=?1"
+                "SELECT p.dto,e.state,(SELECT closes FROM lt_recruitment WHERE event_id=e.id) AS closes,(SELECT capacity FROM lt_recruitment WHERE event_id=e.id) AS capacity,(SELECT reserved FROM lt_recruitment WHERE event_id=e.id) AS reserved FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND (t.approval_operation IS NOT NULL AND (t.approval_operation!='lt-archive:v1' OR EXISTS(SELECT 1 FROM lt_archive_markers m WHERE m.talk_id=t.id AND m.event_id=t.event_id AND json(m.snapshot_json)=json(t.dto)))))) AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER) AND e.id=?1"
             } else {
-                "SELECT p.dto,e.state,(SELECT closes FROM lt_recruitment WHERE event_id=e.id) AS closes,(SELECT capacity FROM lt_recruitment WHERE event_id=e.id) AS capacity,(SELECT reserved FROM lt_recruitment WHERE event_id=e.id) AS reserved FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND t.approval_operation IS NOT NULL)) AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER) ORDER BY e.id"
+                "SELECT p.dto,e.state,(SELECT closes FROM lt_recruitment WHERE event_id=e.id) AS closes,(SELECT capacity FROM lt_recruitment WHERE event_id=e.id) AS capacity,(SELECT reserved FROM lt_recruitment WHERE event_id=e.id) AS reserved FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND (t.approval_operation IS NOT NULL AND (t.approval_operation!='lt-archive:v1' OR EXISTS(SELECT 1 FROM lt_archive_markers m WHERE m.talk_id=t.id AND m.event_id=t.event_id AND json(m.snapshot_json)=json(t.dto)))))) AND e.publish_enabled=1 AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER) ORDER BY e.id"
             };
             let mut stmt = db.prepare(sql);
             if talk {

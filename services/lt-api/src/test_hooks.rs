@@ -97,3 +97,46 @@ pub async fn set_clock(
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
     Ok(())
 }
+
+/// 専用架空DBの保持削除を試験する。通常buildにexportしない
+/// 引数: 内部設定環境、固定形式の試験指示JSON
+/// 戻り値: 件数だけのJSON文字列
+#[worker::wasm_bindgen::prelude::wasm_bindgen]
+pub async fn retention_test(
+    env: Env,
+    input: String,
+) -> std::result::Result<String, worker::wasm_bindgen::JsValue> {
+    let run = async {
+        if !cfg!(feature = "local-development") || env.var("LOCAL_AUTH")?.to_string() != "true" {
+            return Err(Error::RustError("Disabled".into()));
+        }
+        let v: Value = serde_json::from_str(&input)?;
+        let db = env.d1("DB")?;
+        if v["snapshot"] == true {
+            let inventory: Value =
+                serde_json::from_str(include_str!("../retention/d1-inventory.json"))?;
+            let mut queries = Vec::new();
+            for name in inventory.as_object().unwrap().keys() {
+                queries.push(db.prepare(format!("SELECT count(*) AS n FROM {name}")));
+            }
+            let values = db.batch(queries).await?;
+            let counts = values
+                .into_iter()
+                .map(|r| r.results::<Value>().map(|v| v[0]["n"].clone()))
+                .collect::<Result<Vec<_>>>()?;
+            return Ok(serde_json::to_string(&counts)?);
+        }
+        let result = crate::retention::sweep(
+            &db,
+            v["eventId"]
+                .as_str()
+                .ok_or_else(|| Error::RustError("Invalid".into()))?,
+            v["delete"] == true,
+            v["failAfter"].as_u64().map(|n| n as usize),
+        )
+        .await?;
+        Ok::<String, Error>(result.to_string())
+    };
+    run.await
+        .map_err(|_| worker::wasm_bindgen::JsValue::from_str("Retention refused"))
+}
