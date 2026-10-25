@@ -20,7 +20,6 @@ function sql(command: string) {
   return JSON.parse(raw)[0].results;
 }
 test("実UIと実routeで確認から公開・再承認・時間割・辞退・中止まで", async ({ browser }) => {
-  const previous = sql("SELECT event_id,opens,closes FROM lt_recruitment");
   sql("UPDATE lt_recruitment SET opens=0,closes=1");
   const applicant = await browser.newContext({ timezoneId: "UTC" }),
     operator = await browser.newContext({ timezoneId: "UTC" });
