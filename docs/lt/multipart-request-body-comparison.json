@@ -1,0 +1,11 @@
+{
+  "references": ["https://github.com/cloudflare/workers-sdk/issues/15203", "https://github.com/cloudflare/workers-sdk/issues/16046", "https://github.com/cloudflare/workers-sdk/pull/16085"],
+  "installedVersion": "Wrangler 4.152.0",
+  "readinessCorrection": "reloadComplete is emitted after proxy.onReloadComplete without awaiting the queued proxy play request. Thus initial reloadComplete is weaker than proxy-play-complete. Installed harness lacks the queue-drain wait proposed by unmerged PR16085; no dependency update or patch applied.",
+  "minimalProbe": "A no_bundle Worker rejects an unread 128KiB body with 401, then receives a small POST. Initial proxy experiment yielded 7/8 unexpected next statuses; saved three-mode reproducer yielded 8/8. A fresh direct harness also raised TypeError/ECONNRESET. Consuming the first body in the minimal control yielded 0/8 unexpected statuses. 64KiB comparison yielded 0/8 in both modes. Synthetic bodies only.",
+  "interpretation": "Strong evidence for upstream unread-request-body transport behavior. Not evidence of invalid multipart JSON handling, shared registry collision, or a universal getWorker workaround.",
+  "minimalTestChange": "Preserve body-carrying anonymous descriptor 401 in its own harness, with no subsequent business POST on that connection. Seal route consumes no payload: send no unnecessary JSON object for both incomplete and successful seal. Keep all status, JSON, R2 and sealed-state assertions. Keep response consumption. No retries, forced application draining or production edits.",
+  "reproducer": "node scripts/probe-unread-body.mjs; three fresh harness modes, at most eight pairs each; fixed status/type summaries only",
+  "validation": {"partitionedFixture": "10 runs x 2 tests passed", "adminBuildAndAllTests": "189 passed; zero failures/skips", "scopedLint": "passed"},
+  "remaining": "Linux CI confirmation required. Runtime root implementation bug is upstream; local evidence does not prove every failure shares one internal mechanism."
+}

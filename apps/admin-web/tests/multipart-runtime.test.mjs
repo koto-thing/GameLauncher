@@ -8,6 +8,7 @@ import { createAdminTestHarness } from './helpers/admin-worker-harness.mjs';
  const server=createAdminTestHarness({vars:{LOCAL_DEV_AUTH:"true",MUSIC_ENABLED:"false",STAGING_DISPATCH_ENABLED:"false",PRODUCTION_DISPATCH_ENABLED:"false"},secrets:{SESSION_SECRET:"synthetic-local-session-secret-only"}});await server.listen();
  try {
  const origin='http://localhost';
+
  let completedRequests=0;
  /** 各要求の本文を読み終え、実Workerのストリームを次の要求へ持ち越さない */
  const fetchComplete=async (...args)=>{
@@ -28,20 +29,33 @@ import { createAdminTestHarness } from './helpers/admin-worker-harness.mjs';
  const send=(path,body,method='POST',extra={})=>fetchComplete(origin+path,{method,headers:{cookie,origin,'content-type':'application/json',...extra},body:typeof body==='string'?body:JSON.stringify(body)});
  const artifactId=randomUUID(), root='/api/intake/uploads', path=root+'/'+artifactId;
  const descriptor={schemaVersion:1,artifactId,artifactFile:'test-game-1.0.0.zip',gameId:'test-game',version:'1.0.0',platform:'windows',arch:'x86_64',sizeBytes:3,fileCount:1,sha256:'a'.repeat(64),createdAt:new Date().toISOString()};
- assert.equal((await fetchComplete(origin+root,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(descriptor)})).status,401);
+
  let response=await send(root,descriptor);await expectStatus(response,201);
  for(const partNumber of ['1',true,false,null,[],[1],{},0,1.5,2]) {
  response=await send(path+'/parts',{completed:{partNumber,etag:'synthetic',sizeBytes:3}});
  await expectStatus(response,400);assert.equal((await response.json()).error,'part番号が不正です');
  }
  response=await send(root,descriptor);assert.deepEqual((await response.json()).uploadedParts,[]);
- response=await send(path+'/seal',{});await expectStatus(response,400);
+ response=await send(path+'/seal',undefined);await expectStatus(response,400);
  response=await send(path+'/parts',{completed:{partNumber:1,etag:'synthetic',sizeBytes:2}});await expectStatus(response,400);assert.equal((await response.json()).error,'part容量が期待値と一致しません');
  response=await send(root,descriptor);assert.deepEqual((await response.json()).uploadedParts,[]);
  response=await send(path+'/parts/1','abc','PUT',{'content-length':'3'});await expectStatus(response,200);
  const uploaded=await response.json();
  response=await send(path+'/parts',{completed:{partNumber:1,etag:uploaded.etag,sizeBytes:3}});await expectStatus(response,200);
- response=await send(path+'/seal',{});await expectStatus(response,200);
+ response=await send(path+'/seal',undefined);await expectStatus(response,200);
  response=await send(path+'/parts',{completed:{partNumber:1,etag:uploaded.etag,sizeBytes:3}});await expectStatus(response,400);
+ } finally {await server.close();}
+ });
+
+// 本文を読む前に拒否する認証境界は専用runtimeで検証し、後続の業務POSTと接続を共有しない
+ test('anonymous multipart descriptor is rejected before upload creation', async () => {
+ const server=createAdminTestHarness({vars:{LOCAL_DEV_AUTH:"true",MUSIC_ENABLED:"false",STAGING_DISPATCH_ENABLED:"false",PRODUCTION_DISPATCH_ENABLED:"false"},secrets:{SESSION_SECRET:"synthetic-local-session-secret-only"}});
+ await server.listen();
+ try {
+ const artifactId=randomUUID();
+ const descriptor={schemaVersion:1,artifactId,artifactFile:'test-game-1.0.0.zip',gameId:'test-game',version:'1.0.0',platform:'windows',arch:'x86_64',sizeBytes:3,fileCount:1,sha256:'a'.repeat(64),createdAt:new Date().toISOString()};
+ const response=await server.fetch('http://localhost/api/intake/uploads',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify(descriptor)});
+ await response.arrayBuffer();
+ assert.equal(response.status,401);
  } finally {await server.close();}
  });
