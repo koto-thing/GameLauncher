@@ -1,0 +1,9 @@
+import React,{useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import {EmailChangePanel} from '../../app/lt/EmailChangePanel';
+import '../../app/globals.css';
+import '../../app/lt/lt.css';
+let request=null,role='admin',fail=false;const receipts=new Map();
+async function transport(action,body){await new Promise(resolve=>setTimeout(resolve,100));if(role==='assistant')throw Object.assign(Error('Admin・幹部のみ操作できます'),{status:403});if(!action)return request?structuredClone(request):null;if(receipts.has(body.operationId))return receipts.get(body.operationId);if(action==='investigate')request={id:crypto.randomUUID(),applicationId:'fixture',version:1,applicationVersion:1,state:'investigating',newEmail:body.data.newEmail,verificationExpiresAt:null,verifiedAt:null};else{if(body.data.requestId!==request.id||body.data.expectedRequestVersion!==request.version)throw Object.assign(Error('他の操作で更新されています。再読込してください'),{status:409});request={...request,version:request.version+1,state:action==='confirm'?'confirmed':'verificationPending',verificationExpiresAt:'2040-01-01T01:00:00.000Z'};}receipts.set(body.operationId,structuredClone(request));if(fail){fail=false;throw Error('通信結果不明。再試行できます');}return structuredClone(request);}
+function Demo(){const [key,setKey]=useState(0);return <main className="members-page lt-manager"><p>架空データ・fake送信のみ</p><button onClick={()=>{role='assistant';setKey(key+1)}}>fixture: Assistant</button><button onClick={()=>{if(request)request={...request,version:request.version+1,state:'verified',verifiedAt:'2040-01-01T00:01:00.000Z'}}}>fixture: 新アドレス確認</button><button onClick={()=>{fail=true}}>fixture: 次回の応答だけ喪失</button><EmailChangePanel key={key} applicationId="fixture" applicationVersion={1} transport={transport}/></main>}
+createRoot(document.getElementById('root')).render(<Demo/>);

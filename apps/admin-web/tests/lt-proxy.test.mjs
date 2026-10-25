@@ -91,3 +91,8 @@ test("専用未接続・未実装コードを共有契約に合わせる", async
  const unsupported=await proxyLtCore(new Request(url+'/x/email-change/confirm',{method:"POST",headers:{origin:"https://admin.example.invalid"}}),identity("executive"));
  assert.equal((await unsupported.json()).error.code,"NOT_IMPLEMENTED");
 });
+
+test("メール変更状態GETもassistantを拒否する", async () => {
+ const request=new Request(url.replace("events","applications/a/email-change"));
+ assert.equal((await proxyLtCore(request,identity("assistant"))).status,403);
+});

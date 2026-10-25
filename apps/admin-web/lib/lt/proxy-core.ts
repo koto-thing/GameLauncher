@@ -38,7 +38,7 @@ export async function proxyLtCore(request: Request, authenticate: (request: Requ
     if (request.method !== "GET") assertBrowserWrite(request);
 
     // 本人確認フローが確定するまでメール変更は接続しない
-    if (url.pathname.includes("/email-change/")) {
+    if (/\/email-change(?:\/|$)/.test(url.pathname)) {
       if (user.role === "assistant") throw new Response("Forbidden", { status: 403 });
       throw new Response("本人確認フロー未確定のため未対応です", { status: 501 });
     }

@@ -12,3 +12,5 @@
 .lt-manager [role=alert] { padding: 12px; border: 1px solid #b42318; border-radius: 8px; }
 .lt-manager a { color: #155eef; text-decoration: underline; }
 .lt-manager li { margin: 12px 0; }
+
+.lt-manager input[type="checkbox"] { display: inline-block; width: auto; margin-right: 8px; }

@@ -1,5 +1,6 @@
 "use client";
 import "./lt.css";
+import { EmailChangePanel } from "./EmailChangePanel";
 import { canReapprove, canReview, syncTimetableEvent } from "../../lib/lt/operator-state";
 import { useEffect, useRef, useState } from "react";
 import type { EventSettings, OperatorApplication, EventSettingsPage, OperatorApplicationPage, OperatorTimetable } from "../../../../contracts/lt/v1";
@@ -93,7 +94,7 @@ export function LtManager() {
       <button disabled={!canReview(selected, "return")} onClick={() => review("return")}>差し戻し</button><button disabled={!canReview(selected, "hold")} onClick={() => review("hold")}>保留</button>
       <button disabled={!canReview(selected, "reject")} onClick={() => review("reject")}>見送り</button>
       <button disabled={selected.withdrawal !== "requested"} onClick={() => review("confirm-withdrawal")}>辞退確定</button></div>
-      <p>代表者メール変更は本人確認フロー未確定のため未対応です。</p>
+      <EmailChangePanel key={selected.id} applicationId={selected.id} applicationVersion={selected.version} onConfirmed={async () => { const updated = await api<OperatorApplication>(`/applications/${encodeURIComponent(selected.id)}`); setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); }} />
     </div> : event ? <div key="event">
       <button onClick={() => { setEvent(null); setApplications([]); }}>開催回一覧に戻る</button><h2>{event.title}</h2>{!event.publishEnabled && <p role="status">非公開・募集停止中です。受付日時を確定して保存してください。</p>}
       <EventForm value={event} onSave={value => mutate(`/events/${encodeURIComponent(event.id)}`, event.version, value, result => { const updated = result as EventSettings; setEvent(updated); setEvents(items => items.map(item => item.id === updated.id ? updated : item)); }, "PATCH")} />
