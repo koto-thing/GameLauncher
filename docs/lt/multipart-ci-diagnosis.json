@@ -1,0 +1,15 @@
+{
+  "base": "d3af7500d584218977b7aadc57961b0f32e86d48",
+  "ciRun": 40219623613,
+  "reproduction": "Fresh isolated Worker failed on second serial run: post-seal parts request returned 500, non-JSON/non-HTML body of 213 bytes. A later repetition reproduced with fixed category network. Ten intervening fresh Worker runs passed.",
+  "causeStatus": "Network failure response reproduced independently of other test files; underlying runtime/transport cause remains unconfirmed. No evidence supports changing application validation or treating 500 as 400.",
+  "comparisonProbe": "Temporary direct-Worker comparison after network failure did not return; interrupted own diagnostic execution. Probe removed from final changes.",
+  "deliverable": "Test-only status diagnostics output fixed categories, status, format and byte length. Raw response, headers, cookies, identifiers and secrets are not logged. 500 remains a failed assertion.",
+  "checks": {
+    "initialAdminBuildAndAllTests": "187 passed, zero failed/skipped",
+    "safeDiagnosticUnit": "6 passed",
+    "typecheck": "passed",
+    "scopedLint": "passed"
+  },
+  "remaining": "CI/runtime fault still unresolved. Next failure needs safe runtime exception/event classification; no retry/skip or production fallback added."
+}

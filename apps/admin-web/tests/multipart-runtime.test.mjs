@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { expectStatus } from './helpers/safe-response-status.mjs';
 import { randomUUID } from 'node:crypto';
 import { createAdminTestHarness } from './helpers/admin-worker-harness.mjs';
 // 実際の Worker に合成データを渡し、型変換拒否と永続化の境界を確認する
@@ -18,16 +19,16 @@ import { createAdminTestHarness } from './helpers/admin-worker-harness.mjs';
  let response=await send(root,descriptor);assert.equal(response.status,201,await response.clone().text());
  for(const partNumber of ['1',true,false,null,[],[1],{},0,1.5,2]) {
  response=await send(path+'/parts',{completed:{partNumber,etag:'synthetic',sizeBytes:3}});
- assert.equal(response.status,400);assert.equal((await response.json()).error,'part番号が不正です');
+ await expectStatus(response,400);assert.equal((await response.json()).error,'part番号が不正です');
  }
  response=await send(root,descriptor);assert.deepEqual((await response.json()).uploadedParts,[]);
- response=await send(path+'/seal',{});assert.equal(response.status,400);
- response=await send(path+'/parts',{completed:{partNumber:1,etag:'synthetic',sizeBytes:2}});assert.equal(response.status,400);assert.equal((await response.json()).error,'part容量が期待値と一致しません');
+ response=await send(path+'/seal',{});await expectStatus(response,400);
+ response=await send(path+'/parts',{completed:{partNumber:1,etag:'synthetic',sizeBytes:2}});await expectStatus(response,400);assert.equal((await response.json()).error,'part容量が期待値と一致しません');
  response=await send(root,descriptor);assert.deepEqual((await response.json()).uploadedParts,[]);
  response=await send(path+'/parts/1','abc','PUT',{'content-length':'3'});assert.equal(response.status,200,await response.clone().text());
  const uploaded=await response.json();
  response=await send(path+'/parts',{completed:{partNumber:1,etag:uploaded.etag,sizeBytes:3}});assert.equal(response.status,200,await response.clone().text());
  response=await send(path+'/seal',{});assert.equal(response.status,200,await response.clone().text());
- response=await send(path+'/parts',{completed:{partNumber:1,etag:uploaded.etag,sizeBytes:3}});assert.equal(response.status,400);
+ response=await send(path+'/parts',{completed:{partNumber:1,etag:uploaded.etag,sizeBytes:3}});await expectStatus(response,400);
  } finally {await server.close();}
  });
