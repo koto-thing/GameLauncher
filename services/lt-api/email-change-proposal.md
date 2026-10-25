@@ -1,0 +1,15 @@
+# 例外メール変更 API 接続案
+
+状態追補とは別の分割実装。現時点では3つの既存運営routeはNOT_IMPLEMENTEDのまま。実メール送信・実在ユーザー変更・本番設定は行わない。
+
+- 内部RPCのAdmin/Executiveだけに調査・確認送信・最終確定を許可する。Assistantは全段階403。contextのroleからRustが判定し、public fetchには運営routeを登録しない。
+- 変更範囲の提案は対象applicationIdの代表者メール/所有者1件だけ。他の開催回・他の申請の所有者は変更しない。確定時には旧メール由来の全login sessionを失効させる（他回へのアクセスは再ログインが必要だが、所有権は変えない）。旧メールの未使用login linkも失効させる。
+- 同一開催回・新メールに既存の有効申請があれば409 DUPLICATE_APPLICATION。自動統合/上書きはしない。新メールが旧メールと同一の場合は422。調査は対象申請のversionと保持期限を検査し、同一申請の古い未確定変更requestを無効化する。
+- 運営が手動本人確認を完了したことを明示する確認ボタンと、監査記録を必須にする。確認資料の画像/本人情報は保存しない。既存InvestigateEmailInputのdataはnewEmailのみなので、identityChecked:true等の契約追補が必要。確認済みという暗黙の推測で送信を許可しない。
+- send-verificationはapplication/request両versionとoperationIdで条件付き処理。暗号学的tokenを生成し、purpose=email_change、requestId/applicationId/newEmailの固定値に紐付け、hashだけを認証用に保存する。期限1時間、再送は旧未使用tokenを失効。outboxはfake transportのみ。GETは非消費、本人のPOST確認でverifiedへ進めるがlogin sessionは作らない。
+- 公開確認用GET /auth/email-change と POST /api/lt/v1/auth/email-change/verify（tokenのみ、成功は{accepted:true}）の共有route/schema追加が必要。既存login verifyのSession応答へ偽装しない。POSTにはOrigin/CSRFを要求する。新メール確認前のconfirmは409 INVALID_TRANSITION。
+- confirmはAdmin/Executiveが両version、現在のrequest、新アドレス確認済み状態、保持期限、uniquenessを同じD1 transaction/条件付きUPDATEで検査する。勝ったoperationだけが所有者変更・旧session/link失効・audit・通知outboxを生成する。receiptは親中止状態と保持期限を毎回再合成し、古いrequest/token/replayで新しい所有者を巻き戻せない。本人operation receiptは現在のapplication.emailと認証メールの一致を取得条件に加え、旧メールで再ログインしても移管済み申請の古いreceiptを読めないようにする。本人/運営DTOの代表者メールも現在の所有者から合成し、古い運営receiptで旧宛先を再表示しない。
+
+新規私有table案はlt_email_changes（application_id→lt_applications、event_id→lt_events）、lt_email_change_tokens（request_id→lt_email_changes）、操作receiptはrequest/application/event所属を持たせる。期限は関連開催回private_expiresを上限にする。auth token/sessionは開催回削除ではメール一致削除せず、自身の期限で独立整理する。lt-mail接続のEnvelope.expiresは秒であるため既存ミリ秒期限から明示変換する。番号付きmigration/API本体はAPI担当、transportと独立SQL提案はメール担当、物理削除の独立SQLは保管担当と分担する。
+
+親へ要調整: 対象申請1件の変更範囲と同一回衝突拒否、明示本人確認field、公開確認route/schema。共有contractsを本担当が独自に変更しない。
