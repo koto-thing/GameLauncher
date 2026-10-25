@@ -1,0 +1,185 @@
+{
+  "label": "candidate-batch-lazy",
+  "version": "e6752fbc-146d-4118-97a7-b54a2167ed2f",
+  "deployedSourceHead": "301cbd304a15e71391ff75b583f8e7af7984c230",
+  "collectorHead": "301cbd304a15e71391ff75b583f8e7af7984c230",
+  "collectorDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "dataset": "empty dedicated LT D1; mail disabled; private gate disabled",
+  "timeUtc": "2026-10-25T14:37:54.298928+00:00",
+  "events": [
+    {
+      "sequence": 1,
+      "path": "/api/lt/v1/events",
+      "status": 200,
+      "cpuTimeMs": 39,
+      "wallTimeMs": 243,
+      "outcome": "ok",
+      "version": "e6752fbc-146d-4118-97a7-b54a2167ed2f",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 1,
+        "route": "public-events",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": true,
+        "routeFirstInIsolate": true,
+        "callsRust": true
+      },
+      "eventTimestamp": 1792939069774
+    },
+    {
+      "sequence": 2,
+      "path": "/api/lt/v1/events",
+      "status": 200,
+      "cpuTimeMs": 27,
+      "wallTimeMs": 167,
+      "outcome": "ok",
+      "version": "e6752fbc-146d-4118-97a7-b54a2167ed2f",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 2,
+        "route": "public-events",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": true,
+        "routeFirstInIsolate": true,
+        "callsRust": true
+      },
+      "eventTimestamp": 1792939070452
+    },
+    {
+      "sequence": 3,
+      "path": "/api/lt/v1/events",
+      "status": 200,
+      "cpuTimeMs": 26,
+      "wallTimeMs": 161,
+      "outcome": "ok",
+      "version": "e6752fbc-146d-4118-97a7-b54a2167ed2f",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 3,
+        "route": "public-events",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": true,
+        "routeFirstInIsolate": true,
+        "callsRust": true
+      },
+      "eventTimestamp": 1792939071066
+    },
+    {
+      "sequence": 4,
+      "path": "/api/lt/v1/auth/session",
+      "status": 501,
+      "cpuTimeMs": 0,
+      "wallTimeMs": 1,
+      "outcome": "ok",
+      "version": "e6752fbc-146d-4118-97a7-b54a2167ed2f",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 4,
+        "route": "auth",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": false,
+        "routeFirstInIsolate": true,
+        "callsRust": false
+      },
+      "eventTimestamp": 1792939071676
+    },
+    {
+      "sequence": 5,
+      "path": "/api/lt/v1/auth/session",
+      "status": 501,
+      "cpuTimeMs": 1,
+      "wallTimeMs": 2,
+      "outcome": "ok",
+      "version": "e6752fbc-146d-4118-97a7-b54a2167ed2f",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 5,
+        "route": "auth",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": false,
+        "routeFirstInIsolate": true,
+        "callsRust": false
+      },
+      "eventTimestamp": 1792939072118
+    },
+    {
+      "sequence": 6,
+      "path": "/api/lt/v1/auth/session",
+      "status": 501,
+      "cpuTimeMs": 2,
+      "wallTimeMs": 3,
+      "outcome": "ok",
+      "version": "e6752fbc-146d-4118-97a7-b54a2167ed2f",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 6,
+        "route": "auth",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": false,
+        "routeFirstInIsolate": true,
+        "callsRust": false
+      },
+      "eventTimestamp": 1792939072570
+    },
+    {
+      "sequence": 7,
+      "path": "/api/lt/v1/operator/events",
+      "status": 404,
+      "cpuTimeMs": 0,
+      "wallTimeMs": 1,
+      "outcome": "ok",
+      "version": "e6752fbc-146d-4118-97a7-b54a2167ed2f",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 7,
+        "route": "other",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": false,
+        "routeFirstInIsolate": true,
+        "callsRust": false
+      },
+      "eventTimestamp": 1792939072979
+    },
+    {
+      "sequence": 8,
+      "path": "/api/lt/v1/operator/events",
+      "status": 404,
+      "cpuTimeMs": 0,
+      "wallTimeMs": 1,
+      "outcome": "ok",
+      "version": "e6752fbc-146d-4118-97a7-b54a2167ed2f",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 8,
+        "route": "other",
+        "firstInIsolate": false,
+        "rustFirstInIsolate": false,
+        "routeFirstInIsolate": true,
+        "callsRust": false
+      },
+      "eventTimestamp": 1792939073425
+    },
+    {
+      "sequence": 9,
+      "path": "/api/lt/v1/operator/events",
+      "status": 404,
+      "cpuTimeMs": 0,
+      "wallTimeMs": 0,
+      "outcome": "ok",
+      "version": "e6752fbc-146d-4118-97a7-b54a2167ed2f",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 9,
+        "route": "other",
+        "firstInIsolate": false,
+        "rustFirstInIsolate": false,
+        "routeFirstInIsolate": true,
+        "callsRust": false
+      },
+      "eventTimestamp": 1792939073846
+    }
+  ],
+  "allAtMost10ms": false,
+  "requests": 9,
+  "mailSent": false
+}
