@@ -20,6 +20,7 @@ class RetentionTests(unittest.TestCase):
         self.addCleanup(self.db.close)
         for path in sorted((ROOT.parent/'migrations').glob('*.sql')):
             self.db.executescript(path.read_text(encoding='utf-8-sig'))
+        self.db.executescript((ROOT/'archive-marker-schema-proposal.sql').read_text(encoding='utf-8-sig'))
         # 業務APIの代わりに架空fixtureを直接構築し、削除前には全triggerを復元する
         self.triggers=list(self.db.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger'"))
         for name,_ in self.triggers: self.db.execute('DROP TRIGGER '+name)
@@ -28,11 +29,11 @@ class RetentionTests(unittest.TestCase):
         for event_id,kind,expiry in [('normal','ended',self.expiry),('cancel','cancelled',self.expiry),('other','scheduled',None)]:
             self.db.execute('INSERT INTO lt_events(id,state,private_expires) VALUES(?,?,?)',(event_id,kind,expiry))
             self.db.execute('INSERT INTO lt_public_events VALUES(?,?)',(event_id,json.dumps({'id':event_id,'title':'public'})))
-            self.db.execute('INSERT INTO lt_public_talks(id,event_id,dto,approval_operation) VALUES(?,?,?,?)',(event_id+'talk',event_id,'{"cancelled":true}','operation'))
+            self.db.execute('INSERT INTO lt_public_talks(id,event_id,dto,approval_operation) VALUES(?,?,?,?)',(event_id,event_id,'{"cancelled":true}','operation'))
             self.db.execute('INSERT INTO lt_recruitment(event_id,opens,closes,capacity) VALUES(?,0,9999999999999,10)',(event_id,))
             self.db.execute('INSERT INTO lt_schedule(event_id) VALUES(?)',(event_id,))
             self.db.execute('INSERT INTO lt_event_configs(id,dto,actor,operation_id,payload_hash) VALUES(?,\'{}\',\'actor\',?,\'hash\')',(event_id,event_id))
-            self.db.execute('INSERT INTO lt_applications(id,event_id,email,version,dto,operation_id,payload_hash) VALUES(?,?,?,1,?, ?,\'hash\')',(event_id,event_id,'shared@example.invalid' if event_id!='cancel' else 'orphan@example.invalid','{"materialUrl":"https://example.invalid/private","representativeEmail":"private@example.invalid"}',event_id))
+            self.db.execute('INSERT INTO lt_applications(id,event_id,email,version,dto,operation_id,payload_hash) VALUES(?,?,?,1,?, ?,\'hash\')',(event_id,event_id,'shared@example.invalid' if event_id!='cancel' else 'orphan@example.invalid','{"materialUrl":"https://example.invalid/private","representativeEmail":"private@example.invalid","everApproved":true,"published":{"cancelled":true}}',event_id))
             for table in ['lt_applicant_operations','lt_operator_operations']:
                 self.db.execute(f'INSERT INTO {table}(actor,operation_id,application_id,payload_hash,result) VALUES(\'actor\',?,?,\'hash\',\'{{}}\')',(event_id,event_id))
             for table in ['lt_event_operations','lt_schedule_operations','lt_event_cancellations']:
@@ -68,7 +69,7 @@ class RetentionTests(unittest.TestCase):
     def test_archives_other_event_and_account_protected(self):
         self.run_sweep(dry_run=False)
         self.assertEqual(list(self.db.execute('SELECT event_id FROM lt_public_events ORDER BY event_id')),[('normal',),('other',)])
-        self.assertEqual(self.db.execute("SELECT dto,approval_operation FROM lt_public_talks WHERE id='normaltalk'").fetchone(),('{"cancelled":true}','operation'))
+        self.assertEqual(self.db.execute("SELECT dto,approval_operation FROM lt_public_talks WHERE id='normal'").fetchone(),('{"cancelled":true}','lt-archive:v1'))
         self.assertEqual(list(self.db.execute('SELECT id FROM lt_applications')),[('other',)])
         self.assertEqual(self.db.execute('SELECT count(*) FROM users').fetchone()[0],1)
         for table in ['lt_outbox','lt_audit','lt_fake_deliveries','lt_operator_operations','lt_applicant_operations','lt_approval_receipts','lt_event_configs','lt_event_operations','lt_schedule_operations','lt_event_cancellations']:
@@ -81,7 +82,7 @@ class RetentionTests(unittest.TestCase):
 
     def test_rollback_retry_and_replay(self):
         before=self.snapshot()
-        commands=module.statements(ROOT/"delete-event.sql")+module.statements(ROOT/"delete-expired-orphan-auth.sql")
+        commands=sum((module.statements(ROOT/path) for path in ["prepare-archive-proposal.sql","delete-event.sql","delete-expired-orphan-auth.sql","delete-expired-rate.sql"]),[])
         for index in range(len(commands)):
             with self.assertRaises(RuntimeError): self.run_sweep(dry_run=False,inject_failure_after=index)
             self.assertEqual(self.snapshot(),before)
@@ -105,5 +106,35 @@ class RetentionTests(unittest.TestCase):
     def test_calendar_month_end_and_japan_time(self):
         cases=[('2024-01-31T23:30:00.123+09:00','2024-04-30T23:30:00.123+09:00'),('2023-11-30T00:00:00+09:00','2024-02-29T00:00:00+09:00'),('2024-11-30T00:00:00+09:00','2025-02-28T00:00:00+09:00'),('2024-12-31T00:05:00+09:00','2025-03-31T00:05:00+09:00')]
         for source,target in cases: self.assertEqual(module.calendar_expiry(instant(source)),instant(target))
+
+    def test_later_expiry_cleaned_without_application_candidates(self):
+        self.run_sweep(dry_run=False)
+        self.assertIsNotNone(self.db.execute("SELECT hash FROM lt_auth_tokens WHERE hash='live-session'").fetchone())
+        module.clean_auth_fixture(self.db,self.expiry+1000)
+        self.assertEqual(list(self.db.execute('SELECT hash FROM lt_auth_tokens')),[('shared',)])
+        self.assertEqual(list(self.db.execute('SELECT id FROM lt_fake_mail')),[('shared',)])
+
+    def test_rate_bucket_boundary_and_current_bucket_protected(self):
+        self.db.executemany('INSERT INTO lt_auth_rate VALUES(?,?,1)',[('not-anonymous-email-hash',0),('not-anonymous-email-hash',1)])
+        self.db.commit()
+        module.clean_auth_fixture(self.db,3599999)
+        self.assertEqual(self.db.execute('SELECT count(*) FROM lt_auth_rate').fetchone()[0],2)
+        module.clean_auth_fixture(self.db,3600000)
+        self.assertEqual(list(self.db.execute('SELECT bucket FROM lt_auth_rate')),[(1,)])
+
+    def test_private_operation_id_removed_and_marker_requires_approval(self):
+        # 既存guardを通せる正規承認済みsnapshotのoperationIdに私有値を入れる
+        self.db.execute("UPDATE lt_public_talks SET approval_operation='private-person@example.invalid' WHERE id='normal'")
+        self.db.commit()
+        self.run_sweep(dry_run=False)
+        self.assertEqual(self.db.execute("SELECT approval_operation FROM lt_public_talks WHERE id='normal'").fetchone()[0],'lt-archive:v1')
+        self.assertEqual(self.db.execute('SELECT count(*) FROM lt_archive_markers').fetchone()[0],1)
+        self.assertNotIn('private-person@example.invalid', '\n'.join(self.snapshot()))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("INSERT INTO lt_archive_markers VALUES('forged','other','{}')")
+        self.db.rollback()
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE lt_public_talks SET dto='{}' WHERE id='normal'")
+        self.db.rollback()
 
 if __name__=='__main__': unittest.main()

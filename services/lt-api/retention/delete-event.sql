@@ -13,7 +13,7 @@ DELETE FROM lt_event_configs WHERE id IN (SELECT event_id FROM retention_due);
 DELETE FROM lt_applications WHERE id IN (SELECT id FROM retention_apps);
 DELETE FROM lt_schedule WHERE event_id IN (SELECT event_id FROM retention_due);
 DELETE FROM lt_recruitment WHERE event_id IN (SELECT event_id FROM retention_due);
--- 通常の公開DTOと不透明な承認識別子は保持する。公開snapshot更新guardを迂回しない
+-- prepare-archive-proposal.sqlで利用者operationIdを定数markerへ置換した公開DTOを保持する
 DELETE FROM lt_public_talks WHERE event_id IN (SELECT event_id FROM retention_due WHERE kind='cancelled');
 DELETE FROM lt_public_events WHERE event_id IN (SELECT event_id FROM retention_due WHERE kind='cancelled');
 -- 外部キーと再実行のため個人情報を含まない開催回tombstoneは保持する

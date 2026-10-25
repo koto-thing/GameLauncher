@@ -25,11 +25,15 @@ def validate_inventory(db):
     """未知テーブル/列/型を検知した場合、削除前に停止する"""
     expected = json.loads((ROOT / 'schema-inventory.json').read_text())
     tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
+    if 'lt_archive_markers' in tables:
+        expected['lt_archive_markers'] = [['talk_id','TEXT'],['event_id','TEXT'],['snapshot_json','TEXT']]
     if tables - set(expected) - PROTECTED or set(expected) - tables:
         raise ValueError('Retention table inventory requires review')
     handlers = (ROOT / "delete-event.sql").read_text(encoding="utf-8-sig") + (ROOT / "delete-expired-orphan-auth.sql").read_text(encoding="utf-8-sig")
+    handlers += (ROOT / "prepare-archive-proposal.sql").read_text(encoding="utf-8-sig")
+    handlers += (ROOT / "delete-expired-rate.sql").read_text(encoding="utf-8-sig")
     handled = set(re.findall(r"(?:DELETE FROM|UPDATE)\s+(lt_\w+)", handlers))
-    if set(expected) - handled - {"lt_auth_rate"}:
+    if set(expected) - handled:
         raise ValueError("Retention handler registration requires review")
     for table, columns in expected.items():
         actual = [list(row)[1:3] for row in db.execute('PRAGMA table_info(' + table + ')')]
@@ -68,13 +72,29 @@ def sweep_fixture(db, anchors, now_ms, *, dry_run=True, inject_failure_after=Non
         if dry_run:
             db.rollback()
             return counts
-        commands = statements(ROOT / 'delete-event.sql') + statements(ROOT / 'delete-expired-orphan-auth.sql')
+        commands = statements(ROOT / 'prepare-archive-proposal.sql') + statements(ROOT / 'delete-event.sql') + statements(ROOT / 'delete-expired-orphan-auth.sql') + statements(ROOT / 'delete-expired-rate.sql')
         for index, statement in enumerate(commands):
             db.execute(statement, {'now_ms': now_ms})
             if index == inject_failure_after:
                 raise RuntimeError('Injected deletion failure')
         db.commit()
         return counts
+    except BaseException:
+        db.rollback()
+        raise
+
+
+def clean_auth_fixture(db, now_ms):
+    """開催回削除と独立した期限切れ情報ジョブのローカル参照処理"""
+    if db.in_transaction:
+        raise ValueError('Caller transaction must not be open')
+    db.execute('BEGIN IMMEDIATE')
+    try:
+        validate_inventory(db)
+        for path in ['delete-expired-orphan-auth.sql', 'delete-expired-rate.sql']:
+            for statement in statements(ROOT / path):
+                db.execute(statement, {'now_ms': now_ms})
+        db.commit()
     except BaseException:
         db.rollback()
         raise
