@@ -23,8 +23,8 @@ def get(url):
 def ready(status):
  for attempt in range(30):
   try:
-   public=get('http://127.0.0.1:8787/api/lt/v1/auth/session')
-   internal=get('http://127.0.0.1:8788/api/lt/v1/operator/events')
+   public=get('http://127.0.0.1:18877/api/lt/v1/auth/session')
+   internal=get('http://127.0.0.1:18878/api/lt/v1/operator/events')
    if public[0]==status and internal[0]==status and isinstance(internal[1],dict):return
   except (OSError,ValueError):pass
   time.sleep(.2)
@@ -37,10 +37,10 @@ run('copy settings regression',[sys.executable,'tests/events_runtime_test.py','-
 run('development/test bundle measurement',[sys.executable,'tests/measure_bundle.py','development_with_test_hooks'])
 run('default build',[build,'--release','.'])
 ready(501)
-assert get('http://127.0.0.1:8787/api/lt/v1/auth/session')[1]['error']['code']=='NOT_IMPLEMENTED'
-assert get('http://127.0.0.1:8788/api/lt/v1/operator/events')[0]==501
-assert get('http://127.0.0.1:8787/api/lt/v1/events')[0]==200
-assert get('http://127.0.0.1:8787/api/lt/v1/operator/events')[0]==404
+assert get('http://127.0.0.1:18877/api/lt/v1/auth/session')[1]['error']['code']=='NOT_IMPLEMENTED'
+assert get('http://127.0.0.1:18878/api/lt/v1/operator/events')[0]==501
+assert get('http://127.0.0.1:18877/api/lt/v1/events')[0]==200
+assert get('http://127.0.0.1:18877/api/lt/v1/operator/events')[0]==404
 print('default private API disabled: PASS',flush=True)
 run('default bundle measurement',[sys.executable,'tests/measure_bundle.py','default_private_disabled'])
 run('development without hooks build',[build,'--release','.','--features','local-development'])

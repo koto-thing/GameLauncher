@@ -23,8 +23,14 @@ export function ApplicationForm({
           content: {
             title: String(f.get("title")),
             abstract: String(f.get("abstract")),
-            description: String(f.get("description")),
-            speakers,
+            ...(String(f.get("description")).trim()
+              ? { description: String(f.get("description")) }
+              : {}),
+            speakers: speakers.map((s) => ({
+              displayName: s.displayName,
+              ...(s.affiliation?.trim() ? { affiliation: s.affiliation } : {}),
+              ...(s.profile?.trim() ? { profile: s.profile } : {}),
+            })),
           },
           materialUrl: String(f.get("materialUrl")),
           ...(!a ? { eventId: String(f.get("eventId")) } : {}),

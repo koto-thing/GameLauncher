@@ -5,7 +5,7 @@ import applicant_runtime_test as applicants
 from operator_runtime_test import operate
 
 def clock(value):
- req=urllib.request.Request('http://127.0.0.1:8788/test/clock',data=value.encode(),method='POST')
+ req=urllib.request.Request('http://127.0.0.1:18878/test/clock',data=value.encode(),method='POST')
  with urllib.request.urlopen(req) as r: assert r.status==200
 
 class LifecycleRuntime(unittest.TestCase):
@@ -64,7 +64,7 @@ class LifecycleRuntime(unittest.TestCase):
   self.assertEqual(operate('/applications/'+app['id']+'/approve',approve)[0],410)
   self.assertEqual(operate('/events/'+id)[0],404)
   # 遅延によって期限後outboxが配送されない
-  with urllib.request.urlopen('http://127.0.0.1:8788/test/dispatch-fake') as r:json.load(r)
+  with urllib.request.urlopen('http://127.0.0.1:18878/test/dispatch-fake') as r:json.load(r)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_fake_deliveries f JOIN lt_outbox o ON o.id=f.id WHERE o.application_id='"+app['id']+"'")[0]['n'],0)
  def test_retention_exact_boundary_uses_planned_end(self):
   event=self.create();id=event['id'];cookie,email,body,app,approve=self.application(event)
