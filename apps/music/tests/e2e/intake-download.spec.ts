@@ -28,12 +28,12 @@ async function prepareArtifact(page: Page, info: TestInfo): Promise<void> {
   await page.locator('.image-picker-card input[type="file"]').nth(0).setInputFiles(artwork);
   await page.locator('.image-picker-card input[type="file"]').nth(1).setInputFiles(artwork);
   // WebKitのフォルダー選択が戻らない場合も、後続assertionの期限切れと区別する
-  await test.step("Buildフォルダーの実入力と検証状態", async () => {
+  await test.step("Buildフォルダーの実入力と検証状態", /** @brief フォルダー入力と検証状態を確認する */ async () => {
     const folder = page.locator("input[webkitdirectory]");
-    await folder.evaluate(input => {
+    await folder.evaluate(/** @brief 入力イベントの計数を初期化する */ input => {
       input.setAttribute("data-test-input-events", "0");
       input.setAttribute("data-test-change-events", "0");
-      for (const name of ["input", "change"]) input.addEventListener(name, () => {
+      for (const name of ["input", "change"]) input.addEventListener(name, /** @brief 発生した入力イベントを数える */ () => {
         const key = `data-test-${name}-events`;
         input.setAttribute(key, String(Number(input.getAttribute(key)) + 1));
       });
@@ -42,8 +42,8 @@ async function prepareArtifact(page: Page, info: TestInfo): Promise<void> {
       await folder.setInputFiles(buildDirectory, { timeout: 15000 });
     } catch (error) {
       // ファイル内容、Cookie、通信情報を保存せず入力イベントと検証状態だけを記録する
-      await recoverFolderInput(error, async () => {
-        const state = await folder.evaluate(input => ({
+      await recoverFolderInput(error, /** @brief 完了通知後の入力状態を取得する */ async () => {
+        const state = await folder.evaluate(/** @brief 画面と入力ファイルの状態を読み取る */ input => ({
           inputEvents: input.getAttribute("data-test-input-events"),
           changeEvents: input.getAttribute("data-test-change-events"),
           fileCount: (input as HTMLInputElement).files?.length,
@@ -53,7 +53,7 @@ async function prepareArtifact(page: Page, info: TestInfo): Promise<void> {
         }));
         await info.attach("folder-input-state", { body: JSON.stringify(state), contentType: "application/json" });
         return state;
-      }, async () => {
+      }, /** @brief 実際のプレビュー表示を確認する */ async () => {
         await expect(page.locator(".review-preview-card code").filter({ hasText: "build/TestGame.exe" })).toBeVisible();
       });
     }
