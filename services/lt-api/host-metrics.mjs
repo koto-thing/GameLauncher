@@ -10,7 +10,10 @@ export function traceSynthetic(request, env, callsRust, scope = "http") {
     : path.startsWith("/api/lt/v1/events") ? "public-events"
     : path.startsWith("/api/lt/v1/auth/") ? "auth"
     : path.startsWith("/api/lt/v1/applications") ? "applications" : "other";
-  console.log(JSON.stringify({ltCpuProbe:true,route,firstInIsolate:calls++===0,rustFirstInIsolate:callsRust&&!rustSeen,routeFirstInIsolate:!seenRoutes.has(route),callsRust}));
+  const probe = request.headers.get("X-LT-CPU-Probe");
+  const sequence = request.headers.get("X-LT-CPU-Sequence");
+  const identity = /^[a-f0-9]{32}$/.test(probe ?? "") && /^[1-9]$/.test(sequence ?? "") ? {probe,sequence:Number(sequence)} : {};
+  console.log(JSON.stringify({ltCpuProbe:true,...identity,route,firstInIsolate:calls++===0,rustFirstInIsolate:callsRust&&!rustSeen,routeFirstInIsolate:!seenRoutes.has(route),callsRust}));
   if (callsRust) rustSeen = true;
   seenRoutes.add(route);
 }
