@@ -1,49 +1,66 @@
-# LT 公開 API 最小縦断
+# LT API ローカル実装
 
-共有追補 7c0e93d を cd2fd50 として取り込み済み。
+本番有効化・実メール・本番SQL・push/deployは行わない。共有契約追補7c0e93dはcd2fd50として取込済み。追加エラーenumの変更は親で承認確認中のため未実施。
 
-実装: GET /api/lt/v1/events、同 /:eventId、同 /:eventId/talks/:talkId。時間割は契約の PublicEvent.schedule に含む。公開版だけを読み、親が draft/cancelled の場合は一覧・詳細・発表をすべて除外する。私有項目はネストも許可リストで除去。キャッシュは no-store。運営 URL は偽造 actor header でも404。
+## 実装済み
 
-migration は公開読み取り用だけ。私有申請・承認・スケジュール更新は未実装。保存する DTO の完全な schema validation は未実装で、現在は fixture のみが書き込む。運営操作と承認処理を追加する前に書込 validator が必須。一覧は全件返却し nextCursor=null のため大量件数への対応は今後必要。
+- 公開 events 一覧/detail/talk。時間割は PublicEvent.schedule。全経路で親状態と募集開始時刻(public_opens_at)を確認。全体中止・非公開・開始前は404/一覧除外。no-store
+- 公開 DTO の具体型、未知キー・必須欠落・object/null混入・不正UTC時刻・空文字列を拒否。不正 snapshot は非公開
+- 公開talkは承認証跡必須。INSERT/UPDATE triggerで承認済み申請の公開版との一致を検証。出所未確認の旧snapshotは公開しない。時間割の未承認talk参照も公開しない
+- 開発限定 email request、GET確認の非消費/URL除去、POST一回交換、session GET/logout。WebCrypto乱数256bit、SHA-256保存、login purpose/1時間期限。session24時間は1〜24時間に設定可能な開発提案値で本番無効
+- host-only __Host- cookie、HttpOnly/Secure/SameSite=Strict。変更操作は厳密Origin/非simple CSRF header/JSONを要求。fake mailの確認リンクはローカルD1管理CLIからのみ取得し、公開test bypassなし
+- 本人申請一覧/detail/提出/許可状態編集/再提出/初回承認前辞退/承認後辞退依頼と取消。所有者/version/入力/受付期間/満枠/私有保持期限を検証。有効申請の同一メール・開催回unique制約
+- 内部運営の申請detail、時間割GET、初回承認、差し戻し、保留、拒否、再承認。3役割を通常運営可としてRustで導出。メール変更は本人確認手順未確定のため未対応
+- 初回承認はapplication/event/schedule versionと時間重複/開催範囲/容量を条件にする単一UPDATE。勝者triggerだけが枠・承認receipt・公開snapshot・時間割・outbox・auditを生成。UPDATE 0件で後続副作用なし
+- 差し戻し中は旧承認版保持。再承認は本文だけ切替え、枠と確定時刻を維持。operation receiptで再送を検証
+- outboxはsubmitted/approved/returned/reapproved/rejectedを生成。fake配達receiptで二重配達抑制。実送信なし。retention-dry-run.sqlはSELECTのみ、公開アーカイブを対象に含めない
 
-## ローカル再現
+## 内部接続契約
 
-Rust 1.94.1、worker/worker-build 0.8.7、Wrangler 4.152.0。
+entry.mjsの named entrypoint `LtOperator` をサービスbindingに指定し、`binding.operate(context, request)` を呼ぶ。contextは共有OperatorContext `{actorId, role, requestId}`。管理adapter `fetch(request, context)` はこのRPCへ変換可能。JSON本文はJSで解析せずRustで1回だけ解析する。
+
+公開fetchにoperator routeを登録しない。LtOperator.fetchは404。公衆URLへ偽造actor header/context headerを付けても操作不可。RPC bindingを持つ検証済みproxyだけがcontextを渡す。proxyは毎回最新在籍・役割を検証し、ブラウザー由来contextを破棄する。本番binding/secretは追加していない。
+
+tests/proxy.tomlとproxy.mjsはローカル試験専用で、固定の架空assistant contextを作る。実際の管理認証proxyの代替として配備しない。試験用 `/test/dispatch-fake` もこの別ポートだけ。通常buildと開発設定不一致時は本人/運営/fake配達を有効化しない。
+
+## 再現
+
+Rust 1.94.1、worker/worker-build 0.8.7、Wrangler 4.152.0。依存lockはコミット済み。PC全体のNode/PM設定は変更しない。
 
 ```
 npm ci
 cargo install worker-build --version 0.8.7 --locked --root .tools
-.tools/bin/worker-build --release
+.tools/bin/worker-build --release . --features local-development
 node node_modules/wrangler/bin/wrangler.js d1 migrations apply lt-local --local
 node node_modules/wrangler/bin/wrangler.js d1 execute lt-local --local --file tests/fixture.sql
 node node_modules/wrangler/bin/wrangler.js dev --local --port 8787 --ip 127.0.0.1
-python tests/runtime_test.py -v
-cargo check --locked --offline
-cargo test --locked --offline
 ```
 
-fixture は空のローカル DB に一度投入する。実メール・本番 DB・クラウド試験なし。database_id はローカル用ゼロ値。deploy は禁止。
+別terminalで:
 
-2026-10-25 検証: migration/fixture 成功、cargo check/test 成功（単体1件）、最適化 Wasm build 成功、actual local Worker/D1 HTTP 6テスト成功。通常 sandbox の HTTP は WinError10013 で失敗し、正式な昇格で同じローカルテストを実行して成功。
+```
+node node_modules/wrangler/bin/wrangler.js dev --config tests/proxy.toml --local --port 8788 --ip 127.0.0.1
+python tests/public_guard_test.py -v
+python tests/runtime_test.py -v
+python tests/applicant_runtime_test.py -v
+python tests/operator_runtime_test.py -v
+python tests/review_runtime_test.py -v
+python tests/maintenance_runtime_test.py -v
+cargo check --locked --offline
+cargo test --locked --offline --features local-development
+cargo fmt --check
+```
 
-bundle: Wasm 271951 bytes、JS 22899 bytes、shim 164 bytes（非圧縮）。fixture の HTTP はログ上約6〜15ms、6テスト全体0.218秒。これはローカル壁時計でCPU時間ではなく、無料枠適合を保証しない。CPU計測・クラウド試験未実施。
+fixtureは全migration適用後の空のローカルDBに一度投入する。fixture自体は公開開催回のみ。承認済みsnapshotは統合テストが申請→内部承認を通して作る。再試験は別のpersist-toを使い、既存DBを削除しない。
 
-## 次の縦断
+## 検証と残課題
 
-本人認証/申請は未着手。確認リンク1時間は確定、session24時間は設定可能な提案で本番無効。GET非消費、POST原子的交換、ハッシュ保存、Origin/CSRF、fake mail、所有者照合をまとめて実装する必要がある。token replay/期限/IDOR/同時申請/承認競合/outbox/保持 dry-run は未検証。未実装 API は501。
+actual local Worker+D1+named service RPCで公開6、公開ガード2、本人4、運営3、再承認1、maintenance2の計18テストを実施。Rustの型検査・単体1・最適化Wasm buildも実施。通常sandboxのローカルHTTPはWinError10013で失敗し、正式昇格で同一ローカル試験を実行して成功。Rust整形の初回差分は修正済み。
 
-管理は別の公開 route/worker.dev のない Worker とサービス binding を予定。公開入口へ actor header 認可を追加しない。proxy は毎回在籍・roleを再検証し、OperatorContext を内部境界で渡す。API は role から capability を導出する。メール変更はadmin/executiveのみ、本人確認手順が未確定なので未対応を維持する。
+未実装は成功扱いにしない。辞退確定（開始前の後続繰上げ/開始後維持）、時間割PUT、開催設定CRUD/copy/cancel、運営一覧/開催detail、例外メール変更は501。全体中止を公開側で隠す条件は実装済みだが、中止mutation/通知は未実装。field error詳細と統一501 JSONは共有契約の追補待ち。既存公開scheduleの編集や終了後の固定保持期限設定も未実装。
 
-公式参照: https://developers.cloudflare.com/workers/languages/rust/ 、https://developers.cloudflare.com/d1/worker-api/d1-database/ 。D1 batch の0行 UPDATE は停止条件にならないため、後続の承認実装は勝者 receipt に全副作用を従属させる。
+保持dry-runは申請/token/fake mail/outboxの期限付き件数のみ。audit/receipt/fake配達を含む全私有データの固定期限設定・dry-run集計は未完了。期限未設定outboxは別件数で報告し、推測削除しない。本番削除なし。UIブラウザーのcookie/キーボード/スマホ/PC結合は未実施。
 
-## 本人認証・申請の開発限定縦断（追補）
+CPUの精密計測・クラウド試験なし。ローカル壁時計はCPU時間ではなく、無料枠適合は未保証。bundleサイズは検証記録参照。本人機能のメール正規化は小文字化、レート制限はメールhashごと5回/時間の開発提案で、全体濫用制御は本番前に追加検討が必要。
 
-`worker-build --release . --features local-development` と `LOCAL_AUTH=true` の両方が必要。通常 build は本人 endpoint を501にし、本番有効化していない。開発用設定は APP_ORIGIN=http://127.0.0.1:8787、SESSION_HOURS=24（1〜24に制限）。UI の実ブラウザー cookie 動作は未検証。
-
-実装: email request、GET確認（非消費・URL除去）、POST交換、session GET、logout、本人申請一覧/detail、新規提出、許可状態の本文編集。token/sessionはWebCrypto乱数256bit、SHA-256保存。tokenはlogin purpose/1時間、一回の条件付きUPDATEで消費とsession発行を原子的に処理。host-only __Host- cookie、HttpOnly/Secure/SameSite=Strict。変更操作は厳密OriginとX-LT-CSRFとJSONを要求。fake mailは隔離したローカルDBだけに保存し、HTTPで取得するtest bypassは存在しない。テスト側がWrangler local D1管理ポートから取得する。
-
-提出時に本文・資料URL・未知キー・受付期間・親状態・満枠を再検証。同一本人/回の有効申請はunique制約。編集は所有者とversionと許可状態を検証し、公開済み版を変更しない。operation receipt と衝突をSQL制約で守る。エラーfieldsの詳細化、保持期限の完全な適用、全操作の厳格Schema自動導出は残作業。
-
-追加検証: actual local Worker/D1 本人4テスト成功（確認→申請→一覧→編集、IDOR、token replay、session/token期限、Origin、同時重複、schema/閉鎖）。公開回帰3テスト成功（募集開始前の全経路非公開、必須欠落、title object canary、speaker.profile object canary）。公開催日時はlt_events.public_opens_at、未設定は非公開。公開DTOは未知キーと不正型を拒否する具体型。未承認snapshot生成の原子的制御は運営実装まで未完成であり、未承認排除を完了扱いにしない。
-
-本人試験: `python tests/applicant_runtime_test.py -v`。公開ガード試験: `python tests/public_guard_test.py -v`。fixtureは0003以降に投入可能。リセットには別の空ローカルDBを使用し、本番操作はしない。
+公式資料: https://developers.cloudflare.com/workers/languages/rust/ 、https://developers.cloudflare.com/d1/worker-api/d1-database/ 、https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/ 。worker-rs RPCは公式rpc-server例と固定worker-buildの生成コードを確認して採用。

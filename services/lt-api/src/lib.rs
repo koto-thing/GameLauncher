@@ -35,9 +35,9 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
             let sql = if talk {
                 "SELECT p.dto FROM lt_public_talks p JOIN lt_events e ON e.id=p.event_id WHERE p.approval_operation IS NOT NULL AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1 AND p.id=?2"
             } else if p.len() == 5 {
-                "SELECT p.dto FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1"
+                "SELECT p.dto FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND t.approval_operation IS NOT NULL)) AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1"
             } else {
-                "SELECT p.dto FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) ORDER BY e.id"
+                "SELECT p.dto FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND t.approval_operation IS NOT NULL)) AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) ORDER BY e.id"
             };
             let mut stmt = db.prepare(sql);
             if talk {
