@@ -26,15 +26,13 @@ async fn clock(db: &D1Database) -> Result<Clock> {
 
 /// 期限後の私有送信payloadを論理消去する。保持の物理削除は行わない
 /// 引数: DB、現在ミリ秒
-/// 戻り値: 更新結果
-pub async fn scrub(db: &D1Database, now: f64) -> Result<()> {
-    db.prepare("UPDATE lt_email_change_payloads SET action_url='' WHERE action_url!='' AND token_hash IN(SELECT hash FROM lt_email_change_tokens WHERE expires<=?1 OR used=1)").bind(&[now.into()])?.run().await?;
-    db.prepare("UPDATE lt_login_outbox SET action_url='' WHERE expires<=?1 AND action_url!=''")
-        .bind(&[now.into()])?
-        .run()
-        .await?;
-    db.prepare("UPDATE lt_mail_jobs SET state='expired',envelope='{}',lease_until=NULL WHERE expires<=?1 AND (state!='expired' OR envelope!='{}')").bind(&[(now/1000.0).floor().into()])?.run().await?;
-    Ok(())
+/// 戻り値: 同じ原子batchへ追加する準備済み更新文
+pub fn scrub_statements(db: &D1Database, now: f64) -> Result<Vec<D1PreparedStatement>> {
+    Ok(vec![
+        db.prepare("UPDATE lt_email_change_payloads SET action_url='' WHERE action_url!='' AND token_hash IN(SELECT hash FROM lt_email_change_tokens WHERE expires<=?1 OR used=1)").bind(&[now.into()])?,
+        db.prepare("UPDATE lt_login_outbox SET action_url='' WHERE expires<=?1 AND action_url!=''").bind(&[now.into()])?,
+        db.prepare("UPDATE lt_mail_jobs SET state='expired',envelope='{}',lease_until=NULL WHERE expires<=?1 AND (state!='expired' OR envelope!='{}')").bind(&[(now/1000.0).floor().into()])?,
+    ])
 }
 
 /// 既存の業務/認証outboxから短期限の配送jobを導出する

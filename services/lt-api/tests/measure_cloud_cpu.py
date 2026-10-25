@@ -7,10 +7,12 @@ from cpu_tail_parser import TailParser, match_event
 parser = argparse.ArgumentParser()
 parser.add_argument('--label', required=True)
 parser.add_argument('--version', required=True)
+parser.add_argument('--source-sha', required=True)
 parser.add_argument('--samples', type=int, default=3, choices=[1,3])
 args = parser.parse_args()
 assert re.fullmatch(r'[a-z0-9_-]+', args.label)
 assert re.fullmatch(r'[0-9a-f-]{36}', args.version)
+assert re.fullmatch(r'[0-9a-f]{40}', args.source_sha)
 base = 'https://pandd-lt-api.gotoukenta62.workers.dev'
 probe = uuid.uuid4().hex
 ready = threading.Event()
@@ -67,10 +69,12 @@ try:
     print(json.dumps({'diagnostics':diagnostics,'captured':events}),flush=True)
     assert not diagnostics['errors'], 'Collector rejected malformed event'
     assert len(events) == args.samples*3, 'Incomplete tail sample; do not infer missing CPU'
+    expected=[('/api/lt/v1/events',200),('/api/lt/v1/auth/session',501),('/api/lt/v1/operator/events',404)]
+    assert all((e['path'],e['status']) == expected[(e['sequence']-1)//args.samples] for e in events), 'Route/status does not match issued sequence'
     assert all(e['version'] == args.version and e['phase'] for e in events), 'Wrong version or missing isolate marker'
     assert all(isinstance(e['cpuTimeMs'], (int,float)) for e in events), 'Missing actual CPU time'
-    report = {'label':args.label,'version':args.version,'sourceHead':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
-              'sourceDiffSha256':hashlib.sha256(subprocess.check_output(['git','diff'])).hexdigest(),
+    report = {'label':args.label,'version':args.version,'deployedSourceHead':args.source_sha,'collectorHead':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+              'collectorDiffSha256':hashlib.sha256(subprocess.check_output(['git','diff'])).hexdigest(),
               'dataset':'empty dedicated LT D1; mail disabled; private gate disabled','timeUtc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
               'events':events,'allAtMost10ms':all(e['cpuTimeMs']<=10 for e in events),'requests':args.samples*3,'mailSent':False}
     target = Path('.wrangler')/('cpu-'+args.label+'.json')

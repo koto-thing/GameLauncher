@@ -1,0 +1,33 @@
+import { WorkerEntrypoint } from 'cloudflare:workers';
+import { earlyResponse, privateResponse } from './host-gate.mjs';
+import { traceSynthetic } from './host-metrics.mjs';
+
+// 拒否する要求では Wasm を初期化しない。業務処理・認可は Rust に委ねる。
+let apiModule;
+async function instance(host) {
+  const { default: Api } = await (apiModule ??= import('./build/index.js'));
+  return new Api(host.ctx, host.env);
+}
+
+export default class LtHttp extends WorkerEntrypoint {
+  async fetch(request) {
+    const denied = earlyResponse(request, this.env);
+    traceSynthetic(request, this.env, !denied);
+    return denied ?? (await instance(this)).fetch(request);
+  }
+
+  async scheduled(event) {
+    if (this.env.LT_PRIVATE_API_ENABLED !== 'true' || this.env.LT_MAINTENANCE_ENABLED !== 'true') return;
+    return (await instance(this)).scheduled(event);
+  }
+}
+
+export class LtOperator extends WorkerEntrypoint {
+  async fetch() { return new Response('Not found', {status:404}); }
+
+  async operate(context, request) {
+    const denied = privateResponse(this.env);
+    traceSynthetic(request, this.env, !denied, 'operator');
+    return denied ?? (await instance(this)).operator_request(context, request, this.env);
+  }
+}

@@ -34,6 +34,22 @@ class LifecycleRuntime(unittest.TestCase):
   self.assertEqual(request('/api/lt/v1/auth/email',{'email':email})[0],202)
   token=mail(email).split('token=')[1]
   return request('/api/lt/v1/auth/verify',{'token':token})[2]['Set-Cookie'].split(';')[0]
+ def test_reconcile_failure_rolls_back_state_and_snapshot(self):
+  event=self.create();id=event['id'];before=self.current(id)
+  snapshot=sql("SELECT dto FROM lt_public_events WHERE event_id='"+id+"'")[0]['dto']
+  job='application:lifecycle-failure-'+uuid.uuid4().hex
+  sql("INSERT INTO lt_mail_jobs(id,envelope,state,expires) VALUES('"+job+"','{}','pending',0);CREATE TRIGGER lt_fixture_lifecycle_abort BEFORE UPDATE ON lt_mail_jobs WHEN OLD.id='"+job+"' BEGIN SELECT RAISE(ABORT,'fixture lifecycle rollback');END")
+  clock('2030-01-02T01:00:00.000Z')
+  try:
+   try:response=urllib.request.urlopen(applicants.BASE+'/api/lt/v1/events/'+id)
+   except urllib.error.HTTPError as error:response=error
+   with response:self.assertEqual(response.status,500);response.read()
+   self.assertEqual(self.current(id),before)
+   self.assertEqual(sql("SELECT dto FROM lt_public_events WHERE event_id='"+id+"'")[0]['dto'],snapshot)
+  finally:sql("DROP TRIGGER IF EXISTS lt_fixture_lifecycle_abort;DELETE FROM lt_mail_jobs WHERE id='"+job+"'")
+  self.assertEqual(request('/api/lt/v1/events/'+id)[0],200)
+  self.assertEqual(self.current(id)['state'],'ended')
+
  def test_start_end_last_closing_and_immutable_deadline(self):
   event=self.create();id=event['id'];cookie,email,body,app,approve=self.application(event)
   blocks=operate('/events/'+id+'/timetable')[1]['blocks'];blocks.append({'id':'closing','kind':'closing','startsAt':'2030-01-02T01:15:00.000Z','endsAt':'2030-01-02T01:20:00.000Z'})

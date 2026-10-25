@@ -28,7 +28,7 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(match_event(event, 'fixture', 'fixture-version')['sequence'], 1)
 
     def test_wrong_version_or_missing_metric_or_marker_fails(self):
-        for field in ('scriptVersion', 'cpuTime', 'logs'):
+        for field in ('scriptVersion', 'cpuTime', 'logs', 'eventTimestamp'):
             event = copy.deepcopy(self.event)
             del event[field]
             with self.assertRaises(ValueError):

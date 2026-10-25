@@ -1,0 +1,186 @@
+{
+  "label": "baseline-marked",
+  "version": "38f9db4f-4eb0-4ae8-ae94-ef996d1d92d4",
+  "dataset": "empty dedicated LT D1; mail disabled; private gate disabled",
+  "timeUtc": "2026-10-25T14:28:31.340114+00:00",
+  "events": [
+    {
+      "sequence": 1,
+      "path": "/api/lt/v1/events",
+      "status": 200,
+      "cpuTimeMs": 34,
+      "wallTimeMs": 584,
+      "outcome": "ok",
+      "version": "38f9db4f-4eb0-4ae8-ae94-ef996d1d92d4",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 1,
+        "route": "public-events",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": true,
+        "routeFirstInIsolate": true,
+        "callsRust": true
+      },
+      "eventTimestamp": 1792938505750
+    },
+    {
+      "sequence": 2,
+      "path": "/api/lt/v1/events",
+      "status": 200,
+      "cpuTimeMs": 19,
+      "wallTimeMs": 444,
+      "outcome": "ok",
+      "version": "38f9db4f-4eb0-4ae8-ae94-ef996d1d92d4",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 2,
+        "route": "public-events",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": true,
+        "routeFirstInIsolate": true,
+        "callsRust": true
+      },
+      "eventTimestamp": 1792938506770
+    },
+    {
+      "sequence": 3,
+      "path": "/api/lt/v1/events",
+      "status": 200,
+      "cpuTimeMs": 25,
+      "wallTimeMs": 483,
+      "outcome": "ok",
+      "version": "38f9db4f-4eb0-4ae8-ae94-ef996d1d92d4",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 3,
+        "route": "public-events",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": true,
+        "routeFirstInIsolate": true,
+        "callsRust": true
+      },
+      "eventTimestamp": 1792938507668
+    },
+    {
+      "sequence": 4,
+      "path": "/api/lt/v1/auth/session",
+      "status": 501,
+      "cpuTimeMs": 9,
+      "wallTimeMs": 9,
+      "outcome": "ok",
+      "version": "38f9db4f-4eb0-4ae8-ae94-ef996d1d92d4",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 4,
+        "route": "auth",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": true,
+        "routeFirstInIsolate": true,
+        "callsRust": true
+      },
+      "eventTimestamp": 1792938508604
+    },
+    {
+      "sequence": 5,
+      "path": "/api/lt/v1/auth/session",
+      "status": 501,
+      "cpuTimeMs": 20,
+      "wallTimeMs": 25,
+      "outcome": "ok",
+      "version": "38f9db4f-4eb0-4ae8-ae94-ef996d1d92d4",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 5,
+        "route": "auth",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": true,
+        "routeFirstInIsolate": true,
+        "callsRust": true
+      },
+      "eventTimestamp": 1792938509023
+    },
+    {
+      "sequence": 6,
+      "path": "/api/lt/v1/auth/session",
+      "status": 501,
+      "cpuTimeMs": 1,
+      "wallTimeMs": 2,
+      "outcome": "ok",
+      "version": "38f9db4f-4eb0-4ae8-ae94-ef996d1d92d4",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 6,
+        "route": "auth",
+        "firstInIsolate": false,
+        "rustFirstInIsolate": false,
+        "routeFirstInIsolate": false,
+        "callsRust": true
+      },
+      "eventTimestamp": 1792938509504
+    },
+    {
+      "sequence": 7,
+      "path": "/api/lt/v1/operator/events",
+      "status": 404,
+      "cpuTimeMs": 17,
+      "wallTimeMs": 21,
+      "outcome": "ok",
+      "version": "38f9db4f-4eb0-4ae8-ae94-ef996d1d92d4",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 7,
+        "route": "other",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": true,
+        "routeFirstInIsolate": true,
+        "callsRust": true
+      },
+      "eventTimestamp": 1792938509959
+    },
+    {
+      "sequence": 8,
+      "path": "/api/lt/v1/operator/events",
+      "status": 404,
+      "cpuTimeMs": 18,
+      "wallTimeMs": 20,
+      "outcome": "ok",
+      "version": "38f9db4f-4eb0-4ae8-ae94-ef996d1d92d4",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 8,
+        "route": "other",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": true,
+        "routeFirstInIsolate": true,
+        "callsRust": true
+      },
+      "eventTimestamp": 1792938510407
+    },
+    {
+      "sequence": 9,
+      "path": "/api/lt/v1/operator/events",
+      "status": 404,
+      "cpuTimeMs": 7,
+      "wallTimeMs": 8,
+      "outcome": "ok",
+      "version": "38f9db4f-4eb0-4ae8-ae94-ef996d1d92d4",
+      "phase": {
+        "ltCpuProbe": true,
+        "sequence": 9,
+        "route": "other",
+        "firstInIsolate": true,
+        "rustFirstInIsolate": true,
+        "routeFirstInIsolate": true,
+        "callsRust": true
+      },
+      "eventTimestamp": 1792938510874
+    }
+  ],
+  "allAtMost10ms": false,
+  "requests": 9,
+  "mailSent": false,
+  "deployedSourceHead": "f4ab59ef144a191fdef73472ac2e93f0d75e10cc",
+  "collectorHead": "f4ab59ef144a191fdef73472ac2e93f0d75e10cc",
+  "collectorDiffSha256": "a16a2f6c8931d8cfcc1a57d959b0e4c04b9a7e4e2798069f3758ce468bb86584",
+  "note": "Version built from clean archive f4ab59ef; collector ran beside uncommitted candidate. firstInIsolate describes observed module use, not inferred warmth."
+}

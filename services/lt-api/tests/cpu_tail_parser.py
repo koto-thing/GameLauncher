@@ -62,6 +62,8 @@ def match_event(value, probe, version):
         raise ValueError('Matching request used unexpected version')
     if len(phases) != 1:
         raise ValueError('Matching request lacks unique isolate marker')
+    if not isinstance(value.get('eventTimestamp'), (int, float)):
+        raise ValueError('Matching request lacks event timestamp')
     cpu = value.get('cpuTime')
     wall = value.get('wallTime')
     if not isinstance(cpu, (int, float)) or not isinstance(wall, (int, float)):

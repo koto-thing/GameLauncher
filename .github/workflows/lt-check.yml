@@ -40,6 +40,9 @@ jobs:
       - name: Check contracts and Rust engines
         run: |
           python -m unittest discover -s contracts/lt -p 'test*.py' -v
+          python -m unittest discover -s services/lt-api/tests -p 'test_cpu_tail_parser.py' -v
+          node --test services/lt-api/tests/host-gate.test.mjs services/lt-api/tests/production-host.test.mjs
+          cargo test --locked --manifest-path services/lt-api/Cargo.toml --features production-api
           cargo test --locked --manifest-path services/lt-api/Cargo.toml --features local-development,runtime-tests
           cargo fmt --check --manifest-path services/lt-api/Cargo.toml
           cargo test --locked --manifest-path services/lt-mail/Cargo.toml
