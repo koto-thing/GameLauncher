@@ -49,6 +49,7 @@ function App() {
   }, [revision]);
   useEffect(() => {
     const pop = () => {
+      setCursor(new URLSearchParams(location.search).get("cursor"));
       setPath(location.pathname);
       setEditing(null);
     };
@@ -61,7 +62,11 @@ function App() {
     setError("");
     setEditing(null);
     const endpoint =
-      path === "/applications" ? "/applications" : path.startsWith("/events/") ? path : "/events";
+      path === "/applications"
+        ? "/applications"
+        : path.startsWith("/events/") || path.startsWith("/applications/")
+          ? path
+          : "/events";
     if (path === "/auth/verify" || path === "/login" || path === "/applications/new") return;
     api(endpoint + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""))
       .then((d) => {
@@ -94,6 +99,16 @@ function App() {
       setBusy(false);
     }
   }
+  function date(value: string, eventId: string) {
+    const zone = events.items.find((e) => e.id === eventId)?.timeZone;
+    return zone
+      ? new Intl.DateTimeFormat("ja-JP", {
+          dateStyle: "long",
+          timeStyle: "short",
+          timeZone: zone,
+        }).format(new Date(value))
+      : value;
+  }
   function form(a: Application | null) {
     return (
       <ApplicationForm
@@ -106,7 +121,7 @@ function App() {
         }}
         save={(payload) =>
           void run(async () => {
-            const op = operation(a?.id ?? "new", payload);
+            const op = await operation(a?.id ?? "new", payload);
             await api(a ? `/applications/${encodeURIComponent(a.id)}` : "/applications", {
               method: a ? "PATCH" : "POST",
               body: JSON.stringify(
@@ -233,14 +248,16 @@ function App() {
                     onClick={() =>
                       action === "edit"
                         ? setEditing(a)
-                        : void run(() =>
+                        : void run(async () =>
                             api(`/applications/${encodeURIComponent(a.id)}/${action}`, {
                               method: "POST",
                               body: JSON.stringify({
                                 expectedVersion: a.version,
-                                operationId: operation(`${a.id}/${action}`, {
-                                  expectedVersion: a.version,
-                                }).id,
+                                operationId: (
+                                  await operation(`${a.id}/${action}`, {
+                                    expectedVersion: a.version,
+                                  })
+                                ).id,
                                 data: {},
                               }),
                             }),
@@ -254,9 +271,25 @@ function App() {
             ))}
             {(data as ApplicationPage)?.items.length === 0 && <p>申請はありません。</p>}
           </section>
+        ) : path.startsWith("/applications/") && data ? (
+          <section>
+            <h1>{(data as Application).content.title}</h1>
+            <p>{(data as Application).review}</p>
+            <button onClick={() => nav("/applications")}>本人申請一覧に戻る</button>
+            {actions(data as Application).includes("edit") && (
+              <button onClick={() => setEditing(data as Application)}>編集</button>
+            )}
+          </section>
         ) : path.includes("/talks/") ? (
           <section>
             <h1>{(data as PublicTalk)?.title}</h1>
+            {(data as PublicTalk)?.cancelled && <p role="status">登壇中止</p>}
+            {Boolean(data) && (
+              <p>
+                {date((data as PublicTalk).startsAt, (data as PublicTalk).eventId)} –{" "}
+                {date((data as PublicTalk).endsAt, (data as PublicTalk).eventId)}
+              </p>
+            )}
             <p>{(data as PublicTalk)?.abstract}</p>
             {(data as PublicTalk)?.description && <p>{(data as PublicTalk).description}</p>}
             {(data as PublicTalk)?.speakers.map((s) => (
@@ -320,7 +353,14 @@ function App() {
           </section>
         )}
         {(data as ApplicationPage | null)?.nextCursor && (
-          <button disabled={busy} onClick={() => setCursor((data as ApplicationPage).nextCursor)}>
+          <button
+            disabled={busy}
+            onClick={() => {
+              const next = (data as ApplicationPage).nextCursor;
+              history.pushState(null, "", `${path}?cursor=${encodeURIComponent(next!)}`);
+              setCursor(next);
+            }}
+          >
             次のページ
           </button>
         )}

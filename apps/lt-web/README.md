@@ -13,6 +13,7 @@
 配色は共有設計の参考値より実際の apps/admin-web/app/globals.css を優先し、#faf7f8 / #ffffff / #383838 / #ff607b を採用。
 
 ## 追補実装
+
 本人 session GET と logout POST は共有 routes に定義済みのため実装。開催回選択、複数発表者の追加/削除/氏名・所属・紹介編集、状態別の架空申請 fixture、一覧の次ページ操作を追加。フォームは資料 URL を http/https に制限。結果不明の mutation は同一 payload に同じ operationId をメモリー内で再利用する（画面再読込をまたぐ永続保持は未実装）。
 
 最新検証: vp check --fix / tsc / vp test run（9件）/ vp build 成功。React server rendering の component テストで複数発表者の保持を確認。
@@ -20,3 +21,9 @@
 CSRF: 同一オリジン API + credentials:same-origin のみ。ブラウザーの Origin を変更する独自ヘッダーは送らない。backend で Origin 完全一致、Secure/HttpOnly/SameSite cookie、mutation の JSON Content-Type 制限を確認する必要がある。UI 単体で CSRF 検証済みとはしない。
 配色根拠: clean master f0179f2a3242e26e0dd1d81ddb87162e88415a03 の apps/admin-web/app/globals.css。paper #faf7f8、panel #ffffff、ink #383838、muted #70666a、line #e5dce0、input-line #a2949a、accent #ff607b、accent-hover #f24e6c、accent-ink #a32948。
 先の未解決一覧のうち session/複数発表者/開催回選択/状態別 fixture/次ページは実装済み。未解決は backend 結合、実ブラウザー QA、cursor の履歴保存、開催回選択肢の全ページ取得、operationId の再読込後保持、状態変更 mutation の結合検証。
+
+## preview 診断と再送の永続化
+
+5177 はホスト側 Get-NetTCPConnection で 127.0.0.1 LISTEN（PID58992）を確認したが HTTP GET は5秒 timeout。strictPort 再起動は競合で終了コード1。設定変更せず5178へ fixture dev を起動すると HTTP200、Chrome の一覧 DOM（fixture 明示・開催回・次ページ）を確認できた。その後の本人申請クリックは CDP DOM.getContentQuads timeout のため PC/スマホ幅/キーボード/二重送信の完遂には至らず、スクリーンショット未取得。
+再送 ID は sessionStorage にランダム operationId と SHA-256 指紋のみを保持。本文・メール・token は保存しない。同じタブの再読込後も同じ payload の操作を照合可能。成功したフォーム操作は削除。状態 mutation は version を指紋に含み、再読込後の version 変化で別操作となる。
+独立レビュー対応: /applications/:id を detail API にルーティング、本人詳細と一覧へ戻るを追加。複数発表者の affiliation/profile 保持テスト済み。登壇中止と発表開始終了を追加。時間割/詳細は一覧に存在する開催回の timeZone を使用（一覧外の回は UTC 原文となるため、イベント detail の独立取得が残課題）。cursor の URL 記録と popstate 復元を追加したがブラウザー実証は未完了。開催回選択肢の全ページ取得と要求されたエラー状態のブラウザー試験は未完了。
