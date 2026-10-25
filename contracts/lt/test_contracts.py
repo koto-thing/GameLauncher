@@ -12,6 +12,13 @@ def load(name):
     return json.loads((ROOT / name).read_text(encoding="utf-8"))
 
 class ContractTests(unittest.TestCase):
+    # optional依存不足でformatが黙って素通りしないよう確認する
+    def test_required_date_time_checker(self):
+        checker = FormatChecker()
+        self.assertIn("date-time", checker.checkers)
+        self.assertTrue(checker.conforms("2027-01-01T00:00:00.000Z", "date-time"))
+        self.assertFalse(checker.conforms("2027-02-30T00:00:00.000Z", "date-time"))
+
     # 公開 DTO に未知の私有情報が混入した場合を拒否する
     def test_public_rejects_private_fields(self):
         validator = Draft202012Validator(load("public-talk.schema.json"), format_checker=FormatChecker())
