@@ -153,14 +153,25 @@ class D1SchemaGuardTests(unittest.TestCase):
         """製品が読み込むSQLそのものでschemaを照合する"""
         return self.db.execute('SELECT (' + self.guard + ')').fetchone()[0]
 
+    def schema_context(self):
+        """実行環境とschemaの差分だけを失敗時の診断に添える"""
+        expected = json.loads((ROOT / 'd1-inventory.json').read_text(encoding='utf-8'))
+        differences = []
+        for name, columns in expected.items():
+            actual = [[row[1], row[2]] for row in self.db.execute('PRAGMA table_info("' + name + '")')]
+            if actual != columns:
+                differences.append({'name': name, 'expected': columns, 'actual': actual})
+        objects = list(self.db.execute("SELECT name,type FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%'"))
+        return json.dumps({'sqliteVersion': sqlite3.sqlite_version, 'columnDifferences': differences, 'objects': objects}, ensure_ascii=True)
+
     def test_known_schema_without_cf_kv(self):
         """管理表がないローカル環境も受理する"""
-        self.assertEqual(self.matches(), 1)
+        self.assertEqual(self.matches(), 1, self.schema_context())
 
     def test_cf_kv_table_is_allowed_without_reading_its_columns(self):
         """既知管理表はtable種別だけを確認し内部列を参照しない"""
         self.db.execute('CREATE TABLE _cf_KV(fixture_metadata BLOB)')
-        self.assertEqual(self.matches(), 1)
+        self.assertEqual(self.matches(), 1, self.schema_context())
 
     def test_cf_kv_view_is_rejected(self):
         """同名viewを管理表として許可しない"""
