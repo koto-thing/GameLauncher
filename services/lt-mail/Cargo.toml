@@ -1,0 +1,12 @@
+[package]
+name = "lt-mail"
+version = "0.1.0"
+edition = "2024"
+[workspace]
+[features]
+default = []
+worker-runtime = ["dep:worker", "dep:serde_json"]
+[dependencies]
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.154", optional = true }
+worker = { version = "=0.8.7", features = ["d1"], optional = true }
