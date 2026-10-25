@@ -34,6 +34,22 @@ jobs:
         run: npm ci --prefix services/platform-api
       - name: Install repository Rust toolchain and Wasm target
         run: rustup target add wasm32-unknown-unknown
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      # Cargo が checksum を確認する取得物だけを再利用し、実行バイナリは保存しない
+      - name: Cache reviewed CLI dependency archives
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+          key: analytics-cli-source-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'services/platform-api/scripts/prepare-reviewed-cli.py', 'services/platform-api/docs/evidence/analytics-cli-resolution.json', 'services/platform-api/docs/evidence/wasm-bindgen-cli-0.2.129-lock.patch') }}
+      # 審査済み四依存差分と固定 checksum から生成専用 CLI を毎回構築する
+      - name: Build reviewed wasm-bindgen CLI
+        run: |
+          python services/platform-api/scripts/prepare-reviewed-cli.py --target-dir "$RUNNER_TEMP/analytics-reviewed-cli"
+          echo "WASM_BINDGEN=$RUNNER_TEMP/analytics-reviewed-cli/release/wasm-bindgen" >> "$GITHUB_ENV"
       - name: Regenerate analytics Rust module when available
         run: |
           npm run rust:build --if-present --prefix services/platform-api
