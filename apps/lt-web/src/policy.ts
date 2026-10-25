@@ -4,7 +4,7 @@ export function actions(a: Application) {
   if (a.withdrawal === "confirmed" || ["withdrawn", "rejected"].includes(a.review)) return [];
   const result: string[] = [];
   if ((!a.everApproved && ["pending", "held"].includes(a.review)) || a.review === "returned")
-    if (a.content?.speakers.length === 1) result.push("edit");
+    result.push("edit");
   if (a.review === "returned") result.push("resubmit");
   if (!a.everApproved && ["pending", "held", "returned", "resubmitted"].includes(a.review))
     result.push("withdraw");

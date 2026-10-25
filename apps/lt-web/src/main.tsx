@@ -10,6 +10,8 @@ import type {
 import { request } from "./api";
 import { actions } from "./policy";
 import "./style.css";
+import { ApplicationForm } from "./ApplicationForm";
+import { operation } from "./operation";
 const devFixture = import.meta.env.DEV && import.meta.env.VITE_LT_FIXTURE === "true";
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (devFixture) return (await import("./fixture")).fixture<T>(path);
@@ -27,6 +29,9 @@ let token =
   location.pathname === "/auth/verify" ? new URLSearchParams(location.search).get("token") : null;
 if (token) history.replaceState(null, "", location.pathname);
 function App() {
+  const [events, setEvents] = useState<PublicEventPage>({ items: [], nextCursor: null });
+  const [session, setSession] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
   const [path, setPath] = useState(location.pathname),
     [data, setData] = useState<unknown>(null),
     [error, setError] = useState(""),
@@ -34,6 +39,14 @@ function App() {
     [notice, setNotice] = useState(""),
     [revision, reload] = useState(0),
     [editing, setEditing] = useState<Application | null>(null);
+  useEffect(() => {
+    api<PublicEventPage>("/events")
+      .then(setEvents)
+      .catch(() => {});
+    api<{ expiresAt: string } | null>("/auth/session")
+      .then((s) => setSession(s?.expiresAt ?? null))
+      .catch(() => setSession(null));
+  }, [revision]);
   useEffect(() => {
     const pop = () => {
       setPath(location.pathname);
@@ -50,7 +63,7 @@ function App() {
     const endpoint =
       path === "/applications" ? "/applications" : path.startsWith("/events/") ? path : "/events";
     if (path === "/auth/verify" || path === "/login" || path === "/applications/new") return;
-    api(endpoint)
+    api(endpoint + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""))
       .then((d) => {
         if (active) setData(d);
       })
@@ -60,8 +73,9 @@ function App() {
     return () => {
       active = false;
     };
-  }, [path, revision]);
+  }, [path, revision, cursor]);
   function nav(p: string) {
+    setCursor(null);
     history.pushState(null, "", p);
     setPath(p);
     setNotice("");
@@ -82,75 +96,31 @@ function App() {
   }
   function form(a: Application | null) {
     return (
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          const payload = {
-            content: {
-              title: String(f.get("title")),
-              abstract: String(f.get("abstract")),
-              description: String(f.get("description")),
-              speakers: [{ displayName: String(f.get("speaker")) }],
-            },
-            materialUrl: String(f.get("materialUrl")),
-          };
+      <ApplicationForm
+        application={a}
+        events={events}
+        busy={busy}
+        cancel={() => {
+          setEditing(null);
+          if (!a) nav("/applications");
+        }}
+        save={(payload) =>
           void run(async () => {
+            const op = operation(a?.id ?? "new", payload);
             await api(a ? `/applications/${encodeURIComponent(a.id)}` : "/applications", {
               method: a ? "PATCH" : "POST",
               body: JSON.stringify(
                 a
-                  ? { expectedVersion: a.version, operationId: crypto.randomUUID(), data: payload }
-                  : {
-                      ...payload,
-                      eventId: String(f.get("eventId")),
-                      operationId: crypto.randomUUID(),
-                    },
+                  ? { expectedVersion: a.version, operationId: op.id, data: payload }
+                  : { ...(payload as object), operationId: op.id },
               ),
             });
+            op.complete();
             setEditing(null);
             nav("/applications");
-          });
-        }}
-      >
-        <h2>{a ? "申請を編集" : "新規申請"}</h2>
-        {!a && (
-          <label>
-            開催回 ID
-            <input name="eventId" required />
-          </label>
-        )}
-        <label>
-          タイトル
-          <input name="title" required defaultValue={a?.content.title} />
-        </label>
-        <label>
-          概要
-          <textarea name="abstract" required defaultValue={a?.content.abstract} />
-        </label>
-        <label>
-          説明（任意）
-          <textarea name="description" defaultValue={a?.content.description} />
-        </label>
-        <label>
-          発表者名
-          <input name="speaker" required defaultValue={a?.content.speakers[0]?.displayName} />
-        </label>
-        <label>
-          資料 URL
-          <input name="materialUrl" type="url" required defaultValue={a?.materialUrl} />
-        </label>
-        <button disabled={busy}>保存</button>
-        <button
-          type="button"
-          onClick={() => {
-            setEditing(null);
-            if (!a) nav("/applications");
-          }}
-        >
-          中断
-        </button>
-      </form>
+          })
+        }
+      />
     );
   }
   return (
@@ -172,6 +142,23 @@ function App() {
         </nav>
       </header>
       <main>
+        {session && (
+          <p>
+            セッション期限: {session}
+            <button
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  await api("/auth/logout", { method: "POST" });
+                  setSession(null);
+                  nav("/");
+                })
+              }
+            >
+              ログアウト
+            </button>
+          </p>
+        )}
         {devFixture && <aside>開発 fixture・架空データ／API 未接続</aside>}
         {error && (
           <div role="alert">
@@ -251,7 +238,9 @@ function App() {
                               method: "POST",
                               body: JSON.stringify({
                                 expectedVersion: a.version,
-                                operationId: crypto.randomUUID(),
+                                operationId: operation(`${a.id}/${action}`, {
+                                  expectedVersion: a.version,
+                                }).id,
                                 data: {},
                               }),
                             }),
@@ -329,6 +318,11 @@ function App() {
             ))}
             {(data as PublicEventPage)?.items.length === 0 && <p>公開中の開催回はありません。</p>}
           </section>
+        )}
+        {(data as ApplicationPage | null)?.nextCursor && (
+          <button disabled={busy} onClick={() => setCursor((data as ApplicationPage).nextCursor)}>
+            次のページ
+          </button>
         )}
       </main>
     </>
