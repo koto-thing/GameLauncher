@@ -1,0 +1,19 @@
+# D1 local retention connection
+
+0030_retention_batch.sqlのみ追加（0027〜0029はAPI mail、0031〜0039未使用）。通常buildにretention module/exportを含めず、本番schedulerと削除有効化はしない。既定の試験指示はdry-run。破壊試験はretention-local.tomlの新規架空DB末尾000036、18897/18898だけで実施。
+
+## Atomic boundary
+
+SQLite TEMP/BEGINをD1へ送らない。D1Database.batch一回に30 statementsをまとめる。冒頭のguard INSERTはexact table/view/column/type inventoryと、ended_at/cancelled_atからJST3暦月・月末補正したprivate_expiresの一致、期限到達をCHECK(valid=1)で検証。読取preflightだけでなくbatch内部で再確認する。候補app/email/outbox IDはrun ID付き通常表へbatch内部で固定し、全操作後同じbatchで削除する。run履歴を永続保持しない。各statement直後のCHECK失敗注入で、全既知table/viewの件数が実行前と一致することを実D1で確認する。
+
+通常回は、まだ存在する承認済み原稿・receipt・公開snapshot一致をDB guardで確認して専用archive markerを作り、利用者operationIdを固定lt-archive:v1へ置換してから私有情報を削除する。公開readerは固定値だけを信じずevent/talk/snapshotの専用表一致を検証。全体中止回は公開snapshotとmarkerも削除する。開催tombstoneの私有cancel actor/op/hashは消す。別開催のappは候補に含めない。
+
+## Mail and auth
+
+lt_outbox削除triggerからapplication名前空間のjobへ連動。期限切れlt_login_outboxをtokenより先に独立掃除し、authentication jobもtriggerで削除する。期限到達済みの孤立mail jobも既知namespace/source不存在を確認して掃除。lt_mail_modeは構成なので保持、lt_mail_outboxはviewなので直接削除しない。lt_auth_tokensはtoken/session双方失効・残存申請なし、fake mailも期限/残存申請を確認。別開催申請のあるemailを消さない。次回sweepでも孤立認証掃除は全体を対象にするため、後から失効したsessionも対象。過去のauth_rate bucketは削除し現在bucketを保護。
+
+独立SQLite10testsは元0001〜0024の参照仕様回帰。現行0001〜0029+0030の実D1検証はtests/retention_runtime_test.py。mail/例外変更等の未知表・view・列・型、未登録namespaceがあれば停止する。新しいAPI tableが入った時はinventoryとhandlerを同時にレビューし、明示更新する。未知tableを無視するfallbackは持たない。
+
+## Remaining limits
+
+外部実送信・PHP実行・本番削除・cron有効化は未実施。破壊試験だけを許可された生成データで実施。本番の物理削除を有効化するには別確認が必要。

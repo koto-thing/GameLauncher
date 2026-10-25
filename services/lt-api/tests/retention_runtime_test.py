@@ -35,6 +35,7 @@ class RetentionD1(unittest.TestCase):
  def test_atomic_retention(self):
   sql("UPDATE lt_events SET state='cancelled',publish_enabled=0 WHERE state!='cancelled'")
   clock('2030-01-01T00:00:00.000Z')
+  sql("UPDATE lt_mail_mode SET mode='fake'")
   suffix=uuid.uuid4().hex[:8]
   live='retention-live-'+suffix
   def create(name,opens,closes,start):
@@ -43,6 +44,8 @@ class RetentionD1(unittest.TestCase):
   normal=create('normal','2029-12-31T00:00:00.000Z','2030-01-02T00:00:00.000Z','2030-01-30T15:30:00.000Z')
   helper=a.ApplicantRuntime(); cookie,email=helper.login();body=helper.payload();body['eventId']=normal['id'];status,app,_=a.request('/api/lt/v1/applications',body,cookie);self.assertEqual(status,200)
   status,approved=op('/applications/'+app['id']+'/approve',mutation(1,{'startsAt':'2030-01-30T15:30:00.000Z','expectedEventVersion':1,'expectedScheduleVersion':1}));self.assertEqual(status,200)
+  self.assertEqual(call('/test/dispatch-fake')[0],200)
+  self.assertGreater(sql('SELECT count(*) AS n FROM lt_mail_jobs')[0]['n'],0)
   other=create('other','2030-01-02T00:00:00.000Z','2030-01-03T00:00:00.000Z','2030-01-04T00:00:00.000Z')
   clock('2030-01-02T12:00:00.000Z');cookie2,email2=helper.login();body2=helper.payload();body2['eventId']=other['id'];status,otherapp,_=a.request('/api/lt/v1/applications',body2,cookie2);self.assertEqual(status,200)
   clock('2030-01-30T15:41:00.000Z');self.assertEqual(a.request('/api/lt/v1/events/'+normal['id'])[0],200)
@@ -58,7 +61,7 @@ class RetentionD1(unittest.TestCase):
   self.assertEqual(call(url,payload)[0],200)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_applications WHERE event_id='"+normal['id']+"'")[0]['n'],1)
   # 全statementの直後にCHECK違反を注入。各回同じ私有申請と公開provenanceを維持する
-  files=['prepare-archive-proposal.sql','delete-event.sql','delete-expired-orphan-auth.sql','delete-expired-rate.sql']
+  files=['prepare-archive-proposal.sql','delete-event.sql','d1-mail-cleanup.sql','delete-expired-orphan-auth.sql','delete-expired-rate.sql']
   from pathlib import Path
   commands=6+sum(len([v for v in '\n'.join(l for l in (Path('retention')/f).read_text(encoding='utf-8-sig').splitlines() if not l.lstrip().startswith('--')).split(';') if v.strip()]) for f in files)
   before=call(url,{'snapshot':True})[1]
@@ -70,6 +73,8 @@ class RetentionD1(unittest.TestCase):
   self.assertEqual(a.request('/api/lt/v1/events/'+normal['id']+'/talks/'+app['id'])[0],200)
   self.assertEqual(sql("SELECT approval_operation AS marker FROM lt_public_talks WHERE id='"+app['id']+"'")[0]['marker'],'lt-archive:v1')
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_applications WHERE event_id='"+normal['id']+"'")[0]['n'],0)
+  self.assertEqual(sql("SELECT count(*) AS n FROM lt_mail_jobs WHERE id IN (SELECT 'application:'||id FROM lt_outbox WHERE application_id='"+app['id']+"')")[0]['n'],0)
+  self.assertEqual(sql("SELECT count(*) AS n FROM lt_login_outbox WHERE expires<=1903824000000")[0]['n'],0)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_applications WHERE event_id='"+other['id']+"'")[0]['n'],1)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_auth_tokens WHERE hash='"+live+"'")[0]['n'],1)
   clock('2031-01-01T00:00:00.000Z')
@@ -81,6 +86,12 @@ class RetentionD1(unittest.TestCase):
   sql("DROP TRIGGER lt_archive_marker_immutable; UPDATE lt_archive_markers SET snapshot_json='{}' WHERE talk_id='"+app['id']+"'")
   self.assertEqual(a.request('/api/lt/v1/events/'+normal['id']+'/talks/'+app['id'])[0],404)
   # 未知schemaはdry-runでも拒否し、別開催を保護する
+  sql('ALTER TABLE lt_mail_jobs ADD COLUMN fixture_private_extra TEXT')
+  self.assertEqual(call(url,{'eventId':other['id'],'delete':True})[0],409)
+  sql('ALTER TABLE lt_mail_jobs DROP COLUMN fixture_private_extra')
+  sql('CREATE VIEW fixture_unknown_view AS SELECT id FROM lt_applications')
+  self.assertEqual(call(url,{'eventId':other['id'],'delete':True})[0],409)
+  sql('DROP VIEW fixture_unknown_view')
   sql('CREATE TABLE unknown_private(value TEXT)')
   self.assertEqual(call(url,{'eventId':other['id'],'delete':True})[0],409)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_applications WHERE event_id='"+other['id']+"'")[0]['n'],1)

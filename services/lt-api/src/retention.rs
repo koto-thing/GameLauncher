@@ -58,6 +58,7 @@ pub async fn sweep(
     for file in [
         include_str!("../retention/prepare-archive-proposal.sql"),
         include_str!("../retention/delete-event.sql"),
+        include_str!("../retention/d1-mail-cleanup.sql"),
         include_str!("../retention/delete-expired-orphan-auth.sql"),
         include_str!("../retention/delete-expired-rate.sql"),
     ] {
@@ -92,28 +93,16 @@ pub async fn sweep(
     ]);
     let mut commands = Vec::new();
     for (index, command) in sql.iter().enumerate() {
-        // 各statementに同じ3parameterを持たせ、未使用parameterのbind不一致を避ける
-        let wrapped = if command.contains("?3") {
-            command.clone()
-        } else {
-            format!(
-                "{command} {}",
-                if command.contains(" WHERE ") {
-                    " AND ?3 IS NOT NULL AND ?2 IS NOT NULL"
-                } else {
-                    ""
-                }
-            )
-        };
-        let max = if wrapped.contains("?3") {
+        // SQLiteの番号付きparameterの最大番号に合わせてbindする
+        let max = if command.contains("?3") {
             3
-        } else if wrapped.contains("?2") {
+        } else if command.contains("?2") {
             2
         } else {
             1
         };
         let params = [run.clone().into(), event.into(), now.into()];
-        commands.push(db.prepare(wrapped).bind(&params[..max])?);
+        commands.push(db.prepare(command.as_str()).bind(&params[..max])?);
         if fail_after == Some(index) {
             commands.push(db.prepare("INSERT INTO lt_retention_guard(id,valid,event_id,kind) VALUES('failure',0,'fixture','ended')"));
         }

@@ -9,12 +9,13 @@ mod mail;
 mod operations;
 mod operator;
 mod receipts;
+#[cfg(feature = "runtime-tests")]
 mod retention;
 #[cfg(feature = "runtime-tests")]
 mod test_hooks;
 mod views;
 #[cfg(feature = "runtime-tests")]
-pub use test_hooks::{retention_test, fake_mail, set_clock, test_dispatch};
+pub use test_hooks::{fake_mail, retention_test, set_clock, test_dispatch};
 mod timetable;
 pub use operator::{fake_dispatch, operator_request};
 
