@@ -46,3 +46,9 @@ qa/desktop.png と qa/mobile.png を保存し、実画像を目視。横はみ�
 ## CSRF ヘッダー接続
 
 POST/PUT/PATCH/DELETE に X-LT-CSRF:1 と application/json を強制し、GET には付けない。credentials:same-origin を維持し、絶対URL/ネットワークパスを拒否、redirect:error で外部転送を防ぐ。サーバーの Origin 完全一致検証と cookie 認証を置き換えない。backend 実結合は別工程。
+
+## 公開メール変更確認
+
+/auth/email-change の GET は token をメモリーへ取り込み URL から除去するだけで消費しない。明示ボタンで専用 /auth/email-change/verify に token のみ POST。session GET/ログイン交換/所有者変更は呼ばない。連打は ref で同期的に排除。成功時も運営の最終確定待ちと表示。token は storage/ログ/分析へ保存しない。再読込後は案内再取得を促す。
+共有契約は失効原因別の判別DTOを提供しないため、期限切れ/使用済み/不正/再送失効/通信結果不明を断定せず安全な共通案内にする。エラー後は自動再送せず運営への確認を促す。確認済みの再アクセスも新規の所有者変更として扱わない。productionEnabled:false のままで、実接続・実メール検証は未実施。
+最新検証: vp check/tsc/vp test run22件/vp build成功。専用Chromeで新規5ケースと既存4ケースの全9 E2E成功。PC1280/390px、GET非消費、cookie未作成、連打、戻る/再読込、400/410/503を検証。qa/email-change-1280.png・email-change-390.png 保存、390px画像を目視し重なりなし。

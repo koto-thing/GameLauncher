@@ -1,3 +1,4 @@
+import { EmailChange } from "./EmailChange";
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type {
@@ -401,7 +402,5 @@ function App() {
   );
 }
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+  <StrictMode>{location.pathname === "/auth/email-change" ? <EmailChange /> : <App />}</StrictMode>,
 );
