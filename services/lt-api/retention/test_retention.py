@@ -1,0 +1,109 @@
+import importlib.util
+import json
+import sqlite3
+import unittest
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
+
+ROOT=Path(__file__).parent
+spec=importlib.util.spec_from_file_location('local_reference', ROOT/'local_reference.py')
+module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+JST=timezone(timedelta(hours=9))
+
+def instant(text):
+    return int(datetime.fromisoformat(text).timestamp()*1000)
+
+class RetentionTests(unittest.TestCase):
+    def setUp(self):
+        self.db=sqlite3.connect(':memory:')
+        self.db.execute('PRAGMA foreign_keys=ON')
+        self.addCleanup(self.db.close)
+        for path in sorted((ROOT.parent/'migrations').glob('*.sql')):
+            self.db.executescript(path.read_text(encoding='utf-8-sig'))
+        # 業務APIの代わりに架空fixtureを直接構築し、削除前には全triggerを復元する
+        self.triggers=list(self.db.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger'"))
+        for name,_ in self.triggers: self.db.execute('DROP TRIGGER '+name)
+        self.terminal=instant('2024-01-31T23:30:00.123+09:00')
+        self.expiry=module.calendar_expiry(self.terminal)
+        for event_id,kind,expiry in [('normal','ended',self.expiry),('cancel','cancelled',self.expiry),('other','scheduled',None)]:
+            self.db.execute('INSERT INTO lt_events(id,state,private_expires) VALUES(?,?,?)',(event_id,kind,expiry))
+            self.db.execute('INSERT INTO lt_public_events VALUES(?,?)',(event_id,json.dumps({'id':event_id,'title':'public'})))
+            self.db.execute('INSERT INTO lt_public_talks(id,event_id,dto,approval_operation) VALUES(?,?,?,?)',(event_id+'talk',event_id,'{"cancelled":true}','operation'))
+            self.db.execute('INSERT INTO lt_recruitment(event_id,opens,closes,capacity) VALUES(?,0,9999999999999,10)',(event_id,))
+            self.db.execute('INSERT INTO lt_schedule(event_id) VALUES(?)',(event_id,))
+            self.db.execute('INSERT INTO lt_event_configs(id,dto,actor,operation_id,payload_hash) VALUES(?,\'{}\',\'actor\',?,\'hash\')',(event_id,event_id))
+            self.db.execute('INSERT INTO lt_applications(id,event_id,email,version,dto,operation_id,payload_hash) VALUES(?,?,?,1,?, ?,\'hash\')',(event_id,event_id,'shared@example.invalid' if event_id!='cancel' else 'orphan@example.invalid','{"materialUrl":"https://example.invalid/private","representativeEmail":"private@example.invalid"}',event_id))
+            for table in ['lt_applicant_operations','lt_operator_operations']:
+                self.db.execute(f'INSERT INTO {table}(actor,operation_id,application_id,payload_hash,result) VALUES(\'actor\',?,?,\'hash\',\'{{}}\')',(event_id,event_id))
+            for table in ['lt_event_operations','lt_schedule_operations','lt_event_cancellations']:
+                self.db.execute(f'INSERT INTO {table}(actor,operation_id,event_id,payload_hash,result) VALUES(\'actor\',?,?,\'hash\',\'{{}}\')',(event_id,event_id))
+            self.db.execute('INSERT INTO lt_approval_receipts VALUES(?,?,?,1,\'actor\',\'hash\',?)',(event_id,event_id,event_id,expiry))
+            self.db.execute('INSERT INTO lt_outbox(id,operation_id,application_id,kind,recipient) VALUES(?,?,?,\'approved\',\'private@example.invalid\')',(event_id,event_id,event_id))
+            self.db.execute('INSERT INTO lt_audit(id,operation_id,actor_id,action,application_id) VALUES(?,?,\'actor\',\'approved\',?)',(event_id,event_id,event_id))
+            self.db.execute('INSERT INTO lt_fake_deliveries(id,recipient,kind,delivered_at) VALUES(?,\'private@example.invalid\',\'approved\',0)',(event_id,))
+        for event_id in ['normal','cancel','other']: self.db.execute("INSERT INTO lt_audit(id,operation_id,actor_id,action,application_id) VALUES(?,?,'actor','eventCancelled',?)",(event_id+':cancel-audit',event_id,event_id))
+        self.db.execute('CREATE TABLE users(id TEXT PRIMARY KEY,email TEXT)')
+        self.db.execute("INSERT INTO users VALUES('account','orphan@example.invalid')")
+        for key,email,expires in [('shared','shared@example.invalid',0),('orphan','orphan@example.invalid',0),('fresh','orphan@example.invalid',self.expiry+1000)]:
+            self.db.execute('INSERT INTO lt_auth_tokens(hash,email,purpose,expires) VALUES(?,?,\'login\',?)',(key,email,expires))
+            self.db.execute('INSERT INTO lt_fake_mail VALUES(?,?,\'https://example.invalid/verify\',?)',(key,email,expires))
+        self.db.execute("INSERT INTO lt_auth_tokens(hash,email,purpose,expires,session_expires) VALUES('live-session','orphan@example.invalid','login',0,?)",(self.expiry+1000,))
+        self.db.execute('CREATE TEMP TABLE fixed_anchors(event_id TEXT PRIMARY KEY,kind TEXT,terminal_ms INTEGER,expiry_ms INTEGER)')
+        for event_id,kind in [('normal','ended'),('cancel','cancelled')]: self.db.execute('INSERT INTO fixed_anchors VALUES(?,?,?,?)',(event_id,kind,self.terminal,self.expiry))
+        self.db.execute("CREATE TEMP TRIGGER immutable_anchor BEFORE UPDATE ON fixed_anchors BEGIN SELECT RAISE(ABORT,'immutable'); END")
+        for _,sql in self.triggers: self.db.execute(sql)
+        self.db.commit()
+
+    def anchors(self): return list(self.db.execute('SELECT * FROM fixed_anchors'))
+    def run_sweep(self,**kwargs): return module.sweep_fixture(self.db,self.anchors,self.expiry,**kwargs)
+    def snapshot(self): return list(self.db.iterdump())
+
+    def test_boundary_dry_run_and_delay(self):
+        before=self.snapshot()
+        self.assertEqual(module.sweep_fixture(self.db,self.anchors,self.expiry-1)['events'],0)
+        self.assertEqual(self.run_sweep()['applications'],2)
+        self.assertEqual(before,self.snapshot())
+        self.assertEqual(module.sweep_fixture(self.db,self.anchors,self.expiry+999999,dry_run=False)['applications'],2)
+
+    def test_archives_other_event_and_account_protected(self):
+        self.run_sweep(dry_run=False)
+        self.assertEqual(list(self.db.execute('SELECT event_id FROM lt_public_events ORDER BY event_id')),[('normal',),('other',)])
+        self.assertEqual(self.db.execute("SELECT dto,approval_operation FROM lt_public_talks WHERE id='normaltalk'").fetchone(),('{"cancelled":true}','operation'))
+        self.assertEqual(list(self.db.execute('SELECT id FROM lt_applications')),[('other',)])
+        self.assertEqual(self.db.execute('SELECT count(*) FROM users').fetchone()[0],1)
+        for table in ['lt_outbox','lt_audit','lt_fake_deliveries','lt_operator_operations','lt_applicant_operations','lt_approval_receipts','lt_event_configs','lt_event_operations','lt_schedule_operations','lt_event_cancellations']:
+            self.assertEqual(self.db.execute('SELECT count(*) FROM '+table).fetchone()[0],2 if table=='lt_audit' else 1,table)
+
+    def test_orphan_auth_only_expired_and_no_other_event(self):
+        self.run_sweep(dry_run=False)
+        self.assertEqual(set(self.db.execute('SELECT hash FROM lt_auth_tokens')),{('shared',),('fresh',),('live-session',)})
+        self.assertEqual(set(self.db.execute('SELECT id FROM lt_fake_mail')),{('shared',),('fresh',)})
+
+    def test_rollback_retry_and_replay(self):
+        before=self.snapshot()
+        commands=module.statements(ROOT/"delete-event.sql")+module.statements(ROOT/"delete-expired-orphan-auth.sql")
+        for index in range(len(commands)):
+            with self.assertRaises(RuntimeError): self.run_sweep(dry_run=False,inject_failure_after=index)
+            self.assertEqual(self.snapshot(),before)
+        self.run_sweep(dry_run=False)
+        after=self.snapshot()
+        self.assertEqual(self.run_sweep(dry_run=False)['applications'],0)
+        self.assertEqual(after,self.snapshot())
+
+    def test_unknown_table_and_column_fail_closed(self):
+        self.db.execute('CREATE TABLE lt_future_private(id TEXT)'); self.db.commit()
+        with self.assertRaises(ValueError): self.run_sweep(dry_run=False)
+        self.db.execute('DROP TABLE lt_future_private'); self.db.execute('ALTER TABLE lt_outbox ADD COLUMN future_private TEXT'); self.db.commit()
+        with self.assertRaises(ValueError): self.run_sweep(dry_run=False)
+        self.assertEqual(self.db.execute('SELECT count(*) FROM lt_applications').fetchone()[0],3)
+
+    def test_anchor_immutable_and_wrong_expiry_rejected(self):
+        with self.assertRaises(sqlite3.IntegrityError): self.db.execute('UPDATE fixed_anchors SET expiry_ms=expiry_ms+1')
+        self.db.rollback()
+        with self.assertRaises(ValueError): module.sweep_fixture(self.db,lambda:[('normal','ended',self.terminal,self.expiry+1)],self.expiry,dry_run=False)
+
+    def test_calendar_month_end_and_japan_time(self):
+        cases=[('2024-01-31T23:30:00.123+09:00','2024-04-30T23:30:00.123+09:00'),('2023-11-30T00:00:00+09:00','2024-02-29T00:00:00+09:00'),('2024-11-30T00:00:00+09:00','2025-02-28T00:00:00+09:00'),('2024-12-31T00:05:00+09:00','2025-03-31T00:05:00+09:00')]
+        for source,target in cases: self.assertEqual(module.calendar_expiry(instant(source)),instant(target))
+
+if __name__=='__main__': unittest.main()
