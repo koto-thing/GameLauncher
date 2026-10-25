@@ -2,7 +2,9 @@ use serde_json::{Value, json};
 use worker::*;
 mod applicant;
 mod applicant_dto;
+mod events;
 mod operator;
+mod timetable;
 pub use operator::{fake_dispatch, operator_request};
 
 mod public_dto;
@@ -36,9 +38,9 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
             let sql = if talk {
                 "SELECT p.dto FROM lt_public_talks p JOIN lt_events e ON e.id=p.event_id WHERE p.approval_operation IS NOT NULL AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1 AND p.id=?2"
             } else if p.len() == 5 {
-                "SELECT p.dto FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND t.approval_operation IS NOT NULL)) AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1"
+                "SELECT p.dto,e.state,(SELECT closes FROM lt_recruitment WHERE event_id=e.id) AS closes,(SELECT capacity FROM lt_recruitment WHERE event_id=e.id) AS capacity,(SELECT reserved FROM lt_recruitment WHERE event_id=e.id) AS reserved FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND t.approval_operation IS NOT NULL)) AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) AND e.id=?1"
             } else {
-                "SELECT p.dto FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND t.approval_operation IS NOT NULL)) AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) ORDER BY e.id"
+                "SELECT p.dto,e.state,(SELECT closes FROM lt_recruitment WHERE event_id=e.id) AS closes,(SELECT capacity FROM lt_recruitment WHERE event_id=e.id) AS capacity,(SELECT reserved FROM lt_recruitment WHERE event_id=e.id) AS reserved FROM lt_public_events p JOIN lt_events e ON e.id=p.event_id WHERE NOT EXISTS(SELECT 1 FROM json_each(p.dto,'$.schedule') b WHERE json_extract(b.value,'$.kind')='talk' AND NOT EXISTS(SELECT 1 FROM lt_public_talks t WHERE t.id=json_extract(b.value,'$.talkId') AND t.event_id=e.id AND t.approval_operation IS NOT NULL)) AND e.state IN ('scheduled','started','ended') AND e.public_opens_at <= CAST(unixepoch('subsec')*1000 AS INTEGER) ORDER BY e.id"
             };
             let mut stmt = db.prepare(sql);
             if talk {
@@ -49,11 +51,22 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
             let rows = stmt.all().await?.results::<Value>()?;
             let mut items = Vec::new();
             for row in rows {
-                let saved: Value = serde_json::from_str(
+                let mut saved: Value = serde_json::from_str(
                     row["dto"]
                         .as_str()
                         .ok_or_else(|| Error::RustError("Invalid snapshot".into()))?,
                 )?;
+                if !talk && row["closes"].is_number() {
+                    saved["recruitment"] = json!(if row["state"] != "scheduled"
+                        || row["closes"].as_f64().unwrap() <= Date::now().as_millis() as f64
+                    {
+                        "closed"
+                    } else if row["reserved"].as_i64() >= row["capacity"].as_i64() {
+                        "full"
+                    } else {
+                        "open"
+                    });
+                }
                 if let Some(dto) = public_dto::validate(&saved, talk) {
                     items.push(dto);
                 }

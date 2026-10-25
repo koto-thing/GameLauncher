@@ -48,7 +48,11 @@ pub async fn operator_request(
     let result = handle(&mut req, &env, &context).await;
     let response = match result {
         Ok(r) => r,
-        Err(e) if e.to_string().contains("LT_OPERATION_CONFLICT") => {
+        Err(e)
+            if e.to_string().contains("LT_OPERATION_CONFLICT")
+                || e.to_string()
+                    .contains("UNIQUE constraint failed: lt_schedule_operations") =>
+        {
             error("VERSION_CONFLICT", 409, &context)
                 .map_err(|e| JsValue::from_str(&e.to_string()))?
         }
@@ -89,6 +93,12 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     if !p.starts_with(&["api", "lt", "v1", "operator"]) {
         return error("NOT_FOUND", 404, c);
     }
+    if let Some(response) = crate::events::handle(req, &db, &c.actor_id, &c.request_id).await? {
+        return Ok(response);
+    }
+    if req.method() == Method::Put && p.len() == 7 && p[4] == "events" && p[6] == "timetable" {
+        return crate::timetable::save(req, &db, p[5], &c.actor_id, &c.request_id).await;
+    }
     if req.method() == Method::Get && p.len() == 6 && p[4] == "applications" {
         let rows = db
             .prepare("SELECT dto,operator_note FROM lt_applications WHERE id=?1")
@@ -108,7 +118,7 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
         };
     }
     if req.method() == Method::Get && p.len() == 7 && p[4] == "events" && p[6] == "timetable" {
-        let rows=db.prepare("SELECT s.version,s.blocks,e.version AS event_version FROM lt_schedule s JOIN lt_events e ON e.id=s.event_id WHERE s.event_id=?1").bind(&[p[5].into()])?.all().await?.results::<Value>()?;
+        let rows=db.prepare("SELECT s.version,s.blocks,e.version AS event_version FROM lt_schedule s JOIN lt_events e ON e.id=s.event_id WHERE s.event_id=?1 AND (e.private_expires IS NULL OR e.private_expires>unixepoch('subsec')*1000)").bind(&[p[5].into()])?.all().await?.results::<Value>()?;
         return if let Some(r) = rows.first() {
             Response::from_json(
                 &json!({"eventId":p[5],"version":r["version"],"eventVersion":r["event_version"],"blocks":serde_json::from_str::<Value>(r["blocks"].as_str().unwrap())?}),
@@ -213,7 +223,7 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     dto["slotReserved"] = json!(true);
     dto["published"] = published;
     // UPDATE 0件では trigger は動かず、枠・公開版・outbox・audit は作られない
-    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=?4 WHERE id=?5 AND version=?6 AND json_extract(dto,'$.everApproved')=0 AND json_extract(dto,'$.review') IN ('pending','held') AND json_extract(dto,'$.withdrawal')='none' AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id JOIN lt_public_events pe ON pe.event_id=e.id WHERE e.id=lt_applications.event_id AND json_extract(pe.dto,'$.startsAt')<=?10 AND json_extract(pe.dto,'$.endsAt')>=?9 AND e.version=?7 AND s.version=?8 AND e.state IN ('scheduled','started') AND NOT EXISTS(SELECT 1 FROM json_each(s.blocks) b WHERE json_extract(b.value,'$.startsAt')<?9 AND json_extract(b.value,'$.endsAt')>?10))").bind(&[dto.to_string().into(),input.operation_id.into(),payload.into(),c.actor_id.clone().into(),p[5].into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into(),(input.data.expected_schedule_version as f64).into(),end.into(),input.data.starts_at.into()])?.run().await?;
+    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=?4 WHERE id=?5 AND version=?6 AND json_extract(dto,'$.everApproved')=0 AND json_extract(dto,'$.review') IN ('pending','held') AND json_extract(dto,'$.withdrawal')='none' AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id JOIN lt_public_events pe ON pe.event_id=e.id WHERE e.id=lt_applications.event_id AND json_extract(pe.dto,'$.startsAt')<=?10 AND COALESCE(json_extract(s.blocks,'$[#-1].endsAt'),json_extract(pe.dto,'$.startsAt'))=?10 AND COALESCE(json_extract(s.blocks,'$[#-1].kind'),'opening')!='closing' AND e.version=?7 AND s.version=?8 AND e.state IN ('scheduled','started') AND NOT EXISTS(SELECT 1 FROM json_each(s.blocks) b WHERE json_extract(b.value,'$.startsAt')<?9 AND json_extract(b.value,'$.endsAt')>?10))").bind(&[dto.to_string().into(),input.operation_id.into(),payload.into(),c.actor_id.clone().into(),p[5].into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into(),(input.data.expected_schedule_version as f64).into(),end.into(),input.data.starts_at.into()])?.run().await?;
     if changed.meta()?.unwrap().changes.unwrap_or(0) == 0 {
         return error("VERSION_CONFLICT", 409, c);
     }

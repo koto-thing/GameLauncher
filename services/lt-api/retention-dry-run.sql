@@ -20,3 +20,6 @@ SELECT 'operator_operations',count(*) FROM lt_operator_operations WHERE expires<
 SELECT 'fake_deliveries',count(*) FROM lt_fake_deliveries WHERE expires<=CAST(unixepoch('subsec')*1000 AS INTEGER)
 ;
 SELECT 'auth_rate',count(*) FROM lt_auth_rate WHERE bucket<CAST(unixepoch('subsec')/3600 AS INTEGER);
+SELECT 'event_configs' AS resource,count(*) AS due FROM lt_event_configs WHERE expires<=unixepoch('subsec')*1000;
+SELECT 'event_operations' AS resource,count(*) AS due FROM lt_event_operations WHERE expires<=unixepoch('subsec')*1000;
+SELECT 'schedule_operations' AS resource,count(*) AS due FROM lt_schedule_operations WHERE expires<=unixepoch('subsec')*1000;

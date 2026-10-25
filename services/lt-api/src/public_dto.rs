@@ -112,15 +112,9 @@ pub fn validate(value: &Value, talk: bool) -> Option<Value> {
     } else {
         let dto: Event = serde_json::from_value(value.clone()).ok()?;
         if dto.version == 0
-            || [
-                &dto.id,
-                &dto.title,
-                &dto.venue,
-                &dto.guidance,
-                &dto.time_zone,
-            ]
-            .iter()
-            .any(|s| s.is_empty())
+            || [&dto.id, &dto.title, &dto.venue, &dto.time_zone]
+                .iter()
+                .any(|s| s.is_empty())
             || !instant(&dto.starts_at)
             || !instant(&dto.ends_at)
             || dto.starts_at >= dto.ends_at
@@ -128,7 +122,8 @@ pub fn validate(value: &Value, talk: bool) -> Option<Value> {
                 b.id.is_empty()
                     || !instant(&b.starts_at)
                     || !instant(&b.ends_at)
-                    || b.starts_at >= b.ends_at
+                    || (b.starts_at > b.ends_at
+                        || b.starts_at == b.ends_at && !matches!(b.kind, Kind::Transition))
                     || matches!(b.kind, Kind::Talk)
                         && b.talk_id.as_ref().is_none_or(|s| s.is_empty())
             })
