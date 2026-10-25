@@ -3,6 +3,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { recoverFolderInput } from "../support/folder-input-recovery";
+
 const adminOrigin = process.env.INTAKE_TEST_ORIGIN || "http://127.0.0.1:8788";
 const artwork = fileURLToPath(new URL("../../public/pandd-logo.png", import.meta.url));
 
@@ -40,24 +42,20 @@ async function prepareArtifact(page: Page, info: TestInfo): Promise<void> {
       await folder.setInputFiles(buildDirectory, { timeout: 15000 });
     } catch (error) {
       // ファイル内容、Cookie、通信情報を保存せず入力イベントと検証状態だけを記録する
-      const state = await folder.evaluate(input => ({
-        inputEvents: input.getAttribute("data-test-input-events"),
-        changeEvents: input.getAttribute("data-test-change-events"),
-        fileCount: (input as HTMLInputElement).files?.length,
-        fileName: (input as HTMLInputElement).files?.[0]?.name,
-        relativePath: (input as HTMLInputElement).files?.[0]?.webkitRelativePath,
-        previewReady: Boolean(document.querySelector(".review-preview-card")),
-      }));
-      await info.attach("folder-input-state", { body: JSON.stringify(state), contentType: "application/json" });
-      // WebKitの完了通知だけが失われた場合に限り、実イベントと実入力で成立を証明する
-      if (!(error instanceof Error) || error.name !== "TimeoutError") throw error;
-      expect(Number(state.inputEvents)).toBeGreaterThan(0);
-      expect(Number(state.changeEvents)).toBeGreaterThan(0);
-      expect(state.fileCount).toBe(1);
-      expect(state.fileName).toBe("TestGame.exe");
-      expect(state.relativePath).toBe("GameBuild/TestGame.exe");
-      expect(state.previewReady).toBe(true);
-      await expect(page.locator(".review-preview-card code").filter({ hasText: "build/TestGame.exe" })).toBeVisible();
+      await recoverFolderInput(error, async () => {
+        const state = await folder.evaluate(input => ({
+          inputEvents: input.getAttribute("data-test-input-events"),
+          changeEvents: input.getAttribute("data-test-change-events"),
+          fileCount: (input as HTMLInputElement).files?.length,
+          fileName: (input as HTMLInputElement).files?.[0]?.name,
+          relativePath: (input as HTMLInputElement).files?.[0]?.webkitRelativePath,
+          previewReady: Boolean(document.querySelector(".review-preview-card")),
+        }));
+        await info.attach("folder-input-state", { body: JSON.stringify(state), contentType: "application/json" });
+        return state;
+      }, async () => {
+        await expect(page.locator(".review-preview-card code").filter({ hasText: "build/TestGame.exe" })).toBeVisible();
+      });
     }
   });
   await expect(page.getByRole("button", { name: "Artifactを作成してアップロード", exact: true })).toBeEnabled();
