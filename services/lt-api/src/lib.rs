@@ -2,6 +2,7 @@ use serde_json::{Value, json};
 use worker::*;
 mod applicant;
 mod applicant_dto;
+mod email_change;
 mod events;
 mod input;
 mod lifecycle;
@@ -15,7 +16,7 @@ mod retention;
 mod test_hooks;
 mod views;
 #[cfg(feature = "runtime-tests")]
-pub use test_hooks::{fake_mail, retention_test, set_clock, test_dispatch};
+pub use test_hooks::{change_mail, fake_mail, retention_test, set_clock, test_dispatch};
 mod timetable;
 pub use operator::{fake_dispatch, operator_request};
 
@@ -36,6 +37,10 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
                 &json!({"error":{"code":"VERSION_CONFLICT","requestId":"applicant"}}),
             )?
             .with_status(409),
+        ),
+        Err(error) if error.to_string().contains("LT_OWNER_MOVED") => Some(
+            Response::from_json(&json!({"error":{"code":"NOT_FOUND","requestId":"applicant"}}))?
+                .with_status(404),
         ),
         Err(error) if error.to_string().contains("LT_RETENTION_EXPIRED") => Some(
             Response::from_json(

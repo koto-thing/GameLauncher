@@ -190,3 +190,34 @@ pub async fn retention_test(
     run.await
         .map_err(|_| worker::wasm_bindgen::JsValue::from_str("Retention refused"))
 }
+
+/// 検証ポートだけで配送済みメール変更linkを取得する
+/// 引数: 架空の宛先、ローカル環境
+/// 戻り値: 確認link。CLI/logへは出さない
+#[worker::wasm_bindgen::prelude::wasm_bindgen]
+pub async fn change_mail(
+    email: String,
+    env: Env,
+) -> std::result::Result<String, worker::wasm_bindgen::JsValue> {
+    use worker::wasm_bindgen::JsValue;
+    if !cfg!(feature = "local-development")
+        || env
+            .var("LOCAL_AUTH")
+            .map(|v| v.to_string())
+            .unwrap_or_default()
+            != "true"
+    {
+        return Err(JsValue::from_str("Disabled"));
+    }
+    let db = env
+        .d1("DB")
+        .map_err(|_| JsValue::from_str("Mailbox unavailable"))?;
+    let now = crate::lifecycle::reconcile(&db)
+        .await
+        .map_err(|_| JsValue::from_str("Mailbox unavailable"))?;
+    let rows=db.prepare("SELECT p.action_url FROM lt_email_change_payloads p JOIN lt_outbox o ON o.id=p.outbox_id JOIN lt_mail_jobs j ON j.id='application:'||o.id JOIN lt_email_change_tokens t ON t.hash=p.token_hash JOIN lt_email_changes r ON r.id=t.request_id WHERE o.recipient=?1 AND t.expires>?2 AND t.used=0 AND r.current=1 AND p.action_url!='' AND j.transport='fake' AND j.delivered_at IS NOT NULL AND EXISTS(SELECT 1 FROM lt_mail_mode WHERE id=1 AND mode='fake') ORDER BY o.created_at DESC,o.rowid DESC LIMIT 1").bind(&[email.into(),now.into()]).map_err(|_|JsValue::from_str("Mailbox unavailable"))?.all().await.map_err(|_|JsValue::from_str("Mailbox unavailable"))?.results::<Value>().map_err(|_|JsValue::from_str("Mailbox unavailable"))?;
+    rows.first()
+        .and_then(|r| r["action_url"].as_str())
+        .map(str::to_owned)
+        .ok_or_else(|| JsValue::from_str("Mailbox empty"))
+}

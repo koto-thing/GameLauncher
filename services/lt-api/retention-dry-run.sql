@@ -32,3 +32,10 @@ SELECT 'cancelled_public_talks' AS resource,count(*) AS due FROM lt_public_talks
 -- 認証outboxは開催回所属ではない。token/sessionとは独立に自身の期限で整理する
 SELECT 'login_outbox' AS resource,count(*) AS due FROM lt_login_outbox WHERE expires<=COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000);
 SELECT 'mail_jobs' AS resource,count(*) AS due FROM lt_mail_jobs WHERE expires<=CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000)/1000 AS INTEGER);
+
+-- メール変更の私有状態。物理削除はまだ行わない
+SELECT 'email_changes' AS resource,count(*) AS due FROM lt_email_changes WHERE expires<=COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000);
+SELECT 'email_change_tokens' AS resource,count(*) AS due FROM lt_email_change_tokens WHERE expires<=COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000);
+SELECT 'email_change_payloads' AS resource,count(*) AS due FROM lt_email_change_payloads p JOIN lt_email_change_tokens t ON t.hash=p.token_hash WHERE t.expires<=COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000);
+SELECT 'email_change_operations' AS resource,count(*) AS due FROM lt_email_change_operations WHERE expires<=COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000);
+SELECT 'email_change_audit' AS resource,count(*) AS due FROM lt_email_change_audit WHERE expires<=COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000);

@@ -25,14 +25,14 @@ $keys = ['id','recipient','kind','expires','action_url'];
 if (!is_array($v) || array_diff(array_keys($v),$keys) || array_diff($keys,array_keys($v))) reply(422,'permanent');
 foreach (['id','recipient','kind'] as $key) if (!is_string($v[$key]) || $v[$key] === '' || strpbrk($v[$key],"\r\n") !== false) reply(422,'permanent');
 if (strlen($v['id']) > 200 || !filter_var($v['recipient'], FILTER_VALIDATE_EMAIL) || !is_int($v['expires']) || $v['expires'] <= time()) reply(410,'permanent');
-$kinds=['submitted','approved','returned','reapproved','rejected','withdrawalConfirmed','eventCancelled','emailConfirmation'];
+$kinds=['submitted','approved','returned','reapproved','rejected','withdrawalConfirmed','eventCancelled','emailConfirmation','emailChanged'];
 if (!in_array($v['kind'],$kinds,true)) reply(422,'permanent');
 // 件名・本文・From・返信先は呼出元から指定できない
 $url = $v['action_url'];
 if (!is_string($url) || strlen($url)>4096 || strpbrk($url,"\r\n")!==false) reply(422,'permanent');
 $u=parse_url($url); $origin=$c['public_origin'] ?? '';
-if (!$u || ($u['scheme'] ?? '')!=='https' || isset($u['user']) || isset($u['pass']) || isset($u['fragment']) || isset($u['port']) || 'https://'.($u['host'] ?? '')!==$origin || !in_array($u['path'] ?? '',['/applications','/auth/verify'],true)) reply(422,'permanent');
-if ($v['kind']==='emailConfirmation' && (($u['path'] ?? '')!=='/auth/verify' || $v['expires']>time()+3600)) reply(422,'permanent');
+if (!$u || ($u['scheme'] ?? '')!=='https' || isset($u['user']) || isset($u['pass']) || isset($u['fragment']) || isset($u['port']) || 'https://'.($u['host'] ?? '')!==$origin || !in_array($u['path'] ?? '',['/applications','/auth/verify','/auth/email-change'],true)) reply(422,'permanent');
+if ($v['kind']==='emailConfirmation' && (!in_array($u['path'] ?? '',['/auth/verify','/auth/email-change'],true) || $v['expires']>time()+3600)) reply(422,'permanent');
 if ($v['kind']!=='emailConfirmation' && (($u['path'] ?? '')!=='/applications' || isset($u['query']))) reply(422,'permanent');
 if (!filter_var($c['from'] ?? '',FILTER_VALIDATE_EMAIL) || strpbrk($c['from'],"\r\n")!==false) reply(503,'temporary');
 $dir=$c['private_dir'] ?? '';

@@ -88,6 +88,7 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
     if !path.starts_with("/api/lt/v1/auth/")
         && !path.starts_with("/api/lt/v1/applications")
         && path != "/auth/verify"
+        && path != "/auth/email-change"
     {
         return Ok(None);
     }
@@ -104,6 +105,11 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
     let origin = env.var("APP_ORIGIN")?.to_string();
     let db = env.d1("DB")?;
     let now = crate::lifecycle::reconcile(&db).await?;
+    if path == "/auth/email-change" && req.method() == Method::Get {
+        return Ok(Some(Response::from_html(
+            "<!doctype html><html lang=\"ja\"><meta charset=\"utf-8\"><title>メール確認</title><button id=\"verify\">確認する</button><p id=\"result\"></p><script>const token=new URL(location.href).searchParams.get('token');history.replaceState(null,'','/auth/email-change');document.getElementById('verify').onclick=async()=>{const r=await fetch('/api/lt/v1/auth/email-change/verify',{method:'POST',headers:{'Content-Type':'application/json','X-LT-CSRF':'1'},body:JSON.stringify({token})});document.getElementById('result').textContent=r.ok?'確認しました':'確認できませんでした';};</script></html>",
+        )?));
+    }
     // GET 確認は token を読まず消費しない。ブラウザーが明示 POST する
     if path == "/auth/verify" && req.method() == Method::Get {
         return Ok(Some(Response::from_html(
@@ -121,6 +127,18 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
                 .starts_with("application/json"))
     {
         return Ok(Some(error("FORBIDDEN", 403)?));
+    }
+    if path == "/api/lt/v1/auth/email-change/verify" && req.method() == Method::Post {
+        let value: Value = match crate::input::json(req).await {
+            Ok(v) => v,
+            Err(_) => return Ok(Some(error("TOKEN_INVALID", 400)?)),
+        };
+        if !object(&value, &["token"], &[]) || !text(&value["token"]) {
+            return Ok(Some(error("TOKEN_INVALID", 400)?));
+        }
+        return Ok(Some(
+            crate::email_change::verify(&db, value["token"].as_str().unwrap()).await?,
+        ));
     }
     if path == "/api/lt/v1/auth/email" && req.method() == Method::Post {
         let v: Value = match crate::input::json(req).await {
@@ -254,7 +272,7 @@ async fn applications(
             if expired(v, now) {
                 error("RETENTION_EXPIRED", 410)
             } else {
-                Response::from_json(&crate::views::app(db, v, false).await?)
+                Response::from_json(&crate::views::owned(db, v, owner).await?)
             }
         } else {
             error("NOT_FOUND", 404)
@@ -303,14 +321,19 @@ async fn applications(
     }
     let op = v["operationId"].as_str().unwrap();
     let payload = hash(&format!("{}:{path}:{}", req.method(), v));
-    let replay=db.prepare("SELECT payload_hash,result FROM lt_applicant_operations WHERE EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=lt_applicant_operations.application_id AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch'))) AND actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER))").bind(&[owner.into(),op.into()])?.all().await?.results::<Value>()?;
+    // 移管済み申請の旧ownerは、再ログインしても旧receiptを再利用できない
+    let moved=db.prepare("SELECT 1 FROM lt_applicant_operations r JOIN lt_applications a ON a.id=r.application_id WHERE r.actor=?1 AND r.operation_id=?2 AND a.email!=?1").bind(&[owner.into(),op.into()])?.all().await?.results::<Value>()?;
+    if !moved.is_empty() {
+        return error("VERSION_CONFLICT", 409);
+    }
+    let replay=db.prepare("SELECT payload_hash,result FROM lt_applicant_operations WHERE EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=lt_applicant_operations.application_id AND a.email=lt_applicant_operations.actor AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch'))) AND actor=?1 AND operation_id=?2 AND (expires IS NULL OR expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER))").bind(&[owner.into(),op.into()])?.all().await?.results::<Value>()?;
     if let Some(r) = replay.first() {
         return if r["payload_hash"] == payload {
             Response::from_json(
-                &crate::views::app(
+                &crate::views::owned(
                     db,
                     &serde_json::from_str::<Value>(r["result"].as_str().unwrap())?,
-                    false,
+                    owner,
                 )
                 .await?,
             )
@@ -355,7 +378,7 @@ async fn applications(
             .unwrap();
         let dto = json!({"id":id,"eventId":event,"version":1,"content":data["content"],"materialUrl":data["materialUrl"],"representativeEmail":owner,"review":"pending","withdrawal":"none","firstSubmittedAt":date,"everApproved":false,"slotReserved":false,"retentionExpiresAt":null,"published":null});
         // 同一 batch の後続は勝った operation を持つ申請だけに従属する
-        let inserted=db.batch(vec![db.prepare("INSERT INTO lt_applications(id,event_id,email,version,dto,operation_id,payload_hash) SELECT ?1,?2,?3,1,?4,?5,?6 FROM lt_recruitment r JOIN lt_events e ON e.id=r.event_id WHERE r.event_id=?2 AND e.publish_enabled=1 AND e.state='scheduled' AND r.opens<=?7 AND r.closes>?7 AND r.reserved<r.capacity AND NOT EXISTS(SELECT 1 FROM lt_applications WHERE event_id=?2 AND email=?3 AND active=1) ON CONFLICT DO NOTHING").bind(&[id.clone().into(),event.into(),owner.into(),dto.to_string().into(),op.into(),payload.clone().into(),now.into()])?,db.prepare("INSERT INTO lt_applicant_operations(actor,operation_id,payload_hash,application_id,result) SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
+        let inserted=db.batch(vec![db.prepare("INSERT INTO lt_applications(id,event_id,email,version,dto,operation_id,payload_hash) SELECT ?1,?2,?3,1,?4,?5,?6 FROM lt_recruitment r JOIN lt_events e ON e.id=r.event_id WHERE r.event_id=?2 AND e.publish_enabled=1 AND e.state='scheduled' AND r.opens<=?7 AND r.closes>?7 AND r.reserved<r.capacity AND NOT EXISTS(SELECT 1 FROM lt_applications WHERE event_id=?2 AND email=?3 AND active=1) AND NOT EXISTS(SELECT 1 FROM lt_applicant_operations WHERE actor=?3 AND operation_id=?5) ON CONFLICT DO NOTHING").bind(&[id.clone().into(),event.into(),owner.into(),dto.to_string().into(),op.into(),payload.clone().into(),now.into()])?,db.prepare("INSERT INTO lt_applicant_operations(actor,operation_id,payload_hash,application_id,result) SELECT email,operation_id,payload_hash,id,dto FROM lt_applications WHERE id=?1 AND operation_id=?2 ON CONFLICT DO NOTHING").bind(&[id.into(),op.into()])?]).await?;
         if inserted[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
             if let Some(response) =
                 crate::receipts::response(db, "applicant", owner, op, &payload, "applicant").await?
@@ -380,7 +403,7 @@ async fn applications(
             }
             return error("RECRUITMENT_CLOSED", 409);
         }
-        return Response::from_json(&crate::views::app(db, &dto, false).await?);
+        return Response::from_json(&crate::views::owned(db, &dto, owner).await?);
     }
     let id = p[4];
     let existing = db
@@ -453,7 +476,7 @@ async fn applications(
         .await?
         .results::<Value>()?;
     let dto: Value = serde_json::from_str(saved[0]["dto"].as_str().unwrap())?;
-    let response = Response::from_json(&crate::views::app(db, &dto, false).await?)?;
+    let response = Response::from_json(&crate::views::owned(db, &dto, owner).await?)?;
     #[cfg(feature = "runtime-tests")]
     let response = crate::test_hooks::annotate(response, observed)?;
     Ok(response)

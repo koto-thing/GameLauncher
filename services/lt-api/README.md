@@ -1,6 +1,6 @@
 # LT API（ローカル実装）
 
-公開・本人・内部運営の共有routeをRust Worker/D1で実装。例外メール変更3routeは次の分割実装として未対応。実メール・本番DB・本番binding/secret・物理削除・push/PR/merge/deployは行っていない。
+公開・本人・内部運営の共有routeをRust Worker/D1で実装。例外メール変更を含む全契約routeをローカル実装。実メール・本番DB・本番binding/secret・物理削除・push/PR/merge/deployは行っていない。
 
 ## 起動と境界
 
@@ -45,15 +45,18 @@
 | POST | `/api/lt/v1/operator/applications/:id/hold` | `OperatorApplication` | 内部RPC実装 |
 | POST | `/api/lt/v1/operator/applications/:id/reject` | `OperatorApplication` | 内部RPC実装 |
 | POST | `/api/lt/v1/operator/applications/:id/confirm-withdrawal` | `OperatorApplication` | 内部RPC実装 |
-| POST | `/api/lt/v1/operator/applications/:id/email-change/investigate` | `EmailChangeRequest` | 未対応（次の分割実装） |
-| POST | `/api/lt/v1/operator/applications/:id/email-change/send-verification` | `EmailChangeRequest` | 未対応（次の分割実装） |
-| POST | `/api/lt/v1/operator/applications/:id/email-change/confirm` | `EmailChangeRequest` | 未対応（次の分割実装） |
+| POST | `/api/lt/v1/operator/applications/:id/email-change/investigate` | `EmailChangeRequest` | 内部RPC実装（Admin/Executive） |
+| POST | `/api/lt/v1/operator/applications/:id/email-change/send-verification` | `EmailChangeRequest` | 内部RPC実装（Admin/Executive） |
+| POST | `/api/lt/v1/operator/applications/:id/email-change/confirm` | `EmailChangeRequest` | 内部RPC実装（Admin/Executive） |
+| GET | `/api/lt/v1/operator/applications/:id/email-change` | `EmailChangeStatus` | 内部RPC実装（Admin/Executive） |
+| GET | `/auth/email-change` | `ConfirmationPage` | 確認HTML・GET非消費 |
+| POST | `/api/lt/v1/auth/email-change/verify` | `EmailAccepted` | sessionを発行しない |
 | GET | `/api/lt/v1/auth/session` | `SessionStatus` | 実装 |
 | GET | `/api/lt/v1/operator/events/:id` | `EventSettings` | 内部RPC実装 |
 | GET | `/api/lt/v1/operator/events/:id/timetable` | `OperatorTimetable` | 内部RPC実装 |
 | GET | `/api/lt/v1/operator/applications/:id` | `OperatorApplication` | 内部RPC実装 |
 
-例外メール変更はassistantを403、admin/executiveも未対応501とし、任意上書きを実装していない。共有追補のNOT_IMPLEMENTED/SERVICE_UNAVAILABLEを取り込み、未対応操作は型付き501を返す。GET /auth/verifyはrepresentation=htmlに従う確認HTMLであり、sessionはPOSTだけが発行する（共有routeのresponse名ApplicantSessionは親側の整理事項）。契約にDELETE/start/endの専用routeはないため追加していない。
+例外メール変更はAdmin/Executiveだけが操作でき、AssistantはGET/replayも403。詳細はemail-change-proposal.mdを参照。GET確認画面は非消費で、公開POSTはsessionを発行しない。通常bundleのprivate機能は型付き501で本番有効化していない。
 
 ## 業務と競合
 
@@ -77,7 +80,7 @@
 
 EmptyMutationには新タイトル/日時の欄がないため、独立した開発提案値としてタイトルLT会、案内空、UTC、観測時刻の30日後開始、7日前募集開始/1時間前締切を使う。自動公開はしない。日時を確定する操作では他回の半開募集期間との重複をDBで拒否し、同時募集1回を守る。
 
-枠上限は予約数未満に減らせない。承認/時間割がある共通時間や開始日時の変更は不整合を避けて409。初回承認は時間割末尾へ連続追加し、末尾が閉会なら先に時間割を編集する。任意途中挿入の自動再配置は未実装。時間割未作成の終了日時は枠上限×（発表+入替）の開発上の仮計算で、保存後は全block末尾に置換する。
+枠上限は予約数未満に減らせない。承認/時間割がある共通時間や開始日時の変更は不整合を避けて409。初回承認は時間割末尾へ連続追加し、末尾が閉会なら先に時間割を編集する。任意途中挿入の自動再配置は未実装。時間割が空なら予定開始と同時に終了し、保存後は全block末尾を終了時刻とする。
 
 開始後判定は開始日時と格納stateを使用する。公開/本人/内部運営APIとfake配送の処理前にRustでreconcileし、scheduled→started→endedを条件付きUPDATEする。本番cronは未設定。終了は時間割の最後の入替/休憩/閉会blockまで含む。空の時間割は長さ0として予定開始時刻にendedとなる。publishEnabled=falseのコピーは自動開始/終了させない。終了確定時にended_atを予定終了時刻で固定し、遅れた観測/時刻訂正/再送で状態や期限を延ばさない。中止は優先し、cancelled_atを一度だけ固定する。保持期限は固定した終了/中止時刻をAsia/Tokyoで3暦月進め、該当日がなければ月末へ補正する。
 
@@ -117,7 +120,7 @@ python tests/prepare_fresh.py
 
 fixtureは空のローカルDBに一度投入。prepare_freshは毎回新しいworkspace内persist先を作り、既存DBを削除せず全migrationとfixtureを確認する。確認linkはtest側が別ポートのfake-mail受取口から取得し、CLIのJSON出力には出さない。material URLの自動fetchはしない。
 
-全47件のactual local Worker+D1+named RPC試験を実施。公開漏洩/IDOR/token replay/Origin/既知長とchunked本文上限/重複申請/最後1枠同時承認/敗者副作用ゼロ/二重通知/期限/保持archive/状態遷移/募集重複/時間割/辞退取消競合/全体中止競合を確認。JSON成功応答と契約エラーを共有Schemaで検証する。新規8運営ケースと異種操作raceを含む。ログはgit対象外のtest-results.txt。
+全58件のactual local Worker+D1+named RPC試験を実施。公開漏洩/IDOR/token replay/Origin/既知長とchunked本文上限/重複申請/最後1枠同時承認/敗者副作用ゼロ/二重通知/期限/保持archive/状態遷移/募集重複/時間割/辞退取消競合/全体中止競合を確認。JSON成功応答と契約エラーを共有Schemaで検証する。新規8運営ケースと異種操作raceを含む。ログはgit対象外のtest-results.txt。
 
 異種操作raceは`runtime-tests`だけにある読取後700ms遅延と観測headerを使い、旧DTO読取→並行時間割保存完了→旧読取元の再承認/本人編集/再提出書込という順序を実証。認証や所有者検証は省略しない。通常buildにはこのmodule/遅延/headerが存在しないことをbundleでも確認。通常開発に戻す場合はruntime-testsを外してbuildする。
 
@@ -146,3 +149,9 @@ runtime-testsとlocal-developmentを両方指定した検証bundleだけが固�
 
 
 メール接続（0027〜0029）: [mail-connection-plan.md](mail-connection-plan.md)に接続/排他/期限を記載する。新しい認証outboxと共通配送engineを使用し、旧fake配送は独立動作しない。DBのmodeは既定disabledで、runtime試験だけがfakeへ明示変更する。Envelope秒とAPIミリ秒をfloor変換し、各APIのreconcileで期限切れの確認URL/job payloadを論理消去する。物理削除・本番有効化・外部送信は行っていない。保管担当向けの所属と単位はmail-retention-boundary.jsonを参照。
+
+
+メール変更追補: 0040を追加し、0030〜0039は保管担当用に未変更。契約c739fb2/lease修正fe18078を取り込んだ。新規6routeは共有schemaに従い、mail runtime本体は変更していない。新私有table/保管順はemail-change-retention-plan.json。実管理UI/proxy・スマホ/PC・キーボード・実メール/PHP・クラウドCPUは別途統合検証が必要。
+
+
+メール変更の検証では同じ架空DBに通知が蓄積し、1回50件の配送上限を超えたため、保守試験をfixture件数から導く有限回のバッチ処理へ修正した。配送本体の上限やclaimの並列性は変更していない。

@@ -51,9 +51,19 @@ pub async fn operator_request(
         Err(e)
             if e.to_string().contains("LT_OPERATION_CONFLICT")
                 || e.to_string()
-                    .contains("UNIQUE constraint failed: lt_schedule_operations") =>
+                    .contains("UNIQUE constraint failed: lt_schedule_operations")
+                || e.to_string()
+                    .contains("UNIQUE constraint failed: lt_email_change_operations") =>
         {
             error("VERSION_CONFLICT", 409, &context)
+                .map_err(|e| JsValue::from_str(&e.to_string()))?
+        }
+        Err(e)
+            if e.to_string().contains(
+                "UNIQUE constraint failed: lt_applications.event_id, lt_applications.email",
+            ) =>
+        {
+            error("DUPLICATE_APPLICATION", 409, &context)
                 .map_err(|e| JsValue::from_str(&e.to_string()))?
         }
         Err(e) if e.to_string().contains("LT_CAPACITY_FULL") => {
@@ -101,11 +111,20 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     if let Some(response) = crate::events::handle(req, &db, &c.actor_id, &c.request_id).await? {
         return Ok(response);
     }
-    if p.len() == 8 && p[4] == "applications" && p[6] == "email-change" {
+    if (p.len() == 7 || p.len() == 8) && p[4] == "applications" && p[6] == "email-change" {
         if matches!(c.role, Role::Assistant) {
             return error("FORBIDDEN", 403, c);
         }
-        return error("NOT_IMPLEMENTED", 501, c);
+        return crate::email_change::operate(
+            req,
+            &db,
+            p[5],
+            p.get(7).copied().unwrap_or(""),
+            &c.actor_id,
+            &c.request_id,
+            &env.var("APP_ORIGIN")?.to_string(),
+        )
+        .await;
     }
     if req.method() == Method::Put && p.len() == 7 && p[4] == "events" && p[6] == "timetable" {
         return crate::timetable::save(req, &db, p[5], &c.actor_id, &c.request_id).await;

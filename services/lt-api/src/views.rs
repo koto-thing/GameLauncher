@@ -58,6 +58,40 @@ impl Parent {
 /// 引数: DB、保存DTO、運営フラグ
 /// 戻り値: 具体DTOまたは期限エラー
 pub async fn app(db: &D1Database, value: &Value, operator: bool) -> Result<Value> {
+    app_inner(db, value, operator, None).await
+}
+
+/// 本人応答は現在の所有者を再確認してから構成する
+/// 引数: DB、保存DTO、認証メール
+/// 戻り値: 本人DTOまたは所有者変更エラー
+pub async fn owned(db: &D1Database, value: &Value, owner: &str) -> Result<Value> {
+    app_inner(db, value, false, Some(owner)).await
+}
+
+/// 現在ownerと保持期限を同じ応答構成で検査する
+/// 引数: DB、DTO、運営フラグ、任意本人メール
+/// 戻り値: 許可DTO
+async fn app_inner(
+    db: &D1Database,
+    value: &Value,
+    operator: bool,
+    expected_owner: Option<&str>,
+) -> Result<Value> {
+    let mut value = value.clone();
+    let owner = db
+        .prepare("SELECT email FROM lt_applications WHERE id=?1")
+        .bind(&[value["id"].as_str().unwrap().into()])?
+        .all()
+        .await?
+        .results::<Value>()?;
+    if let Some(owner) = owner.first() {
+        if expected_owner.is_some_and(|expected| owner["email"] != expected) {
+            return Err(Error::RustError("LT_OWNER_MOVED".into()));
+        }
+        value["representativeEmail"] = owner["email"].clone();
+    } else if expected_owner.is_some() {
+        return Err(Error::RustError("LT_OWNER_MOVED".into()));
+    }
     Parent::load(
         db,
         value["eventId"]
@@ -65,7 +99,7 @@ pub async fn app(db: &D1Database, value: &Value, operator: bool) -> Result<Value
             .ok_or_else(|| Error::RustError("Invalid application".into()))?,
     )
     .await?
-    .app(value, operator)
+    .app(&value, operator)
     .ok_or_else(|| Error::RustError("LT_RETENTION_EXPIRED".into()))
 }
 

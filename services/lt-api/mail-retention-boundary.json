@@ -38,6 +38,15 @@
     "lt_fake_deliveries": {
       "status": "legacy only, no new delivery writes",
       "expires_unit": "milliseconds"
+    },
+    "lt_email_change_payloads": {
+      "subject": "outbox_id -> business outbox/application; token_hash -> email_change_tokens/request/event",
+      "expires_unit": "linked token milliseconds, <=1h",
+      "job_id": "application:<outbox_id>",
+      "private_fields": [
+        "action_url"
+      ],
+      "delete_order": "payload before token/outbox/request; see email-change-retention-plan.json"
     }
   },
   "auth_cleanup": "token/session expiry independent; never delete another event by email match",

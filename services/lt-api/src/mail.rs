@@ -28,6 +28,7 @@ async fn clock(db: &D1Database) -> Result<Clock> {
 /// 引数: DB、現在ミリ秒
 /// 戻り値: 更新結果
 pub async fn scrub(db: &D1Database, now: f64) -> Result<()> {
+    db.prepare("UPDATE lt_email_change_payloads SET action_url='' WHERE action_url!='' AND token_hash IN(SELECT hash FROM lt_email_change_tokens WHERE expires<=?1 OR used=1)").bind(&[now.into()])?.run().await?;
     db.prepare("UPDATE lt_login_outbox SET action_url='' WHERE expires<=?1 AND action_url!=''")
         .bind(&[now.into()])?
         .run()

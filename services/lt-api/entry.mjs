@@ -22,3 +22,7 @@ if (typeof Api.prototype.test_dispatch === 'function') {
 }
 
 if(typeof Api.prototype.retention_test === "function"){LtOperator.prototype.testRetention=function(input){return Api.prototype.retention_test.call(this,this.env,input);};}
+
+if (typeof Api.prototype.change_mail === 'function') {
+  LtOperator.prototype.testChangeMail = function(email) { return Api.prototype.change_mail.call(this, email, this.env); };
+}

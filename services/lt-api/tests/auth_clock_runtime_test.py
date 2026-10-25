@@ -10,7 +10,7 @@ class AuthClockRuntime(unittest.TestCase):
   clock('2026-10-25T12:00:00.000Z');email=uuid.uuid4().hex+'@example.invalid'
   self.assertEqual(request('/api/lt/v1/auth/email',{'email':email})[0],202);old=mail(email).split('token=')[1]
   self.assertEqual(request('/api/lt/v1/auth/email',{'email':email})[0],202);new=mail(email).split('token=')[1]
-  self.assertNotEqual(old,new);self.assertEqual(request('/api/lt/v1/auth/verify',{'token':old})[0],400)
+  self.assertTrue(old!=new,'resend must rotate token');self.assertEqual(request('/api/lt/v1/auth/verify',{'token':old})[0],400)
   status,session,headers=request('/api/lt/v1/auth/verify',{'token':new});self.assertEqual(status,200);self.assertEqual(session['expiresAt'],'2026-10-26T12:00:00.000Z')
   cookie=headers['Set-Cookie'].split(';')[0]
   # 使用済みリンク由来sessionは再発行で失効しない

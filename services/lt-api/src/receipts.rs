@@ -14,7 +14,7 @@ pub async fn response(
 ) -> Result<Option<Response>> {
     let sql = match kind {
         "applicant" => {
-            "SELECT r.result,r.payload_hash FROM lt_applicant_operations r JOIN lt_applications a ON a.id=r.application_id WHERE r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000)) AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch'))"
+            "SELECT r.result,r.payload_hash FROM lt_applicant_operations r JOIN lt_applications a ON a.id=r.application_id WHERE a.email=r.actor AND r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000)) AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch'))"
         }
         "operator" => {
             "SELECT r.result,r.payload_hash FROM lt_operator_operations r JOIN lt_applications a ON a.id=r.application_id WHERE r.actor=?1 AND r.operation_id=?2 AND (r.expires IS NULL OR r.expires>COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000)) AND (json_extract(a.dto,'$.retentionExpiresAt') IS NULL OR json_extract(a.dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch'))"
@@ -49,7 +49,7 @@ pub async fn response(
     }
     let value: Value = serde_json::from_str(row["result"].as_str().unwrap())?;
     let value = match kind {
-        "applicant" => crate::views::app(db, &value, false).await?,
+        "applicant" => crate::views::owned(db, &value, actor).await?,
         "operator" => crate::views::app(db, &value, true).await?,
         "event" | "cancel" => crate::views::event(db, &value).await?,
         _ => value,
