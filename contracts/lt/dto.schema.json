@@ -610,7 +610,9 @@
                 "INVALID_TRANSITION",
                 "TOKEN_INVALID",
                 "RATE_LIMITED",
-                "RETENTION_EXPIRED"
+                "RETENTION_EXPIRED",
+                "SERVICE_UNAVAILABLE",
+                "NOT_IMPLEMENTED"
               ]
             },
             "requestId": {
@@ -1540,7 +1542,9 @@
         "INVALID_TRANSITION",
         "TOKEN_INVALID",
         "RATE_LIMITED",
-        "RETENTION_EXPIRED"
+        "RETENTION_EXPIRED",
+        "SERVICE_UNAVAILABLE",
+        "NOT_IMPLEMENTED"
       ]
     },
     "NotificationKind": {

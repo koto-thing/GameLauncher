@@ -59,6 +59,8 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(policy["mailAdapter"],"fake")
         self.assertEqual(policy["retentionMode"],"dry-run")
         self.assertEqual(len(policy["notificationKinds"]),7)
+        self.assertIn("SERVICE_UNAVAILABLE", load("dto.schema.json")["$defs"]["ErrorCode"]["enum"])
+        self.assertIn("NOT_IMPLEMENTED", load("dto.schema.json")["$defs"]["ErrorCode"]["enum"])
 
     # 全ルートの入出力を Schema に結び、生成型との不一致を拒否する
     def test_route_schema_type_consistency(self):
