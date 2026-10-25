@@ -104,6 +104,7 @@ async fn replay(
 /// 引数: HTTP、DB、申請ID、操作名、信頼済みactor/request ID、公開origin
 /// 戻り値: current requestまたは契約エラー
 pub async fn operate(
+    env: &Env,
     req: &mut Request,
     db: &D1Database,
     app: &str,
@@ -308,7 +309,7 @@ pub async fn operate(
         );
     }
     if action == "send-verification" {
-        crate::mail::dispatch(db, origin, lt_mail::Outcome::Accepted, 1).await?;
+        crate::mail::dispatch(env, db, origin, lt_mail::Outcome::Accepted, 1).await?;
     }
     // commit直後に別の調査が開始されても、mutation成功としてnullを返さない
     let dto = current(db, app, &request_id).await?;

@@ -136,7 +136,7 @@ pub async fn test_dispatch(
         .var("APP_ORIGIN")
         .map_err(|_| JsValue::from_str("Mail unavailable"))?
         .to_string();
-    crate::mail::dispatch(&db, &origin, outcome, 1)
+    crate::mail::dispatch(&env, &db, &origin, outcome, 1)
         .await
         .map_err(|_| JsValue::from_str("Mail unavailable"))
 }

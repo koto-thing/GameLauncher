@@ -4,6 +4,7 @@ mod applicant;
 mod applicant_dto;
 mod email_change;
 mod events;
+mod gate;
 mod input;
 mod lifecycle;
 mod mail;
@@ -19,6 +20,34 @@ mod views;
 pub use test_hooks::{change_mail, fake_mail, retention_test, set_clock, test_dispatch};
 mod timetable;
 pub use operator::{fake_dispatch, operator_request};
+
+/// 固定時刻の状態更新と最大1件の配送だけを定期実行する
+/// 引数: Cloudflareのscheduled event、環境、実行context
+/// 戻り値: なし。私有情報を含む例外やURLをログに出さない
+#[cfg(feature = "production-api")]
+#[event(scheduled)]
+pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
+    if !crate::gate::private_enabled(&env)
+        || env
+            .var("LT_MAINTENANCE_ENABLED")
+            .map(|v| v.to_string())
+            .unwrap_or_default()
+            != "true"
+    {
+        return;
+    }
+    let result = async {
+        let db = env.d1("DB")?;
+        crate::lifecycle::reconcile(&db).await?;
+        let origin = env.var("APP_ORIGIN")?.to_string();
+        crate::mail::dispatch(&env, &db, &origin, lt_mail::Outcome::Accepted, 1).await?;
+        Ok::<(), Error>(())
+    }
+    .await;
+    if result.is_err() {
+        console_error!("LT maintenance failed");
+    }
+}
 
 mod public_dto;
 

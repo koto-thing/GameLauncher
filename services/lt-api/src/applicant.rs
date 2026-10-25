@@ -93,13 +93,7 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
         return Ok(None);
     }
     // 開発機能を本番 bundle では有効化しない
-    if !cfg!(feature = "local-development")
-        || env
-            .var("LOCAL_AUTH")
-            .map(|v| v.to_string())
-            .unwrap_or_default()
-            != "true"
-    {
+    if !crate::gate::private_enabled(env) {
         return Ok(Some(error("NOT_IMPLEMENTED", 501)?));
     }
     let origin = env.var("APP_ORIGIN")?.to_string();
@@ -156,6 +150,18 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
             return Ok(Some(error("VALIDATION", 422)?));
         }
         let email = v["email"].as_str().unwrap().to_lowercase();
+        // 配備確認中は承認済み宛先以外にtoken/outboxを作らず共通応答を返す
+        if cfg!(feature = "production-api") {
+            let allowed = env
+                .var("LT_MAIL_TEST_RECIPIENT")
+                .map(|v| v.to_string())
+                .unwrap_or_default();
+            if !allowed.is_empty() && email != allowed {
+                return Ok(Some(
+                    Response::from_json(&json!({"accepted":true}))?.with_status(202),
+                ));
+            }
+        }
         let bucket = (now / 3600000.0).floor();
         let rate=db.prepare("INSERT INTO lt_auth_rate VALUES(?1,?2,1) ON CONFLICT(email_hash,bucket) DO UPDATE SET count=count+1 RETURNING count").bind(&[hash(&email).into(),bucket.into()])?.all().await?.results::<Value>()?;
         if rate[0]["count"].as_i64().unwrap_or(99) > 5 {
@@ -174,7 +180,7 @@ pub async fn handle(req: &mut Request, env: &Env) -> Result<Option<Response>> {
         ])
         .await?;
         // 開発fakeも新しい配送engineを通し、未設定なら送らない
-        crate::mail::dispatch(&db, &origin, lt_mail::Outcome::Accepted, 1).await?;
+        crate::mail::dispatch(&env, &db, &origin, lt_mail::Outcome::Accepted, 1).await?;
         return Ok(Some(
             Response::from_json(&json!({"accepted":true}))?.with_status(202),
         ));

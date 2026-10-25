@@ -1,0 +1,49 @@
+{
+  "worker": "pandd-lt-api",
+  "version": "b80f3a36-263a-41c1-940f-ac8340c592e9",
+  "privateApiEnabled": false,
+  "mailMode": "disabled",
+  "events": [
+    {
+      "path": "/api/lt/v1/events",
+      "status": 200,
+      "cpuTimeMs": 17,
+      "wallTimeMs": 518,
+      "outcome": "ok",
+      "scriptVersion": {
+        "id": "b80f3a36-263a-41c1-940f-ac8340c592e9"
+      },
+      "executionModel": "stateless",
+      "eventTimestamp": 1792935813115
+    },
+    {
+      "path": "/api/lt/v1/auth/session",
+      "status": 501,
+      "cpuTimeMs": 22,
+      "wallTimeMs": 24,
+      "outcome": "ok",
+      "scriptVersion": {
+        "id": "b80f3a36-263a-41c1-940f-ac8340c592e9"
+      },
+      "executionModel": "stateless",
+      "eventTimestamp": 1792935814059
+    },
+    {
+      "path": "/api/lt/v1/operator/events",
+      "status": 404,
+      "cpuTimeMs": 8,
+      "wallTimeMs": 9,
+      "outcome": "ok",
+      "scriptVersion": {
+        "id": "b80f3a36-263a-41c1-940f-ac8340c592e9"
+      },
+      "executionModel": "stateless",
+      "eventTimestamp": 1792935814446
+    }
+  ],
+  "free10msGatePassed": false,
+  "publicDomainConnected": false,
+  "mailSent": false,
+  "sampleClassification": "first deployment sequence; isolate cold/warm not instrumented",
+  "comparisonPurpose": "baseline before lifecycle batching and host early rejection"
+}

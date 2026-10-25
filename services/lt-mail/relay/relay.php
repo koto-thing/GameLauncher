@@ -57,8 +57,9 @@ $times[]=time();
 if (file_put_contents($rateFile,json_encode($times),LOCK_EX)===false || file_put_contents($file,json_encode(['hash'=>$hash,'state'=>'uncertain','expires'=>$v['expires']]),LOCK_EX)===false) reply(503,'temporary');
 // 呼出前に結果不明receiptを保存。クラッシュ後の自動再送を防ぐ
 if ($v['expires']<=time()) reply(410,'permanent');
-$subject='LT notification';
-$body="LT会からのお知らせです。\n種別: ".$v['kind']."\n".$url."\nお問い合わせ: panddmail@gmail.com\n";
+$subject=$v['kind']==='emailConfirmation'?'LT会 メールアドレスの確認':'LT会からのお知らせ';
+$subject='=?UTF-8?B?'.base64_encode($subject).'?=';
+$body=$v['kind']==='emailConfirmation'?"LT会サイトのメールアドレス確認です。\n以下の確認リンクは1時間有効です。\n".$url."\n問い合わせ: panddmail@gmail.com\n":"LT会からのお知らせです。\n本人申請画面で状態を確認してください。\n".$url."\n問い合わせ: panddmail@gmail.com\n";
 try {
  $ok=mail($v['recipient'],$subject,$body,['From'=>$c['from'],'Reply-To'=>'panddmail@gmail.com','Content-Type'=>'text/plain; charset=UTF-8']);
 } catch (Throwable $e) { reply(409,'uncertain'); }

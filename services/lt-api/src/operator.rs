@@ -93,7 +93,7 @@ fn error(code: &str, status: u16, c: &OperatorContext) -> Result<Response> {
 /// 戻り値: 運営 DTO または未対応応答
 async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Response> {
     // RPC context だけで本番を有効化せず、開発ビルドにも限定する
-    if !cfg!(feature = "local-development") || env.var("LOCAL_AUTH")?.to_string() != "true" {
+    if !crate::gate::private_enabled(env) {
         return error("NOT_IMPLEMENTED", 501, c);
     }
     if c.actor_id.is_empty() || c.request_id.is_empty() {
@@ -116,6 +116,7 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
             return error("FORBIDDEN", 403, c);
         }
         return crate::email_change::operate(
+            env,
             req,
             &db,
             p[5],
@@ -471,7 +472,7 @@ pub async fn fake_dispatch(env: Env) -> std::result::Result<JsValue, JsValue> {
         .var("APP_ORIGIN")
         .map_err(|_| JsValue::from_str("Mail unavailable"))?
         .to_string();
-    let count = crate::mail::dispatch(&db, &origin, lt_mail::Outcome::Accepted, 50)
+    let count = crate::mail::dispatch(&env, &db, &origin, lt_mail::Outcome::Accepted, 50)
         .await
         .map_err(|_| JsValue::from_str("Mail unavailable"))?;
     Ok(JsValue::from_f64(count as f64))
