@@ -15,8 +15,8 @@
     },
     "default_private_disabled": {
       "index_bg.wasm": {
-        "bytes": 1247973,
-        "gzip_bytes": 413632
+        "bytes": 1252108,
+        "gzip_bytes": 414018
       },
       "index.js": {
         "bytes": 26601,
@@ -27,6 +27,16 @@
       "index_bg.wasm": {
         "bytes": 1251717,
         "gzip_bytes": 414753
+      },
+      "index.js": {
+        "bytes": 26601,
+        "gzip_bytes": 7164
+      }
+    },
+    "local_development": {
+      "index_bg.wasm": {
+        "bytes": 1255856,
+        "gzip_bytes": 415012
       },
       "index.js": {
         "bytes": 26601,

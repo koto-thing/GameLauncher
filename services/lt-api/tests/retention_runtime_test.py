@@ -56,6 +56,13 @@ class RetentionD1(unittest.TestCase):
   ck,em=helper.login();b=helper.payload();b['eventId']=cancelled['id'];self.assertEqual(a.request('/api/lt/v1/applications',b,ck)[0],200);self.assertEqual(op('/events/'+cancelled['id']+'/cancel',mutation(1))[0],200)
   # 生きている孤立sessionは初回削除で残し、後のsweepで期限後に掃除する
   sql("INSERT INTO lt_auth_tokens(hash,email,purpose,expires,session_hash,session_expires) VALUES('"+live+"','"+email+"','login',0,'retention-session-"+suffix+"',1903824001000)")
+  from datetime import datetime,timezone
+  as_instant=lambda ms:datetime.fromtimestamp(ms/1000,timezone.utc).isoformat(timespec='milliseconds').replace('+00:00','Z')
+  clock(as_instant(expiry-1))
+  self.assertEqual(call('/test/retention',{'eventId':normal['id'],'delete':True})[0],409)
+  clock(as_instant(expiry))
+  self.assertEqual(call('/test/retention',{'eventId':normal['id']})[0],200)
+  self.assertEqual(op('/applications/'+app['id'])[0],410)
   clock('2030-05-01T00:00:00.000Z')
   url='/test/retention';payload={'eventId':normal['id']}
   self.assertEqual(call(url,payload)[0],200)
@@ -69,7 +76,7 @@ class RetentionD1(unittest.TestCase):
    self.assertEqual(call(url,payload|{'delete':True,'failAfter':index})[0],409,index)
    self.assertEqual(call(url,{'snapshot':True})[1],before,index)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_applications WHERE event_id='"+normal['id']+"'")[0]['n'],1)
-  status,result=call(url,payload|{'delete':True});self.assertEqual(status,200);self.assertFalse(result['dryRun'])
+  status,result=call(url,payload|{'delete':True});self.assertEqual(status,200);self.assertFalse(result['dryRun']);self.assertEqual(result['statements'],commands)
   self.assertEqual(a.request('/api/lt/v1/events/'+normal['id']+'/talks/'+app['id'])[0],200)
   self.assertEqual(sql("SELECT approval_operation AS marker FROM lt_public_talks WHERE id='"+app['id']+"'")[0]['marker'],'lt-archive:v1')
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_applications WHERE event_id='"+normal['id']+"'")[0]['n'],0)
@@ -78,7 +85,11 @@ class RetentionD1(unittest.TestCase):
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_applications WHERE event_id='"+other['id']+"'")[0]['n'],1)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_auth_tokens WHERE hash='"+live+"'")[0]['n'],1)
   clock('2031-01-01T00:00:00.000Z')
-  self.assertEqual(call(url,payload|{'delete':True})[0],200)
+  before_auth=call(url,{'snapshot':True})[1]
+  for index in range(7):
+   self.assertEqual(call(url,{'authOnly':True,'delete':True,'failAfter':index})[0],409)
+   self.assertEqual(call(url,{'snapshot':True})[1],before_auth,index)
+  self.assertEqual(call(url,{'authOnly':True,'delete':True})[0],200)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_auth_tokens WHERE hash='"+live+"'")[0]['n'],0)
   self.assertEqual(call(url,{'eventId':cancelled['id'],'delete':True})[0],200)
   self.assertEqual(sql("SELECT count(*) AS n FROM lt_public_events WHERE event_id='"+cancelled['id']+"'")[0]['n'],0)

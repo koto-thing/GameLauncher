@@ -7,7 +7,7 @@ preview_urls = false
 [[d1_databases]]
 binding = "DB"
 database_name = "lt-local"
-database_id = "00000000-0000-0000-0000-000000000006"
+database_id = "00000000-0000-0000-0000-000000000046"
 migrations_dir = "migrations"
 [vars]
 LOCAL_AUTH = "true"

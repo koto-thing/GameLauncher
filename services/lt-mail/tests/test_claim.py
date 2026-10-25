@@ -20,6 +20,7 @@ class ClaimTests(unittest.TestCase):
  def test_concurrent_claim(self):
   self.db.execute("UPDATE lt_mail_mode SET mode='fake'")
   self.db.commit()
+  (ROOT/'target').mkdir(exist_ok=True)
   with tempfile.TemporaryDirectory(dir=ROOT/"target") as tmp:
    path=str(Path(tmp)/'mail.sqlite')
    copy=sqlite3.connect(path); self.db.backup(copy); copy.close()

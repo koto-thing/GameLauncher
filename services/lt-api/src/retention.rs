@@ -110,3 +110,63 @@ pub async fn sweep(
     db.batch(commands).await?;
     Ok(json!({"eligible":true,"dryRun":false,"applications":count[0]["n"],"statements":sql.len()}))
 }
+
+/// 開催候補がなくても期限切れ孤立認証を独立して掃除する
+/// 引数: DB、明示delete、途中失敗注入位置
+/// 戻り値: 件数だけ。通常buildからは呼べない
+pub async fn clean_auth(db: &D1Database, delete: bool, fail_after: Option<usize>) -> Result<Value> {
+    let now = crate::lifecycle::now(db).await?;
+    let schema = include_str!("../retention/d1-schema-guard.sql");
+    let valid = db
+        .prepare(format!(
+            "SELECT CASE WHEN {schema} THEN 1 ELSE 0 END AS valid"
+        ))
+        .all()
+        .await?
+        .results::<Value>()?;
+    if valid.first().is_none_or(|v| v["valid"] != 1) {
+        return Err(Error::RustError("LT_RETENTION_GUARD".into()));
+    }
+    if !delete {
+        return Ok(json!({"dryRun":true,"authOnly":true}));
+    }
+    if !cfg!(all(
+        feature = "runtime-tests",
+        feature = "local-development"
+    )) {
+        return Err(Error::RustError("LT_RETENTION_DISABLED".into()));
+    }
+    let run = crate::applicant::secret()?;
+    let mut sql = vec![format!(
+        "INSERT INTO lt_retention_guard SELECT ?1,CASE WHEN {schema} THEN 1 ELSE 0 END,'authentication','authentication'"
+    )];
+    for file in [
+        include_str!("../retention/d1-mail-cleanup.sql"),
+        include_str!("../retention/delete-expired-orphan-auth.sql"),
+        include_str!("../retention/delete-expired-rate.sql"),
+    ] {
+        let text = file
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("--"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        sql.extend(
+            text.split(';')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(|s| s.replace(":now_ms", "?3")),
+        );
+    }
+    sql.push("DELETE FROM lt_retention_guard WHERE id=?1".into());
+    let mut commands = Vec::new();
+    for (index, command) in sql.iter().enumerate() {
+        let params = [run.clone().into(), JsValue::NULL, now.into()];
+        let max = if command.contains("?3") { 3 } else { 1 };
+        commands.push(db.prepare(command.as_str()).bind(&params[..max])?);
+        if fail_after == Some(index) {
+            commands.push(db.prepare("INSERT INTO lt_retention_guard VALUES('failure',0,'authentication','authentication')"));
+        }
+    }
+    db.batch(commands).await?;
+    Ok(json!({"dryRun":false,"authOnly":true,"statements":sql.len()}))
+}

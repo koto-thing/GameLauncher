@@ -167,6 +167,15 @@ pub async fn retention_test(
                 .collect::<Result<Vec<_>>>()?;
             return Ok(serde_json::to_string(&counts)?);
         }
+        if v["authOnly"] == true {
+            return Ok(crate::retention::clean_auth(
+                &db,
+                v["delete"] == true,
+                v["failAfter"].as_u64().map(|n| n as usize),
+            )
+            .await?
+            .to_string());
+        }
         let result = crate::retention::sweep(
             &db,
             v["eventId"]
