@@ -29,8 +29,16 @@ CSRF: 同一オリジン API + credentials:same-origin のみ。ブラウザー�
 独立レビュー対応: /applications/:id を detail API にルーティング、本人詳細と一覧へ戻るを追加。複数発表者の affiliation/profile 保持テスト済み。登壇中止と発表開始終了を追加。時間割/詳細は一覧に存在する開催回の timeZone を使用（一覧外の回は UTC 原文となるため、イベント detail の独立取得が残課題）。cursor の URL 記録と popstate 復元を追加したがブラウザー実証は未完了。開催回選択肢の全ページ取得と要求されたエラー状態のブラウザー試験は未完了。
 
 ## 最新の完了範囲
+
 開催回選択肢は nextCursor がなくなるまで全ページを取得し、同じ cursor の循環はエラーにする。直接発表詳細を開く場合も対象 event detail を独立取得し、timeZone が取得できるまで本文の成功表示へ進まない。取得失敗を UTC 原文へ置き換えない。
 詳細/登壇中止/本人編集/辞退取消/期限切れ/未認証/競合 fixture と結合テストを追加。JST の日付跨ぎ、任意 description の欠落、発表者任意情報の保持を検証。
 最終チェック: vp check --fix、tsc、vp test run（5ファイル14件）、vp build 成功。
 ブラウザー QA は未完了。プロジェクト node_modules の playwright / @playwright/test と通常 ms-playwright cache は存在しないことを読み取り確認。Chrome CDP のタイムアウトを繰り返さず停止。公式 Playwright の専用 context 検証は未実施で、既存通常ブラウザー設定やセッションを変更していない。
 fixture mutation は API の実認証/永続保存を証明しない。PATCH/辞退取消の応答だけをメモリー上で模擬し、一覧再取得時に元データとなる制限がある。backend 結合の前提である。
+
+## 専用 Chrome E2E 最終結果
+
+公式 @playwright/test をプロジェクト開発依存として追加。既存 Chrome を headless の一時 context で起動し、通常プロファイルを使用しない。e2e/flows.spec.ts の route adapter はテスト内で状態と operationId receipt を保持し、再読込をまたいだ申請一覧の更新を確認する。実APIへの送信は route interception により遮断。
+3ケース成功: PC の新規申請→複数発表者→二重クリック保存→編集→再読込→戻る、390px の差し戻し→キーボード Enter 再提出→辞退依頼→取消、期限切れ/401/409/503 のエラー表示。最初の実行では戻る遷移に古いDTOが描画される不具合を検出し、nav/popstateでdataを消す修正後に全成功。
+qa/desktop.png と qa/mobile.png を保存し、実画像を目視。横はみ出し・重なりなし。fixture明示あり。実バックエンド結合・本番cookie/Originの確認は別工程。
+実行: npm exec -- playwright test。vp dev を5180へ自動起動し、テスト終了時に停止する。テストは通常 build へ含めない。

@@ -51,6 +51,7 @@ function App() {
   }, [revision]);
   useEffect(() => {
     const pop = () => {
+      setData(null);
       setCursor(new URLSearchParams(location.search).get("cursor"));
       setPath(location.pathname);
       setEditing(null);
@@ -90,6 +91,7 @@ function App() {
     };
   }, [path, revision, cursor]);
   function nav(p: string) {
+    setData(null);
     setCursor(null);
     history.pushState(null, "", p);
     setPath(p);
@@ -181,7 +183,9 @@ function App() {
             </button>
           </p>
         )}
-        {devFixture && <aside>開発 fixture・架空データ／API 未接続</aside>}
+        {(devFixture || (import.meta.env.DEV && import.meta.env.VITE_LT_QA === "true")) && (
+          <aside>開発 fixture・架空データ／API 未接続</aside>
+        )}
         {error && (
           <div role="alert">
             {error}
