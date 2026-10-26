@@ -44,15 +44,20 @@ fn game_root(path: &Path, game_id: &str) -> Result<Root> {
 ///
 /// 有効なマーカー、存在しない場合は None
 fn active(root: &Root) -> Result<Option<Active>> {
+    // 未作成のマーカーだけを未インストールとして扱う
     let path = root.path(Path::new(".launcher/active.json"))?;
     let input = match fs::File::open(path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.into()),
     };
+
+    // 上限を1バイト超えて読み、過大な入力をデシリアライズ前に拒否する
     let mut bytes = Vec::new();
     input.take(4097).read_to_end(&mut bytes)?;
     ensure!(bytes.len() <= 4096, "active marker exceeds limit");
+
+    // スキーマとバージョンを検証してから有効状態として返す
     let marker: Active = serde_json::from_slice(&bytes)?;
     ensure!(marker.schema_version == 1, "invalid active marker schema");
     schema::version(&marker.version)?;
@@ -89,6 +94,7 @@ fn staging(version: &str, imported: bool) -> Result<PathBuf> {
 ///
 /// 現在版と直前の版を除いた削除対象の相対パス
 fn obsolete_releases(root: &Root, version: &str, previous: Option<&str>) -> Result<Vec<PathBuf>> {
+    // リリース名と実体を検証し、バージョンの降順に並べる
     let mut versions = Vec::new();
     for item in fs::read_dir(root.path(Path::new("releases"))?)? {
         let item = item?;
@@ -214,6 +220,7 @@ fn require_no_backup(root: &Root) -> Result<()> {
 ///
 /// 処理が完了した場合は Ok(())
 pub fn cleanup(path: &Path, game_id: &str) -> Result<()> {
+    // 有効版の実体を確認し、利用中のリリースを保護する
     let root = game_root(path, game_id)?;
     let marker = active(&root)?.context("active marker missing")?;
     ensure!(
@@ -221,6 +228,8 @@ pub fn cleanup(path: &Path, game_id: &str) -> Result<()> {
             .is_dir(),
         "active release missing"
     );
+
+    // 未解決の復旧データがない場合だけ一時データを削除する
     require_no_backup(&root)?;
     root.remove_all(&[".launcher/staging".into(), ".launcher/cache".into()])
 }
@@ -243,6 +252,8 @@ pub fn discard(path: &Path, game_id: &str, version: &str, imported: bool) -> Res
         return Ok(());
     }
     let root = game_root(path, game_id)?;
+
+    // 未解決の復旧データがない場合だけ一時データを削除する
     require_no_backup(&root)?;
     root.remove_all(&[stage])
 }
@@ -253,6 +264,16 @@ mod tests {
     use tempfile::TempDir;
 
     /// 有効化ごとに起動ファイルを持つ独立したテスト用ゲームルートを作成する
+    ///
+    /// # 引数
+    ///
+    /// * `directory` - テスト用の一時ディレクトリ
+    /// * `version` - ステージングに用意するバージョン
+    /// * `content` - 起動ファイルへ書き込む内容
+    ///
+    /// # 戻り値
+    ///
+    /// 作成したゲームルート、ファイル操作に失敗した場合はエラー
     fn prepare(directory: &TempDir, version: &str, content: &[u8]) -> Result<PathBuf> {
         let game = directory.path().join("sample-game");
         let source = game.join(staging(version, false)?).join("release/bin");

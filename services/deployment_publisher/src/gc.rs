@@ -25,6 +25,8 @@ fn plan(objects: &[Value], read: impl Fn(&str) -> Result<Value>, days: u32) -> R
         days >= 7,
         "cleanup grace period must be at least seven days"
     );
+
+    // 配信ツリーをキーで索引化し、最新マニフェストとチャンクを抽出する
     let latest_pattern = Regex::new(
         r"^v1/games/[^/]+/releases/(?:windows|macos|linux)/(?:x86_64|arm64)/latest\.json$",
     )?;
@@ -143,7 +145,10 @@ fn plan(objects: &[Value], read: impl Fn(&str) -> Result<Value>, days: u32) -> R
 ///
 /// 削除対象のキー一覧、dry_run では実際の削除を省略
 pub fn remote(store: &impl ObjectStore, days: u32, dry_run: bool) -> Result<Vec<String>> {
+    // 削除操作に入る前に全対象の保持計画を確定する
     let removed = plan(&store.inventory()?, |key| store.read_json(key), days)?;
+
+    // 試行実行では対象一覧だけを返し、ストレージを変更しない
     if !dry_run {
         for key in &removed {
             check_cancelled()?;
@@ -165,6 +170,7 @@ pub fn remote(store: &impl ObjectStore, days: u32, dry_run: bool) -> Result<Vec<
 ///
 /// 削除対象の絶対パス一覧、dry_run では実際の削除を省略
 pub fn local(output: &Path, days: u32, dry_run: bool) -> Result<Vec<PathBuf>> {
+    // ローカルファイルの更新日時からリモートと同じ形式の一覧を作る
     let storage = pandd_local_storage::Root::new(output)?;
     let root = output.canonicalize()?;
     let mut inventory = Vec::new();
@@ -174,6 +180,8 @@ pub fn local(output: &Path, days: u32, dry_run: bool) -> Result<Vec<PathBuf>> {
             json!({"Key": files::object_key(&path, &root)?, "LastModified": modified.to_rfc3339()}),
         );
     }
+
+    // マニフェストの削除は版全体を対象にし、各ツリーを事前検証する
     let keys = plan(&inventory, |key| files::read_json(&root.join(key)), days)?;
     let mut removed = Vec::new();
     for key in keys {
@@ -187,6 +195,8 @@ pub fn local(output: &Path, days: u32, dry_run: bool) -> Result<Vec<PathBuf>> {
         storage.check_tree(target.strip_prefix(&root)?)?;
         removed.push(target);
     }
+
+    // 試行実行では対象一覧だけを返し、ストレージを変更しない
     if !dry_run {
         check_cancelled()?;
         let relative = removed

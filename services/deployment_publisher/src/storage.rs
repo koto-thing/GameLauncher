@@ -18,6 +18,7 @@ pub trait ObjectStore {
     ///
     /// 存在する場合は整合性メタデータ、存在しない場合は None
     fn head(&self, key: &str) -> Result<Option<Value>>;
+
     /// 指定されたキャッシュ方針でオブジェクトを書き込む
     ///
     /// # 引数
@@ -31,12 +32,14 @@ pub trait ObjectStore {
     ///
     /// 処理が完了した場合は Ok(())
     fn put(&self, key: &str, source: &Path, metadata: &Value, immutable: bool) -> Result<()>;
+
     /// 保持計画に必要な全オブジェクトを列挙する
     ///
     /// # 戻り値
     ///
     /// キーと更新日時を含むオブジェクト一覧
     fn inventory(&self) -> Result<Vec<Value>>;
+
     /// 公開マニフェストを JSON として読み込む
     ///
     /// # 引数
@@ -47,6 +50,7 @@ pub trait ObjectStore {
     ///
     /// 読み込んだ JSON 文書
     fn read_json(&self, key: &str) -> Result<Value>;
+
     /// 整理計画で承認されたオブジェクトを削除する
     ///
     /// # 引数
@@ -133,6 +137,8 @@ impl ObjectStore for AwsStore {
             ]),
             check_cancelled,
         )?;
+
+        // 未検出と認証・通信の失敗を区別し、誤った新規公開を防ぐ
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
             if error.contains("(404)")
@@ -315,6 +321,8 @@ pub fn upload(output: &Path, store: &impl ObjectStore, phase: Phase) -> Result<(
             );
         }
     }
+
+    // 不変オブジェクトだけを転送する段階では公開ポインタを更新しない
     if phase == Phase::Immutable {
         return Ok(());
     }

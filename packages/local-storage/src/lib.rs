@@ -59,6 +59,7 @@ impl Root {
     ///
     /// 検証済みの絶対パスを保持する管理ルート
     pub fn new(path: &Path) -> Result<Self> {
+        // 正規化でリンクの存在が隠れる前に祖先をすべて検証する
         let absolute = std::path::absolute(path)?;
         for ancestor in absolute.ancestors() {
             ensure!(
@@ -83,6 +84,8 @@ impl Root {
     /// 管理ルート内に収まる検証済みの絶対パス
     pub fn path(&self, relative: &Path) -> Result<PathBuf> {
         ensure!(!relative.as_os_str().is_empty(), "empty managed path");
+
+        // 相対パスを一要素ずつ解決し、既存のリンクを拒否する
         let mut result = self.path.clone();
         for component in relative.components() {
             let Component::Normal(name) = component else {
@@ -95,6 +98,8 @@ impl Root {
             result.push(name);
             checked_metadata(&result)?;
         }
+
+        // 管理ルート自身とルート外のパスを操作対象から除外する
         ensure!(
             result != self.path && result.starts_with(&self.path),
             "managed path escapes root"
@@ -267,6 +272,7 @@ impl Root {
 ///
 /// 処理が完了した場合は Ok(())
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    // 親ディレクトリと保存先を検証し、リンクやディレクトリへの書込を拒否する
     let parent = path.parent().context("missing parent")?;
     let root = Root::new(parent)?;
     let path = root.path(Path::new(path.file_name().context("missing filename")?))?;

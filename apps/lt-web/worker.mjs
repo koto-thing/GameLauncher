@@ -1,5 +1,12 @@
 // 静的assetはCloudflareから直接配信し、同一ホストのAPIだけRustへ渡す
 export default {
+  /**
+   * 静的配信と公開 API を振り分け、内部運営経路を遮断する
+   *
+   * @param request ブラウザーからのリクエスト
+   * @param env 静的配信・公開 API のバインディングと申請機能の設定
+   * @returns 静的コンテンツ、API 応答、または公開用エラー応答
+   */
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
     if (!path.startsWith("/api/lt/")) return env.ASSETS.fetch(request);
@@ -9,6 +16,8 @@ export default {
         { status: 404, headers: { "Cache-Control": "no-store" } },
       );
     }
+
+    // 閲覧専用設定では公開一覧と詳細の GET だけを許可する
     const applicationsEnabled = env.LT_APPLICATIONS_ENABLED === "true";
     const publicRead =
       request.method === "GET" &&
@@ -20,6 +29,8 @@ export default {
         { status: 501, headers: { "Cache-Control": "no-store" } },
       );
     }
+
+    // 公開 API への転送失敗は内部情報を含まない応答へ変換する
     try {
       if (!env.LT_PUBLIC) throw Error("Unavailable");
       // ブラウザー由来のactor/role/Authorizationを内部境界へ運ばない
@@ -29,6 +40,8 @@ export default {
           const value = request.headers.get(name);
           if (value) headers.set(name, value);
         }
+
+      // サーバー障害の本文を外部へ公開せず、契約のエラー形式にそろえる
       const response = await env.LT_PUBLIC.fetch(new Request(request, { headers }));
       if (response.status < 500) return response;
       const code = response.status === 501 ? "NOT_IMPLEMENTED" : "SERVICE_UNAVAILABLE";
