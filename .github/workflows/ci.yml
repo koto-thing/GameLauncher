@@ -2,6 +2,12 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      installer-compression:
+        description: Qt IFW compression for measurement (production releases are unchanged)
+        type: choice
+        options: ['5', '1']
+        default: '5'
   pull_request:
   push:
     branches: [master]
@@ -11,6 +17,8 @@ permissions:
 
 env:
   VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg-binary-cache,readwrite
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 300M
   PANDD_CUBISM_LICENSE_ACCEPTED: ${{ vars.PANDD_CUBISM_LICENSE_ACCEPTED }}
 
 concurrency:
@@ -101,7 +109,7 @@ jobs:
         run: echo "contents=$CACHE_CONTENTS" >> "$GITHUB_OUTPUT"
       - uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
       - name: Install quality tools
-        run: sudo apt-get update && sudo apt-get install -y doxygen clang-tidy-20 libgl1-mesa-dev libglu1-mesa-dev
+        run: sudo apt-get update && sudo apt-get install -y ccache doxygen clang-tidy-20 libgl1-mesa-dev libglu1-mesa-dev
       - name: Download official Cubism SDK
         shell: pwsh
         run: |
@@ -111,9 +119,24 @@ jobs:
           "PANDD_CUBISM_SDK_ROOT=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Install launcher Rust toolchain
         run: rustup toolchain install 1.94.1 --profile minimal
+      - name: Cache launcher Rust dependencies
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          shared-key: launcher-debug-${{ steps.compiler.outputs.key }}-${{ hashFiles('cmake/Rust.cmake') }}
+          workspaces: . -> build/rust/Debug
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - name: Restore Linux compiler cache
+        if: runner.os == 'Linux'
+        id: ccache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ steps.compiler.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ccache-${{ runner.os }}-${{ runner.arch }}-${{ steps.compiler.outputs.key }}-
       - name: Configure
         shell: pwsh
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DPANDD_ENABLE_CLANG_TIDY=ON -DCLANG_TIDY_EXECUTABLE=/usr/bin/clang-tidy-20 "-DPANDD_CUBISM_SDK_ROOT=$env:PANDD_CUBISM_SDK_ROOT" "-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DPANDD_ENABLE_CLANG_TIDY=ON -DCLANG_TIDY_EXECUTABLE=/usr/bin/clang-tidy-20 "-DPANDD_CUBISM_SDK_ROOT=$env:PANDD_CUBISM_SDK_ROOT" "-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
       # Save immediately after dependency construction, even if later tests fail
       - name: Save completed vcpkg packages
         if: github.ref == 'refs/heads/master' && hashFiles('.vcpkg-binary-cache/**/*.zip') != '' && hashFiles('.vcpkg-binary-cache/**/*.zip') != steps.vcpkg-before.outputs.contents
@@ -123,6 +146,18 @@ jobs:
           key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
       - name: Build
         run: cmake --build build --parallel
+      - name: Report Linux compiler cache hits
+        if: always() && runner.os == 'Linux'
+        run: ccache --show-stats
+      - name: Save Linux compiler cache
+        if: runner.os == 'Linux' && github.ref == 'refs/heads/master'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ccache
+          key: ${{ steps.ccache.outputs.cache-primary-key }}
+      - name: Use a physical macOS temporary directory
+        if: runner.os == 'macOS'
+        run: python -c "import os; print('TMPDIR=' + os.path.realpath(os.environ['TMPDIR']), file=open(os.environ['GITHUB_ENV'], 'a'))"
       - name: Test
         run: ctest --test-dir build --output-on-failure --timeout 30
       - name: Check formatting
@@ -203,7 +238,7 @@ jobs:
       - uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
       - name: Install Linux quality tools
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y doxygen clang-tidy-20 libgl1-mesa-dev libglu1-mesa-dev
+        run: sudo apt-get update && sudo apt-get install -y ccache doxygen clang-tidy-20 libgl1-mesa-dev libglu1-mesa-dev
       - name: Download official Cubism SDK
         shell: pwsh
         run: |
@@ -213,12 +248,29 @@ jobs:
           "PANDD_CUBISM_SDK_ROOT=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Install launcher Rust toolchain
         run: rustup toolchain install 1.94.1 --profile minimal
+      - name: Cache launcher Rust dependencies
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          shared-key: launcher-debug-${{ steps.compiler.outputs.key }}-${{ hashFiles('cmake/Rust.cmake') }}
+          workspaces: . -> build/rust/Debug
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - name: Restore Linux compiler cache
+        if: runner.os == 'Linux'
+        id: ccache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ steps.compiler.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ccache-${{ runner.os }}-${{ runner.arch }}-${{ steps.compiler.outputs.key }}-
       - name: Configure
         shell: pwsh
         run: |
           $qualityArguments = @()
           if ('${{ matrix.clang_tidy }}' -eq 'ON') {
             $qualityArguments += '-DCLANG_TIDY_EXECUTABLE=/usr/bin/clang-tidy-20'
+            $qualityArguments += '-DCMAKE_C_COMPILER_LAUNCHER=ccache'
+            $qualityArguments += '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache'
           }
 
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DPANDD_ENABLE_CLANG_TIDY=${{ matrix.clang_tidy }} @qualityArguments "-DPANDD_CUBISM_SDK_ROOT=$env:PANDD_CUBISM_SDK_ROOT" "-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
@@ -231,6 +283,18 @@ jobs:
           key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
       - name: Build
         run: cmake --build build --parallel
+      - name: Report Linux compiler cache hits
+        if: always() && runner.os == 'Linux'
+        run: ccache --show-stats
+      - name: Save Linux compiler cache
+        if: runner.os == 'Linux' && github.ref == 'refs/heads/master'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ccache
+          key: ${{ steps.ccache.outputs.cache-primary-key }}
+      - name: Use a physical macOS temporary directory
+        if: runner.os == 'macOS'
+        run: python -c "import os; print('TMPDIR=' + os.path.realpath(os.environ['TMPDIR']), file=open(os.environ['GITHUB_ENV'], 'a'))"
       - name: Test
         run: ctest --test-dir build --output-on-failure --timeout 30
       - name: Check formatting
@@ -250,7 +314,7 @@ jobs:
         run: python -m scripts.release.collect_licenses --output staging/licenses
       - name: Run local Qt IFW installer E2E
         if: github.event_name != 'pull_request'
-        run: python -m apps.launcher.installer.e2e --install-tree staging --output ifw-e2e --version 1.0.0
+        run: python -m apps.launcher.installer.e2e --install-tree staging --output ifw-e2e --version 1.0.0 --compression ${{ inputs.installer-compression || '5' }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: github.event_name != 'pull_request'
         with:
@@ -270,10 +334,18 @@ jobs:
           python-version: '3.13'
       - name: Install pinned Python contract validators
         run: python -m pip install --requirement packages/contracts/requirements.txt
+      - name: Install Publisher Rust toolchain
+        run: rustup toolchain install 1.94.1 --profile minimal
+      - name: Cache Publisher Rust dependencies
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          shared-key: publisher
+          workspaces: . -> target
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/master' }}
       - name: Build Rust Publisher
         shell: bash
         run: |
-          rustup toolchain install 1.94.1 --profile minimal
           cargo +1.94.1 build --release --locked --manifest-path services/deployment_publisher/Cargo.toml
           echo "$GITHUB_WORKSPACE/target/release" >> "$GITHUB_PATH"
       - name: Shared Rust workspace checks

@@ -12,6 +12,7 @@ import tempfile
 import time
 
 from apps.launcher.installer.build import build_installer
+from apps.launcher.installer.timing import phase
 
 
 def platform_executable(base: Path) -> Path:
@@ -52,8 +53,9 @@ def dedicated_uninstaller(root: Path) -> Path:
 
 def run_checked(arguments: list[os.PathLike[str] | str], environment: dict[str, str]) -> None:
     """Run one bounded E2E process and preserve its output on failure."""
-    subprocess.run([str(value) for value in arguments], check=True, env=environment,
-                   timeout=300)
+    with phase(Path(arguments[0]).name):
+        subprocess.run([str(value) for value in arguments], check=True, env=environment,
+                       timeout=300)
 
 
 def main() -> int:
@@ -64,13 +66,15 @@ def main() -> int:
     parser.add_argument("--install-tree", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--version", required=True)
+    parser.add_argument("--compression", type=int, choices=(0, 1, 3, 5, 7, 9))
     arguments = parser.parse_args()
 
     # Build the local online installer and resolve its platform output
     output = arguments.output.resolve()
     repository_url = (output / "repository").as_uri()
     installer_base = build_installer(arguments.ifw_root, arguments.install_tree.resolve(),
-                                     output, arguments.version, repository_url)
+                                     output, arguments.version, repository_url,
+                                     compression=arguments.compression)
     installer = platform_executable(installer_base)
     if not installer.exists():
         raise FileNotFoundError(f"binarycreator did not produce {installer}")

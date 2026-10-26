@@ -4,12 +4,13 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
+const prepared = process.argv.includes("--prepared");
 let server;
 try {
   if (process.argv[2] === "test") {
     await import("./build-harness.mjs");
     if (process.env.MUSIC_E2E_EXTERNAL !== "true") {
-      server = fork("scripts/local-control.mjs", [], {
+      server = fork("scripts/local-control.mjs", prepared ? ["--prepared"] : [], {
         env: { ...process.env, MUSIC_E2E: "true" },
         stdio: ["ignore", "inherit", "inherit", "ipc"],
         windowsHide: true,
@@ -26,7 +27,7 @@ try {
   }
   const child = spawn(
     process.execPath,
-    [require.resolve("@playwright/test/cli"), ...process.argv.slice(2)],
+    [require.resolve("@playwright/test/cli"), ...process.argv.slice(2).filter(/** @brief Keep the preparation flag out of Playwright arguments */ (argument) => argument !== "--prepared")],
     {
       stdio: "inherit",
       windowsHide: true,

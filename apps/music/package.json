@@ -24,7 +24,12 @@
     "predev": "npm --prefix ../admin-web run rust:build",
     "pretest": "npm --prefix ../admin-web run rust:build",
     "pretest:e2e": "npm --prefix ../admin-web run rust:build",
-    "pretest:public": "npm --prefix ../admin-web run rust:build"
+    "pretest:public": "npm --prefix ../admin-web run rust:build",
+    "ci:prepare": "npm --prefix ../admin-web run build && npm run build && node scripts/check-prepared.mjs",
+    "ci:check": "node scripts/check-prepared.mjs && npm run typecheck && npm run lint && node --import tsx --test tests/unit/*.test.ts tests/integration/*.test.ts",
+    "ci:e2e": "node scripts/check-prepared.mjs && node scripts/e2e.mjs test --prepared",
+    "ci:public": "node scripts/check-prepared.mjs && node scripts/public-test.mjs",
+    "ci:package": "node scripts/check-prepared.mjs && node scripts/package-rental.mjs"
   },
   "dependencies": {
     "react": "19.2.8",
