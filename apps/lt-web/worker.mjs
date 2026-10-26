@@ -9,14 +9,26 @@ export default {
         { status: 404, headers: { "Cache-Control": "no-store" } },
       );
     }
+    const applicationsEnabled = env.LT_APPLICATIONS_ENABLED === "true";
+    const publicRead =
+      request.method === "GET" &&
+      /^\/api\/lt\/v1\/events(?:\/[^/]+(?:\/talks\/[^/]+)?)?$/.test(path);
+    // 閲覧専用時は本人経路や書込みをRustへ渡さず、tokenやoutboxを作らない
+    if (!applicationsEnabled && !publicRead) {
+      return Response.json(
+        { error: { code: "NOT_IMPLEMENTED", requestId: crypto.randomUUID() } },
+        { status: 501, headers: { "Cache-Control": "no-store" } },
+      );
+    }
     try {
       if (!env.LT_PUBLIC) throw Error("Unavailable");
       // ブラウザー由来のactor/role/Authorizationを内部境界へ運ばない
       const headers = new Headers();
-      for (const name of ["content-type", "origin", "cookie", "x-lt-csrf"]) {
-        const value = request.headers.get(name);
-        if (value) headers.set(name, value);
-      }
+      if (applicationsEnabled)
+        for (const name of ["content-type", "origin", "cookie", "x-lt-csrf"]) {
+          const value = request.headers.get(name);
+          if (value) headers.set(name, value);
+        }
       const response = await env.LT_PUBLIC.fetch(new Request(request, { headers }));
       if (response.status < 500) return response;
       const code = response.status === 501 ? "NOT_IMPLEMENTED" : "SERVICE_UNAVAILABLE";

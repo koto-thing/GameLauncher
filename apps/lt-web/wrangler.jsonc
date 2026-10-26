@@ -4,6 +4,7 @@
   "compatibility_date": "2026-10-25",
   "workers_dev": true,
   "preview_urls": false,
+  "vars": { "LT_APPLICATIONS_ENABLED": "false" },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

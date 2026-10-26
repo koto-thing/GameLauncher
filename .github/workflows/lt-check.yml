@@ -65,6 +65,7 @@ jobs:
           node --test worker.test.mjs
           node ../../services/lt-api/node_modules/wrangler/bin/wrangler.js deploy --dry-run --config wrangler.jsonc --outdir .wrangler/ci-public-dry-run
           npx --no-install playwright test
+          npx --no-install playwright test --config playwright.readonly.config.ts
       - name: Build local Worker with test hooks
         working-directory: services/lt-api
         run: .tools/bin/worker-build --release . --features local-development,runtime-tests
