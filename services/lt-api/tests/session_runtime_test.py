@@ -5,7 +5,7 @@ import hashlib, json, os, subprocess, tempfile, time, urllib.request, urllib.err
 ROOT = Path(__file__).resolve().parents[1]
 CLI = os.environ.get('LT_WRANGLER_CLI', str(ROOT.parents[1] / 'apps/admin-web/node_modules/wrangler/bin/wrangler.js'))
 STATE = Path(tempfile.mkdtemp(prefix='lt-session-test-'))
-ENV = dict(os.environ, WRANGLER_SEND_METRICS='false', WRANGLER_LOG_PATH=str(STATE/'logs'))
+ENV = dict(os.environ, WRANGLER_SEND_METRICS='false', WRANGLER_LOG_PATH=str(STATE/'logs'), WRANGLER_REGISTRY_PATH=str(STATE/'registry'))
 CONFIG = 'tests/production-gate.toml'
 PROCESSES = []
 STREAMS = []
@@ -17,7 +17,7 @@ def cli(args):
     return result.stdout
 
 # 本番と同じ型のHTTP要求をローカルWorkerへ送る
-def request(path, data=None, method=None, operator=False, cookie=None):
+def request(path, data=None, method=None, operator=False, cookie=None, status=200):
     headers = {'Content-Type':'application/json', 'Origin':'https://example.invalid', 'X-LT-CSRF':'1'}
     if cookie: headers['Cookie'] = cookie
     req = urllib.request.Request(f'http://127.0.0.1:{18988 if operator else 18987}/api/lt/v1' + path, data=None if data is None else json.dumps(data).encode(), headers=headers, method=method)
@@ -25,7 +25,7 @@ def request(path, data=None, method=None, operator=False, cookie=None):
     except urllib.error.HTTPError as error: response = error
     with response:
         value = json.loads(response.read())
-        assert response.status == 200, (path, response.status, value)
+        assert response.status == status, (path, response.status, value)
         return value
 
 try:
@@ -64,11 +64,24 @@ try:
     published = request('/events/'+event['id']+'/talks/'+app['id'])
     assert published['session']==metadata and published['speakers']==[speaker]
     assert 'representativeEmail' not in published and 'materialUrl' not in published
-    print('PASS: submit, edit, reload, approve and public metadata/link round trip (local only, mail disabled)')
+    # メール・資料・追加情報がない手動受付済み発表と同じ状態を再現する
+    sql.write_text("UPDATE lt_applications SET registration_source='manual',email='',dto=json_set(json_remove(dto,'$.content.session','$.content.speakers[0].links','$.published.session','$.published.speakers[0].links'),'$.representativeEmail','','$.materialUrl','') WHERE id='"+app['id']+"'; UPDATE lt_public_talks SET dto=(SELECT json_extract(dto,'$.published') FROM lt_applications WHERE id='"+app['id']+"') WHERE id='"+app['id']+"';",encoding='utf-8')
+    cli(['d1','execute','lt-production-gate-local','--local','--config',CONFIG,'--persist-to',str(STATE/'state'),'--file',str(sql)])
+    metadata['difficulty']='easy'
+    edit={'expectedVersion':app['version'],'operationId':uuid.uuid4().hex,'data':{'session':metadata,'speakerLinks':[[{'label':'GitHub','url':'https://github.com/example'}]]}}
+    path='/operator/applications/'+app['id']+'/metadata'
+    saved=request(path,edit,operator=True)
+    assert saved['representativeEmail']=='' and saved['materialUrl']=='' and saved['review']=='approved'
+    assert saved['content']['session']==metadata and saved['published']['session']==metadata
+    assert request(path,edit,operator=True)['version']==saved['version']
+    request(path,edit|{'operationId':uuid.uuid4().hex},operator=True,status=409)
+    request(path,edit|{'expectedVersion':saved['version'],'operationId':uuid.uuid4().hex,'data':{'session':metadata,'speakerLinks':[[{'label':'Bad','url':'javascript:alert(1)'}]]}},operator=True,status=422)
+    public=request('/events/'+event['id']+'/talks/'+app['id'])
+    assert public['session']==metadata and public['speakers'][0]['links']==edit['data']['speakerLinks'][0]
+    assert public['startsAt']==published['startsAt'] and public['title']==published['title']
+    print('PASS: application round trip; manual approved metadata edit, publication, retry, version conflict, unsafe URL rejection')
 finally:
     for process in reversed(PROCESSES):
         if os.name=='nt': subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=subprocess.CREATE_NO_WINDOW)
         else: process.terminate()
     for stream in STREAMS: stream.close()
-
-

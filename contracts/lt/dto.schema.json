@@ -2328,6 +2328,141 @@
       "required": [
         "token"
       ]
+    },
+    "OperatorMetadataInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ],
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "session",
+            "speakerLinks"
+          ],
+          "properties": {
+            "session": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "enum": [
+                    "programming",
+                    "sound",
+                    "graphics"
+                  ]
+                },
+                "relatedFields": {
+                  "type": "array",
+                  "maxItems": 7,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "ENG",
+                      "PRD",
+                      "VA",
+                      "GD",
+                      "SND",
+                      "BP",
+                      "AC"
+                    ]
+                  }
+                },
+                "keywords": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "platforms": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "difficulty": {
+                  "type": "string",
+                  "enum": [
+                    "easy",
+                    "normal",
+                    "hard"
+                  ]
+                },
+                "prerequisites": {
+                  "type": "string",
+                  "maxLength": 3000
+                },
+                "takeaways": {
+                  "type": "string",
+                  "maxLength": 3000
+                }
+              },
+              "required": [
+                "field",
+                "relatedFields",
+                "keywords",
+                "platforms",
+                "difficulty",
+                "prerequisites",
+                "takeaways"
+              ]
+            },
+            "speakerLinks": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    },
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2048,
+                      "format": "uri",
+                      "pattern": "^https?://[^/@?#\\s]+(?:[/?#]|$)"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "url"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

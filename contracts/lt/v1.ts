@@ -49,3 +49,4 @@ export type NotificationOutbox = { id: string; operationId: string; applicationI
 export type AuditEntry = { id: string; operationId: string; action: string; actorId: string; occurredAt: string; expiresAt: string };
 export type EmailChangeStatus = EmailChangeRequest | null;
 export type EmailChangeVerificationInput = { token: string };
+export type OperatorMetadataInput = { expectedVersion: number; operationId: string; data: { session: { field: "programming" | "sound" | "graphics"; relatedFields: Array<"ENG" | "PRD" | "VA" | "GD" | "SND" | "BP" | "AC">; keywords: Array<string>; platforms: Array<string>; difficulty: "easy" | "normal" | "hard"; prerequisites: string; takeaways: string }; speakerLinks: Array<Array<{ label: string; url: string }>> } };

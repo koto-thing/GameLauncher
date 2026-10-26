@@ -136,6 +136,10 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     if req.method() == Method::Post && p.len() == 7 && p[4] == "events" && p[6] == "cancel" {
         return crate::operations::cancel(req, &db, p[5], &c.actor_id, &c.request_id).await;
     }
+    if req.method() == Method::Post && p.len() == 7 && p[4] == "applications" && p[6] == "metadata"
+    {
+        return crate::operator_metadata::save(req, &db, p[5], &c.actor_id, &c.request_id).await;
+    }
     if req.method() == Method::Get && p.len() == 6 && p[4] == "applications" {
         let rows = db
             .prepare("SELECT dto,operator_note FROM lt_applications WHERE id=?1")
