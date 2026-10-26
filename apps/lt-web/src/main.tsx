@@ -162,7 +162,7 @@ function App() {
   }
   return (
     <>
-      <header>
+      <header className="applicant-header">
         <a
           href="/"
           onClick={(e) => {
@@ -176,17 +176,17 @@ function App() {
           <button onClick={() => nav("/")}>開催回</button>
           {applicationsAvailable && (
             <>
-              <button onClick={() => nav("/applications")}>本人申請</button>
+              <button onClick={() => nav("/applications")}>申請一覧</button>
               <button onClick={() => nav("/login")}>メール確認</button>
             </>
           )}
         </nav>
       </header>
-      <main>
+      <main className="applicant-main">
         {!applicationsAvailable && isPublicPage(path) && <p role="status">{unavailableMessage}</p>}
         {session && (
-          <p>
-            セッション期限: {session}
+          <p className="account-status">
+            メール認証済み
             <button
               disabled={busy}
               onClick={() =>

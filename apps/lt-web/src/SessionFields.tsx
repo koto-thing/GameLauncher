@@ -60,8 +60,8 @@ export function SessionFields({ value }: { value?: Session }) {
   return (
     <fieldset className="session-form-fields">
       <legend>発表の情報</legend>
-      <p className="muted">承認後、発表詳細ページに公開されます。</p>
-      <label>
+
+      <label className="required-field">
         分野
         <select name="field" required defaultValue={value?.field ?? ""}>
           <option value="">選択してください</option>
@@ -73,7 +73,7 @@ export function SessionFields({ value }: { value?: Session }) {
         </select>
       </label>
       <fieldset className="related-field-options">
-        <legend>関連分野（複数選択可・任意）</legend>
+        <legend>関連分野</legend>
         {Object.entries(relatedFields).map(([key, label]) => (
           <label key={key}>
             <input
@@ -87,26 +87,25 @@ export function SessionFields({ value }: { value?: Session }) {
         ))}
       </fieldset>
       <label>
-        キーワード（任意）
+        キーワード
         <textarea
           name="keywords"
           defaultValue={value?.keywords.join("、")}
-          placeholder="例：Unity、シェーダー、チーム開発"
+          placeholder="Unity、シェーダー、チーム開発など"
           maxLength={420}
         />
-        <small>カンマ・読点・改行で区切って10個まで。1個40文字以内。</small>
+        <small>カンマ区切りで10個まで</small>
       </label>
       <label>
-        対象プラットフォーム（任意）
+        対象プラットフォーム
         <textarea
           name="platforms"
           defaultValue={value?.platforms.join("、")}
-          placeholder="例：PC、Web、Android、iOS、プラットフォーム不問"
+          placeholder="PC、Web、Androidなど"
           maxLength={620}
         />
-        <small>自由に入力できます。区切り方はキーワードと同じです。10個まで、1個60文字以内。</small>
       </label>
-      <label>
+      <label className="required-field">
         難易度
         <select name="difficulty" required defaultValue={value?.difficulty ?? ""}>
           <option value="">選択してください</option>
@@ -118,21 +117,21 @@ export function SessionFields({ value }: { value?: Session }) {
         </select>
       </label>
       <label>
-        求められるスキル（任意）
+        求められるスキル
         <textarea
           name="prerequisites"
           maxLength={3000}
           defaultValue={value?.prerequisites}
-          placeholder="例：前提知識は不要です。Unityに触れたことがあると理解しやすい内容です。"
+          placeholder="前提知識なし、Unityの基本操作など"
         />
       </label>
       <label>
-        得られる知見（任意）
+        得られる知見
         <textarea
           name="takeaways"
           maxLength={3000}
           defaultValue={value?.takeaways}
-          placeholder="例：デバッグの考え方と、実際に使えるログ表示の作り方が分かります。"
+          placeholder="発表を聞いて分かること・できるようになること"
         />
       </label>
     </fieldset>
