@@ -87,9 +87,9 @@ export function LtManager() {
     {creating ? <div key="create" className="lt-panel"><button onClick={() => setCreating(false)}>作成を中断</button><h2>開催回を作成</h2><EventForm value={{ id: "", version: 1, state: "scheduled", publishEnabled: false, title: "", venue: "", guidance: "", startsAt: "", timeZone: "", opensAt: "", closesAt: "", capacity: 20, talkMinutes: 10, transitionMinutes: 1 }} onSave={data => { const body = { ...data, operationId: crypto.randomUUID() }; void run(async () => { const created = await api<EventSettings>("/events", "POST", body); await loadEvents(); await open(created); setCreating(false); }); }} /></div> : selected ? <div key="application" className="lt-panel lt-review">
       <button onClick={() => { setSelected(null); setNote(""); setStartsAt(""); }}>申請一覧に戻る</button>
       <h2>{selected.content.title}</h2><p>審査: {selected.review} / 辞退: {selected.withdrawal}</p>
-      <p>代表者メール: {selected.representativeEmail}</p><h3>申請原稿</h3><p style={{ whiteSpace: "pre-wrap" }}>{selected.content.abstract}</p><p>{selected.content.description}</p>
+      <p>代表者メール: {selected.representativeEmail || "未登録（手動受付）"}</p><h3>申請原稿</h3><p style={{ whiteSpace: "pre-wrap" }}>{selected.content.abstract}</p><p>{selected.content.description}</p>
       <p>{selected.content.speakers.map(speaker => speaker.displayName).join("、")}</p>
-      {/^(https?):\/\//i.test(selected.materialUrl) ? <a href={selected.materialUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">資料を確認</a> : <p>資料URLを確認できません</p>}
+      {/^(https?):\/\//i.test(selected.materialUrl) ? <a href={selected.materialUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">資料を確認</a> : <p>資料未提出</p>}
       <h3>公開版</h3>{selected.published ? <><p>{selected.published.title}</p><p>{selected.published.abstract}</p><p>{selected.published.startsAt}</p></> : <p>未公開</p>}
       <label>運営メモ<textarea value={note} onInput={e => setNote(e.currentTarget.value)} /></label>
       <label>発表開始日時<input type="datetime-local" value={startsAt} onInput={e => setStartsAt(e.currentTarget.value)} /></label>

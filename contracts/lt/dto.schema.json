@@ -295,13 +295,29 @@
           ]
         },
         "materialUrl": {
-          "type": "string",
-          "format": "uri",
-          "pattern": "^https?://"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://"
+            },
+            {
+              "const": ""
+            }
+          ],
+          "description": "資料未提出の場合は空文字"
         },
         "representativeEmail": {
-          "type": "string",
-          "format": "email"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "email"
+            },
+            {
+              "const": ""
+            }
+          ],
+          "description": "手動受付でメール未登録の場合は空文字"
         },
         "review": {
           "enum": [
@@ -458,13 +474,29 @@
           ]
         },
         "materialUrl": {
-          "type": "string",
-          "format": "uri",
-          "pattern": "^https?://"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://"
+            },
+            {
+              "const": ""
+            }
+          ],
+          "description": "資料未提出の場合は空文字"
         },
         "representativeEmail": {
-          "type": "string",
-          "format": "email"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "email"
+            },
+            {
+              "const": ""
+            }
+          ],
+          "description": "手動受付でメール未登録の場合は空文字"
         },
         "review": {
           "enum": [
