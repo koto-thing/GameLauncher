@@ -524,15 +524,6 @@ export function PublicSite() {
           </button>
         )}
       </main>
-      <footer className="footer">
-        <div className="container foot">
-          <div>
-            <strong>PandD LT</strong>
-            <span>開催案内・公開発表</span>
-          </div>
-          <a href="mailto:panddmail@gmail.com">panddmail@gmail.com</a>
-        </div>
-      </footer>
     </div>
   );
 }

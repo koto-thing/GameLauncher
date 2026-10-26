@@ -1,3 +1,4 @@
+import { LegalPage, SiteFooter } from "./LegalPage";
 import { EmailChange } from "./EmailChange";
 import { PublicSite } from "./PublicSite";
 import { StrictMode, useEffect, useState } from "react";
@@ -427,12 +428,15 @@ function App() {
 }
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {!applicationsAvailable || isPublicPage(location.pathname) ? (
+    {location.pathname === "/privacy" || location.pathname === "/disclaimer" ? (
+      <LegalPage privacy={location.pathname === "/privacy"} />
+    ) : !applicationsAvailable || isPublicPage(location.pathname) ? (
       <PublicSite />
     ) : location.pathname === "/auth/email-change" ? (
       <EmailChange />
     ) : (
       <App />
     )}
+    <SiteFooter />
   </StrictMode>,
 );

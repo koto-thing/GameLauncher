@@ -442,30 +442,6 @@
 .public-site .pagination {
   margin-top: 20px;
 }
-.public-site .footer {
-  background: white;
-  color: var(--muted);
-  margin-top: 35px;
-  padding: 24px 0;
-  border-top: 1px solid var(--border);
-  font-size: 12px;
-}
-.public-site .foot {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  align-items: center;
-}
-.public-site .footer strong {
-  color: var(--ink);
-  margin-right: 14px;
-}
-.public-site .footer span {
-  font-size: 11px;
-}
-.public-site .footer a {
-  color: #a32948;
-}
 @media (max-width: 1050px) {
   .public-site .container,
   .public-site main.public-main {
@@ -987,10 +963,47 @@
 }
 
 /* 分野は文字ラベルと色を併用して判別できるようにする */
-.public-site .field-programming { --field-ink: #17579b; --field-bg: #eaf3ff; --field-line: #2370bc; }
-.public-site .field-sound { --field-ink: #7850a6; --field-bg: #f4edfc; --field-line: #9160be; }
-.public-site .field-graphics { --field-ink: #176749; --field-bg: #e7f6ee; --field-line: #2b936b; }
-.public-site .field-unset { --field-ink: #5c5860; --field-bg: #f1eff2; --field-line: #98919c; }
-.public-site .program-field { display: inline-flex; align-items: center; background: var(--field-bg); color: var(--field-ink); border: 1px solid var(--field-line); border-radius: 5px; padding: 4px 10px; font-size: 13px; font-weight: 750; line-height: 1.4; }
-.public-site .program-session { border-left: 5px solid var(--field-line); }
-.public-site .speaker-links a.social-icon-link { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; padding: 10px; color: #353035; }
+.public-site .field-programming {
+  --field-ink: #17579b;
+  --field-bg: #eaf3ff;
+  --field-line: #2370bc;
+}
+.public-site .field-sound {
+  --field-ink: #7850a6;
+  --field-bg: #f4edfc;
+  --field-line: #9160be;
+}
+.public-site .field-graphics {
+  --field-ink: #176749;
+  --field-bg: #e7f6ee;
+  --field-line: #2b936b;
+}
+.public-site .field-unset {
+  --field-ink: #5c5860;
+  --field-bg: #f1eff2;
+  --field-line: #98919c;
+}
+.public-site .program-field {
+  display: inline-flex;
+  align-items: center;
+  background: var(--field-bg);
+  color: var(--field-ink);
+  border: 1px solid var(--field-line);
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+.public-site .program-session {
+  border-left: 5px solid var(--field-line);
+}
+.public-site .speaker-links a.social-icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 10px;
+  color: #353035;
+}

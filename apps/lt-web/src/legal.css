@@ -1,0 +1,65 @@
+.site-footer {
+  margin-top: 40px;
+  padding: 28px 24px;
+  border-top: 1px solid #e5dce0;
+  background: #fff;
+  color: #655c61;
+  font-size: 13px;
+}
+.site-footer-inner {
+  max-width: 1160px;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px 32px;
+}
+.site-footer strong {
+  color: #383838;
+  font-size: 16px;
+}
+.site-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+.site-footer a,
+.legal-page a {
+  color: #a32948;
+  text-underline-offset: 4px;
+}
+.site-footer small {
+  margin-left: auto;
+}
+.legal-page {
+  max-width: 840px;
+  padding: 24px;
+  line-height: 1.9;
+}
+.legal-page h1 {
+  line-height: 1.4;
+}
+.legal-page h2 {
+  font-size: 19px;
+  margin-top: 32px;
+}
+.legal-page .legal-date {
+  color: #73666c;
+  font-size: 13px;
+}
+.legal-page li + li {
+  margin-top: 10px;
+}
+@media (max-width: 600px) {
+  .site-footer-inner {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .site-footer nav {
+    flex-direction: column;
+  }
+  .site-footer small {
+    margin-left: 0;
+  }
+}
