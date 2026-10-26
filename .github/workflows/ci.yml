@@ -6,8 +6,8 @@ on:
       installer-compression:
         description: Qt IFW compression for measurement (production releases are unchanged)
         type: choice
-        options: ['5', '1']
-        default: '5'
+        options: ['1', '5']
+        default: '1'
   pull_request:
   push:
     branches: [master]
@@ -314,7 +314,7 @@ jobs:
         run: python -m scripts.release.collect_licenses --output staging/licenses
       - name: Run local Qt IFW installer E2E
         if: github.event_name != 'pull_request'
-        run: python -m apps.launcher.installer.e2e --install-tree staging --output ifw-e2e --version 1.0.0 --compression ${{ inputs.installer-compression || '5' }}
+        run: python -m apps.launcher.installer.e2e --install-tree staging --output ifw-e2e --version 1.0.0 --compression ${{ inputs.installer-compression || '1' }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: github.event_name != 'pull_request'
         with:
