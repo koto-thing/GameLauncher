@@ -3,10 +3,14 @@
   "name": "pandd-deployment-control-plane",
   "account_id": "1c34406f20cb851b272ae8d8a6d33780",
   "compatibility_date": "2026-05-22",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "main": "worker.ts",
   "triggers": {
-    "crons": ["0 18 * * *"]
+    "crons": [
+      "0 18 * * *"
+    ]
   },
   "vars": {
     "REQUEST_RETENTION_MODE": "active",
@@ -42,6 +46,10 @@
     {
       "binding": "INTAKE",
       "bucket_name": "pandd-launcher-intake"
+    },
+    {
+      "binding": "LT_POSTERS",
+      "bucket_name": "pandd-lt-posters"
     }
   ],
   "services": [
