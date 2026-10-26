@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { buildContentSecurityPolicy } from "./lib/csp.ts";
+import { readSession } from "./lib/auth";
+import { isManagementPage, loginUrl } from "./lib/login-navigation";
 
 export { buildContentSecurityPolicy };
 
@@ -8,8 +10,11 @@ export { buildContentSecurityPolicy };
  * @param request Next.jsから渡される受信リクエスト
  * @returns セキュリティヘッダーを設定した次のレスポンス
  */
-export function proxy(request: NextRequest) {
-  const response = NextResponse.next();
+export async function proxy(request: NextRequest) {
+  const protectedPage = isManagementPage(request.nextUrl.pathname);
+  const response = protectedPage && !await readSession(request)
+    ? NextResponse.redirect(new URL(loginUrl(request.nextUrl.pathname + request.nextUrl.search), request.url))
+    : NextResponse.next();
   response.headers.set("Content-Security-Policy", buildContentSecurityPolicy(undefined, request.nextUrl.pathname));
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
@@ -18,7 +23,7 @@ export function proxy(request: NextRequest) {
   response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
-  if (request.nextUrl.pathname.startsWith("/api/")) {
+  if (protectedPage || request.nextUrl.pathname === "/login" || request.nextUrl.pathname.startsWith("/api/")) {
     response.headers.set("Cache-Control", "no-store, max-age=0");
     response.headers.set("Pragma", "no-cache");
   }

@@ -1,4 +1,6 @@
 "use client";
+import { loginUrl } from "@/lib/login-navigation";
+import Link from "next/link";
 import { Members } from "./members/Members";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
@@ -159,12 +161,7 @@ export function ControlPlane() {
   const [tab, setTab] = useState<"requests" | "access" | "audit">("requests");
 
   const showSignIn = useCallback(() => {
-    setResponse((current) => ({
-      authenticated: false,
-      githubAuthConfigured: current?.githubAuthConfigured ?? false,
-      localDevAuthAvailable: current?.localDevAuthAvailable ?? false,
-      error: "GitHubの認証が期限切れです。もう一度ログインしてください。",
-    }));
+    window.location.replace(loginUrl(window.location.pathname + window.location.search));
   }, []);
 
   const refresh = useCallback(async () => {
@@ -180,7 +177,7 @@ export function ControlPlane() {
       .then((payload) => { if (active) setResponse(payload); })
       .catch(() => {
         if (active) setResponse({
-          authenticated: false,
+          authenticated: true,
           githubAuthConfigured: false,
           localDevAuthAvailable: false,
           error: "control planeへ接続できませんでした",
@@ -191,6 +188,11 @@ export function ControlPlane() {
       active = false;
     };
   }, []);
+
+  // 初回データ取得後に期限切れが判明した場合も共通ログインへ戻す
+  useEffect(() => {
+    if (response?.authenticated === false) showSignIn();
+  }, [response, showSignIn]);
 
   const executionInProgress = response?.dashboard?.requests.some((request) =>
     ACTIVE_EXECUTION_STATES.has(request.state)
@@ -220,7 +222,7 @@ export function ControlPlane() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (result.status === 401 || result.status === 403) {
+      if (result.status === 401) {
         showSignIn();
         return;
       }
@@ -253,7 +255,11 @@ export function ControlPlane() {
 
   if (!response.authenticated || !response.dashboard) {
     return (
-      <SignIn response={response} />
+      <main className="loading-shell" role="status">
+        {response.authenticated === false ? "ログインページへ移動しています…" : (
+          <div><p>{response.error ?? "画面情報を取得できませんでした"}</p><button className="secondary-button" onClick={() => window.location.reload()}>再読み込み</button></div>
+        )}
+      </main>
     );
   }
 
@@ -262,12 +268,12 @@ export function ControlPlane() {
     dashboard.system.dispatchConfigured.production;
 
   return (
-    <main className="app-shell">
+    <main className="app-shell control-plane">
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="PandD Deploy Control ホーム">
+        <Link className="brand" href="/" aria-label="PandD 管理ホーム">
           <span className="brand-mark brand-logo" aria-hidden="true" />
           <span><strong>PandD</strong><small>DEPLOY CONTROL</small></span>
-        </a>
+        </Link>
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <a className="secondary-button" href="/intake" style={{ fontSize: "12px", padding: "6px 12px", textDecoration: "none" }}>
@@ -283,27 +289,35 @@ export function ControlPlane() {
         </div>
       </header>
 
-      <section className="page-heading" id="top" aria-labelledby="control-plane-title">
-        <h1 id="control-plane-title">公開申請</h1>
+      <div className="admin-layout">
+        <aside className="admin-sidebar">
+          <h2>GameLauncher</h2>
+          <nav aria-label="GameLauncher管理">
+            <button aria-current={tab === "requests" ? "page" : undefined} onClick={() => setTab("requests")}>公開申請</button>
+            <a href="/intake">ビルドのアップロード</a>
+            <a href="/editions">物理配布版</a>
+            <a href="/analytics">利用統計</a>
+            {dashboard.permissions.canRequest && <button aria-current={tab === "access" ? "page" : undefined} onClick={() => setTab("access")}>運営メンバー・権限</button>}
+            <button aria-current={tab === "audit" ? "page" : undefined} onClick={() => setTab("audit")}>監査ログ</button>
+          </nav>
+          <a className="admin-desktop-link" href={UPLOADER_DOWNLOAD_URL}>Windows版 Uploader を取得</a>
+        </aside>
 
-        <div className="uploader-actions" aria-label="Uploaderを開く">
-          <a className="download-button" href="/intake">
-            Web版 Uploader を開く（推奨） <span>ブラウザ完結</span>
-          </a>
+        <div className="admin-content">
+          <section className="page-heading" id="top" aria-labelledby="control-plane-title">
+            <div>
+              <h1 id="control-plane-title">{tab === "requests" ? "公開申請" : tab === "access" ? "運営メンバー・権限" : "監査ログ"}</h1>
+              <p>ゲームの公開状況と、次に必要な操作を確認できます。</p>
+            </div>
+            <a className="primary-button" href="/intake">ビルドをアップロード</a>
+          </section>
 
-          <a className="download-button secondary" href={UPLOADER_DOWNLOAD_URL}>
-            Windows版 exe をダウンロード <span>28.3 MB</span>
-          </a>
-        </div>
-      </section>
-
-      <nav className="tabs" aria-label="control planeセクション">
-        <button className={tab === "requests" ? "active" : ""} onClick={() => setTab("requests")}>申請</button>
-
-        {dashboard.permissions.canRequest && <button className={tab === "access" ? "active" : ""} onClick={() => setTab("access")}>権限</button>}
-
-        <button className={tab === "audit" ? "active" : ""} onClick={() => setTab("audit")}>監査ログ</button>
-      </nav>
+          {tab === "requests" && <dl className="admin-stats" aria-label="公開申請の状況">
+            <div><dt>申請件数</dt><dd>{dashboard.requests.length}<small>件</small></dd></div>
+            <div><dt>承認待ち</dt><dd>{dashboard.requests.filter(request => request.state === "pending_approval").length}<small>件</small></dd></div>
+            <div><dt>公開処理中</dt><dd>{dashboard.requests.filter(request => ACTIVE_EXECUTION_STATES.has(request.state)).length}<small>件</small></dd></div>
+            <div><dt>公開完了</dt><dd>{dashboard.requests.filter(request => request.state === "succeeded").length}<small>件</small></dd></div>
+          </dl>}
 
       {notice && <div className={`notice ${notice.tone}`} role="status">{notice.text}</div>}
 
@@ -317,6 +331,9 @@ export function ControlPlane() {
 
       {tab === "audit" && <AuditWorkspace events={dashboard.events} />}
 
+        </div>
+      </div>
+
       {response.localDevAuthAvailable && (
         <aside className="dev-switcher" aria-label="ローカル開発者切り替え">
           <span>LOCAL</span>
@@ -325,39 +342,6 @@ export function ControlPlane() {
           <a href="/api/auth/dev?as=reviewer">承認者</a>
         </aside>
       )}
-    </main>
-  );
-}
-
-/** 未認証時のログイン案内と、認証設定状況を表示する */
-function SignIn({ response }: { response: DashboardResponse }) {
-  return (
-    <main className="signin-shell">
-      <section className="signin-card">
-        <div className="brand signin-brand"><span className="brand-mark brand-logo" aria-hidden="true" /><span><strong>PandD</strong><small>DEPLOY CONTROL</small></span></div>
-
-        <p className="eyebrow">IDENTITY REQUIRED</p>
-        <h1>GitHubアカウントで<br />公開責任を確認します。</h1>
-        <p>事前に許可された運営メンバーだけが操作できます。GitHubユーザー名を変更した場合は、運営へ再申請してください。</p>
-        <a href="/members">運営メンバー</a>
-
-        {response.githubAuthConfigured ? (
-          <a className="primary-link" href="/api/auth/github/start">GitHubでログイン</a>
-        ) : (
-          <div className="setup-note"><strong>GitHub Appは未設定です</strong><span>ローカル開発ログインでPhase 1を確認できます。</span></div>
-        )}
-
-        {response.localDevAuthAvailable && (
-          <div className="dev-login">
-            <a href="/api/auth/dev?as=admin">Adminとして確認</a>
-            <a href="/api/auth/dev?as=maintainer">申請者として確認</a>
-            <a href="/api/auth/dev?as=reviewer">承認者として確認</a>
-          </div>
-        )}
-
-        {response.error && <p className="error-copy">{response.error}</p>}
-      </section>
-      <p className="signin-foot">STAGINGとPRODUCTIONの秘密情報はこのアプリへ渡されません。</p>
     </main>
   );
 }
@@ -398,7 +382,7 @@ function RequestWorkspace({ dashboard, busy, runAction }: {
   return (
     <section className="workspace">
       <div className="section-heading">
-        <div><p className="eyebrow">DEPLOYMENT REQUESTS</p><h2>Staging / Production 公開申請</h2><p className="section-copy">カード内の「次にすること」を上から順に進めてください。Maintain相当以上は申請と同時に公開処理を開始します。Production申請は成功したStagingからだけ作成できます。</p></div>
+        <div><h2>申請一覧</h2><p className="section-copy">カード内の「次にすること」を上から順に進めてください。Maintain相当以上は申請と同時に公開処理を開始します。Production申請は成功したStagingからだけ作成できます。</p></div>
 
         {dashboard.permissions.canRequest && <button className="primary-button" onClick={() => setShowForm((value) => !value)}>{showForm ? "閉じる" : "新しい申請"}</button>}
       </div>

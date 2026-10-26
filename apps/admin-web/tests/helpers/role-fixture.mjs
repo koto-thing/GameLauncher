@@ -1,3 +1,4 @@
+import * as loginNavigation from "../../lib/login-navigation.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
@@ -79,7 +80,7 @@ export async function fixture(t, { role = "assistant", metrics = false } = {}) {
   sql.prepare("INSERT INTO operator_admissions VALUES ('1','operator','fixture-1',NULL)").run();
   sql.exec("CREATE TABLE music_accounts(id TEXT PRIMARY KEY,login TEXT NOT NULL,admin INTEGER NOT NULL DEFAULT 0)");
   const env = { DB: db, SESSION_SECRET: "test-session-secret-with-32-characters" };
-  const auth = loadModule("../../lib/auth.ts", { "cloudflare:workers": { env }, "@/db/initialize": initialize, "@/lib/roles": roles, "@/lib/operator-access": access });
+  const auth = loadModule("../../lib/auth.ts", { "./login-navigation": loginNavigation, "cloudflare:workers": { env }, "@/db/initialize": initialize, "@/lib/roles": roles, "@/lib/operator-access": access });
   const members = loadModule("../../lib/members.ts", { "@/db/initialize": initialize, "@/lib/roles": roles, "@/lib/operator-access": access });
   const security = loadModule("../../lib/request-security.ts", {});
   const memberApi = loadModule("../../app/api/members/route.ts", { "@/lib/auth": auth, "@/lib/members": members, "@/lib/roles": roles, "@/lib/request-security": security, "@/lib/operator-access": access });
@@ -98,5 +99,5 @@ export async function fixture(t, { role = "assistant", metrics = false } = {}) {
     const attempt = sql.prepare("SELECT attempt_id,github_run_id FROM execution_attempts WHERE request_id=? ORDER BY attempt_number DESC LIMIT 1").get(id);
     return actions.preflightRequest({ deploymentEnvironment: environment, runId: attempt.github_run_id || crypto.randomUUID(), runAttempt: 1, workflowSha: "b".repeat(40), claims: { actor_id: "1", actor: "maintainer" } }, { requestId: id, attemptId: attempt.attempt_id });
   };
-  return { sql, db, access, invitationApi, roles, auth, members, memberApi, controlApi, call, control, actor, input, dispatch, sent, state, preflight };
+  return { env, sql, db, access, invitationApi, roles, auth, members, memberApi, controlApi, call, control, actor, input, dispatch, sent, state, preflight };
 }

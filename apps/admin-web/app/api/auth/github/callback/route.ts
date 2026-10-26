@@ -40,7 +40,7 @@ export async function GET(request: Request) {
         client_id: clientId,
         client_secret: clientSecret,
         code,
-        code_verifier: verifier,
+        code_verifier: verifier.verifier,
         redirect_uri: redirectUri,
       }),
     });
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     // 取得したアクセストークンを使って、GitHub API を通じてログインしたユーザー情報を取得し、検証
     const actor: SessionUser = await verifyGithubIdentity(tokenPayload.access_token, true);
     // 権限に応じて遷移先を切り替える
-    const headers = new Headers({ location: actor.invitationId ? "/invitations" : "/" });
+    const headers = new Headers({ location: actor.invitationId ? "/invitations" : verifier.returnTo });
 
     // set-cookie でログインセッションCookieを発行
     headers.append("set-cookie", await createSessionCookie(actor, request));

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useEffect, useState, type FormEvent } from "react";
 import type { Role } from "@/lib/role-policy";
@@ -137,7 +138,7 @@ export function Members() {
       <span className="members-state-mark" aria-hidden="true">{needsSignIn ? "→" : "!"}</span>
       <h2>{needsSignIn ? "GitHubでログイン" : "メンバー情報を取得できませんでした"}</h2>
       <p>{needsSignIn ? "現在の役割や届いた招待を確認するには、ログインしてください。" : "接続を確認して、もう一度お試しください。"}</p>
-      {needsSignIn ? <a className="primary-link" href="/api/auth/github/start">GitHubでログイン</a> : <button className="secondary-button" onClick={retry} disabled={busy}>再読み込み</button>}
+      {needsSignIn ? <Link className="primary-link" href="/login?returnTo=%2Fmembers">GitHubでログイン</Link> : <button className="secondary-button" onClick={retry} disabled={busy}>再読み込み</button>}
     </div> : <>
       <div className="members-overview">
         <div className="members-current-role"><span>あなたの役割</span><RoleBadge role={data.role} /></div>

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
@@ -84,7 +85,7 @@ export function Editions() {
     <header><p>WINDOWS · PHYSICAL DISTRIBUTION</p><h1>物理配布版ランチャー</h1>
       <p>収録ゲームと専用デザインを固定して、オフラインで遊べる配布物を作成します</p></header>
     {error && <p role="alert" className="edition-error">{error}</p>}{notice && <p role="status">{notice}</p>}
-    {!data ? (needsLogin ? <p>管理者としてログインすると利用できます。<a href="/api/auth/github/start">GitHubでログイン</a></p> : <p>{error ? "一覧を取得できませんでした。ページを再読み込みしてください" : "ゲーム一覧を読み込んでいます…"}</p>) : <>
+    {!data ? (needsLogin ? <p>管理者としてログインすると利用できます。<Link href="/login?returnTo=%2Feditions">GitHubでログイン</Link></p> : <p>{error ? "一覧を取得できませんでした。ページを再読み込みしてください" : "ゲーム一覧を読み込んでいます…"}</p>) : <>
       <form onSubmit={create} className="edition-panel">
         <h2>新しい配布版</h2>
         <label>配布版の名前<input required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="コミケ冬2026版" /></label>

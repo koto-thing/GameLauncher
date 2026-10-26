@@ -1,0 +1,60 @@
+/* モックの白いサイドバーとカード配置を管理機能へ適用する */
+.control-plane { padding-bottom: 0; }
+.control-plane .topbar { position: static; height: auto; min-height: 72px; gap: 16px; padding: 16px 28px; background: var(--panel); backdrop-filter: none; flex-wrap: wrap; }
+.admin-layout { display: grid; grid-template-columns: 217px minmax(0, 1fr); max-width: 1440px; min-height: calc(100vh - 145px); margin: auto; }
+.admin-sidebar { min-width: 0; display: flex; flex-direction: column; gap: 20px; padding: 28px 13px; border-right: 1px solid var(--line); background: var(--panel); }
+.admin-sidebar h2 { margin: 0; padding: 8px 14px 22px; border-bottom: 1px solid var(--line); font-size: 16px; font-weight: 760; }
+.admin-sidebar nav { display: grid; gap: 5px; }
+.admin-sidebar nav a, .admin-sidebar nav button { display: block; width: 100%; padding: 12px 13px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; font-size: 13px; font-weight: 640; text-align: left; text-decoration: none; cursor: pointer; }
+.admin-sidebar nav :is(a, button):hover { background: var(--surface-soft); color: var(--ink); }
+.admin-sidebar nav [aria-current="page"] { background: var(--accent-soft); color: var(--accent-ink); }
+.admin-desktop-link { margin-top: auto; padding: 12px; color: var(--muted); font-size: 12px; text-underline-offset: 3px; }
+.admin-content { min-width: 0; padding: 31px 36px 60px; }
+.admin-content .page-heading { padding: 0; margin-bottom: 26px; }
+.admin-content .page-heading h1 { font-size: 25px; font-weight: 760; }
+.admin-content .page-heading p { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+.admin-content .workspace { padding: 0; }
+.admin-content .workspace h2 { font-size: 19px; }
+.admin-content .section-heading { gap: 16px; align-items: flex-start; }
+.admin-content .section-heading > button { flex-shrink: 0; }
+.admin-content .section-copy { font-size: 13px; margin: 8px 0 0; }
+.admin-content .notice { margin: 0 0 20px; }
+.admin-content .members-page { padding: 0; }
+.admin-content .audit-workspace { grid-template-columns: minmax(180px, .65fr) minmax(0, 1.35fr); gap: 28px; }
+.admin-content .request-title h3 { font-size: 19px; }
+.admin-content .request-card { grid-template-columns: minmax(0, 1fr) 270px; box-shadow: none; }
+.admin-content .request-actions { background: var(--paper); }
+.admin-content .request-form { background: var(--panel); border-color: var(--line); }
+.admin-content .readiness-grid article { background: var(--panel); }
+.admin-content .readiness-grid .ready > span { background: var(--success-surface); }
+
+/* 表示中の実データから作る概要カード */
+.admin-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; margin: 0 0 28px; }
+.admin-stats > div { padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 11px; }
+.admin-stats dt { color: var(--muted); font-size: 12px; }
+.admin-stats dd { margin: 9px 0 0; font-size: 30px; font-weight: 750; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.admin-stats small { margin-left: 7px; font-size: 12px; font-weight: 500; color: var(--muted); }
+
+/* 狭い画面ではナビゲーションを上段へ移し、操作を折り返す */
+@media (max-width: 1100px) {
+  .admin-content { padding: 26px 22px 44px; }
+  .admin-content .request-card, .admin-content .audit-workspace { grid-template-columns: 1fr; }
+  .admin-content .request-actions { border-left: 0; border-top: 1px solid var(--line); }
+  .admin-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .admin-layout { grid-template-columns: minmax(0, 1fr); }
+  .admin-sidebar { padding: 15px; gap: 10px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .admin-sidebar h2 { padding: 0 8px 12px; }
+  .admin-sidebar nav { display: flex; overflow-x: auto; }
+  .admin-sidebar nav a, .admin-sidebar nav button { flex: 0 0 auto; width: auto; white-space: nowrap; }
+  .admin-desktop-link { margin: 0; padding: 4px 8px; }
+  .admin-content { padding: 24px 16px 40px; }
+  .admin-content .section-heading { flex-wrap: wrap; }
+  .admin-content .readiness-grid { grid-template-columns: 1fr; }
+  .control-plane .topbar { padding: 14px 16px; }
+  .control-plane .account .text-button { display: block; }
+  .admin-stats { gap: 10px; }
+  .admin-stats > div { padding: 16px; }
+}

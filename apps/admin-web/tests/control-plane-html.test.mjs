@@ -10,81 +10,43 @@ after(() => server.close());
 
 // ビルド済みWorkerを本番と同じランタイムで描画する
 async function render(path = "/") {
-  return server.fetch(`http://localhost${path}`, { headers: { accept: "text/html" } });
+  return server.fetch(`http://localhost${path}`, { redirect: "manual", headers: { accept: "text/html" } });
 }
 
-test("server-renders the PandD deployment control plane", async () => {
-  const response = await render();
+// 未認証の管理ページを同じログイン入口へ転送し、APIの401契約は保つ
+for (const path of ["/", "/game", "/intake", "/editions", "/music", "/lt", "/members", "/analytics", "/game?view=recent"]) {
+  test(`anonymous ${path} redirects to the shared login`, async () => {
+    const response = await render(path);
+    assert.equal(response.status, 307);
+    const destination = new URL(response.headers.get("location"), "http://localhost");
+    assert.equal(destination.pathname, "/login");
+    assert.equal(destination.searchParams.get("returnTo"), path);
+    assert.match(response.headers.get("cache-control"), /no-store/);
+  });
+}
+
+// 共通ログイン自体は匿名で描画され、期限とセキュリティヘッダーを表示する
+test("shared login renders without a redirect loop or private data", async () => {
+  const response = await render("/login?returnTo=%2Fintake");
   assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   assert.equal(response.headers.get("x-frame-options"), "DENY");
-  const csp = response.headers.get("content-security-policy") ?? "";
-  assert.match(csp, /frame-ancestors 'none'/);
-  assert.match(csp, /script-src 'self' 'unsafe-inline'/);
-  assert.ok(!csp.includes("unsafe-eval"), "Production CSP must not include unsafe-eval");
-  const html = await response.text();
-  assert.match(html, /<title>PandD Deploy Control<\/title>/i);
-  assert.match(html, /PandD/);
-  assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
-  assert.match(html, /lang="ja"/i);
-  assert.match(html, /href="\/intake"/);
-  assert.match(html, /href="\/music"/);
-  assert.match(html, /href="\/game"/);
-  assert.match(html, /Web Uploader \/ Intaker/);
-  assert.match(html, /Music Uploader/);
-});
-
-test("server-renders game management at its dedicated route", async () => {
-  const response = await render("/game");
-  assert.equal(response.status, 200);
-  const html = await response.text();
-  assert.match(html, /GameLauncher 公開申請・設定/);
-  assert.match(html, /href="\/"/);
-  assert.match(html, /href="\/intake"/);
-});
-
-// メンバー画面は認証結果が届く前にログイン要求や管理操作を表示しない
-test("members page starts with an accessible loading state and no privileged controls", async () => {
-  const response = await render("/members");
-  assert.equal(response.status, 200);
-  const html = await response.text();
-  assert.match(html, /運営メンバー/);
-  assert.match(html, /role="status"/);
-  assert.match(html, /メンバー情報を読み込み中/);
-  assert.doesNotMatch(html, /href="\/api\/auth\/github\/start"|<form\b|<select\b/);
-});
-
-// 統計画面をログイン前に開いても集計や読み取り資格を公開しない
-test("analytics page and API enforce authentication in the built Worker", async () => {
-  const page = await render("/analytics");
-  assert.equal(page.status, 200);
-  const html = await page.text();
-  assert.match(html, /ゲーム利用統計/);
-  assert.match(html, /統計を見るにはGitHubでログインしてください/);
-  assert.doesNotMatch(html, /ANALYTICS_READ_TOKEN|installationToken/);
-
-  const response = await server.fetch("http://localhost/api/analytics/games");
-  assert.equal(response.status, 401);
   assert.match(response.headers.get("cache-control"), /no-store/);
-  assert.deepEqual(await response.json(), { error: "GitHubでログインしてください" });
+  assert.ok(!response.headers.get("content-security-policy").includes("unsafe-eval"));
+  const html = await response.text();
+  assert.match(html, /ログイン/);
+  assert.match(html, /6時間/);
+  assert.doesNotMatch(html, /SESSION_SECRET|ANALYTICS_READ_TOKEN|Internal Server Error/);
 });
 
-test("server-renders the PandD intake uploader page without eval or 500 errors", async () => {
-  const response = await render("/intake");
-  assert.equal(response.status, 200, "GET /intake must return HTTP 200 without runtime 500");
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
-  assert.equal(response.headers.get("x-frame-options"), "DENY");
-  const csp = response.headers.get("content-security-policy") ?? "";
-  assert.match(csp, /frame-ancestors 'none'/);
-  assert.match(csp, /script-src 'self' 'unsafe-inline'/);
-  assert.ok(!csp.includes("unsafe-eval"), "Production CSP on /intake must not include unsafe-eval");
-  const html = await response.text();
-  assert.match(html, /<title>PandD Intake Uploader<\/title>/i);
-  assert.match(html, /PandD/);
-  assert.match(html, /INTAKE/);
-  assert.doesNotMatch(html, /Error compiling schema|function code|Internal Server Error/i);
+test("session and analytics APIs retain JSON unauthorized responses", async () => {
+  for (const path of ["/api/auth/session", "/api/analytics/games"]) {
+    const response = await server.fetch(`http://localhost${path}`);
+    assert.equal(response.status, 401);
+    assert.match(response.headers.get("content-type"), /application\/json/);
+    assert.match(response.headers.get("cache-control"), /no-store/);
+    assert.equal(response.headers.get("location"), null);
+  }
 });
 
 test("rejects cross-origin and origin-less browser writes", async () => {

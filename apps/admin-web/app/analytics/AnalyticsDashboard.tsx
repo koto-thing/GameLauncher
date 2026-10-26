@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useEffect, useState, type FormEvent } from "react";
 import { analyticsCsv, analyticsQuery, type AnalyticsReport, type GameAnalytics, type RetentionMetric } from "@/lib/analytics";
@@ -157,7 +158,7 @@ export function AnalyticsDashboard({ initialPeriod }: { initialPeriod: { from: s
       <button className="primary-button" type="submit" disabled={loading}>集計を表示</button>
     </form>
     <p className="analytics-explanation">日別集計は最大366日、インストール数・中央値・再訪率の詳細集計は直近90日です</p>
-    {error && <p role="alert" className="analytics-error">{error}{needsLogin && <> <a href="/api/auth/github/start">GitHubでログイン</a></>}</p>}
+    {error && <p role="alert" className="analytics-error">{error}{needsLogin && <> <Link href="/login?returnTo=%2Fanalytics">GitHubでログイン</Link></>}</p>}
     {loading && <p role="status">集計を読み込んでいます…</p>}
     {report && !loading && <>
       <div className="analytics-summary">

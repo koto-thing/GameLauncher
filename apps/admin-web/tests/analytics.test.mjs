@@ -140,6 +140,7 @@ test("CSV exports counts and denominators while neutralizing spreadsheet formula
 // 実際のCookie検証を通したAPI入口で匿名・改ざん・権限不足を拒否する
 test("analytics route requires a signed, live admin session before calling its service binding", async () => {
   const authSource = (await readFile(new URL("../lib/auth.ts", import.meta.url), "utf8"))
+    .replace('import { safeReturnTo } from "./login-navigation";', "")
     .replace('import { env } from "cloudflare:workers";', 'const env = { SESSION_SECRET: "analytics-test-secret-with-32-characters" };')
     .replace('import { ensureSchema, getD1 } from "@/db/initialize";', "")
     .replace('import { currentRole, permits, recordOperation, type Role } from "@/lib/roles";', 'const currentRole = async () => globalThis.analyticsTestRole ?? null; const permits = (role) => ["admin","executive","assistant"].includes(role);');
@@ -182,7 +183,7 @@ test("analytics route requires a signed, live admin session before calling its s
     globalThis.analyticsTestRuntime.ANALYTICS_READ_TOKEN_STAGING = "staging-server-only-test-token";
     assert.equal((await route.GET(stagingRequest)).status, 200);
     assert.equal(calls, 1);
-    const expiredCookie = (await auth.createSessionCookie({ ...user, isAdmin: true, authenticatedAt: new Date(Date.now() - 4 * 3600000).toISOString() }, request())).split(";")[0];
+    const expiredCookie = (await auth.createSessionCookie({ ...user, isAdmin: true, authenticatedAt: new Date(Date.now() - 7 * 3600000).toISOString() }, request())).split(";")[0];
     assert.equal((await route.GET(request(expiredCookie))).status, 401);
     assert.equal(calls, 1);
   } finally { delete globalThis.analyticsTestRuntime; delete globalThis.analyticsTestRole; }
