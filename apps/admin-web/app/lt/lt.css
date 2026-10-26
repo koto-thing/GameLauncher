@@ -1,20 +1,15 @@
 /* モックのサイドバーとカード構成をLT管理全体で共有する */
-.lt-page { max-width: 1440px; margin: 0 auto; }
+.lt-page { width: 100%; margin: 0; }
 .lt-manager { display: grid; grid-template-columns: 217px minmax(0, 1fr); color: var(--ink); background: var(--paper); min-height: 80vh; }
 .lt-sidebar { background: var(--panel); border-right: 1px solid var(--line); padding: 30px 18px; }
-.lt-brand { display: block; font-size: 19px; font-weight: 750; color: var(--ink); text-decoration: none; }
-.lt-brand span { display: block; font-size: 10px; letter-spacing: .16em; color: var(--muted); margin-top: 5px; }
-.lt-nav-label { margin: 38px 10px 12px; font-size: 12px; color: var(--muted); }
 .lt-sidebar nav { display: grid; gap: 7px; }
-.lt-sidebar nav a { padding: 12px 10px; border-radius: 7px; text-decoration: none; font-size: 14px; color: var(--ink); }
+.lt-sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 12px 10px; border-radius: 7px; text-decoration: none; font-size: 14px; color: var(--ink); }
 .lt-sidebar nav a:hover, .lt-sidebar nav a:focus-visible { background: var(--accent-soft); color: var(--accent-ink); }
 .lt-sidebar nav a:first-child { background: var(--accent-soft); color: var(--accent-ink); }
-.lt-sidebar-note { font-size: 12px; line-height: 1.9; color: var(--muted); margin: 36px 10px; }
 .lt-content { min-width: 0; padding: 30px 36px 60px; }
 .lt-heading { margin-bottom: 24px; }
-.lt-heading > p:first-child { font-size: 11px; letter-spacing: .14em; color: var(--accent-ink); font-weight: 700; }
 .lt-heading h1 { font-size: 27px; font-weight: 750; margin: 7px 0; }
-.lt-heading > p:last-child, .lt-hint { color: var(--muted); font-size: 14px; line-height: 1.8; }
+.lt-hint { color: var(--muted); font-size: 14px; line-height: 1.8; }
 .lt-manager h2 { font-size: 23px; font-weight: 700; margin: 20px 0 14px; }
 .lt-manager h3 { font-size: 18px; font-weight: 700; margin: 0 0 12px; }
 .lt-manager p { line-height: 1.8; }
@@ -28,7 +23,6 @@
 .lt-manager label:has(input[type=checkbox]) { display: flex; align-items: center; }
 .lt-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 11px; padding: 24px; margin: 22px 0; scroll-margin-top: 24px; }
 .lt-panel-heading { border-bottom: 1px solid var(--line); padding-bottom: 15px; margin-bottom: 18px; }
-.lt-panel-heading p { margin: 0; color: var(--muted); font-size: 13px; }
 .lt-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 24px 0; }
 .lt-stats > div { background: var(--panel); padding: 20px 18px; border: 1px solid var(--line); border-radius: 10px; }
 .lt-stats span { color: var(--muted); font-size: 12px; }
@@ -61,3 +55,12 @@
 
 .lt-event-form > button { align-self: end; justify-self: start; }
 .lt-event-form > button:first-of-type { grid-column: 1; }
+
+/* デスクトップでは左端のナビを固定し、本文だけをスクロールする */
+@media (min-width: 801px) {
+  body:has(.lt-page) { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100dvh; overflow: hidden; }
+  .lt-page { min-height: 0; overflow: hidden; }
+  .lt-manager { height: 100%; min-height: 0; }
+  .lt-sidebar, .lt-content { overflow-y: auto; overscroll-behavior: contain; }
+}
+.lt-sidebar nav svg { width: 19px; height: 19px; flex-shrink: 0; stroke-width: 1.75; }

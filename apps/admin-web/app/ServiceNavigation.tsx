@@ -8,9 +8,7 @@ export function ServiceNavigation() {
     <header className="service-header">
       <nav className="service-navigation" aria-label="サービスナビゲーション">
         <a href="/">ホーム</a>
-        <a href="/intake">GameLauncher Uploader</a>
-        <a href="/game">公開申請・設定</a>
-        <a href="/editions">物理配布版</a>
+        <a href="/game">Game Launcher</a>
         <a href="/music">Music Uploader</a>
         <a href="/lt">LT会</a>
         <a href="/members">運営メンバー</a>
