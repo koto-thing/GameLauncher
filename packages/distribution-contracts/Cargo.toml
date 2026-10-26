@@ -10,9 +10,9 @@ signing = ["ed25519-dalek/pem"]
 
 [dependencies]
 anyhow = "1"
-base64 = "0.22"
-ed25519-dalek = "2"
-jsonschema = { version = "0.46", default-features = false }
+base64 = "0.23"
+ed25519-dalek = "3"
+jsonschema = { version = "0.60", default-features = false }
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
