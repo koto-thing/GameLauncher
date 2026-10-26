@@ -189,7 +189,7 @@ export function PublicSite() {
               width="1500"
               height="1500"
             />
-            <strong className="brand-title">Aizu LT</strong>
+            <strong className="brand-title">PandD LT</strong>
           </a>
         </div>
       </header>
@@ -528,7 +528,7 @@ export function PublicSite() {
       <footer className="footer">
         <div className="container foot">
           <div>
-            <strong>Aizu LT</strong>
+            <strong>PandD LT</strong>
             <span>開催案内・公開発表</span>
           </div>
           <a href="mailto:panddmail@gmail.com">panddmail@gmail.com</a>

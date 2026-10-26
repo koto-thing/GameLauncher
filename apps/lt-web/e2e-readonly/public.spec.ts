@@ -142,7 +142,7 @@ for (const width of [1280, 390]) {
     });
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "公開中の開催回はありません" })).toBeVisible();
-    await expect(page.locator(".brand-title")).toHaveText("Aizu LT");
+    await expect(page.locator(".brand-title")).toHaveText("PandD LT");
     await expect(page.locator(".sub-nav a")).toHaveCount(4);
     await expect(page.locator(".public-empty")).toBeVisible();
     await expect(page.locator(".hero")).toHaveCount(0);
