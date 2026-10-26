@@ -158,7 +158,7 @@ async fn post(endpoint: &str, bearer: &str, body: &Value) -> Outcome {
     let result = async {
         let headers = Headers::new();
         headers.set("Content-Type", "application/json")?;
-        headers.set("Authorization", &format!("Bearer {bearer}"))?;
+        headers.set("X-LT-Mail-Auth", &format!("Bearer {bearer}"))?;
         let mut init = RequestInit::new();
         init.with_method(Method::Post)
             .with_headers(headers)

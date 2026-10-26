@@ -7,6 +7,5 @@ if (basename(__DIR__)!=='pandd-music' || basename(dirname(__DIR__))!=='web' || !
     echo '{"result":"temporary"}';
     exit;
 }
-if (!isset($_SERVER['HTTP_AUTHORIZATION']) && isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) $_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 putenv('LT_MAIL_PRIVATE_CONFIG='.$ltPrivate.'/config.php');
 require $ltPrivate.'/relay.php';
