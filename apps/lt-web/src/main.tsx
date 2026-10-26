@@ -1,3 +1,4 @@
+import { ThemeToggle } from "./ThemeToggle";
 import { LegalPage, SiteFooter } from "./LegalPage";
 import { EmailChange } from "./EmailChange";
 import { PublicSite } from "./PublicSite";
@@ -13,6 +14,7 @@ import type {
 import { request } from "./api";
 import { actions } from "./policy";
 import "./style.css";
+import "./theme.css";
 import { ApplicationForm } from "./ApplicationForm";
 import { operation } from "./operation";
 import { allEvents, formatInstant } from "./events";
@@ -182,6 +184,7 @@ function App() {
             </>
           )}
         </nav>
+        <ThemeToggle />
       </header>
       <main className="applicant-main">
         {!applicationsAvailable && isPublicPage(path) && <p role="status">{unavailableMessage}</p>}

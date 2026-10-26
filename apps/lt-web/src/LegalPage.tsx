@@ -1,3 +1,4 @@
+import { ThemeToggle } from "./ThemeToggle";
 import "./legal.css";
 
 /** 全画面に運営情報とポリシーへの導線を表示する */
@@ -24,6 +25,7 @@ export function LegalPage({ privacy }: { privacy: boolean }) {
       <header className="applicant-header">
         <a href="/">PandD LT</a>
         <a href="/">開催案内へ</a>
+        <ThemeToggle />
       </header>
       <main className="legal-page">
         <h1>{privacy ? "プライバシーポリシー" : "免責事項・著作権"}</h1>
@@ -64,6 +66,7 @@ export function LegalPage({ privacy }: { privacy: boolean }) {
             <section>
               <h2>Cookie等の利用</h2>
               <ul>
+                <li>ライト／ダークモードの選択を、お使いのブラウザー内に保存します。</li>
                 <li>本人確認とログイン状態の維持、安全な操作のためにCookie等を使用します。</li>
                 <li>Cookieを無効にすると、登壇申請など一部の機能が利用できない場合があります。</li>
               </ul>

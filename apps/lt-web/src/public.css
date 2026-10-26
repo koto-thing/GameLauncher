@@ -1,14 +1,14 @@
 /* 検証済みv0.2モックの公開部分。旧配色とデモ管理UIは持ち込まない */
 .public-site {
-  --ink: #383838;
-  --muted: #70666a;
-  --border: #e5dce0;
-  --fog: #faf7f8;
-  --paper: #fff;
+  --ink: var(--theme-ink);
+  --muted: var(--theme-muted);
+  --border: var(--theme-line);
+  --fog: var(--theme-canvas);
+  --paper: var(--theme-surface);
   --coral: #ff607b;
-  --soft: #f2ecef;
-  --accent-soft: #fff0f3;
-  --accent-line: #efb0bf;
+  --soft: var(--theme-soft);
+  --accent-soft: var(--theme-accent-soft);
+  --accent-line: var(--theme-accent-line);
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -49,7 +49,7 @@
   opacity: 0.55;
 }
 .public-site :focus-visible {
-  outline: 3px solid #a32948;
+  outline: 3px solid var(--theme-link);
   outline-offset: 3px;
 }
 .public-site .shell-header {
@@ -59,7 +59,7 @@
   z-index: 10;
   padding: 0;
   border-bottom: 1px solid var(--border);
-  background: #fff;
+  background: var(--theme-surface);
 }
 .public-site .nav-shell {
   max-width: 1200px;
@@ -135,7 +135,7 @@
   align-items: center;
   gap: 9px;
   border: 1px solid var(--border);
-  background: white;
+  background: var(--theme-surface);
   color: var(--ink);
   border-radius: 7px;
   padding: 11px 17px;
@@ -165,7 +165,7 @@
   padding: 8px 12px;
 }
 .public-site .link {
-  color: #a32948;
+  color: var(--theme-link);
   font-weight: 680;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -173,9 +173,9 @@
 .public-site .notice {
   padding: 12px 14px;
   border-radius: 7px;
-  background: #fff7e5;
-  color: #854a0e;
-  border: 1px solid #ddbd76;
+  background: var(--theme-warning-bg);
+  color: var(--theme-warning-ink);
+  border: 1px solid var(--theme-warning-line);
   font-size: 12px;
 }
 .public-site .unavailable {
@@ -186,7 +186,7 @@
   padding: 30px 36px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: white;
+  background: var(--theme-surface);
   color: var(--ink);
 }
 .public-site .hero h1 {
@@ -205,7 +205,7 @@
   border-radius: 5px;
   padding: 4px 9px;
   background: var(--accent-soft);
-  color: #a32948;
+  color: var(--theme-link);
   border: 1px solid var(--accent-line);
   font-size: 12px;
   font-weight: 740;
@@ -222,7 +222,7 @@
   border-radius: 10px;
   margin-top: 16px;
   border: 1px solid var(--border);
-  background: white;
+  background: var(--theme-surface);
   overflow: hidden;
 }
 .public-site .feature {
@@ -256,7 +256,7 @@
   padding: 24px;
   border: 1px solid var(--border);
   border-radius: 11px;
-  background: white;
+  background: var(--theme-surface);
   box-shadow: 0 2px 10px rgb(30 25 35 / 1.8%);
 }
 .public-site .sessions-panel,
@@ -282,7 +282,7 @@
   border-bottom: 0;
 }
 .public-site .talk-card:hover .talk-info h3 {
-  color: #a32948;
+  color: var(--theme-link);
 }
 .public-site .talk-num {
   flex: 0 0 78px;
@@ -334,14 +334,14 @@
   border: 1px solid var(--border);
 }
 .public-site .tag.orange {
-  background: #fff7e5;
-  color: #854a0e;
-  border-color: #ddbd76;
+  background: var(--theme-warning-bg);
+  color: var(--theme-warning-ink);
+  border-color: var(--theme-warning-line);
 }
 .public-site .tag.red {
-  background: #f8e9e2;
-  color: #a33129;
-  border-color: #dca59f;
+  background: var(--theme-error-bg);
+  color: var(--theme-error-ink);
+  border-color: var(--theme-error-line);
 }
 .public-site .simple-fact {
   border-top: 1px solid var(--border);
@@ -392,7 +392,7 @@
   text-align: center;
   padding: 45px 20px;
   color: var(--muted);
-  background: white;
+  background: var(--theme-surface);
 }
 .public-site .public-empty {
   margin: 50px auto;
@@ -414,7 +414,7 @@
   margin-top: 14px;
 }
 .public-site .contact-link {
-  color: #a32948;
+  color: var(--theme-link);
   font-weight: 700;
   font-size: 16px;
   overflow-wrap: anywhere;
@@ -430,7 +430,7 @@
 .public-site .archive-number {
   font-size: 36px;
   font-weight: 900;
-  color: #a32948;
+  color: var(--theme-link);
   letter-spacing: -0.07em;
 }
 .public-site .archive-card h2 {
@@ -528,7 +528,7 @@
   margin: 30px 0 28px;
 }
 .public-site .program-eyebrow {
-  color: #a32948;
+  color: var(--theme-link);
   font-weight: 700;
   margin-bottom: 8px;
 }
@@ -562,7 +562,7 @@
 .public-site .program-switch {
   display: inline-flex;
   flex-shrink: 0;
-  border: 1px solid #a32948;
+  border: 1px solid var(--theme-link);
   border-radius: 7px;
   overflow: hidden;
 }
@@ -570,17 +570,17 @@
   border: 0;
   border-radius: 0;
   padding: 12px 16px;
-  color: #a32948;
-  background: white;
+  color: var(--theme-link);
+  background: var(--theme-surface);
   font-size: 13px;
   font-weight: 700;
 }
 .public-site .program-switch button + button {
-  border-left: 1px solid #a32948;
+  border-left: 1px solid var(--theme-link);
 }
 .public-site .program-switch button[aria-pressed="true"] {
   color: white;
-  background: #a32948;
+  background: var(--theme-link);
 }
 .public-site .program-switch button:focus-visible {
   outline-offset: -4px;
@@ -590,7 +590,7 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
-  background: white;
+  background: var(--theme-surface);
 }
 .public-site .program-room,
 .public-site .program-row {
@@ -615,7 +615,7 @@
   padding: 18px 12px;
   font-variant-numeric: tabular-nums;
   border-right: 1px solid var(--border);
-  background: #faf7f8;
+  background: var(--theme-canvas);
 }
 .public-site .program-time time {
   font-size: 18px;
@@ -657,12 +657,12 @@
 .public-site .program-meta .tag {
   padding: 1px 9px;
   background: var(--accent-soft);
-  color: #a32948;
+  color: var(--theme-link);
   border-color: var(--accent-line);
 }
 .public-site .program-meta .tag.red {
-  background: #f8e9e2;
-  color: #a33129;
+  background: var(--theme-error-bg);
+  color: var(--theme-error-ink);
 }
 .public-site p.program-speakers {
   margin: 0;
@@ -673,7 +673,7 @@
   display: block;
   margin-top: 10px;
   text-align: right;
-  color: #a32948;
+  color: var(--theme-link);
   font-size: 12px;
   font-weight: 700;
 }
@@ -683,8 +683,8 @@
   justify-content: center;
   gap: 12px;
   padding: 14px;
-  background: #f0ecef;
-  color: #665c61;
+  background: var(--theme-soft);
+  color: var(--theme-muted);
 }
 .public-site .program-interval span {
   font-size: 12px;
@@ -701,12 +701,12 @@
   padding: 22px 28px;
 }
 .public-site .program-list .program-time {
-  background: white;
+  background: var(--theme-surface);
   border-right: 0;
   padding-top: 24px;
 }
 .public-site .program-list .program-row.session {
-  border-top: 2px solid #665c61;
+  border-top: 2px solid var(--theme-muted);
 }
 .public-site .program-list .program-row.session:first-child {
   border-top: 0;
@@ -722,7 +722,7 @@
   white-space: pre-line;
 }
 .public-site .cancelled {
-  border-left-color: #9c9599;
+  border-left-color: var(--theme-placeholder);
 }
 
 /* 詳細ページは日時・内容・登壇者を順に読み進める */
@@ -742,7 +742,7 @@
   text-underline-offset: 3px;
 }
 .public-site .session-hero {
-  background: white;
+  background: var(--theme-surface);
   border: 1px solid var(--border);
   border-top: 4px solid var(--coral);
   border-radius: 8px;
@@ -808,7 +808,7 @@
   align-items: flex-start;
   gap: 20px;
   padding: 24px;
-  background: white;
+  background: var(--theme-surface);
   border: 1px solid var(--border);
   border-radius: 8px;
 }
@@ -823,7 +823,7 @@
   height: 52px;
   border-radius: 50%;
   background: var(--accent-soft);
-  color: #a32948;
+  color: var(--theme-link);
   font-size: 24px;
   font-weight: 700;
 }
@@ -891,7 +891,7 @@
     flex-direction: column;
     padding: 12px 8px;
     gap: 0;
-    background: #faf7f8;
+    background: var(--theme-canvas);
   }
   .public-site .session-hero {
     padding: 22px 20px 0;
@@ -917,16 +917,16 @@
 }
 .session-chip {
   display: inline-block;
-  border: 1px solid #e5dce0;
+  border: 1px solid var(--theme-line);
   border-radius: 5px;
   padding: 3px 10px;
   font-size: 12px;
   overflow-wrap: anywhere;
 }
 .session-chip.primary {
-  border-color: #efb0bf;
-  color: #a32948;
-  background: #fff0f3;
+  border-color: var(--theme-accent-line);
+  color: var(--theme-link);
+  background: var(--theme-accent-soft);
 }
 .speaker-links {
   display: flex;
@@ -938,10 +938,10 @@
 }
 .speaker-links a {
   display: inline-block;
-  border: 1px solid #efb0bf;
+  border: 1px solid var(--theme-accent-line);
   border-radius: 6px;
   padding: 7px 12px;
-  color: #a32948;
+  color: var(--theme-link);
   font-size: 13px;
   text-underline-offset: 3px;
   overflow-wrap: anywhere;
@@ -964,24 +964,24 @@
 
 /* 分野は文字ラベルと色を併用して判別できるようにする */
 .public-site .field-programming {
-  --field-ink: #17579b;
-  --field-bg: #eaf3ff;
+  --field-ink: var(--theme-blue-ink);
+  --field-bg: var(--theme-blue-bg);
   --field-line: #2370bc;
 }
 .public-site .field-sound {
-  --field-ink: #7850a6;
-  --field-bg: #f4edfc;
+  --field-ink: var(--theme-purple-ink);
+  --field-bg: var(--theme-purple-bg);
   --field-line: #9160be;
 }
 .public-site .field-graphics {
-  --field-ink: #176749;
-  --field-bg: #e7f6ee;
+  --field-ink: var(--theme-green-ink);
+  --field-bg: var(--theme-green-bg);
   --field-line: #2b936b;
 }
 .public-site .field-unset {
-  --field-ink: #5c5860;
-  --field-bg: #f1eff2;
-  --field-line: #98919c;
+  --field-ink: var(--theme-muted);
+  --field-bg: var(--theme-soft);
+  --field-line: var(--theme-placeholder);
 }
 .public-site .program-field {
   display: inline-flex;
@@ -1005,5 +1005,5 @@
   width: 42px;
   height: 42px;
   padding: 10px;
-  color: #353035;
+  color: var(--theme-ink);
 }

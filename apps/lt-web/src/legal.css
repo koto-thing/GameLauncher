@@ -1,9 +1,9 @@
 .site-footer {
   margin-top: 40px;
   padding: 28px 24px;
-  border-top: 1px solid #e5dce0;
-  background: #fff;
-  color: #655c61;
+  border-top: 1px solid var(--theme-line);
+  background: var(--theme-surface);
+  color: var(--theme-muted);
   font-size: 13px;
 }
 .site-footer-inner {
@@ -15,7 +15,7 @@
   gap: 18px 32px;
 }
 .site-footer strong {
-  color: #383838;
+  color: var(--theme-ink);
   font-size: 16px;
 }
 .site-footer nav {
@@ -25,7 +25,7 @@
 }
 .site-footer a,
 .legal-page a {
-  color: #a32948;
+  color: var(--theme-link);
   text-underline-offset: 4px;
 }
 .site-footer small {
@@ -44,7 +44,7 @@
   margin-top: 32px;
 }
 .legal-page .legal-date {
-  color: #73666c;
+  color: var(--theme-muted);
   font-size: 13px;
 }
 .legal-page li + li {

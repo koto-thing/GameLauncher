@@ -1,3 +1,4 @@
+import { ThemeToggle } from "./ThemeToggle";
 import { useEffect, useState } from "react";
 import type { PublicEvent, PublicEventPage, PublicTalk } from "../../../contracts/lt/v1";
 import { request } from "./api";
@@ -233,6 +234,7 @@ export function PublicSite() {
             />
             <strong className="brand-title">PandD LT</strong>
           </a>
+          <ThemeToggle />
         </div>
       </header>
       <nav className="sub-nav" aria-label="公開情報">
