@@ -159,3 +159,25 @@ pub async fn dispatch(
     }
     Ok(delivered)
 }
+
+/// 削除専用gateの定期処理だけがreceipt掃除を依頼できる
+/// 引数: Worker環境
+/// 戻り値: 成否のみ。宛先・payload・秘密は返さない
+#[cfg(feature = "production-api")]
+pub async fn clean_receipts(env: &Env) -> Result<()> {
+    if !crate::gate::retention_enabled(env) {
+        return Ok(());
+    }
+    let endpoint = env
+        .var("LT_MAIL_RELAY_URL")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    let bearer = env
+        .secret("LT_MAIL_RELAY_TOKEN")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    if lt_mail::runtime::cleanup_receipts(&endpoint, &bearer).await != Outcome::Accepted {
+        return Err(Error::RustError("LT_RECEIPT_CLEANUP_UNAVAILABLE".into()));
+    }
+    Ok(())
+}

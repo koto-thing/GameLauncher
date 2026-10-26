@@ -36,3 +36,6 @@ cargo test --locked --offline、cargo check --locked --offline --target wasm32-u
 
 
 API接続追補: 配送元はlt_mail_outbox viewで、申請通知と独立したlogin通知をnamespace付きIDで統合する。APIが0027〜0029の番号付きmigrationを所有する。固定Clockはtest-clock featureだけで使用でき、APIのruntime-testsから渡す。通常はClock::System。lt_mail_jobsのtransport/delivered_atが配送receiptとなり、旧fake dispatcherへfallbackしない。HTTP transportはAPI側では生成しない。
+
+
+運用保持処理の追補: receipt掃除は独立retention_enabled=falseが既定。固定cleanup命令と送信と同じlockを使用し、元の配送期限到達後だけを整理する。API scheduledのLT_RETENTION_ENABLEDも既定falseで、本番有効化は別確認。現在の境界と検証は [retention-production.md](../../docs/lt/retention-production.md) を参照。以前の未接続・掃除未実装という記述は初期段階の記録である。

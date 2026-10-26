@@ -121,6 +121,28 @@ pub async fn dispatch_one(
 /// 引数: 設定済みURL、認証値、envelope
 /// 戻り値: 固定結果分類
 async fn send(endpoint: &str, bearer: &str, e: &Envelope) -> Outcome {
+    match serde_json::to_value(e) {
+        Ok(body) => post(endpoint, bearer, &body).await,
+        Err(_) => Outcome::Permanent,
+    }
+}
+
+/// 認証済み同一中継へ期限切れreceiptの掃除だけを依頼する
+/// 引数: 設定済みendpoint、専用認証値
+/// 戻り値: 情報を含まない固定結果分類
+pub async fn cleanup_receipts(endpoint: &str, bearer: &str) -> Outcome {
+    post(
+        endpoint,
+        bearer,
+        &serde_json::json!({"operation":"cleanup"}),
+    )
+    .await
+}
+
+/// redirectを追従せず、メールか掃除の固定payloadを送る
+/// 引数: 中継endpoint、専用認証値、型を限定したpayload
+/// 戻り値: 秘密を含まない固定結果分類
+async fn post(endpoint: &str, bearer: &str, body: &Value) -> Outcome {
     let Ok(url) = Url::parse(endpoint) else {
         return Outcome::Permanent;
     };
@@ -140,8 +162,8 @@ async fn send(endpoint: &str, bearer: &str, e: &Envelope) -> Outcome {
         let mut init = RequestInit::new();
         init.with_method(Method::Post)
             .with_headers(headers)
-            .with_redirect(RequestRedirect::Error)
-            .with_body(Some(serde_json::to_string(e)?.into()));
+            .with_redirect(RequestRedirect::Manual)
+            .with_body(Some(serde_json::to_string(body)?.into()));
         let mut r = Fetch::Request(Request::new_with_init(endpoint, &init)?)
             .send()
             .await?;

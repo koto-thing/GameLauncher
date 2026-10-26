@@ -51,6 +51,7 @@ jobs:
           python -m unittest discover -s services/lt-mail/tests -v
           python -m unittest discover -s services/lt-api/retention -p test_retention.py -v
           python services/lt-mail/tests/php_no_send.py
+          python services/lt-mail/tests/php_receipt_test.py
       - name: Install Chrome for both browser suites
         working-directory: apps/lt-web
         run: npx --no-install playwright install --with-deps chrome
@@ -80,3 +81,4 @@ jobs:
           python tests/measure_bundle.py production_explicit_gates_disabled
           node node_modules/wrangler/bin/wrangler.js deploy --dry-run --config wrangler.production.toml --outdir .wrangler/ci-production-dry-run
           python tests/verify_production_gate.py
+          python tests/verify_retention_scheduled.py

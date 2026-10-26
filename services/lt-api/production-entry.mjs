@@ -18,7 +18,7 @@ export default class LtHttp extends WorkerEntrypoint {
   }
 
   async scheduled(event) {
-    if (this.env.LT_PRIVATE_API_ENABLED !== 'true' || this.env.LT_MAINTENANCE_ENABLED !== 'true') return;
+    if (!(this.env.LT_PRIVATE_API_ENABLED === 'true' && this.env.LT_MAINTENANCE_ENABLED === 'true') && this.env.LT_RETENTION_ENABLED !== 'true') return;
     return (await instance(this)).scheduled(event);
   }
 }

@@ -1,5 +1,8 @@
 <?php
 declare(strict_types=1);
+namespace PandDLtMail;
+use Throwable;
+require_once __DIR__.'/receipt_cleanup.php';
 // 既定は無効。設定はWeb公開領域外のファイルだけを読む
 // 外部エラーの引数に宛先や確認URLを残さない
 ini_set('display_errors', '0');
@@ -13,7 +16,7 @@ function reply(int $status, string $result): never {
 $path = getenv('LT_MAIL_PRIVATE_CONFIG');
 if (!$path || !is_file($path)) reply(503, 'temporary');
 $c = require $path;
-if (($c['enabled'] ?? false) !== true) reply(503, 'temporary');
+if (($c['enabled'] ?? false) !== true && ($c['retention_enabled'] ?? false) !== true) reply(503, 'temporary');
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || ($_SERVER['HTTPS'] ?? '') !== 'on') reply(403, 'permanent');
 $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
 if (!is_string($c['bearer'] ?? null) || strlen($c['bearer']) < 32 || !hash_equals('Bearer '.$c['bearer'], $auth)) reply(401, 'permanent');
@@ -21,6 +24,13 @@ if (!str_starts_with($_SERVER['CONTENT_TYPE'] ?? '', 'application/json')) reply(
 $raw = file_get_contents('php://input', false, null, 0, 8193);
 if ($raw === false || strlen($raw) > 8192) reply(400, 'permanent');
 try { $v = json_decode($raw, true, 16, JSON_THROW_ON_ERROR); } catch (Throwable $e) { reply(400, 'permanent'); }
+// 掃除は配送と独立した既定OFF gateで、固定命令だけを受け付ける
+if ($v === ['operation'=>'cleanup']) {
+    try { $result = cleanup_receipts($c, time()); }
+    catch (Throwable $e) { reply(503, 'temporary'); }
+    http_response_code(200); echo json_encode($result); exit;
+}
+if (($c['enabled'] ?? false) !== true) reply(503, 'temporary');
 $keys = ['id','recipient','kind','expires','action_url'];
 if (!is_array($v) || array_diff(array_keys($v),$keys) || array_diff($keys,array_keys($v))) reply(422,'permanent');
 foreach (['id','recipient','kind'] as $key) if (!is_string($v[$key]) || $v[$key] === '' || strpbrk($v[$key],"\r\n") !== false) reply(422,'permanent');
@@ -38,8 +48,7 @@ if (!filter_var($c['from'] ?? '',FILTER_VALIDATE_EMAIL) || strpbrk($c['from'],"\
 $dir=$c['private_dir'] ?? '';
 if (!is_dir($dir) || !is_writable($dir)) reply(503,'temporary');
 // 全要求で同じ排他lockを取り、receiptと契約全体上限の予約を一体化する
-$lock=fopen($dir.'/dispatch.lock','c');
-if (!$lock || !flock($lock, LOCK_EX)) reply(503,'temporary');
+try { $lock=dispatch_lock($dir); } catch (Throwable $e) { reply(503,'temporary'); }
 $file=$dir.'/'.hash('sha256',$v['id']).'.json';
 $hash=hash('sha256',$raw);
 if (is_file($file)) {

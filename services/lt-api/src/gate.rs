@@ -39,6 +39,14 @@ pub fn operator_enabled(env: &Env) -> bool {
     configured(env, "LT_OPERATOR_API_ENABLED")
 }
 
+/// 物理削除は本人・運営・配送gateから独立させる
+/// 引数: Worker環境
+/// 戻り値: 明示的に許可された運用定期処理だけtrue
+#[cfg(feature = "production-api")]
+pub fn retention_enabled(env: &Env) -> bool {
+    configured(env, "LT_RETENTION_ENABLED")
+}
+
 #[cfg(test)]
 mod tests {
     use super::active;

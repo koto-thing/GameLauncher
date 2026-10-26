@@ -15,22 +15,22 @@
     },
     "default_private_disabled": {
       "index_bg.wasm": {
-        "bytes": 1367791,
-        "gzip_bytes": 443259
+        "bytes": 951188,
+        "gzip_bytes": 346255
       },
       "index.js": {
         "bytes": 26601,
-        "gzip_bytes": 7164
+        "gzip_bytes": 7168
       }
     },
     "development_without_test_hooks": {
       "index_bg.wasm": {
-        "bytes": 1371595,
-        "gzip_bytes": 444127
+        "bytes": 952623,
+        "gzip_bytes": 346349
       },
       "index.js": {
         "bytes": 26601,
-        "gzip_bytes": 7164
+        "gzip_bytes": 7168
       }
     },
     "local_development": {
@@ -42,9 +42,19 @@
         "bytes": 26601,
         "gzip_bytes": 7164
       }
+    },
+    "production_explicit_gates_disabled": {
+      "index_bg.wasm": {
+        "bytes": 992535,
+        "gzip_bytes": 359693
+      },
+      "index.js": {
+        "bytes": 26981,
+        "gzip_bytes": 7240
+      }
     }
   },
-  "runtime_tests": 58,
+  "runtime_tests": 59,
   "shared_response_schema_validation": true,
   "cpu_time_measured": false,
   "cloud_tests_run": false,
@@ -75,9 +85,9 @@
     }
   },
   "checks": {
-    "runtime_tests": "58 passed",
-    "rust_unit_tests": "1 passed",
-    "shared_contract_tests": "9 passed",
+    "runtime_tests": "59 passed",
+    "rust_unit_tests": "2 passed",
+    "shared_contract_tests": "10 passed",
     "cargo_check": "passed",
     "cargo_fmt": "passed",
     "fresh_migrations_and_fixture": "0001-0029 +0030 +0040 passed",
@@ -103,17 +113,17 @@
     "mail_scheduler_not_enabled",
     "external_github_oauth_not_run_signed_fixture_only"
   ],
-  "contract_tests": 9,
-  "rust_unit_tests": 1,
+  "contract_tests": 10,
+  "rust_unit_tests": 2,
   "automatic_lifecycle": "request reconciliation before access",
   "retention_calendar": "Asia/Tokyo +3 calendar months, month-end clamp",
   "physical_deletion_run": true,
   "physical_deletion_scope": "generated_local_retention_fixture_only",
   "production_deletion_enabled": false,
-  "fresh_migrations": 30,
+  "fresh_migrations": 31,
   "default_private_disabled_smoke": true,
   "test_exports_absent_in_normal_bundles": true,
-  "runtime_tests_passed": 58,
+  "runtime_tests_passed": 59,
   "contract_tests_passed": 9,
   "fresh_migrations_passed": 31,
   "copy_japan_timezone_regression_passed": true,
@@ -137,5 +147,16 @@
   "email_change_runtime_tests": 11,
   "email_change_migration": "0040",
   "lease_fix_commit": "fe18078",
-  "email_contract_commit": "6b2ad99"
+  "email_contract_commit": "6b2ad99",
+  "retention_production": {
+    "independent_gate_default": false,
+    "scheduled_only": true,
+    "local_production_scheduled_d1": "passed",
+    "local_rollback_event_positions": 38,
+    "local_rollback_auth_positions": 10,
+    "production_enabled": false,
+    "php_receipt_runtime": "required Linux CI; local PHP CLI unavailable",
+    "real_mail_sent": 0,
+    "new_production_cpu_measured": false
+  }
 }

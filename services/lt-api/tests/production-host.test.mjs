@@ -35,6 +35,12 @@ test('production host defers Wasm until permitted processing and preserves conte
     assert.deepEqual((await (await operator.operate(context,request)).json()).context,context);
     assert.equal(loads,1);
     env.LT_PRIVATE_API_ENABLED='true';env.LT_MAINTENANCE_ENABLED='true';assert.equal(await http.scheduled({}),'scheduled');
+    env.LT_PRIVATE_API_ENABLED='false';env.LT_MAINTENANCE_ENABLED='false';
+    assert.equal(await http.scheduled({}),undefined);
+    env.LT_RETENTION_ENABLED='false';assert.equal(await http.scheduled({}),undefined);
+    env.LT_RETENTION_ENABLED='true';assert.equal(await http.scheduled({}),'scheduled');
+    assert.equal((await http.fetch(request)).status,501);
+    assert.equal((await http.fetch(new Request('https://example.invalid/api/lt/v1/operator/retention'))).status,404);
     assert.equal('testMail' in operator,false);assert.equal('testClock' in operator,false);
   } finally {delete globalThis.ltCpuFixtureModule;}
 });

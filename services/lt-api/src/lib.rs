@@ -11,7 +11,7 @@ mod mail;
 mod operations;
 mod operator;
 mod receipts;
-#[cfg(feature = "runtime-tests")]
+#[cfg(any(feature = "runtime-tests", feature = "production-api"))]
 mod retention;
 #[cfg(feature = "runtime-tests")]
 mod test_hooks;
@@ -27,20 +27,27 @@ pub use operator::{fake_dispatch, operator_request};
 #[cfg(feature = "production-api")]
 #[event(scheduled)]
 pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
-    if !crate::gate::private_enabled(&env)
-        || env
+    let maintenance = crate::gate::private_enabled(&env)
+        && env
             .var("LT_MAINTENANCE_ENABLED")
             .map(|v| v.to_string())
             .unwrap_or_default()
-            != "true"
-    {
+            == "true";
+    let retention = crate::gate::retention_enabled(&env);
+    if !maintenance && !retention {
         return;
     }
     let result = async {
         let db = env.d1("DB")?;
-        crate::lifecycle::reconcile(&db).await?;
-        let origin = env.var("APP_ORIGIN")?.to_string();
-        crate::mail::dispatch(&env, &db, &origin, lt_mail::Outcome::Accepted, 1).await?;
+        if retention {
+            crate::retention::scheduled(&env, &db).await?;
+            crate::mail::clean_receipts(&env).await?;
+        }
+        if maintenance {
+            crate::lifecycle::reconcile(&db).await?;
+            let origin = env.var("APP_ORIGIN")?.to_string();
+            crate::mail::dispatch(&env, &db, &origin, lt_mail::Outcome::Accepted, 1).await?;
+        }
         Ok::<(), Error>(())
     }
     .await;

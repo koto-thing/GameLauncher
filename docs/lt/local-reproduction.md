@@ -86,6 +86,6 @@ python tests/retention_runtime_test.py -v
 - 実メールは既定無効。fake outboxの成功は外部配送成功の証明ではない。ロリポップPHP中継候補はコードのみで、PHP実行・構文／無送信実行試験・実送信は未検証。アップロード、認証秘密の生成・設定、送信元設定は未実施。
 - 月額追加費用ゼロが方針。Cloudflare Freeの実CPU時間・WasmとJS変換コスト・本番負荷は未測定で、無料枠内運用を実測保証していない。公開前に既存契約枠も確認する。
 - 公開開始／開始・終了状態のAPI観測時reconcileは実装済み。本番cron/schedulerは未設定。無アクセス時の定期実行・監視・障害時再試行は本番接続前の作業。
-- 物理削除はruntime-tests＋local-developmentの明示テストに限定し、通常buildから除外。本番scheduler／自動削除は無効。実ユーザーデータ削除の有効化は別途確認が必要。
+- 物理削除はruntime-tests＋local-developmentの明示テストに限定し、production buildにも共通削除エンジンを含むが、scheduled専用の独立LT_RETENTION_ENABLED=falseが既定で、HTTP削除入口やテストexportはない。本番scheduler／自動削除は無効。実ユーザーデータ削除の有効化は別途確認が必要。
 - 本番ドメイン、同一ホストの公開API／本人cookie構成、既存管理認証と内部binding、D1配備、秘密設定は未実施。fixture cookie／固定role proxy／HTTP bridgeを配備しない。
 - メール変更API・UI・契約一式と0040 schemaの保持削除処理は統合済み。今後schemaを変更した場合も厳格inventoryと削除処理を追従して上記試験を再実行する。push／PR／merge／deployは本書の作業範囲外。
