@@ -435,11 +435,7 @@ export function PublicSite() {
                   rel="noopener noreferrer"
                   aria-label={`${event.title}のポスターを原寸で開く（新しいタブ）`}
                 >
-                  <img
-                    src={poster}
-                    alt={`${event.title}の開催ポスター`}
-
-                  />
+                  <img src={poster} alt={`${event.title}の開催ポスター`} />
                 </a>
               )}
             </section>

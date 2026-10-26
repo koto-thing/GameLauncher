@@ -23,9 +23,13 @@ struct Settings {
 
 /// ポスターを認証情報のないHTTPS画像URLに限定する
 pub(crate) fn valid_poster_url(value: &str) -> bool {
-    value.len() <= 2048 && worker::Url::parse(value).is_ok_and(|u| {
-        u.scheme() == "https" && u.host_str().is_some() && u.username().is_empty() && u.password().is_none()
-    })
+    value.len() <= 2048
+        && worker::Url::parse(value).is_ok_and(|u| {
+            u.scheme() == "https"
+                && u.host_str().is_some()
+                && u.username().is_empty()
+                && u.password().is_none()
+        })
 }
 
 /// 入力日時をUTC epochへ変換する
@@ -70,7 +74,9 @@ fn valid(s: &Settings) -> bool {
     };
     !s.title.trim().is_empty()
         && !s.venue.trim().is_empty()
-        && s.poster_url.as_ref().is_none_or(|url| valid_poster_url(url))
+        && s.poster_url
+            .as_ref()
+            .is_none_or(|url| valid_poster_url(url))
         && s.capacity > 0
         && s.talk_minutes > 0
         && s.capacity <= 10000
@@ -101,7 +107,9 @@ pub async fn detail(db: &D1Database, id: &str) -> Result<Option<Value>> {
             .unwrap()
     };
     let mut result = json!({"id":id,"version":r["version"],"state":r["state"],"publishEnabled":r["publish_enabled"]==1,"title":p["title"],"venue":p["venue"],"guidance":p["guidance"],"startsAt":p["startsAt"],"timeZone":p["timeZone"],"opensAt":instant(&r["opens"]),"closesAt":instant(&r["closes"]),"capacity":r["capacity"],"talkMinutes":r["talk_minutes"],"transitionMinutes":r["transition_minutes"]});
-    if let Some(url) = p.get("posterUrl") { result["posterUrl"] = url.clone(); }
+    if let Some(url) = p.get("posterUrl") {
+        result["posterUrl"] = url.clone();
+    }
     Ok(Some(result))
 }
 
