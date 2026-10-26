@@ -1007,3 +1007,30 @@
   padding: 10px;
   color: var(--theme-ink);
 }
+.public-site .hero-with-poster {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 210px;
+  align-items: center;
+  gap: 32px;
+}
+.public-site .event-poster {
+  display: block;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px #0002;
+}
+.public-site .event-poster img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@media (max-width: 760px) {
+  .public-site .hero-with-poster {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .public-site .event-poster {
+    width: min(100%, 260px);
+    justify-self: center;
+  }
+}
