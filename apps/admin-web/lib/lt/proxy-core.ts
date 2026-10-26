@@ -63,7 +63,8 @@ export async function proxyLtCore(request: Request, authenticate: (request: Requ
       method: request.method,
       headers,
       body,
-      redirect: "error",
+      // Workersはerrorモード未実装。manualで外部への自動転送を防ぐ
+      redirect: "manual",
     });
     dispatched = true;
     const result = await adapter.fetch(internal, { actorId: user.githubUserId, role: user.role, requestId });
