@@ -25,12 +25,14 @@ pub trait Control {
     ///
     /// キャンセルが要求されている場合は true
     fn cancelled(&self) -> bool;
+
     /// 共有の一時停止状態を取得する
     ///
     /// # 戻り値
     ///
     /// 一時停止が要求されている場合は true
     fn paused(&self) -> bool;
+
     /// キャッシュを含む取得済みバイト数と実際の通信速度を通知する
     ///
     /// # 引数
@@ -78,15 +80,20 @@ impl std::error::Error for Failure {}
 ///
 /// # 戻り値
 ///
-/// 待機した処理の出力
+/// 完了時は `Ok(T)`、キャンセル時は `Err(Failure::Cancelled)`
+/// 待機対象自身のエラーは `T` の一部としてそのまま返す
 async fn controlled<T>(future: impl Future<Output = T>, control: &impl Control) -> Result<T> {
+    // 待機対象を保持し、短い間隔で操作要求を確認する
     tokio::pin!(future);
+
     loop {
         ensure!(!control.cancelled(), Failure::Cancelled);
         if control.paused() {
             tokio::time::sleep(POLL_INTERVAL).await;
             continue;
         }
+
+        // 一時停止が解除されている間だけ待機対象を進める
         tokio::select! {
             result = &mut future => return Ok(result),
             _ = tokio::time::sleep(POLL_INTERVAL) => {}
@@ -117,8 +124,11 @@ impl<C: Control> Session<'_, C> {
     ///
     /// 処理が完了した場合は Ok(())
     async fn throttle(&self, bytes: usize) -> Result<()> {
+        // 通信済みバイト数は速度制限の有無にかかわらず集計する
         self.network_bytes
             .set(self.network_bytes.get().saturating_add(bytes as u64));
+
+        // 全チャンクで次の受信可能時刻を共有して通信量を制限する
         if self.speed_limit != 0 {
             let start = self.next_byte.get().max(Instant::now());
             let deadline = start + Duration::from_secs_f64(bytes as f64 / self.speed_limit as f64);
@@ -139,12 +149,15 @@ impl<C: Control> Session<'_, C> {
     ///
     /// 戻り値なし
     fn report(&self, index: usize, position: u64) {
+        // 再試行時も現在位置で置き換え、キャッシュ分と合算する
         self.positions.borrow_mut()[index] = position;
         let received = self
             .positions
             .borrow()
             .iter()
             .fold(self.cached, |sum, value| sum.saturating_add(*value));
+
+        // 速度はキャッシュ分を除いた実際の通信量から求める
         let speed = (self.network_bytes.get() as f64
             / self.started.elapsed().as_secs_f64().max(0.001)) as u64;
         self.control.progress(received, speed);
@@ -161,6 +174,7 @@ impl<C: Control> Session<'_, C> {
     ///
     /// 処理が完了した場合は Ok(())
     async fn chunk(&self, index: usize, chunk: &Chunk) -> Result<()> {
+        // キャッシュ名と接続先を検証してからネットワーク処理を始める
         ensure!(
             chunk.digest.len() == 64 && chunk.digest.bytes().all(|b| b.is_ascii_hexdigit()),
             "invalid cache digest"
@@ -191,6 +205,8 @@ impl<C: Control> Session<'_, C> {
                     last = format!("{error:#}");
                 }
             }
+
+            // 最終試行の後は待機せず、最後の失敗を呼出元へ返す
             if attempt + 1 < MAX_ATTEMPTS {
                 controlled(tokio::time::sleep(retry_delay(attempt)), self.control).await?;
             }
@@ -299,6 +315,7 @@ impl<C: Control> Session<'_, C> {
                 file.set_len(0)?;
                 return Err(Failure::Http { retryable: false }.into());
             }
+
             // 書込を小さく区切り低速時の応答性とメモリ使用量を保つ
             for block in bytes.chunks(64 * 1024) {
                 self.throttle(block.len()).await?;

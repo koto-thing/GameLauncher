@@ -21,8 +21,16 @@ pub(crate) struct SpeakerLink {
 }
 
 /// 配列の件数・文字数・重複を検証する
-/// 引数: 配列、件数上限、文字数上限
-/// 戻り値: 妥当性
+///
+/// # 引数
+///
+/// * `values` - 検証する文字列の配列
+/// * `max` - 配列の最大件数
+/// * `length` - 各文字列の最大文字数
+///
+/// # 戻り値
+///
+/// 空白のみの値や重複がなく、件数と文字数が上限以内なら true
 fn strings(values: &[String], max: usize, length: usize) -> bool {
     values.len() <= max
         && values.iter().enumerate().all(|(i, s)| {
@@ -31,8 +39,14 @@ fn strings(values: &[String], max: usize, length: usize) -> bool {
 }
 
 /// セッション情報の選択肢と長さを検証する
-/// 引数: セッション情報
-/// 戻り値: 妥当性
+///
+/// # 引数
+///
+/// * `s` - 分野・難易度・キーワードなどのセッション情報
+///
+/// # 戻り値
+///
+/// 選択肢と件数・文字数の制限を満たす場合は true
 fn valid_session(s: &SessionInfo) -> bool {
     ["programming", "sound", "graphics"].contains(&s.field.as_str())
         && ["easy", "normal", "hard"].contains(&s.difficulty.as_str())
@@ -47,8 +61,14 @@ fn valid_session(s: &SessionInfo) -> bool {
 }
 
 /// 公開リンクをHTTP(S)に制限する
-/// 引数: リンク
-/// 戻り値: 妥当性
+///
+/// # 引数
+///
+/// * `link` - 表示名と公開先 URL を持つ登壇者リンク
+///
+/// # 戻り値
+///
+/// 長さの制限を満たし、認証情報を含まない HTTP(S) URL の場合は true
 fn valid_link(link: &SpeakerLink) -> bool {
     !link.label.trim().is_empty()
         && link.label.chars().count() <= 40
@@ -62,12 +82,21 @@ fn valid_link(link: &SpeakerLink) -> bool {
 }
 
 /// 申請と公開版の追加情報を同じ規則で検証する
-/// 引数: 発表内容
-/// 戻り値: 妥当性
+///
+/// # 引数
+///
+/// * `value` - セッション情報と登壇者の公開リンクを含む発表内容
+///
+/// # 戻り値
+///
+/// 任意の追加情報が省略されているか、すべて有効な場合は true
 pub(crate) fn valid(value: &Value) -> bool {
+    // セッション情報は省略を許可し、指定時は型と選択肢を検証する
     let session_ok = value.get("session").is_none_or(|s| {
         serde_json::from_value::<SessionInfo>(s.clone()).is_ok_and(|s| valid_session(&s))
     });
+
+    // 登壇者ごとのリンク件数と公開 URL の条件を検証する
     session_ok
         && value["speakers"].as_array().is_some_and(|speakers| {
             speakers.iter().all(|s| {

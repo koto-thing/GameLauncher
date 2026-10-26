@@ -156,8 +156,11 @@ pub fn hash_file(path: &Path) -> Result<String> {
 ///
 /// サイズと SHA-256 が一致した場合は Ok(())
 pub fn verify_file(path: &Path, size: u64, digest: &str) -> Result<()> {
+    // サイズが異なる場合は内容を読み込まずに失敗する
     let file = open_file(path)?;
     ensure!(file.metadata()?.len() == size, Failure::Integrity);
+
+    // 読込後にもサイズを照合し、処理中の変更を検出する
     let actual = hash_reader(file, || false)?;
     ensure!(
         actual.size == size && actual.sha256 == digest,
@@ -190,6 +193,7 @@ fn transfer(
     buffer: &mut [u8],
     cancelled: &impl Fn() -> bool,
 ) -> Result<()> {
+    // 指定サイズまでコピーし、チャンクと全体のハッシュを同時に更新する
     let mut remaining = size;
     let mut digest = Sha256::new();
     while remaining > 0 {
@@ -203,6 +207,8 @@ fn transfer(
         whole.update(bytes);
         remaining -= count as u64;
     }
+
+    // チャンクの検証失敗を呼出元へ返し、一時出力の確定を防ぐ
     ensure!(
         format!("{:x}", digest.finalize()) == expected,
         Failure::Integrity
@@ -228,6 +234,8 @@ fn commit(
 ) -> Result<()> {
     checkpoint(cancelled)?;
     temporary.as_file().sync_all()?;
+
+    // 同期中のキャンセルも確認してから保存先へ置き換える
     checkpoint(cancelled)?;
     temporary.persist(destination)?;
     Ok(())

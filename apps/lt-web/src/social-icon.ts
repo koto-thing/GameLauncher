@@ -20,7 +20,12 @@ const services = [
   { hosts: ["note.com"], icon: siNote },
 ];
 
-/** @brief リンク先ドメインからSNSを識別する @param value 公開URL @returns サービスのアイコン */
+/**
+ * リンク先ドメインからSNSを識別する
+ *
+ * @param value 公開URL
+ * @returns 対応サービスのアイコン、不正な URL や未対応サービスの場合は undefined
+ */
 export function socialIcon(value: string) {
   try {
     const url = new URL(value);

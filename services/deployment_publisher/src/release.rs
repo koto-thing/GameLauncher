@@ -34,6 +34,8 @@ pub fn create_key(private: &Path, public: &Path) -> Result<()> {
         !private.exists() && !public.exists() && private != public,
         "refusing to overwrite an existing signing key"
     );
+
+    // 鍵を生成し、秘密鍵を限定した権限で新規作成する
     let key = SigningKey::generate(&mut rand::rngs::OsRng);
     for path in [private, public] {
         fs::create_dir_all(path.parent().context("key parent")?)?;
@@ -50,6 +52,8 @@ pub fn create_key(private: &Path, public: &Path) -> Result<()> {
     options
         .open(private)?
         .write_all(key.to_pkcs8_pem(LineEnding::LF)?.as_bytes())?;
+
+    // 対になる公開鍵を PEM 形式で保存する
     fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -113,6 +117,7 @@ pub fn build_game(
         "unsupported platform or architecture"
     );
 
+    // 起動ファイルの存在と出力先の独立性を確認する
     let sources = files::regular_files(build)?;
     ensure!(
         sources
@@ -245,6 +250,8 @@ pub fn announcements(source: &Path, output: &Path) -> Result<()> {
         if path.extension().is_none_or(|ext| ext != "json") {
             continue;
         }
+
+        // ファイル名の言語タグと入力スキーマを検証する
         let locale = path
             .file_stem()
             .and_then(|s| s.to_str())
@@ -252,6 +259,8 @@ pub fn announcements(source: &Path, output: &Path) -> Result<()> {
         contracts::locale(locale)?;
         let mut document = files::read_json(&path)?;
         contracts::validate(&document, "announcements-source.schema.json")?;
+
+        // 公開日時を付与し、配信用スキーマを検証して保存する
         document["generatedAt"] = json!(utc_now());
         contracts::validate(&document, "announcements.schema.json")?;
         files::write_json(
