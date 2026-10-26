@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
 import type { EmailAccepted, EmailChangeVerificationInput } from "../../../contracts/lt/v1";
 import { request } from "./api";
+import { applicationsAvailable } from "./availability";
 // token はメモリーだけに保持し、GET 表示では消費しない
 let initialToken =
-  location.pathname === "/auth/email-change"
+  applicationsAvailable && location.pathname === "/auth/email-change"
     ? new URLSearchParams(location.search).get("token")
     : null;
 if (location.pathname === "/auth/email-change") history.replaceState(null, "", location.pathname);

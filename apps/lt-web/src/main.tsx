@@ -14,6 +14,7 @@ import "./style.css";
 import { ApplicationForm } from "./ApplicationForm";
 import { operation } from "./operation";
 import { allEvents, formatInstant } from "./events";
+import { applicationsAvailable, isPublicPage, unavailableMessage } from "./availability";
 const devFixture = import.meta.env.DEV && import.meta.env.VITE_LT_FIXTURE === "true";
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (devFixture) return (await import("./fixture")).fixture<T>(path, init);
@@ -28,8 +29,11 @@ const labels: Record<string, string> = {
 };
 // token を画面や外部参照へ流さず、GET では交換しない
 let token =
-  location.pathname === "/auth/verify" ? new URLSearchParams(location.search).get("token") : null;
-if (token) history.replaceState(null, "", location.pathname);
+  applicationsAvailable && location.pathname === "/auth/verify"
+    ? new URLSearchParams(location.search).get("token")
+    : null;
+if (token || (!applicationsAvailable && location.pathname.startsWith("/auth/")))
+  history.replaceState(null, "", location.pathname);
 function App() {
   const [events, setEvents] = useState<PublicEventPage>({ items: [], nextCursor: null });
   const [detailEvent, setDetailEvent] = useState<PublicEvent | null>(null);
@@ -43,6 +47,7 @@ function App() {
     [revision, reload] = useState(0),
     [editing, setEditing] = useState<Application | null>(null);
   useEffect(() => {
+    if (!applicationsAvailable) return;
     allEvents(api)
       .then(setEvents)
       .catch((e) => setError(e.message));
@@ -66,6 +71,7 @@ function App() {
     setDetailEvent(null);
     setError("");
     setEditing(null);
+    if (!applicationsAvailable && !isPublicPage(path)) return;
     const endpoint =
       path === "/applications"
         ? "/applications"
@@ -99,6 +105,7 @@ function App() {
     setNotice("");
   }
   async function run(work: () => Promise<unknown>) {
+    if (!applicationsAvailable) return;
     if (busy) return;
     setBusy(true);
     setError("");
@@ -162,11 +169,16 @@ function App() {
         </a>
         <nav>
           <button onClick={() => nav("/")}>開催回</button>
-          <button onClick={() => nav("/applications")}>本人申請</button>
-          <button onClick={() => nav("/login")}>メール確認</button>
+          {applicationsAvailable && (
+            <>
+              <button onClick={() => nav("/applications")}>本人申請</button>
+              <button onClick={() => nav("/login")}>メール確認</button>
+            </>
+          )}
         </nav>
       </header>
       <main>
+        {!applicationsAvailable && isPublicPage(path) && <p role="status">{unavailableMessage}</p>}
         {session && (
           <p>
             セッション期限: {session}
@@ -195,7 +207,13 @@ function App() {
         )}
         {notice && <p role="status">{notice}</p>}
         {busy && <p role="status">送信中…</p>}
-        {path === "/login" ? (
+        {!applicationsAvailable && !isPublicPage(path) ? (
+          <section>
+            <h1>現在利用できません</h1>
+            <p>{unavailableMessage}</p>
+            <a href="/">開催回を見る</a>
+          </section>
+        ) : path === "/login" ? (
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -402,5 +420,11 @@ function App() {
   );
 }
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>{location.pathname === "/auth/email-change" ? <EmailChange /> : <App />}</StrictMode>,
+  <StrictMode>
+    {applicationsAvailable && location.pathname === "/auth/email-change" ? (
+      <EmailChange />
+    ) : (
+      <App />
+    )}
+  </StrictMode>,
 );

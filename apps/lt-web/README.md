@@ -52,3 +52,11 @@ POST/PUT/PATCH/DELETE に X-LT-CSRF:1 と application/json を強制し、GET �
 /auth/email-change の GET は token をメモリーへ取り込み URL から除去するだけで消費しない。明示ボタンで専用 /auth/email-change/verify に token のみ POST。session GET/ログイン交換/所有者変更は呼ばない。連打は ref で同期的に排除。成功時も運営の最終確定待ちと表示。token は storage/ログ/分析へ保存しない。再読込後は案内再取得を促す。
 共有契約は失効原因別の判別DTOを提供しないため、期限切れ/使用済み/不正/再送失効/通信結果不明を断定せず安全な共通案内にする。エラー後は自動再送せず運営への確認を促す。確認済みの再アクセスも新規の所有者変更として扱わない。productionEnabled:false のままで、実接続・実メール検証は未実施。
 最新検証: vp check/tsc/vp test run22件/vp build成功。専用Chromeで新規5ケースと既存4ケースの全9 E2E成功。PC1280/390px、GET非消費、cookie未作成、連打、戻る/再読込、400/410/503を検証。qa/email-change-1280.png・email-change-390.png 保存、390px画像を目視し重なりなし。
+
+## Cloudflare の閲覧専用公開
+
+本番buildは申請機能を既定OFFにし、開催回・時間割・承認済み発表だけを表示します。申請・メール確認の直接URLには利用停止を表示し、tokenを読み取らずURLのqueryを除去します。公開Workerも `LT_APPLICATIONS_ENABLED=false` を既定にし、公開GET以外はbindingを呼ばず501を返します。Rustの本人・運営・mail・maintenance・retention gateやDB transport modeは公開のために有効化しません。
+
+開発の既存フロー検証はDEV時のみ従来どおり利用できます。閲覧専用は `VITE_LT_APPLICATIONS_ENABLED=false` で検証します。将来の通常機能公開にはフロントbuildとWorker双方の明示設定、および実際のメール配送など必要条件を確認する別作業が必要です。
+
+検証: `npm test`、`npm run check`、`npx tsc --noEmit`、`npm run build`、`node --test worker.test.mjs`、`npx playwright test --config playwright.readonly.config.ts`。ブラウザーfixtureはローカルだけに使用し、公開用bundleへ架空開催や申請データを投入しません。
