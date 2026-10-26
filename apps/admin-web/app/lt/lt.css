@@ -1,16 +1,63 @@
-.lt-manager { color: var(--ink, #17202b); overflow-wrap: anywhere; }
-.lt-manager button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin: 4px; padding: 9px 14px; border: 1px solid #d9d6ce; border-radius: 8px; background: #fffefb; color: #17202b; font: inherit; cursor: pointer; }
-.lt-manager button:hover { border-color: #155eef; }
-.lt-manager button:disabled { opacity: .5; cursor: default; }
-.lt-manager button:focus-visible, .lt-manager input:focus-visible, .lt-manager textarea:focus-visible, .lt-manager a:focus-visible { outline: 3px solid #155eef; outline-offset: 2px; }
-.lt-manager label { display: block; margin: 12px 0; }
-.lt-manager input, .lt-manager textarea { display: block; width: 100%; max-width: 640px; padding: 10px; border: 1px solid #d9d6ce; border-radius: 8px; background: #fffefb; color: #17202b; font: inherit; box-sizing: border-box; }
-.lt-manager textarea { min-height: 100px; }
-.lt-manager h2, .lt-manager h3 { margin: 20px 0 12px; font-weight: 700; }
-.lt-manager p { margin: 12px 0; }
+/* モックのサイドバーとカード構成をLT管理全体で共有する */
+.lt-page { max-width: 1440px; margin: 0 auto; }
+.lt-manager { display: grid; grid-template-columns: 217px minmax(0, 1fr); color: var(--ink); background: var(--paper); min-height: 80vh; }
+.lt-sidebar { background: var(--panel); border-right: 1px solid var(--line); padding: 30px 18px; }
+.lt-brand { display: block; font-size: 19px; font-weight: 750; color: var(--ink); text-decoration: none; }
+.lt-brand span { display: block; font-size: 10px; letter-spacing: .16em; color: var(--muted); margin-top: 5px; }
+.lt-nav-label { margin: 38px 10px 12px; font-size: 12px; color: var(--muted); }
+.lt-sidebar nav { display: grid; gap: 7px; }
+.lt-sidebar nav a { padding: 12px 10px; border-radius: 7px; text-decoration: none; font-size: 14px; color: var(--ink); }
+.lt-sidebar nav a:hover, .lt-sidebar nav a:focus-visible { background: var(--accent-soft); color: var(--accent-ink); }
+.lt-sidebar nav a:first-child { background: var(--accent-soft); color: var(--accent-ink); }
+.lt-sidebar-note { font-size: 12px; line-height: 1.9; color: var(--muted); margin: 36px 10px; }
+.lt-content { min-width: 0; padding: 30px 36px 60px; }
+.lt-heading { margin-bottom: 24px; }
+.lt-heading > p:first-child { font-size: 11px; letter-spacing: .14em; color: var(--accent-ink); font-weight: 700; }
+.lt-heading h1 { font-size: 27px; font-weight: 750; margin: 7px 0; }
+.lt-heading > p:last-child, .lt-hint { color: var(--muted); font-size: 14px; line-height: 1.8; }
+.lt-manager h2 { font-size: 23px; font-weight: 700; margin: 20px 0 14px; }
+.lt-manager h3 { font-size: 18px; font-weight: 700; margin: 0 0 12px; }
+.lt-manager p { line-height: 1.8; }
+.lt-manager button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); padding: 9px 14px; font: inherit; font-size: 14px; cursor: pointer; margin: 4px 5px 4px 0; }
+.lt-manager button:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-ink); }
+.lt-manager button:disabled { opacity: .48; cursor: not-allowed; }
+.lt-manager :is(button, a, input, textarea):focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.lt-manager label { display: grid; gap: 7px; font-size: 14px; margin: 12px 0; font-weight: 600; }
+.lt-manager input:not([type=checkbox]), .lt-manager textarea { width: 100%; min-width: 0; border: 1px solid var(--input-line); border-radius: 6px; padding: 10px 12px; background: var(--panel); color: var(--ink); font: inherit; font-weight: 400; }
+.lt-manager textarea { min-height: 110px; resize: vertical; }
+.lt-manager label:has(input[type=checkbox]) { display: flex; align-items: center; }
+.lt-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 11px; padding: 24px; margin: 22px 0; scroll-margin-top: 24px; }
+.lt-panel-heading { border-bottom: 1px solid var(--line); padding-bottom: 15px; margin-bottom: 18px; }
+.lt-panel-heading p { margin: 0; color: var(--muted); font-size: 13px; }
+.lt-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 24px 0; }
+.lt-stats > div { background: var(--panel); padding: 20px 18px; border: 1px solid var(--line); border-radius: 10px; }
+.lt-stats span { color: var(--muted); font-size: 12px; }
+.lt-stats strong { display: block; font-size: 34px; font-weight: 700; margin-top: 7px; }
+.lt-event-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 22px; }
+.lt-event-form > label:nth-child(3) { grid-column: 1 / -1; }
+.lt-event-form > button:first-of-type, .lt-events > button { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
+.lt-event-list { padding: 0; list-style: none; margin: 24px 0 0; }
+.lt-event-list li { border-top: 1px solid var(--line); padding: 15px 0; }
+.lt-event-list button { text-align: left; width: 100%; padding: 18px; font-weight: 600; }
+.lt-table-scroll { overflow-x: auto; }
+.lt-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+.lt-table th { background: var(--surface-soft); color: var(--muted); font-size: 12px; padding: 12px; white-space: nowrap; }
+.lt-table td { border-bottom: 1px solid var(--line); padding: 15px 12px; min-width: 110px; }
+.lt-table td:first-child { min-width: 220px; }
+.lt-table small { display: block; color: var(--muted); margin-top: 4px; }
+.lt-manager .lt-title-button { text-align: left; border: 0; background: transparent; padding: 0; margin: 0; color: var(--accent-ink); font-weight: 650; }
+.lt-badge { display: inline-block; padding: 4px 9px; border-radius: 20px; background: var(--accent-soft); color: var(--accent-ink); white-space: nowrap; font-size: 12px; }
+.lt-manager [role=alert] { border: 1px solid var(--error-line); background: var(--error-surface); color: var(--red); padding: 16px; border-radius: 8px; }
+.lt-manager [role=status]:not(:empty) { padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--accent-soft); }
 .lt-manager fieldset { min-width: 0; }
-.lt-manager [role=alert] { padding: 12px; border: 1px solid #b42318; border-radius: 8px; }
-.lt-manager a { color: #155eef; text-decoration: underline; }
-.lt-manager li { margin: 12px 0; }
+.lt-panel fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 18px; margin-top: 20px; }
+.lt-panel legend { padding: 0 8px; font-weight: 650; }
+.lt-panel ol { padding-left: 25px; }
+.lt-panel ol li { padding: 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; margin: 12px 0; }
+.lt-review > h3, .lt-review > section { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
+.lt-review > a { color: var(--accent-ink); text-decoration: underline; }
+/* 狭い画面ではナビゲーションとフォームを縦に並べる */
+@media (max-width: 800px) { .lt-manager { grid-template-columns: 1fr; } .lt-sidebar { border-right: 0; border-bottom: 1px solid var(--line); padding: 18px; } .lt-sidebar nav { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 15px; } .lt-sidebar nav a { font-size: 12px; padding: 9px 6px; } .lt-nav-label, .lt-sidebar-note { display: none; } .lt-content { padding: 20px 16px 40px; } .lt-panel { padding: 18px; } .lt-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .lt-event-form { grid-template-columns: 1fr; } }
 
-.lt-manager input[type="checkbox"] { display: inline-block; width: auto; margin-right: 8px; }
+.lt-event-form > button { align-self: end; justify-self: start; }
+.lt-event-form > button:first-of-type { grid-column: 1; }

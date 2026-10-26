@@ -53,10 +53,10 @@ window.fetch = async (input, init) => {
   return Response.json(result);
 };
 function requestWithdrawal() { application = { ...application, version: application.version + 1, everApproved: true, slotReserved: true, review: "approved", withdrawal: "requested" }; }
-createRoot(document.getElementById("root")).render(<main className="members-page">
+createRoot(document.getElementById("root")).render(<main className="lt-page">
   <p>以下は検証専用操作です</p>
   <button onClick={() => { nextFailure = 409; }}>検証: 次の更新を競合</button><button onClick={() => { nextFailure = 503; }}>検証: 次の更新を失敗</button>
   <button onClick={() => { application = { ...application, version: application.version + 1, review: "resubmitted" }; }}>検証: 本人が再提出</button><button onClick={requestWithdrawal}>検証: 辞退依頼を作成</button><button onClick={() => { application = { ...application, version: application.version + 1, withdrawal: "none" }; }}>検証: 本人が辞退依頼を取消</button>
   <button onClick={() => { denied = true; }}>検証: 権限を失効</button><button onClick={() => { denied = false; }}>検証: 権限を復旧</button>
-  <h1>LT会</h1><LtManager />
+  <LtManager />
 </main>);
