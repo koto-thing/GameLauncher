@@ -1,13 +1,13 @@
 "use client";
 import "./lt.css";
-import { LayoutDashboard, ListChecks, CalendarClock, Settings, ShieldAlert, House } from "lucide-react";
-// 管理トップはサーバーの認証確認を通してページ全体を切り替える
+import { LayoutDashboard, ListChecks, CalendarClock, Settings, ShieldAlert } from "lucide-react";
 /* eslint-disable @next/next/no-html-link-for-pages */
 import { EmailChangePanel } from "./EmailChangePanel";
 import { canReapprove, canReview, syncTimetableEvent } from "../../lib/lt/operator-state";
 import { useEffect, useRef, useState } from "react";
 import type { EventSettings, OperatorApplication, EventSettingsPage, OperatorApplicationPage, OperatorTimetable } from "../../../../contracts/lt/v1";
 
+import { EventForm } from "./EventForm";
 import { TimetableEditor } from "./TimetableEditor";
 const root = "/api/lt/v1/operator";
 type Task = () => Promise<void>;
@@ -79,7 +79,7 @@ export function LtManager() {
     });
   }
   return <section className="lt-manager" aria-busy={busy}>
-    <aside className="lt-sidebar"><nav aria-label="LT管理メニュー"><a href="#lt-overview"><LayoutDashboard aria-hidden="true" />ダッシュボード</a>{event && !selected && !creating && <><a href="#lt-applications"><ListChecks aria-hidden="true" />登壇申請</a><a href="#lt-timetable"><CalendarClock aria-hidden="true" />タイムテーブル</a><a href="#lt-settings"><Settings aria-hidden="true" />開催回設定</a><a href="#lt-exceptions"><ShieldAlert aria-hidden="true" />例外対応</a></>}<a href="/" aria-label="管理トップ" title="管理トップ"><House aria-hidden="true" /></a></nav></aside>
+    <aside className="lt-sidebar"><nav aria-label="LT管理メニュー"><a href="#lt-overview"><LayoutDashboard aria-hidden="true" />ダッシュボード</a>{event && !selected && !creating && <><a href="#lt-applications"><ListChecks aria-hidden="true" />登壇申請</a><a href="#lt-timetable"><CalendarClock aria-hidden="true" />タイムテーブル</a><a href="#lt-settings"><Settings aria-hidden="true" />開催回設定</a><a href="#lt-exceptions"><ShieldAlert aria-hidden="true" />例外対応</a></>}</nav></aside>
     <div className="lt-content" id="lt-overview"><header className="lt-heading"><h1>LT会</h1></header>
     {error && <div role="alert"><p>{error}</p>{canRetry && <button disabled={busy} onClick={() => retry.current && void run(retry.current)}>再試行</button>}<button disabled={busy} onClick={() => void run(async () => { await loadEvents(); setEvent(null); setSelected(null); setNeedsReload(false); })}>再読込</button></div>}
     <p role="status">{busy ? "処理中…" : message}</p>
@@ -118,17 +118,4 @@ export function LtManager() {
     </fieldset>
     </div>
   </section>;
-}
-
-/** @brief 開催設定を編集する @param props 現在値と保存処理 @returns 編集フォーム */
-function EventForm({ value, onSave }: { value: EventSettings; onSave: (value: Omit<EventSettings, "id" | "version" | "state" | "publishEnabled">) => void }) {
-  const [draft, setDraft] = useState(value);
-  const [source, setSource] = useState(value);
-  if (source.id !== value.id || source.version !== value.version) { setSource(value); setDraft(value); }
-
-  return <form className="lt-event-form" onSubmit={e => { e.preventDefault(); const data = { title: draft.title, venue: draft.venue, guidance: draft.guidance, startsAt: draft.startsAt, timeZone: draft.timeZone, opensAt: draft.opensAt, closesAt: draft.closesAt, capacity: draft.capacity, talkMinutes: draft.talkMinutes, transitionMinutes: draft.transitionMinutes }; const valid = [data.startsAt, data.opensAt, data.closesAt].every(value => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && Number.isFinite(Date.parse(value))); if (!valid || Date.parse(data.opensAt) >= Date.parse(data.closesAt)) { window.alert("UTC日時と募集開始・終了の順序を確認してください"); return; } onSave(data); }}>
-    {(["title", "venue", "guidance", "startsAt", "timeZone", "opensAt", "closesAt"] as const).map(key => <label key={key} style={{ display: "block" }}>{({ title: "開催名", venue: "会場", guidance: "案内", startsAt: "開始日時 (UTC)", timeZone: "タイムゾーン", opensAt: "募集開始 (UTC)", closesAt: "募集終了 (UTC)" })[key]}{key === "guidance" ? <textarea rows={4} value={draft.guidance} onChange={e => setDraft({ ...draft, guidance: e.currentTarget.value })} /> : <input required value={draft[key]} onInput={e => setDraft({ ...draft, [key]: e.currentTarget.value })} />}</label>)}
-    {(["capacity", "talkMinutes", "transitionMinutes"] as const).map(key => <label key={key} style={{ display: "block" }}>{({ capacity: "定員", talkMinutes: "発表時間 (分)", transitionMinutes: "転換時間 (分)" })[key]}<input type="number" min={key === "transitionMinutes" ? 0 : 1} required value={draft[key]} onInput={e => setDraft({ ...draft, [key]: Number(e.currentTarget.value) })} /></label>)}
-    <button>設定を保存</button><button type="button" onClick={() => setDraft(value)}>編集を取り消す</button>
-  </form>;
 }
