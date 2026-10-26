@@ -222,7 +222,7 @@ function App() {
               void run(async () => {
                 await api("/auth/email", { method: "POST", body: JSON.stringify({ email }) });
                 setNotice(
-                  "対象のメールアドレスには確認案内が届きます。確認リンクは1時間有効です。",
+                  "対象のメールアドレスには確認案内が届きます。確認リンクは1時間有効です。メールが届かない場合は、迷惑メールフォルダもご確認ください。",
                 );
               });
             }}
@@ -233,6 +233,7 @@ function App() {
               <input name="email" type="email" required autoComplete="email" />
             </label>
             <button disabled={busy}>確認案内を送る</button>
+            <p>メールが届かない場合は、迷惑メールフォルダもご確認ください。</p>
           </form>
         ) : path === "/auth/verify" ? (
           <section>
