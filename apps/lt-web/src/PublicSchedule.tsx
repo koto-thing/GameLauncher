@@ -1,4 +1,5 @@
 import type { PublicEvent, PublicTalk } from "../../../contracts/lt/v1";
+import { sessionFields } from "../../../contracts/lt/session-options";
 import { publicDate, durationMinutes, followPublicLink } from "./public-display";
 
 const kinds = { opening: "開会", break: "休憩", closing: "閉会", transition: "転換", talk: "発表" };
@@ -68,6 +69,9 @@ export function PublicSchedule({
             const content = (
               <>
                 <div className="program-meta">
+                  <span className={`program-field field-${talk?.session?.field ?? "unset"}`}>
+                    {talk?.session ? sessionFields[talk.session.field] : "分野未登録"}
+                  </span>
                   <span className={`tag ${talk?.cancelled ? "red" : ""}`}>
                     {talk?.cancelled ? "登壇中止" : "LT"}
                   </span>
@@ -106,7 +110,7 @@ export function PublicSchedule({
                 </div>
                 {block.kind === "talk" && href ? (
                   <a
-                    className={`program-session${talk?.cancelled ? " cancelled" : ""}`}
+                    className={`program-session field-${talk?.session?.field ?? "unset"}${talk?.cancelled ? " cancelled" : ""}`}
                     href={href}
                     onClick={(e) => followPublicLink(e, href, navigate)}
                   >

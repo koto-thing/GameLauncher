@@ -985,3 +985,11 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* 分野は文字ラベルと色を併用して判別できるようにする */
+.public-site .field-programming { --field-ink: #17579b; --field-bg: #eaf3ff; --field-line: #2370bc; }
+.public-site .field-sound { --field-ink: #7850a6; --field-bg: #f4edfc; --field-line: #9160be; }
+.public-site .field-graphics { --field-ink: #176749; --field-bg: #e7f6ee; --field-line: #2b936b; }
+.public-site .field-unset { --field-ink: #5c5860; --field-bg: #f1eff2; --field-line: #98919c; }
+.public-site .program-field { display: inline-flex; align-items: center; background: var(--field-bg); color: var(--field-ink); border: 1px solid var(--field-line); border-radius: 5px; padding: 4px 10px; font-size: 13px; font-weight: 750; line-height: 1.4; }
+.public-site .program-session { border-left: 5px solid var(--field-line); }
