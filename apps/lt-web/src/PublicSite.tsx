@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PublicEvent, PublicEventPage, PublicTalk } from "../../../contracts/lt/v1";
 import { request } from "./api";
-import { isPublicPage, unavailableMessage } from "./availability";
+import { applicationsAvailable, isPublicPage, unavailableMessage } from "./availability";
 import "./public.css";
 
 const tabs = [
@@ -30,7 +30,7 @@ function date(value: string, zone: string, time = false) {
   ).format(new Date(value));
 }
 
-/** モックの公開レイアウトを実データへ接続し、申請経路は開かない */
+/** 公開レイアウトを実データへ接続し、有効な申請経路を案内する */
 export function PublicSite() {
   const [path, setPath] = useState(location.pathname);
   const [tab, setTab] = useState<Tab>(() =>
@@ -213,9 +213,16 @@ export function PublicSite() {
         ))}
       </nav>
       <main className="container public-main">
-        <p className="notice unavailable" role="status">
-          {unavailableMessage}
-        </p>
+        {!applicationsAvailable && (
+          <p className="notice unavailable" role="status">
+            {unavailableMessage}
+          </p>
+        )}
+        {applicationsAvailable && (
+          <p className="notice">
+            <a href="/login">メール確認・登壇申請</a> ／ <a href="/applications">申請内容を確認</a>
+          </p>
+        )}
         {import.meta.env.DEV && import.meta.env.VITE_LT_QA === "true" && (
           <aside className="notice">開発 fixture・架空データ／API 未接続</aside>
         )}
@@ -305,7 +312,13 @@ export function PublicSite() {
                     panddmail@gmail.com
                   </a>
                 </p>
-                <p className="muted small">登壇申請・メール確認は現在停止しています。</p>
+                {applicationsAvailable ? (
+                  <p>
+                    <a href="/login">メール確認・登壇申請へ</a>
+                  </p>
+                ) : (
+                  <p className="muted small">登壇申請・メール確認は現在停止しています。</p>
+                )}
               </section>
             </div>
           </>
@@ -431,9 +444,15 @@ export function PublicSite() {
                   >
                     タイムテーブル
                   </a>
-                  <button className="btn" disabled>
-                    登壇申請（受付停止中）
-                  </button>
+                  {applicationsAvailable && event.recruitment === "open" ? (
+                    <a className="btn" href="/login">
+                      登壇申請
+                    </a>
+                  ) : (
+                    <button className="btn" disabled>
+                      登壇申請（受付期間外）
+                    </button>
+                  )}
                 </div>
               </div>
             </section>
@@ -502,19 +521,31 @@ export function PublicSite() {
               <aside className="panel apply-panel">
                 <h2>登壇募集</h2>
                 <p className="current-state">
-                  <span className="tag orange">受付停止中</span>
+                  <span className="tag orange">
+                    {applicationsAvailable && event.recruitment === "open"
+                      ? "受付中"
+                      : "受付期間外"}
+                  </span>
                 </p>
                 <div className="simple-fact">
                   <span>申請・メール確認</span>
-                  <strong>現在利用できません</strong>
+                  <strong>
+                    {applicationsAvailable ? "メール確認後に申請できます" : "現在利用できません"}
+                  </strong>
                 </div>
                 <div className="simple-fact">
                   <span>お問い合わせ</span>
                   <a href="mailto:panddmail@gmail.com">panddmail@gmail.com</a>
                 </div>
-                <button className="btn coral apply-button" disabled>
-                  登壇申請（受付停止中）
-                </button>
+                {applicationsAvailable && event.recruitment === "open" ? (
+                  <a className="btn coral apply-button" href="/login">
+                    登壇申請
+                  </a>
+                ) : (
+                  <button className="btn coral apply-button" disabled>
+                    登壇申請（受付期間外）
+                  </button>
+                )}
               </aside>
             </div>
           </>

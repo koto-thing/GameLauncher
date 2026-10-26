@@ -99,6 +99,10 @@ function App() {
     };
   }, [path, revision, cursor]);
   function nav(p: string) {
+    if (isPublicPage(p)) {
+      location.assign(p);
+      return;
+    }
     setData(null);
     setCursor(null);
     history.pushState(null, "", p);
@@ -166,7 +170,7 @@ function App() {
             nav("/");
           }}
         >
-          LT会
+          PandD LT
         </a>
         <nav>
           <button onClick={() => nav("/")}>開催回</button>
@@ -423,7 +427,7 @@ function App() {
 }
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {!applicationsAvailable ? (
+    {!applicationsAvailable || isPublicPage(location.pathname) ? (
       <PublicSite />
     ) : location.pathname === "/auth/email-change" ? (
       <EmailChange />
