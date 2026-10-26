@@ -11,6 +11,7 @@ export default defineConfig(() => {
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
+    resolve: { dedupe: ["simple-icons"] },
     plugins: [
       vinext(),
       cloudflare({

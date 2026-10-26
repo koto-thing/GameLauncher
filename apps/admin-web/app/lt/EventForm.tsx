@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { EventSettings } from "../../../../contracts/lt/v1";
 import { localEventTime, utcEventTime } from "../../lib/lt/event-time";
 
@@ -15,10 +15,12 @@ function editable(value: EventSettings) {
 /** @brief 地域を選んでカレンダーから開催日時を設定する @param props 設定と保存処理 @returns 開催設定フォーム */
 export function EventForm({ value, onSave }: { value: EventSettings; onSave: (value: Omit<EventSettings, "id" | "version" | "state" | "publishEnabled">) => void }) {
   const [draft, setDraft] = useState(() => editable(value));
-  const [source, setSource] = useState(value);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
   const uploadGeneration = useRef(0);
+
+  // 開催回の切り替えやアンマウント後のアップロード結果を破棄する
+  useEffect(() => () => { uploadGeneration.current++; }, []);
 
   // 選択画像の形式と容量を確認してアップロードする
   async function uploadPoster(file: File) {
@@ -43,7 +45,7 @@ export function EventForm({ value, onSave }: { value: EventSettings; onSave: (va
     }
   }
 
-  if (source.id !== value.id || source.version !== value.version) { uploadGeneration.current++; setUploading(false); setSource(value); setDraft(editable(value)); setError(""); }
+
   const zones = Array.from(new Set(["Asia/Tokyo", "UTC", draft.timeZone, ...Intl.supportedValuesOf("timeZone")]));
 
   return <form className="lt-event-form" onSubmit={e => {

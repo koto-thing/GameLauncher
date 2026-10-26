@@ -73,6 +73,10 @@
     [
       "email_fence",
       "TEXT"
+    ],
+    [
+      "registration_source",
+      "TEXT"
     ]
   ],
   "lt_approval_receipts": [

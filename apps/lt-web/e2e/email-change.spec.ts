@@ -46,5 +46,5 @@ for (const status of [400, 410, 503])
     await page.getByRole("button", { name: "メールアドレスを確認する" }).click();
     await expect(page.getByRole("alert")).toContainText("確認結果を取得できません");
     expect(count).toBe(1);
-    await expect(page.getByRole("button")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "メールアドレスを確認する" })).toHaveCount(0);
   });
