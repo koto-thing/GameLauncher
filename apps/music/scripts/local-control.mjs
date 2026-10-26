@@ -27,17 +27,22 @@ async function run(args, cwd) {
     throw new Error(`Local command failed: ${args[0]}`);
 }
 
-// 公開静的物とcontrol-plane管理entryを先にbuildする
-await run(["node_modules/vite/bin/vite.js", "build"], projectRoot);
-await run(
-  [
-    "node_modules/vite/bin/vite.js",
-    "build",
-    "--config",
-    "vite.manager.config.ts",
-  ],
-  projectRoot,
-);
+// CI reuses the same validated bundles; local development prepares fresh bundles
+if (process.argv.includes("--prepared")) {
+  await import("./check-prepared.mjs");
+} else {
+  // 公開静的物とcontrol-plane管理entryを先にbuildする
+  await run(["node_modules/vite/bin/vite.js", "build"], projectRoot);
+  await run(
+    [
+      "node_modules/vite/bin/vite.js",
+      "build",
+      "--config",
+      "vite.manager.config.ts",
+    ],
+    projectRoot,
+  );
+}
 await mkdir(path.join(adminRoot, "build"), { recursive: true });
 const local =
   process.env.MUSIC_E2E === "true"
