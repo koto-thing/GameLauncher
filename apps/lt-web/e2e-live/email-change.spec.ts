@@ -38,8 +38,15 @@ test("実proxyとRustで代表者メール変更を最終確定する", async ({
   async function login(page: typeof oldPage, email: string) {
     await page.goto(publicOrigin + "/login");
     await page.locator("input[name=email]").fill(email);
+    const sent = page.waitForResponse(
+      (r) => r.url().endsWith("/auth/email") && r.request().method() === "POST",
+    );
     await page.getByRole("button", { name: "確認案内を送る" }).click();
+    expect((await sent).status()).toBe(202);
     await expect(page.getByRole("button", { name: "確認案内を送る" })).toBeEnabled();
+    // 先行テストの待機メールも含め、テスト専用配送処理を完了する
+    const dispatched = await fetch("http://127.0.0.1:18878/test/dispatch-fake");
+    expect(dispatched.ok).toBe(true);
     const mail = await (
       await fetch("http://127.0.0.1:18878/test/fake-mail", { method: "POST", body: email })
     ).json();
