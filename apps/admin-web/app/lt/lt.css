@@ -64,3 +64,13 @@
   .lt-sidebar, .lt-content { overflow-y: auto; overscroll-behavior: contain; }
 }
 .lt-sidebar nav svg { width: 19px; height: 19px; flex-shrink: 0; stroke-width: 1.75; }
+
+/* 発表と転換を一枚のカードで操作する */
+.lt-panel .lt-schedule-list { list-style: none; padding: 0; }
+.lt-schedule-heading { display: flex; align-items: center; gap: 12px; }
+.lt-schedule-heading strong { overflow-wrap: anywhere; }
+.lt-manager .lt-drag-handle { touch-action: none; cursor: grab; flex-shrink: 0; padding: 12px; }
+.lt-manager .lt-drag-handle:active { cursor: grabbing; }
+.lt-schedule-times { display: grid; grid-template-columns: 50px repeat(2, minmax(0, 1fr)); align-items: center; gap: 14px; }
+.lt-schedule-overlay { padding: 20px; border: 2px solid var(--accent); border-radius: 8px; background: var(--panel); color: var(--ink); box-shadow: 0 8px 24px #0003; }
+@media (max-width: 650px) { .lt-schedule-times { grid-template-columns: 1fr; gap: 0; margin-top: 16px; } .lt-schedule-times .lt-badge { justify-self: start; } }
