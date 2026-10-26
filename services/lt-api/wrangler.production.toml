@@ -12,13 +12,15 @@ migrations_dir = "migrations"
 
 [vars]
 APP_ORIGIN = "https://lt.koto-thing.com"
-LT_PRIVATE_API_ENABLED = "false"
-LT_OPERATOR_API_ENABLED = "false"
-LT_MAINTENANCE_ENABLED = "false"
+LT_PRIVATE_API_ENABLED = "true"
+LT_OPERATOR_API_ENABLED = "true"
+LT_MAINTENANCE_ENABLED = "true"
 LT_RETENTION_ENABLED = "false"
 LT_MAIL_RELAY_URL = "https://pandd-music.koto-thing.com/lt-mail.php"
-LT_MAIL_TEST_RECIPIENT = "panddmail@gmail.com"
 LT_SYNTHETIC_METRICS = "true"
 
 [observability]
 enabled = true
+
+[triggers]
+crons = ["* * * * *"]

@@ -1,30 +1,98 @@
 "use client";
-import { moveSchedule } from "../../lib/lt/timetable";
-import { useState } from "react";
-import type { ScheduleBlock } from "../../../../contracts/lt/v1";
+import { useState, type ReactNode } from "react";
+import { DndContext, DragOverlay, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
+import { fixedTransitions, moveSchedule, reflowSchedule, scheduleGroups } from "../../lib/lt/timetable";
+import { localEventTime, utcEventTime } from "../../lib/lt/event-time";
+import type { ScheduleBlock, EventSettings, OperatorApplication } from "../../../../contracts/lt/v1";
 
-/** @brief 順序と開会・休憩・閉会を編集する @param props 読込済み時間割と保存処理 @returns 時間割編集 */
-export function TimetableEditor({ blocks, onSave, disabled }: { blocks: ScheduleBlock[]; onSave: (blocks: ScheduleBlock[]) => void; disabled: boolean }) {
-  const [draft, setDraft] = useState(blocks);
+const labels = { talk: "発表", transition: "転換", opening: "開会", break: "休憩", closing: "閉会" };
+
+/** @brief ハンドルから操作する時間割カード @param props カード情報 @returns 並び替え可能な枠 */
+function ScheduleCard({ id, title, disabled, children }: { id: string; title: string; disabled: boolean; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
+  return <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? .35 : 1 }}>
+    <div className="lt-schedule-heading"><button type="button" className="lt-drag-handle" ref={setActivatorNodeRef} {...attributes} {...listeners} disabled={disabled} aria-label={`${title}を並べ替え`}><GripVertical aria-hidden="true" /></button><strong>{title}</strong></div>
+    {children}
+  </li>;
+}
+
+/** @brief 開催地域の日時で時間割を編集する @param props 保存済み時間割と開催設定 @returns 編集画面 */
+export function TimetableEditor({ blocks, event, applications, onSave, disabled }: { blocks: ScheduleBlock[]; event: EventSettings; applications: OperatorApplication[]; onSave: (blocks: ScheduleBlock[]) => void; disabled: boolean }) {
+  const zone = event.timeZone;
+  // 入力途中の日時も保持し、保存と並び替えの直前にUTCへ変換する
+  const localize = (items: ScheduleBlock[]) => items.map(b => ({ ...b, startsAt: localEventTime(b.startsAt, zone), endsAt: localEventTime(b.endsAt, zone) }));
+  const [draft, setDraft] = useState(() => localize(blocks));
   const [error, setError] = useState("");
-  function move(index: number, offset: number) {
-    setDraft(moveSchedule(draft, index, offset));
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const groups = scheduleGroups(draft);
+
+  /** @brief 入力日時を保存形式へ変換する @returns UTC時間割 */
+  function utcDraft() {
+    return fixedTransitions(draft.map(b => {
+      if (b.kind === "transition") return b;
+      const original = blocks.find(item => item.id === b.id);
+      return { ...b, startsAt: utcEventTime(b.startsAt, zone, original?.startsAt), endsAt: utcEventTime(b.endsAt, zone, original?.endsAt) };
+    }), event.transitionMinutes);
   }
+
+  /** @brief 入力エラーを画面へ表示する @param action 編集操作 */
+  function edit(action: () => ScheduleBlock[]) {
+    try { setDraft(localize(action())); setError(""); }
+    catch { setError("開始・終了日時を入力してください。夏時間の切替で存在しない、または重複する時刻も指定できません。"); }
+  }
+
+  /** @brief タイトルと登壇者を表示する @param block 枠 @returns 表示名 */
+  function title(block: ScheduleBlock) {
+    const application = applications.find(item => item.id === block.talkId);
+    const content = application?.published ?? application?.content;
+    return content ? `${content.speakers.map(s => s.displayName).join("、")} — ${content.title}` : labels[block.kind];
+  }
+
+  /** @brief 保存条件を確認して親へ渡す */
   function save() {
-    if (draft.some(block => !Number.isFinite(Date.parse(block.startsAt)) || !Number.isFinite(Date.parse(block.endsAt)) || Date.parse(block.startsAt) >= Date.parse(block.endsAt))) { setError("各項目の開始・終了日時を確認してください"); return; }
-    if (draft.some((block, index) => index > 0 && Date.parse(block.startsAt) < Date.parse(draft[index - 1].endsAt))) { setError("時間が重複しているか順序と一致しません"); return; }
-    setError(""); onSave(draft);
+    try {
+      const items = utcDraft();
+      let cursor = Date.parse(event.startsAt);
+      for (const b of items) {
+        const start = Date.parse(b.startsAt), end = Date.parse(b.endsAt);
+        if (start !== cursor || end < start || (end === start && b.kind !== "transition")) { setError("開催開始日時から、隙間や重複がないように指定してください。「時刻を連続配置」で整えられます。"); return; }
+        if ((b.kind === "talk" && end - start !== event.talkMinutes * 60000) || (b.kind === "transition" && end - start !== event.transitionMinutes * 60000)) { setError(`発表は${event.talkMinutes}分、転換は${event.transitionMinutes}分で指定してください。共通の長さは開催回の設定で変更できます。`); return; }
+        cursor = end;
+      }
+      setError(""); onSave(items);
+    } catch { setError("各枠の開始・終了日時を確認してください。"); }
   }
+
+  /** @brief 開会・休憩・閉会を適切な位置へ追加する @param kind 種類 */
+  function add(kind: "opening" | "break" | "closing") {
+    edit(() => {
+      const items = utcDraft();
+      const block = { id: crypto.randomUUID(), kind, startsAt: event.startsAt, endsAt: new Date(Date.parse(event.startsAt) + 5 * 60000).toISOString() };
+      const closing = items.findIndex(b => b.kind === "closing");
+      items.splice(kind === "opening" ? 0 : closing < 0 ? items.length : closing, 0, block);
+      return reflowSchedule(items, event.startsAt);
+    });
+  }
+
   return <fieldset disabled={disabled}><legend>時間割</legend>
     {error && <p role="alert">{error}</p>}
-    <ol>{draft.map((block, index) => <li key={block.id}>
-      <p>{({ talk: "発表", transition: "転換", opening: "開会", break: "休憩", closing: "閉会" })[block.kind]} {block.talkId}</p>
-      <label>開始 (UTC)<input value={block.startsAt} onInput={e => { const value = e.currentTarget.value; setDraft(items => items.map(item => item.id === block.id ? { ...item, startsAt: value } : item)); }} /></label>
-      <label>終了 (UTC)<input value={block.endsAt} onInput={e => { const value = e.currentTarget.value; setDraft(items => items.map(item => item.id === block.id ? { ...item, endsAt: value } : item)); }} /></label>
-      <button type="button" disabled={index === 0} onClick={() => move(index, -1)}>上へ</button><button type="button" disabled={index === draft.length - 1} onClick={() => move(index, 1)}>下へ</button>
-      {block.kind !== "talk" && <button type="button" onClick={() => setDraft(items => items.filter(item => item.id !== block.id))}>削除</button>}
-    </li>)}</ol>
-    {(["opening", "break", "closing"] as const).map(kind => <button key={kind} type="button" onClick={() => setDraft(items => [...items, { id: crypto.randomUUID(), kind, startsAt: "", endsAt: "" }])}>{({ opening: "開会", break: "休憩", closing: "閉会" })[kind]}を追加</button>)}
-    <button type="button" onClick={save}>時間割を保存</button><button type="button" onClick={() => { setDraft(blocks); setError(""); }}>編集を取り消す</button>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={({ active }) => setActiveId(String(active.id))} onDragCancel={() => setActiveId(null)} onDragEnd={({ active, over }) => { setActiveId(null); if (!disabled && over && active.id !== over.id) edit(() => moveSchedule(utcDraft(), String(active.id), String(over.id))); }}>
+      <SortableContext items={groups.map(g => g[0].id)} strategy={verticalListSortingStrategy}>
+        <ol className="lt-schedule-list">{groups.map(group => <ScheduleCard key={group[0].id} id={group[0].id} title={title(group[0])} disabled={disabled || group[0].kind === "opening" || group[0].kind === "closing"}>
+          {group.filter(block => block.kind !== "transition").map(block => <div key={block.id} className="lt-schedule-times" role="group" aria-label={labels[block.kind]}><span className="lt-badge">{labels[block.kind]}</span>
+            <div className="lt-schedule-range">{(["startsAt", "endsAt"] as const).map(field => <span key={field} className="lt-schedule-endpoint">{field === "endsAt" && <span aria-hidden="true">～</span>}<input aria-label={`${labels[block.kind]}の${field === "startsAt" ? "開始日時" : "終了日時"}`} type="datetime-local" step="60" value={block[field]} onClick={e => e.currentTarget.showPicker?.()} onChange={e => { const value = e.currentTarget.value; setDraft(items => items.map(item => item.id === block.id ? { ...item, [field]: value } : item)); }} /></span>)}</div>
+          </div>)}
+          {group[0].kind !== "talk" && <button type="button" onClick={() => edit(() => reflowSchedule(utcDraft().filter(b => b.id !== group[0].id), event.startsAt))}>削除</button>}
+        </ScheduleCard>)}</ol>
+      </SortableContext>
+      <DragOverlay>{activeId && <div className="lt-schedule-overlay">{title(draft.find(b => b.id === activeId)!)}</div>}</DragOverlay>
+    </DndContext>
+    <div>{(["opening", "break", "closing"] as const).map(kind => <button key={kind} type="button" disabled={kind !== "break" && draft.some(b => b.kind === kind)} onClick={() => add(kind)}>{labels[kind]}を追加</button>)}</div>
+    <button type="button" onClick={() => edit(() => reflowSchedule(utcDraft(), event.startsAt))}>時刻を連続配置</button>
+    <button type="button" onClick={save}>時間割を保存</button><button type="button" onClick={() => { setDraft(localize(blocks)); setError(""); }}>編集を取り消す</button>
   </fieldset>;
 }

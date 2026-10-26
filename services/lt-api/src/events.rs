@@ -10,6 +10,8 @@ struct Settings {
     title: String,
     venue: String,
     guidance: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    poster_url: Option<String>,
     starts_at: String,
     time_zone: String,
     opens_at: String,
@@ -17,6 +19,17 @@ struct Settings {
     capacity: u32,
     talk_minutes: u32,
     transition_minutes: u32,
+}
+
+/// ポスターを認証情報のないHTTPS画像URLに限定する
+pub(crate) fn valid_poster_url(value: &str) -> bool {
+    value.len() <= 2048
+        && worker::Url::parse(value).is_ok_and(|u| {
+            u.scheme() == "https"
+                && u.host_str().is_some()
+                && u.username().is_empty()
+                && u.password().is_none()
+        })
 }
 
 /// 入力日時をUTC epochへ変換する
@@ -61,6 +74,9 @@ fn valid(s: &Settings) -> bool {
     };
     !s.title.trim().is_empty()
         && !s.venue.trim().is_empty()
+        && s.poster_url
+            .as_ref()
+            .is_none_or(|url| valid_poster_url(url))
         && s.capacity > 0
         && s.talk_minutes > 0
         && s.capacity <= 10000
@@ -90,9 +106,11 @@ pub async fn detail(db: &D1Database, id: &str) -> Result<Option<Value>> {
             .as_string()
             .unwrap()
     };
-    Ok(Some(
-        json!({"id":id,"version":r["version"],"state":r["state"],"publishEnabled":r["publish_enabled"]==1,"title":p["title"],"venue":p["venue"],"guidance":p["guidance"],"startsAt":p["startsAt"],"timeZone":p["timeZone"],"opensAt":instant(&r["opens"]),"closesAt":instant(&r["closes"]),"capacity":r["capacity"],"talkMinutes":r["talk_minutes"],"transitionMinutes":r["transition_minutes"]}),
-    ))
+    let mut result = json!({"id":id,"version":r["version"],"state":r["state"],"publishEnabled":r["publish_enabled"]==1,"title":p["title"],"venue":p["venue"],"guidance":p["guidance"],"startsAt":p["startsAt"],"timeZone":p["timeZone"],"opensAt":instant(&r["opens"]),"closesAt":instant(&r["closes"]),"capacity":r["capacity"],"talkMinutes":r["talk_minutes"],"transitionMinutes":r["transition_minutes"]});
+    if let Some(url) = p.get("posterUrl") {
+        result["posterUrl"] = url.clone();
+    }
+    Ok(Some(result))
 }
 
 /// 開催設定の一覧・作成・更新・限定コピーを扱う
@@ -208,6 +226,7 @@ pub async fn handle(
         Settings {
             title: "LT会".into(),
             guidance: String::new(),
+            poster_url: None,
             time_zone: "Asia/Tokyo".into(),
             venue: old["venue"].as_str().unwrap().into(),
             capacity: old["capacity"].as_u64().unwrap() as u32,
@@ -246,11 +265,15 @@ pub async fn handle(
             .map(|b| format!("{b:02x}"))
             .collect::<String>()
     };
-    let result = if update {
-        db.prepare("UPDATE lt_event_configs SET dto=?1,actor=?2,operation_id=?3,payload_hash=?4,expected_version=?5 WHERE id=?6").bind(&[dto.into(),actor.into(),op.clone().into(),hash.clone().into(),(expected as f64).into(),id.clone().into()])?.run().await
+    let statement = if update {
+        db.prepare("UPDATE lt_event_configs SET dto=?1,actor=?2,operation_id=?3,payload_hash=?4,expected_version=?5 WHERE id=?6").bind(&[dto.into(),actor.into(),op.clone().into(),hash.clone().into(),(expected as f64).into(),id.clone().into()])?
     } else {
-        db.prepare("INSERT INTO lt_event_configs(id,dto,actor,operation_id,payload_hash,source_id,source_version) VALUES(?1,?2,?3,?4,?5,?6,?7)").bind(&[id.clone().into(),dto.into(),actor.into(),op.clone().into(),hash.clone().into(),if copy{JsValue::from_str(p[5])}else{JsValue::NULL},if copy{JsValue::from_f64(expected as f64)}else{JsValue::NULL}])?.run().await
+        db.prepare("INSERT INTO lt_event_configs(id,dto,actor,operation_id,payload_hash,source_id,source_version) VALUES(?1,?2,?3,?4,?5,?6,?7)").bind(&[id.clone().into(),dto.into(),actor.into(),op.clone().into(),hash.clone().into(),if copy{JsValue::from_str(p[5])}else{JsValue::NULL},if copy{JsValue::from_f64(expected as f64)}else{JsValue::NULL}])?
     };
+    // 設定と公開ポスターを同じトランザクションで反映する
+    let poster = db.prepare("UPDATE lt_public_events SET dto=CASE WHEN ?1 IS NULL THEN json_remove(dto,'$.posterUrl') ELSE json_set(dto,'$.posterUrl',?1) END WHERE event_id=?2 AND EXISTS(SELECT 1 FROM lt_event_configs c WHERE c.id=?2 AND c.operation_id=?3 AND c.actor=?4)")
+        .bind(&[settings.poster_url.as_ref().map(|v| JsValue::from_str(v)).unwrap_or(JsValue::NULL), id.clone().into(), op.clone().into(), actor.into()])?;
+    let result = db.batch(vec![statement, poster]).await;
     match result {
         Err(e) => {
             if let Some(response) =
@@ -274,7 +297,7 @@ pub async fn handle(
             return Err(e);
         }
         Ok(r) => {
-            if r.meta()?.unwrap().changes.unwrap_or(0) == 0 {
+            if r[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
                 return error("NOT_FOUND", 404);
             }
         }

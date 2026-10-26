@@ -16,9 +16,9 @@
 .lt-manager button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); padding: 9px 14px; font: inherit; font-size: 14px; cursor: pointer; margin: 4px 5px 4px 0; }
 .lt-manager button:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-ink); }
 .lt-manager button:disabled { opacity: .48; cursor: not-allowed; }
-.lt-manager :is(button, a, input, textarea):focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.lt-manager :is(button, a, input, textarea, select):focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .lt-manager label { display: grid; gap: 7px; font-size: 14px; margin: 12px 0; font-weight: 600; }
-.lt-manager input:not([type=checkbox]), .lt-manager textarea { width: 100%; min-width: 0; border: 1px solid var(--input-line); border-radius: 6px; padding: 10px 12px; background: var(--panel); color: var(--ink); font: inherit; font-weight: 400; }
+.lt-manager input:not([type=checkbox]), .lt-manager textarea, .lt-manager select { width: 100%; min-width: 0; border: 1px solid var(--input-line); border-radius: 6px; padding: 10px 12px; background: var(--panel); color: var(--ink); font: inherit; font-weight: 400; }
 .lt-manager textarea { min-height: 110px; resize: vertical; }
 .lt-manager label:has(input[type=checkbox]) { display: flex; align-items: center; }
 .lt-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 11px; padding: 24px; margin: 22px 0; scroll-margin-top: 24px; }
@@ -64,3 +64,46 @@
   .lt-sidebar, .lt-content { overflow-y: auto; overscroll-behavior: contain; }
 }
 .lt-sidebar nav svg { width: 19px; height: 19px; flex-shrink: 0; stroke-width: 1.75; }
+
+/* 発表と転換を一枚のカードで操作する */
+.lt-panel .lt-schedule-list { list-style: none; padding: 0; }
+.lt-schedule-heading { display: flex; align-items: center; gap: 12px; }
+.lt-schedule-heading strong { overflow-wrap: anywhere; }
+.lt-manager .lt-drag-handle { touch-action: none; cursor: grab; flex-shrink: 0; padding: 12px; }
+.lt-manager .lt-drag-handle:active { cursor: grabbing; }
+
+.lt-schedule-overlay { padding: 20px; border: 2px solid var(--accent); border-radius: 8px; background: var(--panel); color: var(--ink); box-shadow: 0 8px 24px #0003; }
+
+
+/* 審査時に分類・聴講条件・公開リンクを確認する */
+.lt-session-facts > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 18px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.lt-session-facts dt { color: var(--muted); }
+.lt-session-facts dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.lt-manager .session-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.lt-manager .session-chip { display: inline-block; border: 1px solid var(--line); border-radius: 5px; padding: 3px 9px; }
+.lt-manager .speaker-links { display: flex; flex-wrap: wrap; gap: 14px; list-style: none; padding: 0; }
+.lt-manager .link-new-window { font-size: 11px; color: var(--muted); }
+@media (max-width: 600px) { .lt-session-facts > div { grid-template-columns: 1fr; gap: 4px; } }
+
+/* 発表の追加情報を管理画面で編集する */
+.lt-session-editor { margin: 20px 0; padding: 20px; border: 1px solid var(--accent-line); border-radius: 8px; }
+.lt-session-editor fieldset { border: 1px solid var(--line); padding: 16px; margin: 18px 0; border-radius: 6px; min-width: 0; }
+.lt-session-editor .related-field-options { display: grid; grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); gap: 8px; }
+.lt-speaker-link-editor { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.lt-session-editor input[type=checkbox] { width: 18px; height: 18px; flex: 0 0 18px; margin: 0; padding: 0; accent-color: var(--accent); }
+
+/* 時間の範囲を一行にまとめる */
+.lt-schedule-times { display: grid; align-items: center; gap: 14px; grid-template-columns: 50px minmax(0, 620px); margin-top: 12px; }
+.lt-schedule-range { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lt-schedule-endpoint { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.lt-schedule-times input { margin: 0; }
+@media (max-width: 650px) {
+  .lt-schedule-times { grid-template-columns: 1fr; gap: 8px; }
+  .lt-schedule-range { flex-wrap: wrap; }
+  .lt-schedule-endpoint { flex-basis: 230px; }
+}
+.lt-manager .social-icon-link { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 6px; }
+.lt-event-poster { display: flex; align-items: flex-start; gap: 16px; margin: 12px 0; }
+.lt-event-poster img { width: 180px; max-height: 260px; object-fit: contain; border-radius: 6px; }
+.lt-event-form label:has(input[type="file"]) { align-self: start; }
+.lt-event-form input[type="file"] { height: auto; }

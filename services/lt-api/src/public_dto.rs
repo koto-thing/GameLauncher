@@ -17,6 +17,8 @@ struct Speaker {
         skip_serializing_if = "Option::is_none"
     )]
     profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    links: Option<Vec<crate::session_info::SpeakerLink>>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -57,6 +59,8 @@ struct Event {
     title: String,
     venue: String,
     guidance: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    poster_url: Option<String>,
     starts_at: String,
     ends_at: String,
     time_zone: String,
@@ -79,6 +83,8 @@ struct Talk {
     )]
     description: Option<String>,
     speakers: Vec<Speaker>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session: Option<crate::session_info::SessionInfo>,
     starts_at: String,
     ends_at: String,
     cancelled: bool,
@@ -91,7 +97,8 @@ pub fn validate(value: &Value, talk: bool) -> Option<Value> {
     // clone は deserialize 前だけに限定し、未知キーも拒否する
     if talk {
         let dto: Talk = serde_json::from_value(value.clone()).ok()?;
-        if dto.version == 0
+        if !crate::session_info::valid(value)
+            || dto.version == 0
             || [&dto.id, &dto.event_id, &dto.title, &dto.abstract_text]
                 .iter()
                 .any(|s| s.is_empty())
@@ -112,6 +119,10 @@ pub fn validate(value: &Value, talk: bool) -> Option<Value> {
     } else {
         let dto: Event = serde_json::from_value(value.clone()).ok()?;
         if dto.version == 0
+            || dto
+                .poster_url
+                .as_ref()
+                .is_some_and(|url| !crate::events::valid_poster_url(url))
             || [&dto.id, &dto.title, &dto.venue, &dto.time_zone]
                 .iter()
                 .any(|s| s.is_empty())

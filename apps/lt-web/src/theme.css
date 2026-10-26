@@ -1,0 +1,89 @@
+:root {
+  color-scheme: light;
+  --theme-canvas: #faf7f8;
+  --theme-surface: #fff;
+  --theme-ink: #383838;
+  --theme-muted: #70666a;
+  --theme-placeholder: #98919c;
+  --theme-line: #e5dce0;
+  --theme-input-line: #d5cbd0;
+  --theme-link: #a32948;
+  --theme-soft: #f2ecef;
+  --theme-accent-soft: #fff0f3;
+  --theme-accent-line: #efb0bf;
+  --theme-warning-bg: #fff7e5;
+  --theme-warning-ink: #854a0e;
+  --theme-warning-line: #ddbd76;
+  --theme-error-bg: #f8e9e2;
+  --theme-error-ink: #a33129;
+  --theme-error-line: #dca59f;
+  --theme-blue-ink: #17579b;
+  --theme-blue-bg: #eaf3ff;
+  --theme-purple-ink: #7850a6;
+  --theme-purple-bg: #f4edfc;
+  --theme-green-ink: #176749;
+  --theme-green-bg: #e7f6ee;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --theme-canvas: #151318;
+  --theme-surface: #211e25;
+  --theme-ink: #f1edf0;
+  --theme-muted: #bfb3bc;
+  --theme-placeholder: #a79aa4;
+  --theme-line: #443b46;
+  --theme-input-line: #716271;
+  --theme-link: #ff9db8;
+  --theme-soft: #302a34;
+  --theme-accent-soft: #382330;
+  --theme-accent-line: #8e5269;
+  --theme-warning-bg: #362b19;
+  --theme-warning-ink: #f2c781;
+  --theme-warning-line: #92733c;
+  --theme-error-bg: #3b2226;
+  --theme-error-ink: #ffaaa1;
+  --theme-error-line: #9d615c;
+  --theme-blue-ink: #9ecbff;
+  --theme-blue-bg: #20324b;
+  --theme-purple-ink: #d8b6ff;
+  --theme-purple-bg: #342541;
+  --theme-green-ink: #98ddbc;
+  --theme-green-bg: #1d362d;
+}
+
+input,
+textarea,
+select {
+  background: var(--theme-surface);
+  color: var(--theme-ink);
+}
+button {
+  color: var(--theme-ink);
+}
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  margin: 0 0 0 auto;
+  background: var(--theme-surface);
+  color: var(--theme-ink);
+  border: 1px solid var(--theme-input-line);
+  border-radius: 50%;
+}
+.theme-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+.public-site .theme-toggle {
+  margin-left: auto;
+}
+.theme-toggle:hover {
+  background: var(--theme-soft);
+}
+:root[data-theme="dark"] .public-site .program-switch button[aria-pressed="true"] {
+  color: #252225;
+}

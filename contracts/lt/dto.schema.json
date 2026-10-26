@@ -36,6 +36,32 @@
               "profile": {
                 "type": "string",
                 "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    },
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2048,
+                      "format": "uri",
+                      "pattern": "^https?://[^/@?#\\s]+(?:[/?#]|$)"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "url"
+                  ]
+                }
               }
             },
             "required": [
@@ -67,6 +93,82 @@
         },
         "cancelled": {
           "type": "boolean"
+        },
+        "session": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string",
+              "enum": [
+                "programming",
+                "sound",
+                "graphics"
+              ]
+            },
+            "relatedFields": {
+              "type": "array",
+              "maxItems": 7,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "ENG",
+                  "PRD",
+                  "VA",
+                  "GD",
+                  "SND",
+                  "BP",
+                  "AC"
+                ]
+              }
+            },
+            "keywords": {
+              "type": "array",
+              "maxItems": 10,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            },
+            "platforms": {
+              "type": "array",
+              "maxItems": 10,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              }
+            },
+            "difficulty": {
+              "type": "string",
+              "enum": [
+                "easy",
+                "normal",
+                "hard"
+              ]
+            },
+            "prerequisites": {
+              "type": "string",
+              "maxLength": 3000
+            },
+            "takeaways": {
+              "type": "string",
+              "maxLength": 3000
+            }
+          },
+          "required": [
+            "field",
+            "relatedFields",
+            "keywords",
+            "platforms",
+            "difficulty",
+            "prerequisites",
+            "takeaways"
+          ]
         }
       },
       "required": [
@@ -167,6 +269,11 @@
               "endsAt"
             ]
           }
+        },
+        "posterUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https://"
         }
       },
       "required": [
@@ -216,12 +323,114 @@
               "profile": {
                 "type": "string",
                 "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    },
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2048,
+                      "format": "uri",
+                      "pattern": "^https?://[^/@?#\\s]+(?:[/?#]|$)"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "url"
+                  ]
+                }
               }
             },
             "required": [
               "displayName"
             ]
           }
+        },
+        "session": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string",
+              "enum": [
+                "programming",
+                "sound",
+                "graphics"
+              ]
+            },
+            "relatedFields": {
+              "type": "array",
+              "maxItems": 7,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "ENG",
+                  "PRD",
+                  "VA",
+                  "GD",
+                  "SND",
+                  "BP",
+                  "AC"
+                ]
+              }
+            },
+            "keywords": {
+              "type": "array",
+              "maxItems": 10,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              }
+            },
+            "platforms": {
+              "type": "array",
+              "maxItems": 10,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              }
+            },
+            "difficulty": {
+              "type": "string",
+              "enum": [
+                "easy",
+                "normal",
+                "hard"
+              ]
+            },
+            "prerequisites": {
+              "type": "string",
+              "maxLength": 3000
+            },
+            "takeaways": {
+              "type": "string",
+              "maxLength": 3000
+            }
+          },
+          "required": [
+            "field",
+            "relatedFields",
+            "keywords",
+            "platforms",
+            "difficulty",
+            "prerequisites",
+            "takeaways"
+          ]
         }
       },
       "required": [
@@ -280,12 +489,114 @@
                   "profile": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "links": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 40
+                        },
+                        "url": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2048,
+                          "format": "uri",
+                          "pattern": "^https?://[^/@?#\\s]+(?:[/?#]|$)"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "url"
+                      ]
+                    }
                   }
                 },
                 "required": [
                   "displayName"
                 ]
               }
+            },
+            "session": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "enum": [
+                    "programming",
+                    "sound",
+                    "graphics"
+                  ]
+                },
+                "relatedFields": {
+                  "type": "array",
+                  "maxItems": 7,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "ENG",
+                      "PRD",
+                      "VA",
+                      "GD",
+                      "SND",
+                      "BP",
+                      "AC"
+                    ]
+                  }
+                },
+                "keywords": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "platforms": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "difficulty": {
+                  "type": "string",
+                  "enum": [
+                    "easy",
+                    "normal",
+                    "hard"
+                  ]
+                },
+                "prerequisites": {
+                  "type": "string",
+                  "maxLength": 3000
+                },
+                "takeaways": {
+                  "type": "string",
+                  "maxLength": 3000
+                }
+              },
+              "required": [
+                "field",
+                "relatedFields",
+                "keywords",
+                "platforms",
+                "difficulty",
+                "prerequisites",
+                "takeaways"
+              ]
             }
           },
           "required": [
@@ -295,13 +606,29 @@
           ]
         },
         "materialUrl": {
-          "type": "string",
-          "format": "uri",
-          "pattern": "^https?://"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://"
+            },
+            {
+              "const": ""
+            }
+          ],
+          "description": "資料未提出の場合は空文字"
         },
         "representativeEmail": {
-          "type": "string",
-          "format": "email"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "email"
+            },
+            {
+              "const": ""
+            }
+          ],
+          "description": "手動受付でメール未登録の場合は空文字"
         },
         "review": {
           "enum": [
@@ -443,12 +770,114 @@
                   "profile": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "links": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 40
+                        },
+                        "url": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2048,
+                          "format": "uri",
+                          "pattern": "^https?://[^/@?#\\s]+(?:[/?#]|$)"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "url"
+                      ]
+                    }
                   }
                 },
                 "required": [
                   "displayName"
                 ]
               }
+            },
+            "session": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "enum": [
+                    "programming",
+                    "sound",
+                    "graphics"
+                  ]
+                },
+                "relatedFields": {
+                  "type": "array",
+                  "maxItems": 7,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "ENG",
+                      "PRD",
+                      "VA",
+                      "GD",
+                      "SND",
+                      "BP",
+                      "AC"
+                    ]
+                  }
+                },
+                "keywords": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "platforms": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "difficulty": {
+                  "type": "string",
+                  "enum": [
+                    "easy",
+                    "normal",
+                    "hard"
+                  ]
+                },
+                "prerequisites": {
+                  "type": "string",
+                  "maxLength": 3000
+                },
+                "takeaways": {
+                  "type": "string",
+                  "maxLength": 3000
+                }
+              },
+              "required": [
+                "field",
+                "relatedFields",
+                "keywords",
+                "platforms",
+                "difficulty",
+                "prerequisites",
+                "takeaways"
+              ]
             }
           },
           "required": [
@@ -458,13 +887,29 @@
           ]
         },
         "materialUrl": {
-          "type": "string",
-          "format": "uri",
-          "pattern": "^https?://"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://"
+            },
+            {
+              "const": ""
+            }
+          ],
+          "description": "資料未提出の場合は空文字"
         },
         "representativeEmail": {
-          "type": "string",
-          "format": "email"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "email"
+            },
+            {
+              "const": ""
+            }
+          ],
+          "description": "手動受付でメール未登録の場合は空文字"
         },
         "review": {
           "enum": [
@@ -602,12 +1047,114 @@
                   "profile": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "links": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 40
+                        },
+                        "url": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2048,
+                          "format": "uri",
+                          "pattern": "^https?://[^/@?#\\s]+(?:[/?#]|$)"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "url"
+                      ]
+                    }
                   }
                 },
                 "required": [
                   "displayName"
                 ]
               }
+            },
+            "session": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "enum": [
+                    "programming",
+                    "sound",
+                    "graphics"
+                  ]
+                },
+                "relatedFields": {
+                  "type": "array",
+                  "maxItems": 7,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "ENG",
+                      "PRD",
+                      "VA",
+                      "GD",
+                      "SND",
+                      "BP",
+                      "AC"
+                    ]
+                  }
+                },
+                "keywords": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "platforms": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "difficulty": {
+                  "type": "string",
+                  "enum": [
+                    "easy",
+                    "normal",
+                    "hard"
+                  ]
+                },
+                "prerequisites": {
+                  "type": "string",
+                  "maxLength": 3000
+                },
+                "takeaways": {
+                  "type": "string",
+                  "maxLength": 3000
+                }
+              },
+              "required": [
+                "field",
+                "relatedFields",
+                "keywords",
+                "platforms",
+                "difficulty",
+                "prerequisites",
+                "takeaways"
+              ]
             }
           },
           "required": [
@@ -878,6 +1425,11 @@
         },
         "publishEnabled": {
           "type": "boolean"
+        },
+        "posterUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https://"
         }
       },
       "required": [
@@ -946,6 +1498,11 @@
         "operationId": {
           "type": "string",
           "minLength": 1
+        },
+        "posterUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https://"
         }
       },
       "required": [
@@ -1019,6 +1576,11 @@
             "transitionMinutes": {
               "type": "integer",
               "minimum": 0
+            },
+            "posterUrl": {
+              "type": "string",
+              "maxLength": 2048,
+              "pattern": "^https://"
             }
           },
           "required": [
@@ -1617,6 +2179,32 @@
         "profile": {
           "type": "string",
           "minLength": 1
+        },
+        "links": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "url": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048,
+                "format": "uri",
+                "pattern": "^https?://[^/@?#\\s]+(?:[/?#]|$)"
+              }
+            },
+            "required": [
+              "label",
+              "url"
+            ]
+          }
         }
       },
       "required": [
@@ -1760,6 +2348,141 @@
       "required": [
         "token"
       ]
+    },
+    "OperatorMetadataInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ],
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "session",
+            "speakerLinks"
+          ],
+          "properties": {
+            "session": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "enum": [
+                    "programming",
+                    "sound",
+                    "graphics"
+                  ]
+                },
+                "relatedFields": {
+                  "type": "array",
+                  "maxItems": 7,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "ENG",
+                      "PRD",
+                      "VA",
+                      "GD",
+                      "SND",
+                      "BP",
+                      "AC"
+                    ]
+                  }
+                },
+                "keywords": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "platforms": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "difficulty": {
+                  "type": "string",
+                  "enum": [
+                    "easy",
+                    "normal",
+                    "hard"
+                  ]
+                },
+                "prerequisites": {
+                  "type": "string",
+                  "maxLength": 3000
+                },
+                "takeaways": {
+                  "type": "string",
+                  "maxLength": 3000
+                }
+              },
+              "required": [
+                "field",
+                "relatedFields",
+                "keywords",
+                "platforms",
+                "difficulty",
+                "prerequisites",
+                "takeaways"
+              ]
+            },
+            "speakerLinks": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    },
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2048,
+                      "format": "uri",
+                      "pattern": "^https?://[^/@?#\\s]+(?:[/?#]|$)"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "url"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

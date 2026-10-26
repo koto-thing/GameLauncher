@@ -309,5 +309,13 @@
     "response": "EmailAccepted",
     "productionEnabled": false,
     "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/metadata",
+    "access": "lt.operate",
+    "request": "OperatorMetadataInput",
+    "response": "OperatorApplication",
+    "error": "ApiError"
   }
 ]

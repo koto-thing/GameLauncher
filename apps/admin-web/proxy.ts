@@ -17,7 +17,7 @@ export async function proxy(request: NextRequest) {
     : NextResponse.next();
   response.headers.set("Content-Security-Policy", buildContentSecurityPolicy(undefined, request.nextUrl.pathname));
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
-  response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
+  response.headers.set("Cross-Origin-Resource-Policy", /^\/media\/lt-posters\/[a-f0-9]{64}$/.test(request.nextUrl.pathname) ? "cross-origin" : "same-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
   response.headers.set("Referrer-Policy", "no-referrer");
   response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");

@@ -1,3 +1,5 @@
+import { ThemeToggle } from "./ThemeToggle";
+import { LegalPage, SiteFooter } from "./LegalPage";
 import { EmailChange } from "./EmailChange";
 import { PublicSite } from "./PublicSite";
 import { StrictMode, useEffect, useState } from "react";
@@ -12,6 +14,7 @@ import type {
 import { request } from "./api";
 import { actions } from "./policy";
 import "./style.css";
+import "./theme.css";
 import { ApplicationForm } from "./ApplicationForm";
 import { operation } from "./operation";
 import { allEvents, formatInstant } from "./events";
@@ -99,6 +102,10 @@ function App() {
     };
   }, [path, revision, cursor]);
   function nav(p: string) {
+    if (isPublicPage(p)) {
+      location.assign(p);
+      return;
+    }
     setData(null);
     setCursor(null);
     history.pushState(null, "", p);
@@ -158,7 +165,7 @@ function App() {
   }
   return (
     <>
-      <header>
+      <header className="applicant-header">
         <a
           href="/"
           onClick={(e) => {
@@ -166,23 +173,24 @@ function App() {
             nav("/");
           }}
         >
-          LT会
+          PandD LT
         </a>
         <nav>
           <button onClick={() => nav("/")}>開催回</button>
           {applicationsAvailable && (
             <>
-              <button onClick={() => nav("/applications")}>本人申請</button>
+              <button onClick={() => nav("/applications")}>申請一覧</button>
               <button onClick={() => nav("/login")}>メール確認</button>
             </>
           )}
         </nav>
+        <ThemeToggle />
       </header>
-      <main>
+      <main className="applicant-main">
         {!applicationsAvailable && isPublicPage(path) && <p role="status">{unavailableMessage}</p>}
         {session && (
-          <p>
-            セッション期限: {session}
+          <p className="account-status">
+            メール認証済み
             <button
               disabled={busy}
               onClick={() =>
@@ -222,7 +230,7 @@ function App() {
               void run(async () => {
                 await api("/auth/email", { method: "POST", body: JSON.stringify({ email }) });
                 setNotice(
-                  "対象のメールアドレスには確認案内が届きます。確認リンクは1時間有効です。",
+                  "対象のメールアドレスには確認案内が届きます。確認リンクは1時間有効です。メールが届かない場合は、迷惑メールフォルダもご確認ください。",
                 );
               });
             }}
@@ -233,6 +241,7 @@ function App() {
               <input name="email" type="email" required autoComplete="email" />
             </label>
             <button disabled={busy}>確認案内を送る</button>
+            <p>メールが届かない場合は、迷惑メールフォルダもご確認ください。</p>
           </form>
         ) : path === "/auth/verify" ? (
           <section>
@@ -422,12 +431,15 @@ function App() {
 }
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {!applicationsAvailable ? (
+    {location.pathname === "/privacy" || location.pathname === "/disclaimer" ? (
+      <LegalPage privacy={location.pathname === "/privacy"} />
+    ) : !applicationsAvailable || isPublicPage(location.pathname) ? (
       <PublicSite />
     ) : location.pathname === "/auth/email-change" ? (
       <EmailChange />
     ) : (
       <App />
     )}
+    <SiteFooter />
   </StrictMode>,
 );

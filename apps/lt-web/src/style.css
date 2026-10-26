@@ -1,7 +1,7 @@
 :root {
   font-family: system-ui, sans-serif;
-  color: #383838;
-  background: #faf7f8;
+  color: var(--theme-ink);
+  background: var(--theme-canvas);
   line-height: 1.6;
 }
 * {
@@ -15,8 +15,8 @@ header {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 5%;
-  border-bottom: 1px solid #e5dce0;
-  background: #fff;
+  border-bottom: 1px solid var(--theme-line);
+  background: var(--theme-surface);
   gap: 1rem;
   flex-wrap: wrap;
 }
@@ -29,8 +29,8 @@ article,
 form,
 section > aside {
   padding: 1.5rem;
-  background: #fff;
-  border: 1px solid #e5dce0;
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-line);
   border-radius: 12px;
   margin: 1rem 0;
 }
@@ -44,9 +44,9 @@ button {
   font: inherit;
   cursor: pointer;
   padding: 0.65rem 1rem;
-  border: 1px solid #a2949a;
+  border: 1px solid var(--theme-input-line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--theme-surface);
   margin: 0.3rem;
 }
 button[type="submit"],
@@ -59,7 +59,7 @@ button:disabled {
   cursor: wait;
 }
 a {
-  color: #a32948;
+  color: var(--theme-link);
 }
 label {
   display: block;
@@ -71,7 +71,7 @@ textarea {
   width: 100%;
   padding: 0.75rem;
   font: inherit;
-  border: 1px solid #a2949a;
+  border: 1px solid var(--theme-input-line);
   border-radius: 6px;
 }
 textarea {
@@ -82,12 +82,12 @@ textarea {
   outline-offset: 3px;
 }
 [role="alert"] {
-  color: #a33129;
+  color: var(--theme-error-ink);
   padding: 1rem;
-  border: 1px solid #dca59f;
+  border: 1px solid var(--theme-error-line);
 }
 aside {
-  background: #fff7e5;
+  background: var(--theme-warning-bg);
   padding: 1rem;
 }
 p {

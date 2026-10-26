@@ -34,6 +34,32 @@
           "profile": {
             "type": "string",
             "minLength": 1
+          },
+          "links": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "url": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2048,
+                  "format": "uri",
+                  "pattern": "^https?://[^/@?#\\s]+(?:[/?#]|$)"
+                }
+              },
+              "required": [
+                "label",
+                "url"
+              ]
+            }
           }
         },
         "required": [
@@ -65,6 +91,82 @@
     },
     "cancelled": {
       "type": "boolean"
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string",
+          "enum": [
+            "programming",
+            "sound",
+            "graphics"
+          ]
+        },
+        "relatedFields": {
+          "type": "array",
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "ENG",
+              "PRD",
+              "VA",
+              "GD",
+              "SND",
+              "BP",
+              "AC"
+            ]
+          }
+        },
+        "keywords": {
+          "type": "array",
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "platforms": {
+          "type": "array",
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          }
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": [
+            "easy",
+            "normal",
+            "hard"
+          ]
+        },
+        "prerequisites": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "takeaways": {
+          "type": "string",
+          "maxLength": 3000
+        }
+      },
+      "required": [
+        "field",
+        "relatedFields",
+        "keywords",
+        "platforms",
+        "difficulty",
+        "prerequisites",
+        "takeaways"
+      ]
     }
   },
   "required": [

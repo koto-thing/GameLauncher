@@ -10,9 +10,11 @@ mod lifecycle;
 mod mail;
 mod operations;
 mod operator;
+mod operator_metadata;
 mod receipts;
 #[cfg(any(feature = "runtime-tests", feature = "production-api"))]
 mod retention;
+mod session_info;
 #[cfg(feature = "runtime-tests")]
 mod test_hooks;
 mod views;

@@ -9,6 +9,8 @@ struct Speaker {
     affiliation: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    links: Option<Vec<crate::session_info::SpeakerLink>>,
 }
 #[derive(Deserialize, Serialize)]
 struct Content {
@@ -18,6 +20,8 @@ struct Content {
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     speakers: Vec<Speaker>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session: Option<crate::session_info::SessionInfo>,
 }
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,6 +47,9 @@ struct Application {
 /// 引数: 保存された申請
 /// 戻り値: 型付き許可項目だけの DTO または None
 pub fn sanitize(value: &Value) -> Option<Value> {
+    if !crate::session_info::valid(&value["content"]) {
+        return None;
+    }
     let mut dto: Application = serde_json::from_value(value.clone()).ok()?;
     if let Some(published) = &dto.published {
         dto.published = Some(crate::public_dto::validate(published, true)?);
