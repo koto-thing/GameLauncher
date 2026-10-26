@@ -84,10 +84,6 @@ button {
 .theme-toggle:hover {
   background: var(--theme-soft);
 }
-:root[data-theme="dark"] .brand-logo {
-  filter: invert(1) hue-rotate(180deg);
-  mix-blend-mode: screen;
-}
 :root[data-theme="dark"] .public-site .program-switch button[aria-pressed="true"] {
   color: #252225;
 }
