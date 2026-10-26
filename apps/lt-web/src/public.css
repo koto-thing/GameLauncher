@@ -1,0 +1,642 @@
+/* 検証済みv0.2モックの公開部分。旧配色とデモ管理UIは持ち込まない */
+.public-site {
+  --ink: #383838;
+  --muted: #70666a;
+  --border: #e5dce0;
+  --fog: #faf7f8;
+  --paper: #fff;
+  --coral: #ff607b;
+  --soft: #f2ecef;
+  --accent-soft: #fff0f3;
+  --accent-line: #efb0bf;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--fog);
+  color: var(--ink);
+  font:
+    14px/1.65 Inter,
+    "Yu Gothic UI",
+    "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP",
+    system-ui,
+    sans-serif;
+}
+.public-site p {
+  margin: 0 0 13px;
+}
+.public-site h1,
+.public-site h2,
+.public-site h3 {
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+.public-site h1 {
+  font-size: 27px;
+}
+.public-site h2 {
+  font-size: 18px;
+}
+.public-site a {
+  color: inherit;
+}
+.public-site button {
+  margin: 0;
+}
+.public-site button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.public-site :focus-visible {
+  outline: 3px solid #a32948;
+  outline-offset: 3px;
+}
+.public-site .shell-header {
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+.public-site .nav-shell {
+  max-width: 1200px;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 24px;
+}
+.public-site .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  text-decoration: none;
+}
+.public-site .brand-logo {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  background: #383838;
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
+  border-radius: 8px 8px 8px 2px;
+}
+.public-site .brand-title {
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.045em;
+}
+.public-site .container {
+  max-width: 1160px;
+  padding: 0 22px;
+  margin: 0 auto;
+  width: 100%;
+}
+.public-site .sub-nav {
+  display: flex;
+  gap: 28px;
+  align-items: center;
+  width: 100%;
+  max-width: 1160px;
+  margin: 0 auto;
+  border-bottom: 1px solid var(--border);
+  padding: 0 22px;
+}
+.public-site .sub-nav a {
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  padding: 15px 2px 13px;
+  color: var(--muted);
+  font-weight: 640;
+  font-size: 13px;
+  text-decoration: none;
+}
+.public-site .sub-nav a.active {
+  border-bottom-color: var(--coral);
+  color: var(--ink);
+}
+.public-site main.public-main {
+  flex: 1;
+  max-width: 1160px;
+  padding: 32px 22px 84px;
+  margin: 0 auto;
+  width: 100%;
+}
+.public-site .small {
+  font-size: 12px;
+}
+.public-site .muted {
+  color: var(--muted);
+}
+.public-site .btn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--ink);
+  border-radius: 7px;
+  padding: 11px 17px;
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 1.4;
+  text-decoration: none;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+.public-site .btn:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.public-site .btn.coral {
+  background: var(--coral);
+  border-color: var(--coral);
+  color: #252225;
+}
+.public-site .btn.coral:hover:not(:disabled) {
+  background: #f24e6c;
+  border-color: #f24e6c;
+}
+.public-site .btn.sm {
+  font-size: 12px;
+  padding: 8px 12px;
+}
+.public-site .link {
+  color: #a32948;
+  font-weight: 680;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.public-site .notice {
+  padding: 12px 14px;
+  border-radius: 7px;
+  background: #fff7e5;
+  color: #854a0e;
+  border: 1px solid #ddbd76;
+  font-size: 12px;
+}
+.public-site .unavailable {
+  margin-bottom: 22px;
+}
+.public-site .hero {
+  margin-top: 4px;
+  padding: 30px 36px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: white;
+  color: var(--ink);
+}
+.public-site .hero h1 {
+  font-size: clamp(29px, 4vw, 42px);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1.25;
+  margin: 13px 0 14px;
+}
+.public-site .hero h1 a {
+  text-decoration: none;
+}
+.public-site .event-state {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 5px;
+  padding: 4px 9px;
+  background: var(--accent-soft);
+  color: #a32948;
+  border: 1px solid var(--accent-line);
+  font-size: 12px;
+  font-weight: 740;
+}
+.public-site .hero-buttons {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.public-site .feature-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-radius: 10px;
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  background: white;
+  overflow: hidden;
+}
+.public-site .feature {
+  min-height: 84px;
+  padding: 16px 19px;
+  border-right: 1px solid var(--border);
+}
+.public-site .feature:last-child {
+  border-right: 0;
+}
+.public-site .f-key {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+.public-site .f-val {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 720;
+  letter-spacing: -0.022em;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+.public-site .content-row {
+  display: grid;
+  grid-template-columns: 1.65fr 0.85fr;
+  gap: 19px;
+  margin-top: 28px;
+}
+.public-site .panel {
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: white;
+  box-shadow: 0 2px 10px rgb(30 25 35 / 1.8%);
+}
+.public-site .sessions-panel,
+.public-site .apply-panel {
+  min-height: 250px;
+}
+.public-site .section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 14px;
+}
+.public-site .talk-card {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+}
+.public-site .talk-card:last-child {
+  border-bottom: 0;
+}
+.public-site .talk-card:hover .talk-info h3 {
+  color: #a32948;
+}
+.public-site .talk-num {
+  flex: 0 0 78px;
+  width: 78px;
+  height: 45px;
+  display: grid;
+  place-items: center;
+  background: var(--soft);
+  border-radius: 7px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 920;
+}
+.public-site .talk-info {
+  flex: 1;
+  min-width: 0;
+}
+.public-site .talk-info h3 {
+  margin: 0 0 5px;
+  font-size: 15px;
+  font-weight: 760;
+  overflow-wrap: anywhere;
+}
+.public-site .talk-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+.public-site .circle-arrow {
+  width: 29px;
+  height: 29px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 19px;
+  flex-shrink: 0;
+}
+.public-site .current-state {
+  margin-top: 14px;
+  margin-bottom: 17px;
+}
+.public-site .tag {
+  display: inline-flex;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+}
+.public-site .tag.orange {
+  background: #fff7e5;
+  color: #854a0e;
+  border-color: #ddbd76;
+}
+.public-site .tag.red {
+  background: #f8e9e2;
+  color: #a33129;
+  border-color: #dca59f;
+}
+.public-site .simple-fact {
+  border-top: 1px solid var(--border);
+  padding: 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.public-site .simple-fact span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.public-site .simple-fact strong,
+.public-site .simple-fact a {
+  font-size: 13px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.public-site .apply-button {
+  width: 100%;
+  margin-top: 21px;
+}
+.public-site .public-prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.public-site .event-guidance {
+  margin: 20px 0 0;
+}
+.public-site .page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 24px;
+}
+.public-site .page-head p {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 5px 0 0;
+}
+.public-site .schedule-table {
+  border: 1px solid var(--border);
+  background: white;
+  border-radius: 11px;
+  overflow: hidden;
+}
+.public-site .schedule-item {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 105px;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  min-height: 75px;
+}
+.public-site .schedule-item:last-child {
+  border-bottom: 0;
+}
+.public-site .schedule-time {
+  font-weight: 800;
+  color: var(--ink);
+  font-size: 14px;
+  padding: 23px 17px;
+  border-right: 1px solid var(--border);
+}
+.public-site .schedule-main {
+  padding: 15px 22px;
+}
+.public-site .schedule-main h2 {
+  font-size: 15px;
+  margin: 2px 0;
+  font-weight: 730;
+}
+.public-site .schedule-main p {
+  margin: 0;
+}
+.public-site .schedule-kind {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px 12px 12px;
+}
+.public-site .schedule-item.minor {
+  background: #f8f5f7;
+  min-height: 64px;
+}
+.public-site .schedule-note {
+  margin-top: 16px;
+}
+.public-site .empty {
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  text-align: center;
+  padding: 45px 20px;
+  color: var(--muted);
+  background: white;
+}
+.public-site .public-empty {
+  margin: 50px auto;
+  max-width: 740px;
+}
+.public-site .public-empty h1 {
+  font-size: 23px;
+  color: var(--ink);
+}
+.public-site .public-empty p {
+  margin-top: 13px;
+}
+.public-site .cols-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.public-site .cols-2 .panel > p {
+  margin-top: 14px;
+}
+.public-site .contact-link {
+  color: #a32948;
+  font-weight: 700;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.public-site .archive-card {
+  display: grid;
+  grid-template-columns: 130px 1fr auto;
+  align-items: center;
+  gap: 20px;
+  text-decoration: none;
+  margin-bottom: 16px;
+}
+.public-site .archive-number {
+  font-size: 36px;
+  font-weight: 900;
+  color: #a32948;
+  letter-spacing: -0.07em;
+}
+.public-site .archive-card h2 {
+  font-size: 18px;
+}
+.public-site .archive-card p {
+  margin: 6px 0 0;
+}
+.public-site .pagination {
+  margin-top: 20px;
+}
+.public-site .talk-detail {
+  max-width: 740px;
+  margin: 0 auto;
+}
+.public-site .talk-detail h1 {
+  margin: 22px 0;
+}
+.public-site .talk-summary {
+  display: flex;
+  gap: 12px 25px;
+  flex-wrap: wrap;
+}
+.public-site .talk-detail h2 {
+  margin-bottom: 9px;
+}
+.public-site .divider {
+  border-top: 1px solid var(--border);
+  margin: 22px 0;
+}
+.public-site .footer {
+  background: white;
+  color: var(--muted);
+  margin-top: 35px;
+  padding: 24px 0;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.public-site .foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+}
+.public-site .footer strong {
+  color: var(--ink);
+  margin-right: 14px;
+}
+.public-site .footer span {
+  font-size: 11px;
+}
+.public-site .footer a {
+  color: #a32948;
+}
+@media (max-width: 1050px) {
+  .public-site .container {
+    padding-right: 17px;
+    padding-left: 17px;
+  }
+}
+@media (max-width: 900px) {
+  .public-site .content-row {
+    grid-template-columns: 1fr;
+  }
+  .public-site .hero {
+    padding: 30px 25px;
+  }
+}
+@media (max-width: 760px) {
+  .public-site .feature-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .public-site .feature:nth-child(2) {
+    border-right: 0;
+  }
+  .public-site .feature:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--border);
+  }
+  .public-site .cols-2 {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 670px) {
+  .public-site .nav-shell {
+    padding: 13px 15px;
+    gap: 11px;
+  }
+  .public-site .brand-title {
+    font-size: 16px;
+  }
+  .public-site main.public-main {
+    padding: 21px 17px 40px;
+  }
+  .public-site .sub-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    padding: 0 16px;
+  }
+  .public-site .sub-nav a {
+    white-space: normal;
+    padding: 11px 5px;
+    font-size: 12px;
+    text-align: center;
+  }
+  .public-site .hero {
+    padding: 25px 22px;
+    margin-top: 0;
+  }
+  .public-site .hero h1 {
+    font-size: 30px;
+  }
+  .public-site .feature {
+    padding: 14px;
+  }
+  .public-site .f-val {
+    font-size: 13px;
+  }
+  .public-site .section-head {
+    flex-wrap: wrap;
+  }
+  .public-site .schedule-item {
+    grid-template-columns: 70px minmax(0, 1fr) 76px;
+  }
+  .public-site .schedule-time {
+    padding: 20px 10px;
+    font-size: 12px;
+  }
+  .public-site .schedule-main {
+    padding: 12px 10px;
+  }
+  .public-site .schedule-main h2 {
+    font-size: 13px;
+  }
+  .public-site .schedule-kind {
+    padding: 8px;
+  }
+  .public-site .schedule-kind .btn {
+    padding: 7px 9px;
+  }
+  .public-site .archive-card {
+    grid-template-columns: 80px 1fr;
+    gap: 10px;
+  }
+  .public-site .archive-card .circle-arrow {
+    display: none;
+  }
+  .public-site .foot {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+}
+@media (max-width: 430px) {
+  .public-site .brand-logo {
+    width: 34px;
+    height: 34px;
+  }
+  .public-site .brand-title {
+    font-size: 14px;
+  }
+}
