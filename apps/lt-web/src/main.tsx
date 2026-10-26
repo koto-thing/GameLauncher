@@ -1,4 +1,5 @@
 import { EmailChange } from "./EmailChange";
+import { PublicSite } from "./PublicSite";
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type {
@@ -421,7 +422,9 @@ function App() {
 }
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {applicationsAvailable && location.pathname === "/auth/email-change" ? (
+    {!applicationsAvailable ? (
+      <PublicSite />
+    ) : location.pathname === "/auth/email-change" ? (
       <EmailChange />
     ) : (
       <App />
