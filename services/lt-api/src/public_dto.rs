@@ -59,6 +59,8 @@ struct Event {
     title: String,
     venue: String,
     guidance: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    poster_url: Option<String>,
     starts_at: String,
     ends_at: String,
     time_zone: String,
@@ -117,6 +119,7 @@ pub fn validate(value: &Value, talk: bool) -> Option<Value> {
     } else {
         let dto: Event = serde_json::from_value(value.clone()).ok()?;
         if dto.version == 0
+            || dto.poster_url.as_ref().is_some_and(|url| !crate::events::valid_poster_url(url))
             || [&dto.id, &dto.title, &dto.venue, &dto.time_zone]
                 .iter()
                 .any(|s| s.is_empty())

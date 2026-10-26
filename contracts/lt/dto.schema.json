@@ -269,6 +269,11 @@
               "endsAt"
             ]
           }
+        },
+        "posterUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https://"
         }
       },
       "required": [
@@ -1420,6 +1425,11 @@
         },
         "publishEnabled": {
           "type": "boolean"
+        },
+        "posterUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https://"
         }
       },
       "required": [
@@ -1488,6 +1498,11 @@
         "operationId": {
           "type": "string",
           "minLength": 1
+        },
+        "posterUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https://"
         }
       },
       "required": [
@@ -1561,6 +1576,11 @@
             "transitionMinutes": {
               "type": "integer",
               "minimum": 0
+            },
+            "posterUrl": {
+              "type": "string",
+              "maxLength": 2048,
+              "pattern": "^https://"
             }
           },
           "required": [

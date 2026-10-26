@@ -68,11 +68,7 @@ export function PublicSite() {
       .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))
       .find((item) => Date.parse(item.endsAt) >= Date.now()) ??
     null;
-  // 開催回に対応する提供済みポスターだけを表示する
-  const poster =
-    event?.id === "0920488f6ddbe61bd27f295fd78d41a695d66feac7e45422882f0f87ed6fc9c1"
-      ? "/posters/pandd-lt-vol1.png"
-      : null;
+  const poster = event?.posterUrl;
   const eventPath = event ? "/events/" + encodeURIComponent(event.id) : "/";
 
   // 戻る・直接URLでも同じ公開画面を表示する
@@ -441,9 +437,8 @@ export function PublicSite() {
                 >
                   <img
                     src={poster}
-                    alt={`${event.title}の開催ポスター。2026年11月3日13時開始、M1教室。予約不要・誰でも聴講OK、初心者歓迎`}
-                    width="1055"
-                    height="1491"
+                    alt={`${event.title}の開催ポスター`}
+
                   />
                 </a>
               )}

@@ -103,3 +103,7 @@
   .lt-schedule-endpoint { flex-basis: 230px; }
 }
 .lt-manager .social-icon-link { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 6px; }
+.lt-event-poster { display: flex; align-items: flex-start; gap: 16px; margin: 12px 0; }
+.lt-event-poster img { width: 180px; max-height: 260px; object-fit: contain; border-radius: 6px; }
+.lt-event-form label:has(input[type="url"]) { align-self: start; }
+.lt-event-form input[type="url"] { height: 44px; }

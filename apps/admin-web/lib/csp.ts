@@ -19,7 +19,7 @@ export function buildContentSecurityPolicy(
     "font-src 'self'",
     "form-action 'self' https://github.com",
     "frame-ancestors 'none'",
-    "img-src 'self' blob: data: https://avatars.githubusercontent.com",
+    "img-src 'self' blob: data: https://avatars.githubusercontent.com" + (pathname === "/lt" ? " https:" : ""),
     "object-src 'none'",
     scriptSrc + (pathname === "/music" ? " 'wasm-unsafe-eval'" : ""),
     "style-src 'self' 'unsafe-inline'",

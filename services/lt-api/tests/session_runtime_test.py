@@ -45,6 +45,16 @@ try:
                 time.sleep(.3)
     settings = {'operationId':uuid.uuid4().hex,'title':'Metadata test','venue':'Local','guidance':'Local only','startsAt':'2030-11-03T04:00:00.000Z','timeZone':'Asia/Tokyo','opensAt':'2020-01-01T00:00:00.000Z','closesAt':'2030-11-01T14:59:00.000Z','capacity':10,'talkMinutes':10,'transitionMinutes':5}
     event = request('/operator/events',settings,operator=True)
+    # ポスターの保存・変更・削除とURL検証を実DB経路で確認する
+    base = {k:v for k,v in settings.items() if k != 'operationId'}
+    for url in ['https://example.com/one.png', 'https://example.com/two.png', None]:
+        data = dict(base)
+        if url: data['posterUrl'] = url
+        event = request('/operator/events/' + event['id'], {'expectedVersion':event['version'],'operationId':uuid.uuid4().hex,'data':data}, operator=True, method='PATCH')
+        assert event.get('posterUrl') == url
+        public = request('/events/' + event['id'])
+        assert public.get('posterUrl') == url
+    request('/operator/events/' + event['id'], {'expectedVersion':event['version'],'operationId':uuid.uuid4().hex,'data':dict(base,posterUrl='javascript:alert(1)')}, operator=True, method='PATCH', status=422)
     token = uuid.uuid4().hex
     hashed = hashlib.sha256(token.encode()).hexdigest()
     sql = STATE/'session.sql'
