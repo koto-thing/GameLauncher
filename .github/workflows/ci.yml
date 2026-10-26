@@ -1,11 +1,10 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
-    paths-ignore: ['docs/**', 'apps/docs/**', 'apps/docs-worker/**', '.github/workflows/docs-pages.yml', '.github/workflows/docs-cloudflare.yml']
   push:
     branches: [master]
-    paths-ignore: ['docs/**', 'apps/docs/**', 'apps/docs-worker/**', '.github/workflows/docs-pages.yml', '.github/workflows/docs-cloudflare.yml']
 
 permissions:
   contents: read
@@ -19,6 +18,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      launcher: ${{ steps.affected.outputs.launcher }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify change selection
+        run: python -m unittest scripts.tests.test_affected_components -v
+      - name: Select affected components
+        id: affected
+        run: python -m scripts.ci.affected_components
+
   analytics:
     runs-on: ubuntu-24.04
     steps:
@@ -42,7 +56,8 @@ jobs:
         run: npm run check --prefix services/platform-api
 
   pull-request-client:
-    if: github.event_name == 'pull_request'
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.launcher == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,11 +82,23 @@ jobs:
           modules: 'qtwebengine qtwebchannel qtpositioning'
           arch: linux_gcc_64
           cache: true
+      - name: Identify native compiler and SDK
+        id: compiler
+        run: python -m scripts.ci.compiler_identity
       - name: Restore vcpkg binary cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: vcpkg-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .vcpkg-binary-cache
-          key: vcpkg-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('vcpkg.json') }}
+          key: vcpkg-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.compiler.outputs.key }}-debug-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'cmake/**', 'CMakeLists.txt', 'CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vcpkg-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.compiler.outputs.key }}-debug-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'cmake/**', 'CMakeLists.txt', 'CMakePresets.json') }}-
+      - name: Record restored package contents
+        id: vcpkg-before
+        shell: bash
+        env:
+          CACHE_CONTENTS: ${{ hashFiles('.vcpkg-binary-cache/**/*.zip') }}
+        run: echo "contents=$CACHE_CONTENTS" >> "$GITHUB_OUTPUT"
       - uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
       - name: Install quality tools
         run: sudo apt-get update && sudo apt-get install -y doxygen clang-tidy-20 libgl1-mesa-dev libglu1-mesa-dev
@@ -87,6 +114,13 @@ jobs:
       - name: Configure
         shell: pwsh
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DPANDD_ENABLE_CLANG_TIDY=ON -DCLANG_TIDY_EXECUTABLE=/usr/bin/clang-tidy-20 "-DPANDD_CUBISM_SDK_ROOT=$env:PANDD_CUBISM_SDK_ROOT" "-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      # Save immediately after dependency construction, even if later tests fail
+      - name: Save completed vcpkg packages
+        if: github.ref == 'refs/heads/master' && hashFiles('.vcpkg-binary-cache/**/*.zip') != '' && hashFiles('.vcpkg-binary-cache/**/*.zip') != steps.vcpkg-before.outputs.contents
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .vcpkg-binary-cache
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
       - name: Build
         run: cmake --build build --parallel
       - name: Test
@@ -97,7 +131,8 @@ jobs:
         run: cmake --build build --target docs-check
 
   client:
-    if: github.event_name == 'push'
+    needs: changes
+    if: github.event_name != 'pull_request' && needs.changes.outputs.launcher == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -148,11 +183,23 @@ jobs:
         with:
           arch: x64
           toolset: 14.44
+      - name: Identify native compiler and SDK
+        id: compiler
+        run: python -m scripts.ci.compiler_identity
       - name: Restore vcpkg binary cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: vcpkg-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .vcpkg-binary-cache
-          key: vcpkg-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('vcpkg.json') }}
+          key: vcpkg-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.compiler.outputs.key }}-debug-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'cmake/**', 'CMakeLists.txt', 'CMakePresets.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vcpkg-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.compiler.outputs.key }}-debug-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'cmake/**', 'CMakeLists.txt', 'CMakePresets.json') }}-
+      - name: Record restored package contents
+        id: vcpkg-before
+        shell: bash
+        env:
+          CACHE_CONTENTS: ${{ hashFiles('.vcpkg-binary-cache/**/*.zip') }}
+        run: echo "contents=$CACHE_CONTENTS" >> "$GITHUB_OUTPUT"
       - uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
       - name: Install Linux quality tools
         if: runner.os == 'Linux'
@@ -175,6 +222,13 @@ jobs:
           }
 
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DPANDD_ENABLE_CLANG_TIDY=${{ matrix.clang_tidy }} @qualityArguments "-DPANDD_CUBISM_SDK_ROOT=$env:PANDD_CUBISM_SDK_ROOT" "-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      # Save immediately after dependency construction, even if later tests fail
+      - name: Save completed vcpkg packages
+        if: github.ref == 'refs/heads/master' && hashFiles('.vcpkg-binary-cache/**/*.zip') != '' && hashFiles('.vcpkg-binary-cache/**/*.zip') != steps.vcpkg-before.outputs.contents
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .vcpkg-binary-cache
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
       - name: Build
         run: cmake --build build --parallel
       - name: Test
@@ -186,19 +240,19 @@ jobs:
         if: runner.os == 'Linux'
         run: cmake --build build --target docs-check
       - name: Create unsigned deployment tree
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         run: cmake --install build --prefix "${{ github.workspace }}/staging"
       - name: Generate main-branch SBOM
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         run: python -m scripts.release.generate_sbom --output staging/docs/pandd-game-launcher.spdx.json --version 1.0.0 --build-metadata build/pandd-build-metadata.json --ifw-version 4.7.0
       - name: Collect pinned license texts
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         run: python -m scripts.release.collect_licenses --output staging/licenses
       - name: Run local Qt IFW installer E2E
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         run: python -m apps.launcher.installer.e2e --install-tree staging --output ifw-e2e --version 1.0.0
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         with:
           name: unsigned-main-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
@@ -274,3 +328,27 @@ jobs:
           --volume "${{ github.workspace }}:/src:ro"
           ghcr.io/google/osv-scanner:v2.4.0
           scan source --recursive /src
+
+  result:
+    name: CI result
+    if: always()
+    needs: [changes, analytics, pull-request-client, client, publisher, contracts, dependency-vulnerabilities]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every selected check to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          needs = json.loads(os.environ['NEEDS'])
+          expected = {name: 'success' for name in needs}
+          launcher = needs['changes']['outputs'].get('launcher')
+          assert launcher in ('true', 'false'), 'Missing launcher decision'
+          expected['pull-request-client'] = 'success' if launcher == 'true' and os.environ['EVENT_NAME'] == 'pull_request' else 'skipped'
+          expected['client'] = 'success' if launcher == 'true' and os.environ['EVENT_NAME'] != 'pull_request' else 'skipped'
+          failures = {name: value['result'] for name, value in needs.items() if value['result'] != expected[name]}
+          assert not failures, f'Checks did not finish as expected: {failures}'
+          PY
