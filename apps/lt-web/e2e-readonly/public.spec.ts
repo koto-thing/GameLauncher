@@ -64,6 +64,16 @@ for (const width of [1280, 390]) {
     await expect(page.locator(".sub-nav a")).toHaveCount(4);
     await expect(page.locator(".hero")).toBeVisible();
     await expect(page.locator(".feature")).toHaveCount(4);
+    expect(await page.locator(".brand-title").evaluate((el) => getComputedStyle(el).fontSize)).toBe(
+      width === 390 ? "16px" : "18px",
+    );
+    expect(
+      await page.locator(".brand-logo").evaluate((el) => el.getBoundingClientRect().width),
+    ).toBe(36);
+    if (width === 1280)
+      expect(await page.locator(".hero").evaluate((el) => el.getBoundingClientRect().width)).toBe(
+        1160,
+      );
     await expect(page.locator(".talk-card")).toHaveCount(1);
     await expect(page.locator(".apply-panel button")).toBeDisabled();
     expect(
