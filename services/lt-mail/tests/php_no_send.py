@@ -27,3 +27,7 @@ with tempfile.TemporaryDirectory(prefix='lt-php-no-send-') as folder:
         assert json.loads(result.stdout) == {'result':expected}, label
         assert not result.stderr, label
         print(label+': refused before mail()', flush=True)
+
+# 一時配置も同じPHP実行環境で無送信検証する
+from php_install_test import main as verify_installer
+verify_installer()

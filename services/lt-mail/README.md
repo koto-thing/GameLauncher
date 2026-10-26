@@ -39,3 +39,11 @@ API接続追補: 配送元はlt_mail_outbox viewで、申請通知と独立し�
 
 
 運用保持処理の追補: receipt掃除は独立retention_enabled=falseが既定。固定cleanup命令と送信と同じlockを使用し、元の配送期限到達後だけを整理する。API scheduledのLT_RETENTION_ENABLEDも既定falseで、本番有効化は別確認。現在の境界と検証は [retention-production.md](../../docs/lt/retention-production.md) を参照。以前の未接続・掃除未実装という記述は初期段階の記録である。
+
+### 本番のLT専用配置
+
+`relay/install.template.php` は通常は期限0で拒否する一時配置入口です。配置時だけ30分以内の期限、LT専用鍵のSHA-256、送信する固定本文全体のSHA-256を埋めます。HTTPS POST以外は拒否し、宛先は既存 `web/pandd-music` の外にある `pandd-lt-private` だけです。Music設定を読み込まず、同じコード・同じ専用鍵以外で既存領域を更新しません。公開ファイルは `public-entry.php` を `lt-mail.php` として配置します。
+
+FTPS資格情報は承認済み既存ファイルから接続時だけ内部利用し、証明書検証を必須にします。LT鍵を公開ファイル・作業ファイル・ログ・コマンド引数へ入れず、PHPのWeb外設定とWorker Secretにだけ保持します。配置入口は成功/失敗後にFTPSで撤去し、URL不存在を確認します。期限を延ばして残置しません。PHPの送信を有効にしただけではAPIの送信gate・DB transport modeは有効になりません。
+
+一時入口の構文・認証・固定本文・期限・再要求・コード変更拒否・Music不変は `tests/php_install_test.py` がローカルHTTP/PHPと架空鍵だけで検証します。`php_no_send.py` からCIで実行し、メール関数には到達しません。本番の配送成功とは別の検証です。
