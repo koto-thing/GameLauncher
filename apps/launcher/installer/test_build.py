@@ -9,14 +9,43 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
-from apps.launcher.installer.build import configure_metadata
+from apps.launcher.installer.build import build_installer, configure_metadata
 from apps.launcher.installer.e2e import installed_launcher, maintenance_tool, platform_executable
 
 
 class InstallerBuildTests(unittest.TestCase):
     """Verify production/staging values, official Qt IFW API compliance, and dark UI contracts."""
+
+    def test_compression_is_explicit_and_release_keeps_ifw_default(self) -> None:
+        """Only an explicit E2E compression choice changes repository compression"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "staging"
+            source.mkdir()
+            (source / "launcher.txt").write_text("fixture", encoding="utf-8")
+
+            for compression in (None, 1, 5):
+                with self.subTest(compression=compression), \
+                     patch("apps.launcher.installer.build.executable", side_effect=lambda _, name: Path(name)), \
+                     patch("apps.launcher.installer.build.subprocess.run") as run:
+                    build_installer(None, source, root / "output", "1.0.0", "file:///repository",
+                                    compression=compression)
+                    repogen, binarycreator = [call.args[0] for call in run.call_args_list]
+                    self.assertEqual(repogen[0], Path("repogen"))
+                    if compression is None:
+                        self.assertNotIn("--compression", repogen)
+                    else:
+                        index = repogen.index("--compression")
+                        self.assertEqual(repogen[index + 1], str(compression))
+                    self.assertNotIn("--compression", binarycreator)
+
+            with self.assertRaises(ValueError):
+                build_installer(None, source, root / "invalid", "1.0.0", "file:///repository",
+                                compression=2)
+            self.assertFalse((root / "invalid").exists())
 
     def test_configure_metadata_sets_version_date_and_repository(self) -> None:
         """A work copy receives all environment-specific release values."""

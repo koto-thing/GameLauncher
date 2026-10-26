@@ -12,6 +12,8 @@ import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 
+from apps.launcher.installer.timing import phase
+
 
 def executable(root: Path | None, name: str) -> Path:
     """Resolve a Qt IFW executable from an explicit root or the configured PATH."""
@@ -50,8 +52,13 @@ def configure_metadata(config: Path, package: Path, version: str,
 
 
 def build_installer(ifw_root: Path | None, install_tree: Path, output: Path,
-                    version: str, repository_url: str) -> Path:
+                    version: str, repository_url: str, *, compression: int | None = None) -> Path:
     """Create one platform-native online installer and its matching repository."""
+    # Reject invalid compression before creating output files
+    if compression not in (None, 0, 1, 3, 5, 7, 9):
+        raise ValueError("Unsupported Qt IFW compression level")
+    compression_arguments = [] if compression is None else ["--compression", str(compression)]
+
     # Prepare the disposable build workspace
     root = Path(__file__).resolve().parent
     output.mkdir(parents=True, exist_ok=True)
@@ -70,18 +77,24 @@ def build_installer(ifw_root: Path | None, install_tree: Path, output: Path,
         shutil.copy2(root.parents[2] / "assets/images/PandDLogo.png",
                      config_dir / "PandDLogo.png")
         data = packages / "org.pandd.launcher" / "data"
-        shutil.copytree(install_tree, data)
+        with phase("copy install tree"):
+            shutil.copytree(install_tree, data)
         # Apply release metadata before generating the repository
         configure_metadata(config, packages / "org.pandd.launcher/meta/package.xml",
                            version, repository_url)
 
         # Generate the repository and online installer
-        subprocess.run([executable(ifw_root, "repogen"), "-p", packages, repository],
-                       check=True)
+        with phase("repogen"):
+            subprocess.run([executable(ifw_root, "repogen"), *compression_arguments,
+                            "-p", packages, repository], check=True)
         installer = output / "PandD-Game-Launcher-Online-Installer"
-        subprocess.run([executable(ifw_root, "binarycreator"), "--online-only",
-                        "-c", config, "-p", packages,
-                        installer], check=True)
+        with phase("binarycreator"):
+            subprocess.run([executable(ifw_root, "binarycreator"), "--online-only",
+                            "-c", config, "-p", packages, installer], check=True)
+
+        # Record archive size alongside timings so faster compression can be compared fairly
+        repository_bytes = sum(path.stat().st_size for path in repository.rglob("*") if path.is_file())
+        print(f"IFW repository bytes: {repository_bytes}", flush=True)
     return installer
 
 

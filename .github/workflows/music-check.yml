@@ -4,9 +4,13 @@ on:
   pull_request:
     paths: ["rust-toolchain.toml", 'apps/music/**', 'apps/admin-web/**', 'server/music/**', 'contracts/music/**', '.github/workflows/music-check.yml']
   push:
+    branches: [master]
     paths: ["rust-toolchain.toml", 'apps/music/**', 'apps/admin-web/**', 'server/music/**', 'contracts/music/**', '.github/workflows/music-check.yml']
 permissions:
   contents: read
+concurrency:
+  group: music-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   music:
     runs-on: ubuntu-latest
@@ -35,8 +39,10 @@ jobs:
       - run: composer install --no-dev --prefer-dist --no-interaction
         working-directory: server/music
       - run: npm run browsers:install -- --with-deps
-      - run: npm run check
-      - run: npm test
+      - name: Prepare shared build outputs once
+        run: npm run ci:prepare
+      - run: npm run ci:check
+      - run: npm run test:prepared
         working-directory: apps/admin-web
       - run: npm run lint
         working-directory: apps/admin-web
@@ -50,9 +56,9 @@ jobs:
           pactl load-module module-null-sink sink_name=music_ci rate=48000 channels=2
           pactl set-default-sink music_ci
           pactl info
-      - run: npm run test:e2e
-      - run: npm run test:public
-      - run: npm run package:rental
+      - run: npm run ci:e2e
+      - run: npm run ci:public
+      - run: npm run ci:package
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: music-rental-package
