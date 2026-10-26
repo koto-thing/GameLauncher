@@ -71,9 +71,9 @@
 .lt-schedule-heading strong { overflow-wrap: anywhere; }
 .lt-manager .lt-drag-handle { touch-action: none; cursor: grab; flex-shrink: 0; padding: 12px; }
 .lt-manager .lt-drag-handle:active { cursor: grabbing; }
-.lt-schedule-times { display: grid; grid-template-columns: 50px repeat(2, minmax(0, 1fr)); align-items: center; gap: 14px; }
+
 .lt-schedule-overlay { padding: 20px; border: 2px solid var(--accent); border-radius: 8px; background: var(--panel); color: var(--ink); box-shadow: 0 8px 24px #0003; }
-@media (max-width: 650px) { .lt-schedule-times { grid-template-columns: 1fr; gap: 0; margin-top: 16px; } .lt-schedule-times .lt-badge { justify-self: start; } }
+
 
 /* 審査時に分類・聴講条件・公開リンクを確認する */
 .lt-session-facts > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 18px; padding: 12px 0; border-bottom: 1px solid var(--line); }
@@ -91,3 +91,14 @@
 .lt-session-editor .related-field-options { display: grid; grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); gap: 8px; }
 .lt-speaker-link-editor { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .lt-session-editor input[type=checkbox] { width: 18px; height: 18px; flex: 0 0 18px; margin: 0; padding: 0; accent-color: var(--accent); }
+
+/* 時間の範囲を一行にまとめる */
+.lt-schedule-times { display: grid; align-items: center; gap: 14px; grid-template-columns: 50px minmax(0, 620px); margin-top: 12px; }
+.lt-schedule-range { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lt-schedule-endpoint { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.lt-schedule-times input { margin: 0; }
+@media (max-width: 650px) {
+  .lt-schedule-times { grid-template-columns: 1fr; gap: 8px; }
+  .lt-schedule-range { flex-wrap: wrap; }
+  .lt-schedule-endpoint { flex-basis: 230px; }
+}

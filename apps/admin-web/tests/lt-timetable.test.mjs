@@ -36,3 +36,14 @@ test("転換0分と日付をまたぐ連続配置", () => {
   assert.equal(moved[0].endsAt, "2026-11-04T00:05:00.000Z");
   assert.equal(moved[1].startsAt, moved[1].endsAt);
 });
+
+test("転換は編集した発表終了を起点に固定分数を適用する", async () => {
+  const { fixedTransitions } = await import("../lib/lt/timetable.ts");
+  const changed = blocks.map(b => b.id === "a" ? {...b, endsAt: at(17)} : b);
+  const result = fixedTransitions(changed, 3);
+  assert.equal(result[2].startsAt, at(17));
+  assert.equal(result[2].endsAt, at(20));
+  assert.equal(result[4].endsAt, at(33));
+  assert.equal(fixedTransitions(changed, 0)[2].endsAt, at(17));
+  assert.equal(result[3], blocks[3]);
+});

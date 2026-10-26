@@ -4,7 +4,7 @@ import { DndContext, DragOverlay, PointerSensor, KeyboardSensor, closestCenter, 
 import { SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
-import { moveSchedule, reflowSchedule, scheduleGroups } from "../../lib/lt/timetable";
+import { fixedTransitions, moveSchedule, reflowSchedule, scheduleGroups } from "../../lib/lt/timetable";
 import { localEventTime, utcEventTime } from "../../lib/lt/event-time";
 import type { ScheduleBlock, EventSettings, OperatorApplication } from "../../../../contracts/lt/v1";
 
@@ -32,10 +32,11 @@ export function TimetableEditor({ blocks, event, applications, onSave, disabled 
 
   /** @brief 入力日時を保存形式へ変換する @returns UTC時間割 */
   function utcDraft() {
-    return draft.map(b => {
+    return fixedTransitions(draft.map(b => {
+      if (b.kind === "transition") return b;
       const original = blocks.find(item => item.id === b.id);
       return { ...b, startsAt: utcEventTime(b.startsAt, zone, original?.startsAt), endsAt: utcEventTime(b.endsAt, zone, original?.endsAt) };
-    });
+    }), event.transitionMinutes);
   }
 
   /** @brief 入力エラーを画面へ表示する @param action 編集操作 */
@@ -79,13 +80,13 @@ export function TimetableEditor({ blocks, event, applications, onSave, disabled 
 
   return <fieldset disabled={disabled}><legend>時間割</legend>
     <p className="lt-hint">左のハンドルをドラッグして並べ替えます。発表と転換は一緒に移動し、時刻を自動調整します。開会・閉会は先頭・末尾に固定されます。キーボードではハンドルでSpace、矢印キー、Spaceの順に操作できます。</p>
-    <p className="lt-hint">日時は {zone === "Asia/Tokyo" ? "日本時間（Asia/Tokyo）" : zone}。発表{event.talkMinutes}分・転換{event.transitionMinutes}分。編集内容は「時間割を保存」で反映されます。</p>
+    <p className="lt-hint">日時は {zone === "Asia/Tokyo" ? "日本時間（Asia/Tokyo）" : zone}。発表{event.talkMinutes}分。転換は各発表の後に一律{event.transitionMinutes}分、自動で入ります。変更は開催回の設定から行えます。編集内容は「時間割を保存」で反映されます。</p>
     {error && <p role="alert">{error}</p>}
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={({ active }) => setActiveId(String(active.id))} onDragCancel={() => setActiveId(null)} onDragEnd={({ active, over }) => { setActiveId(null); if (!disabled && over && active.id !== over.id) edit(() => moveSchedule(utcDraft(), String(active.id), String(over.id))); }}>
       <SortableContext items={groups.map(g => g[0].id)} strategy={verticalListSortingStrategy}>
         <ol className="lt-schedule-list">{groups.map(group => <ScheduleCard key={group[0].id} id={group[0].id} title={title(group[0])} disabled={disabled || group[0].kind === "opening" || group[0].kind === "closing"}>
-          {group.map(block => <div key={block.id} className="lt-schedule-times" role="group" aria-label={labels[block.kind]}><span className="lt-badge">{labels[block.kind]}</span>
-            {(["startsAt", "endsAt"] as const).map(field => <label key={field}>{field === "startsAt" ? "開始日時" : "終了日時"}<input type="datetime-local" step="60" value={block[field]} onClick={e => e.currentTarget.showPicker?.()} onChange={e => { const value = e.currentTarget.value; setDraft(items => items.map(item => item.id === block.id ? { ...item, [field]: value } : item)); }} /></label>)}
+          {group.filter(block => block.kind !== "transition").map(block => <div key={block.id} className="lt-schedule-times" role="group" aria-label={labels[block.kind]}><span className="lt-badge">{labels[block.kind]}</span>
+            <div className="lt-schedule-range">{(["startsAt", "endsAt"] as const).map(field => <span key={field} className="lt-schedule-endpoint">{field === "endsAt" && <span aria-hidden="true">～</span>}<input aria-label={`${labels[block.kind]}の${field === "startsAt" ? "開始日時" : "終了日時"}`} type="datetime-local" step="60" value={block[field]} onClick={e => e.currentTarget.showPicker?.()} onChange={e => { const value = e.currentTarget.value; setDraft(items => items.map(item => item.id === block.id ? { ...item, [field]: value } : item)); }} /></span>)}</div>
           </div>)}
           {group[0].kind !== "talk" && <button type="button" onClick={() => edit(() => reflowSchedule(utcDraft().filter(b => b.id !== group[0].id), event.startsAt))}>削除</button>}
         </ScheduleCard>)}</ol>

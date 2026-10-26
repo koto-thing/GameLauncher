@@ -1,5 +1,15 @@
 import type { ScheduleBlock } from "../../../../contracts/lt/v1.ts";
 
+/** @brief 転換を直前の発表終了から開催回の固定時間で計算する @param blocks 時間割 @param minutes 転換分数 @returns 固定時間を適用した時間割 */
+export function fixedTransitions(blocks: ScheduleBlock[], minutes: number): ScheduleBlock[] {
+  return blocks.map((block, index) => {
+    if (block.kind !== "transition") return block;
+    const previous = blocks[index - 1];
+    if (previous?.kind !== "talk" || !Number.isFinite(minutes) || minutes < 0) throw new Error("転換設定を確認してください");
+    return { ...block, startsAt: previous.endsAt, endsAt: new Date(Date.parse(previous.endsAt) + minutes * 60000).toISOString() };
+  });
+}
+
 /** @brief 発表と直後の転換を一組にまとめる @param blocks 時間割 @returns 移動単位 */
 export function scheduleGroups(blocks: ScheduleBlock[]): ScheduleBlock[][] {
   const groups: ScheduleBlock[][] = [];
