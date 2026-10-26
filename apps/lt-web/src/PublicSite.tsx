@@ -43,6 +43,28 @@ export function PublicSite() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [revision, retry] = useState(0);
+  const [authenticated, setAuthenticated] = useState(false);
+
+  // サーバーで確認できた有効な本人セッションだけ申請確認リンクを表示する
+  useEffect(() => {
+    if (!applicationsAvailable) return;
+    let active = true;
+    let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+    request<{ expiresAt: string } | null>("/auth/session")
+      .then((session) => {
+        if (!active) return;
+        const remaining = session ? Date.parse(session.expiresAt) - Date.now() : 0;
+        setAuthenticated(remaining > 0);
+        if (remaining > 0) expiryTimer = setTimeout(() => setAuthenticated(false), remaining);
+      })
+      .catch(() => {
+        if (active) setAuthenticated(false);
+      });
+    return () => {
+      active = false;
+      clearTimeout(expiryTimer);
+    };
+  }, []);
   const valid = isPublicPage(path);
   const event =
     selected ??
@@ -220,7 +242,13 @@ export function PublicSite() {
         )}
         {applicationsAvailable && (
           <p className="notice">
-            <a href="/login">メール確認・登壇申請</a> ／ <a href="/applications">申請内容を確認</a>
+            <a href="/login">メール確認・登壇申請</a>
+            {authenticated && (
+              <>
+                {" "}
+                ／ <a href="/applications">申請内容を確認</a>
+              </>
+            )}
           </p>
         )}
         {import.meta.env.DEV && import.meta.env.VITE_LT_QA === "true" && (
