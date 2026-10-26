@@ -1,3 +1,4 @@
+import { safeReturnTo } from "@/lib/login-navigation";
 import {
   createSessionCookie,
   ensureLocalFixtures,
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
   return new Response(null, {
     status: 302,
     headers: {
-      location: user.gameAccess ? "/" : "/music",
+      location: safeReturnTo(new URL(request.url).searchParams.get("returnTo")),
       "set-cookie": await createSessionCookie(user, request),
     },
   });

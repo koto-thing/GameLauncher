@@ -1,3 +1,4 @@
+import { safeReturnTo } from "./login-navigation";
 import { env } from "cloudflare:workers";
 import { ensureSchema, getD1 } from "@/db/initialize";
 import { currentRole, permits, recordOperation, type Role } from "@/lib/roles";
@@ -28,7 +29,7 @@ type GitHubUser = { id: number; login: string; avatar_url: string };
 
 const SESSION_COOKIE = "pandd_deploy_session";
 const STATE_COOKIE = "pandd_github_state";
-const SESSION_LIFETIME_SECONDS = 3 * 60 * 60;
+const SESSION_LIFETIME_SECONDS = 6 * 60 * 60;
 const textEncoder = new TextEncoder();
 
 function runtimeEnv(): RuntimeEnv {
@@ -228,7 +229,7 @@ export function githubCallback(request: Request): string {
 export async function beginGithubFlow(request: Request): Promise<{ url: string; cookie: string }> {
   const verifier = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
   const state = crypto.randomUUID();
-  const payload = base64UrlEncode(JSON.stringify({ state, verifier, expiresAt: Date.now() + 600000 }));
+  const payload = base64UrlEncode(JSON.stringify({ state, verifier, returnTo: safeReturnTo(new URL(request.url).searchParams.get("returnTo")), expiresAt: Date.now() + 600000 }));
   const url = new URL("https://github.com/login/oauth/authorize");
   url.searchParams.set("client_id", githubClientConfig().clientId);
   url.searchParams.set("redirect_uri", githubCallback(request));
@@ -238,13 +239,13 @@ export async function beginGithubFlow(request: Request): Promise<{ url: string; 
   return { url: url.toString(), cookie: createStateCookie(`${payload}.${await sign(payload)}`, request) };
 }
 
-/** @brief state・署名・期限を検証し交換用verifierを返す。 @param request Callback要求。 @param state GitHubが返したstate。 @returns 短期PKCE verifier。 */
-export async function githubFlowVerifier(request: Request, state: string): Promise<string | null> {
+/** @brief state・署名・期限を検証し、PKCE verifierと同一サイトの戻り先を返す */
+export async function githubFlowVerifier(request: Request, state: string): Promise<{ verifier: string; returnTo: string } | null> {
   try {
     const [payload, signature] = (consumeState(request) ?? "").split(".");
     if (!payload || !signature || !await crypto.subtle.verify("HMAC", await sessionKey(), Uint8Array.from(atob(signature.replaceAll("-", "+").replaceAll("_", "/")), character => character.charCodeAt(0)), textEncoder.encode(payload))) return null;
     const flow = JSON.parse(base64UrlDecode(payload));
-    return flow.state === state && flow.expiresAt > Date.now() ? flow.verifier : null;
+    return flow.state === state && flow.expiresAt > Date.now() && typeof flow.verifier === "string" ? { verifier: flow.verifier, returnTo: safeReturnTo(flow.returnTo) } : null;
   } catch { return null; }
 }
 

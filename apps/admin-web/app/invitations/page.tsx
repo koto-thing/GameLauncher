@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import "../members/members.css";
@@ -32,7 +33,7 @@ export default function InvitationPage() {
   }
   return <main className="members-page"><header className="members-page-heading"><p className="members-kicker">INVITATION</p><h1>運営への招待</h1></header>
     <section className="members-card members-state">
-      {error ? <><p role="alert">{error}</p><a className="primary-link" href="/api/auth/github/start">GitHubで再確認</a></> : invitation ? <>
+      {error ? <><p role="alert">{error}</p><Link className="primary-link" href="/login?returnTo=%2Finvitations">GitHubで再確認</Link></> : invitation ? <>
         <h2>@{invitation.login}</h2><p>{({admin:"Admin",executive:"幹部",assistant:"幹部補佐"})[invitation.role]} として参加します。</p>
         <p>受諾前は運営機能を利用できません。本人確認は10分間有効です。</p>
         <button className="primary-button" disabled={busy} onClick={() => void accept()}>招待を受諾</button>

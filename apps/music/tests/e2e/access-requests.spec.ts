@@ -47,7 +47,8 @@ test("unapproved local identity cannot reach members or Music management",/** @b
   const response=await page.goto(origin+"/api/auth/dev?as=outsider");
   expect(response!.status()).toBe(403);
   await page.goto(origin+"/members");
-  await expect(page.getByRole("heading",{name:"GitHubでログイン"})).toBeVisible();
+  await expect(page).toHaveURL(origin+"/login?returnTo=%2Fmembers");
+  await expect(page.getByRole("heading",{name:"ログイン",exact:true})).toBeVisible();
   const api=await page.request.get(origin+"/api/music/manage/games");
   expect(api.status()).toBe(401);
 });

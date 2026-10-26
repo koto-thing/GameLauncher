@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { localDevAuthAvailable, readSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { readSession } from "@/lib/auth";
 import { defaultAnalyticsPeriod, requireAnalyticsAdmin } from "@/lib/analytics";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import "./analytics.css";
@@ -17,12 +18,12 @@ export default async function AnalyticsPage() {
   try { requireAnalyticsAdmin(await readSession(request)); }
   catch (error) { status = error instanceof Response ? error.status : 503; }
 
+  if (status === 401) redirect("/login?returnTo=%2Fanalytics");
+
   return <>
     {status === 200 ? <AnalyticsDashboard initialPeriod={defaultAnalyticsPeriod()} /> : <main className="analytics-page">
       <p className="eyebrow">GAMELAUNCHER / ANALYTICS</p><h1>ゲーム利用統計</h1>
       <p role="alert">{status === 401 ? "統計を見るにはGitHubでログインしてください" : status === 403 ? "統計は運営管理者のみ閲覧できます" : "認証を確認できませんでした。接続設定を確認してください"}</p>
-      <a className="primary-link" href="/api/auth/github/start">GitHubでログイン</a>
-      {localDevAuthAvailable(request) && <p><a href="/api/auth/dev?as=admin">ローカル開発用の管理者でログイン</a></p>}
     </main>}
   </>;
 }

@@ -981,9 +981,9 @@ export function IntakeUploader() {
               </Link>
             </>
           ) : (
-            <a className="primary-button" href="/api/auth/github/start" style={{ padding: "7px 12px", fontSize: "12px" }}>
-              GitHubログイン
-            </a>
+            <Link className="primary-button" href="/login?returnTo=%2Fintake" style={{ padding: "7px 12px", fontSize: "12px" }}>
+              ログイン
+            </Link>
           )}
         </div>
       </header>
@@ -1022,31 +1022,6 @@ export function IntakeUploader() {
       </div>
 
       <div className="workspace">
-        {/* 未認証時はアップロード権限を得るためのログイン導線を表示 */}
-        {authResponse && !authResponse.authenticated && (
-          <div className="setup-note" style={{ margin: "0 0 28px 0", padding: "18px" }}>
-            <strong>ログインが必要です</strong>
-            <span>Intakeへのアップロード権限を確認するため、GitHubアカウントでログインしてください。</span>
-            <div style={{ marginTop: "12px", display: "flex", gap: "10px" }}>
-              {authResponse.githubAuthConfigured && (
-                <a className="primary-button" href="/api/auth/github/start">
-                  GitHubでログイン
-                </a>
-              )}
-              {authResponse.localDevAuthAvailable && (
-                <>
-                  <a className="secondary-button" href="/api/auth/dev?as=maintainer">
-                    申請者 (Dev) としてログイン
-                  </a>
-                  <a className="secondary-button" href="/api/auth/dev?as=admin">
-                    Admin (Dev) としてログイン
-                  </a>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* 入力検証やアップロードで発生した共通エラーを表示 */}
         {errorMessage && (
           <div className="notice error" role="alert" style={{ margin: "0 0 24px 0" }}>
