@@ -102,7 +102,12 @@ for (const width of [1280, 390]) {
       .getByRole("link", { name: "タイムテーブル", exact: true })
       .click();
     await expect(page.getByRole("heading", { name: "タイムテーブル", exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "発表詳細", exact: true }).click();
+    await page.getByRole("button", { name: "一覧表示" }).click();
+    await expect(page.getByRole("button", { name: "一覧表示" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await page.locator(".program-session").click();
     await expect(page.getByRole("heading", { name: talk.title, exact: true })).toBeVisible();
     await expect(page.getByText(talk.abstract, { exact: true })).toBeVisible();
     for (const path of [

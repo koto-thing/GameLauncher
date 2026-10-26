@@ -3,6 +3,9 @@ import type { PublicEvent, PublicEventPage, PublicTalk } from "../../../contract
 import { request } from "./api";
 import { applicationsAvailable, isPublicPage, unavailableMessage } from "./availability";
 import "./public.css";
+import { PublicSchedule, type ScheduleView } from "./PublicSchedule";
+import { PublicTalkDetail } from "./PublicTalkDetail";
+import { publicDate as date } from "./public-display";
 
 const tabs = [
   ["home", "開催案内"],
@@ -11,7 +14,6 @@ const tabs = [
   ["about", "参加・お問い合わせ"],
 ] as const;
 type Tab = (typeof tabs)[number][0];
-const kinds = { opening: "開会", break: "休憩", closing: "閉会", transition: "入替", talk: "発表" };
 
 /** 公開DTOだけを取得し、開発用データは本番bundleから除外する */
 async function read<T>(path: string): Promise<T> {
@@ -20,19 +22,12 @@ async function read<T>(path: string): Promise<T> {
   return request<T>(path);
 }
 
-/** 開催回のタイムゾーンで日時を表示する */
-function date(value: string, zone: string, time = false) {
-  return new Intl.DateTimeFormat(
-    "ja-JP",
-    time
-      ? { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: zone }
-      : { year: "numeric", month: "long", day: "numeric", weekday: "short", timeZone: zone },
-  ).format(new Date(value));
-}
-
 /** 公開レイアウトを実データへ接続し、有効な申請経路を案内する */
 export function PublicSite() {
   const [path, setPath] = useState(location.pathname);
+  const [view, setView] = useState<ScheduleView>(() =>
+    new URLSearchParams(location.search).get("list") === "1" ? "list" : "table",
+  );
   const [tab, setTab] = useState<Tab>(() =>
     tabs.some(([key]) => key === location.hash.slice(1)) ? (location.hash.slice(1) as Tab) : "home",
   );
@@ -78,6 +73,7 @@ export function PublicSite() {
   useEffect(() => {
     const sync = () => {
       setPath(location.pathname);
+      setView(new URLSearchParams(location.search).get("list") === "1" ? "list" : "table");
       setTab(
         tabs.some(([key]) => key === location.hash.slice(1))
           ? (location.hash.slice(1) as Tab)
@@ -85,7 +81,11 @@ export function PublicSite() {
       );
     };
     addEventListener("popstate", sync);
-    return () => removeEventListener("popstate", sync);
+    addEventListener("hashchange", sync);
+    return () => {
+      removeEventListener("popstate", sync);
+      removeEventListener("hashchange", sync);
+    };
   }, []);
 
   // 停止中の本人URLでは公開一覧も含めAPIを呼ばない
@@ -158,11 +158,30 @@ export function PublicSite() {
   }, [event, talk, tab]);
 
   /** 履歴を保ち、公開URLとタブだけを変更する */
-  function navigate(next: string, nextTab: Tab = "home") {
-    history.pushState(null, "", next + (nextTab === "home" ? "" : "#" + nextTab));
-    setPath(next);
-    setTab(nextTab);
+  function navigate(next: string, nextTab?: Tab) {
+    const url = new URL(next, location.origin);
+    const targetTab = nextTab ?? (url.hash === "#schedule" ? "schedule" : "home");
+    const targetView = url.searchParams.has("list")
+      ? url.searchParams.get("list") === "1"
+        ? "list"
+        : "table"
+      : view;
+    if (targetTab === "schedule" || url.pathname.includes("/talks/"))
+      url.searchParams.set("list", targetView === "list" ? "1" : "0");
+    url.hash = targetTab === "home" ? "" : targetTab;
+    history.pushState(null, "", url.pathname + url.search + url.hash);
+    setPath(url.pathname);
+    setTab(targetTab);
+    setView(targetView);
+    window.scrollTo({ top: 0 });
   }
+
+  // 発表への直接リンクでも内容が分かるページタイトルにする
+  useEffect(() => {
+    document.title = talk
+      ? talk.title + " | PandD LT"
+      : (tab === "schedule" ? "タイムテーブル | " : "") + "PandD LT";
+  }, [talk, tab]);
 
   /** 公開一覧の次ページを既存DTO契約で追加取得する */
   async function more() {
@@ -186,7 +205,8 @@ export function PublicSite() {
       <p>次の開催案内をお待ちください。</p>
     </section>
   );
-  const talkLink = (id: string) => eventPath + "/talks/" + encodeURIComponent(id);
+  const talkLink = (id: string) =>
+    eventPath + "/talks/" + encodeURIComponent(id) + "?list=" + (view === "list" ? "1" : "0");
   const publicTalks =
     event?.schedule.flatMap((block) =>
       block.talkId && talks[block.talkId] ? [talks[block.talkId]] : [],
@@ -223,8 +243,8 @@ export function PublicSite() {
               (key === "archive" || key === "about" ? "/" : eventPath) +
               (key === "home" ? "" : "#" + key)
             }
-            className={tab === key ? "active" : ""}
-            aria-current={tab === key ? "page" : undefined}
+            className={(talk ? "schedule" : tab) === key ? "active" : ""}
+            aria-current={(talk ? "schedule" : tab) === key ? "page" : undefined}
             onClick={(e) => {
               e.preventDefault();
               navigate(key === "archive" || key === "about" ? "/" : eventPath, key);
@@ -273,46 +293,7 @@ export function PublicSite() {
         ) : loading ? (
           <p role="status">読み込み中…</p>
         ) : talk && event ? (
-          <section className="panel talk-detail">
-            <a
-              className="link"
-              href={eventPath}
-              onClick={(e) => {
-                e.preventDefault();
-                navigate(eventPath);
-              }}
-            >
-              開催案内に戻る
-            </a>
-            <h1>{talk.title}</h1>
-            {talk.cancelled && (
-              <p className="tag red" role="status">
-                登壇中止
-              </p>
-            )}
-            <div className="talk-summary">
-              <p>
-                <strong>登壇者：</strong>
-                {talk.speakers.map((s) => s.displayName).join("、")}
-              </p>
-              <p>
-                <strong>発表時刻：</strong>
-                {date(talk.startsAt, event.timeZone, true)}–
-                {date(talk.endsAt, event.timeZone, true)}
-              </p>
-            </div>
-            <div className="divider" />
-            <h2>発表概要</h2>
-            <p className="public-prose">{talk.abstract}</p>
-            {talk.description && <p className="public-prose">{talk.description}</p>}
-            {talk.speakers.map((speaker, index) => (
-              <p key={index}>
-                {speaker.displayName}
-                {speaker.affiliation && " / " + speaker.affiliation}
-                {speaker.profile && " — " + speaker.profile}
-              </p>
-            ))}
-          </section>
+          <PublicTalkDetail talk={talk} event={event} view={view} navigate={navigate} />
         ) : tab === "about" ? (
           <>
             <div className="page-head">
@@ -393,56 +374,15 @@ export function PublicSite() {
         ) : !event ? (
           noEvent
         ) : tab === "schedule" ? (
-          <>
-            <div className="page-head">
-              <div>
-                <h1>タイムテーブル</h1>
-                <p>
-                  {date(event.startsAt, event.timeZone)} ／ {event.venue}
-                </p>
-              </div>
-            </div>
-            <div className="schedule-table">
-              {event.schedule.map((block) => (
-                <div
-                  className={"schedule-item" + (block.kind === "talk" ? "" : " minor")}
-                  key={block.id}
-                >
-                  <time className="schedule-time">
-                    {date(block.startsAt, event.timeZone, true)}
-                  </time>
-                  <div className="schedule-main">
-                    <h2>
-                      {block.talkId
-                        ? (talks[block.talkId]?.title ?? "発表情報を確認中")
-                        : kinds[block.kind]}
-                    </h2>
-                    {block.talkId && (
-                      <p className="muted small">
-                        {talks[block.talkId]?.speakers.map((s) => s.displayName).join("、")}
-                      </p>
-                    )}
-                  </div>
-                  <div className="schedule-kind">
-                    {block.talkId && (
-                      <a
-                        className="btn sm"
-                        href={talkLink(block.talkId)}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          navigate(talkLink(block.talkId!));
-                        }}
-                      >
-                        発表詳細
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {event.schedule.length === 0 && <div className="empty">時間割は未設定です。</div>}
-            <p className="small muted schedule-note">時刻は{event.timeZone}で表示しています。</p>
-          </>
+          <PublicSchedule
+            event={event}
+            talks={talks}
+            view={view}
+            navigate={navigate}
+            onViewChange={(value) =>
+              navigate(eventPath + "?list=" + (value === "list" ? "1" : "0"), "schedule")
+            }
+          />
         ) : (
           <>
             <section className="hero">
