@@ -83,9 +83,12 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
     console.log("stage application");
     await page.locator("input[name=title]").fill("Live talk");
     await page.locator("textarea[name=abstract]").fill("Public abstract");
-    await page.locator("form fieldset input").first().fill("Fixture speaker");
+    await page.getByLabel("名前", { exact: true }).first().fill("Fixture speaker");
     await page.locator("input[name=materialUrl]").fill("https://example.invalid/private-material");
-    await page.getByRole("button", { name: "保存", exact: true }).click();
+    await page.getByRole("combobox", { name: "分野 ＊", exact: true }).selectOption("programming");
+    await page.getByRole("combobox", { name: "難易度 ＊", exact: true }).selectOption("normal");
+    await page.getByRole("checkbox", { name: "プライバシーポリシーを確認し、同意します" }).check();
+    await page.getByRole("button", { name: "申請する", exact: true }).click();
     await expect(page.getByRole("heading", { name: "本人申請", exact: true })).toBeVisible();
     const apps = await (
       await applicant.request.get("http://127.0.0.1:18880/api/lt/v1/applications")
@@ -107,7 +110,8 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
     await page.reload();
     await page.getByRole("button", { name: "編集", exact: true }).click();
     await page.locator("input[name=title]").fill("Revised talk");
-    await page.getByRole("button", { name: "保存", exact: true }).click();
+    await page.getByRole("checkbox", { name: "プライバシーポリシーを確認し、同意します" }).check();
+    await page.getByRole("button", { name: "変更を保存", exact: true }).click();
     await expect(page.getByRole("heading", { name: "本人申請", exact: true })).toBeVisible();
     published = await (await applicant.request.get(publicUrl)).json();
     expect(published.title).toBe("Live talk");
