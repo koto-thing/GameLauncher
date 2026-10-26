@@ -182,9 +182,13 @@ export function PublicSite() {
               navigate("/");
             }}
           >
-            <span className="brand-logo" aria-hidden="true">
-              LT
-            </span>
+            <img
+              className="brand-logo"
+              src="/pandd-logo.png"
+              alt="PandD"
+              width="1500"
+              height="1500"
+            />
             <strong className="brand-title">Aizu LT</strong>
           </a>
         </div>

@@ -76,15 +76,11 @@
   text-decoration: none;
 }
 .public-site .brand-logo {
-  display: grid;
-  place-items: center;
-  width: 36px;
+  display: block;
+  width: 120px;
   height: 36px;
-  background: #383838;
-  color: white;
-  font-size: 13px;
-  font-weight: 800;
-  border-radius: 8px 8px 8px 2px;
+  object-fit: cover;
+  object-position: 50% 48%;
 }
 .public-site .brand-title {
   font-size: 18px;

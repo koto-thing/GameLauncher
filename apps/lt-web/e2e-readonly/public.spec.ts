@@ -69,7 +69,9 @@ for (const width of [1280, 390]) {
     );
     expect(
       await page.locator(".brand-logo").evaluate((el) => el.getBoundingClientRect().width),
-    ).toBe(36);
+    ).toBe(120);
+    await expect(page.locator(".brand-logo")).toHaveAttribute("src", "/pandd-logo.png");
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/pandd-logo.png");
     if (width === 1280)
       expect(await page.locator(".hero").evaluate((el) => el.getBoundingClientRect().width)).toBe(
         1160,
