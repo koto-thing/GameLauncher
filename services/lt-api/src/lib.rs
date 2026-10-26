@@ -13,6 +13,7 @@ mod operator;
 mod receipts;
 #[cfg(any(feature = "runtime-tests", feature = "production-api"))]
 mod retention;
+mod session_info;
 #[cfg(feature = "runtime-tests")]
 mod test_hooks;
 mod views;

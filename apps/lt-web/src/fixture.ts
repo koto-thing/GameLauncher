@@ -42,7 +42,21 @@ export async function fixture<T>(path: string, init: RequestInit = {}): Promise<
       version: 1,
       title: "架空発表",
       abstract: "開発 fixture",
-      speakers: [{ displayName: "架空発表者" }],
+      speakers: [
+        {
+          displayName: "架空発表者",
+          links: [{ label: "ポートフォリオ", url: "https://example.com/" }],
+        },
+      ],
+      session: {
+        field: "programming",
+        relatedFields: ["ENG", "GD"],
+        keywords: ["Unity", "シェーダー"],
+        platforms: ["PC", "Web"],
+        difficulty: "normal",
+        prerequisites: "Unityの基本操作\nC#の基礎",
+        takeaways: "描画の仕組み\n実装の方法",
+      },
       startsAt: "2030-01-01T15:00:00.000Z",
       endsAt: "2030-01-01T15:10:00.000Z",
       cancelled: true,

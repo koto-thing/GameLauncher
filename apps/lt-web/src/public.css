@@ -932,3 +932,56 @@
     gap: 14px;
   }
 }
+
+/* 発表詳細の分類と公開リンク */
+.session-tags {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.session-chip {
+  display: inline-block;
+  border: 1px solid #e5dce0;
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.session-chip.primary {
+  border-color: #efb0bf;
+  color: #a32948;
+  background: #fff0f3;
+}
+.speaker-links {
+  display: flex;
+  flex-wrap: wrap;
+  list-style: none;
+  gap: 10px;
+  padding: 0;
+  margin: 18px 0 0;
+}
+.speaker-links a {
+  display: inline-block;
+  border: 1px solid #efb0bf;
+  border-radius: 6px;
+  padding: 7px 12px;
+  color: #a32948;
+  font-size: 13px;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+.link-new-window {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.public-site .session-facts > div {
+  grid-template-columns: 150px minmax(0, 1fr);
+}
+@media (max-width: 670px) {
+  .public-site .session-facts > div {
+    grid-template-columns: 1fr;
+  }
+}

@@ -112,3 +112,52 @@ p {
     min-height: 44px;
   }
 }
+
+/* セッション情報と登壇者リンクの入力 */
+.session-form-fields,
+.speaker-link-fields {
+  border: 1px solid #e5dce0;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 24px 0;
+  min-width: 0;
+}
+.session-form-fields select {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #a2949a;
+  border-radius: 6px;
+  font: inherit;
+  background: white;
+}
+.related-field-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  border: 1px solid #e5dce0;
+  border-radius: 6px;
+  padding: 12px;
+  gap: 10px;
+}
+.related-field-options label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  padding: 8px;
+}
+.related-field-options input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.session-form-fields small {
+  display: block;
+  color: #70666a;
+  margin-top: 6px;
+}
+.speaker-link-row {
+  border-bottom: 1px solid #e5dce0;
+  padding: 0 0 14px;
+  margin-bottom: 14px;
+}

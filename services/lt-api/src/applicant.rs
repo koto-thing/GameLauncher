@@ -56,14 +56,18 @@ fn text(v: &Value) -> bool {
 /// 引数: 本文と資料 URL
 /// 戻り値: 検証結果
 fn content(v: &Value, url: &Value) -> bool {
-    object(v, &["title", "abstract", "speakers"], &["description"])
+    object(
+        v,
+        &["title", "abstract", "speakers"],
+        &["description", "session"],
+    ) && crate::session_info::valid(v)
         && text(&v["title"])
         && text(&v["abstract"])
         && (v.get("description").is_none() || text(&v["description"]))
         && v["speakers"].as_array().is_some_and(|a| {
             !a.is_empty()
                 && a.iter().all(|s| {
-                    object(s, &["displayName"], &["affiliation", "profile"])
+                    object(s, &["displayName"], &["affiliation", "profile", "links"])
                         && text(&s["displayName"])
                         && ["affiliation", "profile"]
                             .iter()

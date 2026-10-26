@@ -1,3 +1,4 @@
+import { SessionFacts, SpeakerLinks } from "./SessionFacts";
 import type { PublicEvent, PublicTalk } from "../../../contracts/lt/v1";
 import { publicDate, durationMinutes, followPublicLink } from "./public-display";
 import type { ScheduleView } from "./PublicSchedule";
@@ -68,6 +69,7 @@ export function PublicTalkDetail({
               </small>
             </dd>
           </div>
+          <SessionFacts session={talk.session} />
         </dl>
       </section>
       <section className="session-section">
@@ -94,6 +96,7 @@ export function PublicTalkDetail({
                 {speaker.profile && (
                   <p className="public-prose speaker-profile">{speaker.profile}</p>
                 )}
+                <SpeakerLinks links={speaker.links} />
               </div>
             </div>
           ))}
