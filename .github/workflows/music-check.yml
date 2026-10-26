@@ -4,9 +4,13 @@ on:
   pull_request:
     paths: ["rust-toolchain.toml", 'apps/music/**', 'apps/admin-web/**', 'server/music/**', 'contracts/music/**', '.github/workflows/music-check.yml']
   push:
+    branches: [master]
     paths: ["rust-toolchain.toml", 'apps/music/**', 'apps/admin-web/**', 'server/music/**', 'contracts/music/**', '.github/workflows/music-check.yml']
 permissions:
   contents: read
+concurrency:
+  group: music-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   music:
     runs-on: ubuntu-latest
