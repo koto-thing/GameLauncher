@@ -79,8 +79,6 @@ export function TimetableEditor({ blocks, event, applications, onSave, disabled 
   }
 
   return <fieldset disabled={disabled}><legend>時間割</legend>
-    <p className="lt-hint">左のハンドルをドラッグして並べ替えます。発表と転換は一緒に移動し、時刻を自動調整します。開会・閉会は先頭・末尾に固定されます。キーボードではハンドルでSpace、矢印キー、Spaceの順に操作できます。</p>
-    <p className="lt-hint">日時は {zone === "Asia/Tokyo" ? "日本時間（Asia/Tokyo）" : zone}。発表{event.talkMinutes}分。転換は各発表の後に一律{event.transitionMinutes}分、自動で入ります。変更は開催回の設定から行えます。編集内容は「時間割を保存」で反映されます。</p>
     {error && <p role="alert">{error}</p>}
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={({ active }) => setActiveId(String(active.id))} onDragCancel={() => setActiveId(null)} onDragEnd={({ active, over }) => { setActiveId(null); if (!disabled && over && active.id !== over.id) edit(() => moveSchedule(utcDraft(), String(active.id), String(over.id))); }}>
       <SortableContext items={groups.map(g => g[0].id)} strategy={verticalListSortingStrategy}>

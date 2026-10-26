@@ -81,3 +81,12 @@ describe("発表の追加情報", () => {
     expect(html).toContain('target="_blank"');
   });
 });
+
+it("SNSアイコンはURLのドメインで識別し紛らわしい別ドメインを除外する", async () => {
+  const { socialIcon } = await import("./social-icon");
+  expect(socialIcon("https://x.com/example")?.title).toBe("X");
+  expect(socialIcon("https://www.youtube.com/@example")?.title).toBe("YouTube");
+  expect(socialIcon("https://youtu.be/example")?.title).toBe("YouTube");
+  expect(socialIcon("https://x.com.example.org/profile")).toBeUndefined();
+  expect(socialIcon("https://example.org/x.com")).toBeUndefined();
+});

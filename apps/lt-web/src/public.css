@@ -993,3 +993,4 @@
 .public-site .field-unset { --field-ink: #5c5860; --field-bg: #f1eff2; --field-line: #98919c; }
 .public-site .program-field { display: inline-flex; align-items: center; background: var(--field-bg); color: var(--field-ink); border: 1px solid var(--field-line); border-radius: 5px; padding: 4px 10px; font-size: 13px; font-weight: 750; line-height: 1.4; }
 .public-site .program-session { border-left: 5px solid var(--field-line); }
+.public-site .speaker-links a.social-icon-link { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; padding: 10px; color: #353035; }

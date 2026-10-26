@@ -1,3 +1,4 @@
+import { socialIcon } from "./social-icon";
 import type { TalkContent } from "../../../contracts/lt/v1";
 import { sessionFields, relatedFields, difficulties } from "../../../contracts/lt/session-options";
 
@@ -60,15 +61,38 @@ export function SpeakerLinks({ links }: { links?: TalkContent["speakers"][number
   if (!links?.length) return null;
   return (
     <ul className="speaker-links" aria-label="SNS・関連リンク">
-      {links.map((link, index) => (
-        <li key={index}>
-          <a href={link.url} target="_blank" rel="noopener noreferrer">
-            {link.label}
-            <span aria-hidden="true"> ↗</span>
-            <span className="link-new-window">（新しいタブ）</span>
-          </a>
-        </li>
-      ))}
+      {links.map((link, index) => {
+        const icon = socialIcon(link.url);
+        return (
+          <li key={index}>
+            <a
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={icon ? "social-icon-link" : undefined}
+              aria-label={`${link.label}（新しいタブ）`}
+              title={icon ? `${icon.title} · ${link.label}` : link.label}
+            >
+              {icon ? (
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d={icon.path} />
+                </svg>
+              ) : (
+                <>
+                  {link.label}
+                  <span aria-hidden="true"> ↗</span>
+                </>
+              )}
+            </a>
+          </li>
+        );
+      })}
     </ul>
   );
 }

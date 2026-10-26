@@ -102,3 +102,4 @@
   .lt-schedule-range { flex-wrap: wrap; }
   .lt-schedule-endpoint { flex-basis: 230px; }
 }
+.lt-manager .social-icon-link { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 6px; }
