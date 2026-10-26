@@ -348,3 +348,28 @@
   color: #756b70;
   font-size: 12px;
 }
+.application-form label.privacy-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px;
+  margin-top: 20px;
+  background: #fff;
+  border: 1px solid #e5dce0;
+  border-radius: 10px;
+  font-weight: 400;
+}
+.application-form .privacy-consent input[type="checkbox"] {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  margin: 3px 0 0;
+  accent-color: #c52d59;
+}
+.application-form .privacy-consent a {
+  color: #a32948;
+  text-underline-offset: 3px;
+}
+.application-form .primary-button:disabled {
+  opacity: 0.45;
+}

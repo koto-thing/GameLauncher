@@ -30,6 +30,7 @@ export function ApplicationForm({
   cancel: () => void;
 }) {
   const [speakers, setSpeakers] = useState<Speaker[]>(a?.content.speakers ?? [{ displayName: "" }]);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [error, setError] = useState("");
   const openEvents = events.items.filter((e) => e.recruitment === "open");
 
@@ -45,6 +46,7 @@ export function ApplicationForm({
         e.preventDefault();
         const f = new FormData(e.currentTarget);
         try {
+          if (!privacyAccepted) throw new Error("プライバシーポリシーを確認し、同意してください。");
           const session = readSession(f);
           if (
             speakers.some((s) =>
@@ -280,12 +282,27 @@ export function ApplicationForm({
             />
           </label>
         </section>
+        <label className="privacy-consent">
+          <input
+            type="checkbox"
+            name="privacyAccepted"
+            required
+            checked={privacyAccepted}
+            onChange={(e) => setPrivacyAccepted(e.target.checked)}
+          />
+          <span>
+            <a href="/privacy" target="_blank" rel="noopener noreferrer">
+              プライバシーポリシー
+            </a>
+            を確認し、同意します
+          </span>
+        </label>
         <div className="application-actions">
           <button type="button" className="quiet-button" onClick={cancel}>
             <ArrowLeft aria-hidden="true" />
             戻る
           </button>
-          <button type="submit" className="primary-button">
+          <button type="submit" className="primary-button" disabled={!privacyAccepted}>
             {a ? <Save aria-hidden="true" /> : <Send aria-hidden="true" />}
             {busy ? "送信中…" : a ? "変更を保存" : "申請する"}
           </button>
