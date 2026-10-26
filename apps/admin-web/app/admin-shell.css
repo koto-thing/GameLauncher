@@ -1,7 +1,7 @@
 /* モックの白いサイドバーとカード配置を管理機能へ適用する */
 .control-plane { padding-bottom: 0; }
 .control-plane .topbar { position: static; height: auto; min-height: 72px; gap: 16px; padding: 16px 28px; background: var(--panel); backdrop-filter: none; flex-wrap: wrap; }
-.admin-layout { display: grid; grid-template-columns: 217px minmax(0, 1fr); max-width: 1440px; min-height: calc(100vh - 145px); margin: auto; }
+.admin-layout { display: grid; grid-template-columns: 217px minmax(0, 1fr); width: 100%; min-height: calc(100vh - 145px); margin: 0; }
 .admin-sidebar { min-width: 0; display: flex; flex-direction: column; gap: 20px; padding: 28px 13px; border-right: 1px solid var(--line); background: var(--panel); }
 .admin-sidebar h2 { margin: 0; padding: 8px 14px 22px; border-bottom: 1px solid var(--line); font-size: 16px; font-weight: 760; }
 .admin-sidebar nav { display: grid; gap: 5px; }
