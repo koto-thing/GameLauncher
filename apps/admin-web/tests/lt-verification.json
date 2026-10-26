@@ -1,0 +1,29 @@
+{
+  "scope": "LT admin part 1",
+  "contractSourceCommit": "7c0e93d87250ba4f6be200d0ff9e3e260f9a707b",
+  "checks": {
+    "typescript": "passed: tsc --noEmit --incremental false",
+    "lint": "passed: eslint app/lt lib/lt app/api/lt/v1/operator/[...path]/route.ts",
+    "tests": "passed: 44 tests including LT review transitions, timetable version synchronization, sanitized proxy errors and existing operations/auth regressions",
+    "build": "passed: npm run build including Rust policy generation, schema generation, Music manager and Vinext",
+    "browser": "Chrome local fixture: PC and 390px mobile; keyboard approval, return, reapproval, 409 reload guidance, 503 retry, timetable invalid input then successful save, create interruption; mobile body scrollWidth 375 at innerWidth 390; additional acceptance: independent event copy, cancel confirmation/cancel dismissal, reject, applicant withdrawal cancellation versus operator confirmation -> 409, successful withdrawal confirmation, role revocation -> 403; reapproval disabled for returned and enabled only after resubmitted; two consecutive timetable saves then approval succeeded with strict fixture event/schedule version checks"
+  },
+  "unverified": [
+    "Rust API integration and real internal service binding",
+    "D1 mutation atomicity, outbox and mail delivery (outside this assignment)"
+  ],
+  "production": "No binding, secret, permission, real mail, production SQL, retention deletion, push, PR, merge or deploy configured or executed. Runtime route authenticates then returns 503 while no internal adapter is configured.",
+  "proposals": {
+    "newEventFormDefaults": "capacity 20, talkMinutes 10, transitionMinutes 1 are editable proposal values, not confirmed requirements",
+    "session": "Existing GameLauncher session policy is reused; no applicant 24h session production activation"
+  },
+  "localBrowserFixture": "node tests/lt-browser/server.mjs; http://127.0.0.1:4179; explicit fictional fixture only, not imported by production entrypoints",
+  "environment": "npm ci initially failed ENOTFOUND in sandbox; approved escalation succeeded against official registry. Initial build lacked apps/music dependencies; approved npm ci there resolved it. Wrangler log path was scoped to this command/worktree. Browser localhost initially unreachable from sandbox; approved host-local fixture server resolved it. No ACL/UAC/owner changes.",
+  "internalAdapterNotes": {
+    "call": "Existing production handler calls proxyLt(request) without adapter and fails closed. Host-only composition can inject LtInternalAdapter.fetch(request, context), wrapping an internal RPC entrypoint. No public fetch fallback.",
+    "request": "Request URL https://lt.internal/api/lt/v1/operator/... retains pathname/query/method; JSON body bytes up to 65536; only Content-Type forwarded; redirect:error. Cookies, Authorization and browser actor/role/capability headers discarded.",
+    "context": "Separate OperatorContext {actorId, role, requestId}, generated after requireRecentIdentity. requestId is proxy-generated. Rust derives capability from role. Internal entrypoint must authenticate actual binding reachability; context alone is not proof.",
+    "response": "Adapter returns Response. Successful body/status returned with application/json and no-store, private; arbitrary upstream headers including Set-Cookie discarded. Error output reconstructed to known code, proxy requestId, bounded identifier-only fields; raw message/detail/headers not forwarded.",
+    "pendingErrorCode": "Existing shared enum has no service-unavailable code. Current 503 fallback uses existing VALIDATION to retain ApiError schema shape; 501 uses INVALID_TRANSITION. Propose parent/foundation add SERVICE_UNAVAILABLE/NOT_IMPLEMENTED before integration. Shared contracts were not modified."
+  }
+}

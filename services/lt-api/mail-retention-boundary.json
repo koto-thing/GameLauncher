@@ -1,0 +1,55 @@
+{
+  "migration_range": [
+    "0027",
+    "0028",
+    "0029"
+  ],
+  "deletion_enabled": false,
+  "sources": {
+    "lt_outbox": {
+      "subject": "application_id -> lt_applications.event_id",
+      "expires_unit": "milliseconds",
+      "delivery_limit": "min(created_at+24h, fixed private_expires)",
+      "job_id": "application:<id>"
+    },
+    "lt_login_outbox": {
+      "subject": "token_hash -> lt_auth_tokens.hash, independent of event",
+      "expires_unit": "milliseconds",
+      "delivery_limit": "login token expires <= created_at+1h",
+      "job_id": "authentication:<id>",
+      "private_fields": [
+        "recipient",
+        "action_url"
+      ]
+    },
+    "lt_mail_jobs": {
+      "subject": "namespaced source id in lt_mail_outbox view",
+      "expires_unit": "seconds, floor(source deadline ms/1000)",
+      "private_fields": [
+        "envelope"
+      ],
+      "scrub": "each API reconcile; token revoke/consume trigger; dispatcher",
+      "source_delete": "trigger cascade from each source, not executed in runtime"
+    },
+    "lt_fake_mail": {
+      "status": "legacy only, no current API read/write",
+      "expires_unit": "milliseconds"
+    },
+    "lt_fake_deliveries": {
+      "status": "legacy only, no new delivery writes",
+      "expires_unit": "milliseconds"
+    },
+    "lt_email_change_payloads": {
+      "subject": "outbox_id -> business outbox/application; token_hash -> email_change_tokens/request/event",
+      "expires_unit": "linked token milliseconds, <=1h",
+      "job_id": "application:<outbox_id>",
+      "private_fields": [
+        "action_url"
+      ],
+      "delete_order": "payload before token/outbox/request; see email-change-retention-plan.json"
+    }
+  },
+  "auth_cleanup": "token/session expiry independent; never delete another event by email match",
+  "normal_public_archive": "preserved",
+  "cancelled_public_archive": "dry-run candidate after fixed deadline"
+}

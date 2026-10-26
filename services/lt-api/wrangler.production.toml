@@ -1,0 +1,24 @@
+name = "pandd-lt-api"
+main = "production-entry.mjs"
+compatibility_date = "2026-10-25"
+workers_dev = true
+preview_urls = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pandd-lt"
+database_id = "4aa6aee2-45db-4c6c-ae34-dc97b846acda"
+migrations_dir = "migrations"
+
+[vars]
+APP_ORIGIN = "https://lt.koto-thing.com"
+LT_PRIVATE_API_ENABLED = "false"
+LT_OPERATOR_API_ENABLED = "false"
+LT_MAINTENANCE_ENABLED = "false"
+LT_RETENTION_ENABLED = "false"
+LT_MAIL_RELAY_URL = "https://pandd-music.koto-thing.com/lt-mail.php"
+LT_MAIL_TEST_RECIPIENT = "panddmail@gmail.com"
+LT_SYNTHETIC_METRICS = "true"
+
+[observability]
+enabled = true

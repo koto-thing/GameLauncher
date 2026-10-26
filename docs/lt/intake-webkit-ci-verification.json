@@ -1,0 +1,20 @@
+{
+  "base": "0543e125a2bb2dca2ea16b4d8b5a945e9a49c6d5",
+  "ciRun": 40208693917,
+  "traceFinding": "Directory setInputFiles started at 202096.893ms; subsequent enabled assertion started at 290193.484ms with only 5.544ms remaining. Failure snapshot has selected EXE, valid preview and enabled submit button.",
+  "fix": "Bound directory assignment to 15 seconds. Only a TimeoutError with observed input AND change events, exact fixture file count/name/relative path and validated preview may continue to the unchanged enabled and upload/download assertions. All other errors fail. Safe metadata attachment identifies input failures.",
+  "local": {
+    "platform": "Windows WebKit 26.6, Playwright 1.63.0",
+    "isolatedAdminPort": 18788,
+    "webkitRepeatEach": 3,
+    "testsPassed": 6,
+    "testsFailed": 0,
+    "testsSkipped": 0,
+    "completionStallReproducedLocally": false,
+    "adminBuild": "passed",
+    "musicTypecheck": "passed",
+    "scopedEslint": "passed"
+  },
+  "remaining": "Linux WebKit CI rerun required; local repetition did not exercise the timeout recovery branch.",
+  "safety": "Local generated fixtures only; no production operations, real mail, credential changes or push."
+}

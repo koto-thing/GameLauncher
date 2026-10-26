@@ -1,0 +1,59 @@
+{
+  "timeUtc": "2026-10-25T15:34:27.433685+00:00",
+  "scope": "local operator gate and requestId collector; live limited window not started",
+  "runtimeTests": 59,
+  "managementTests": 182,
+  "liveSignedProxyTests": 2,
+  "hostTests": 8,
+  "collectorFixtureTests": 11,
+  "managementTypesLintBuild": "passed",
+  "rustProductionAndMixedModeTests": "2 passed each; fmt passed",
+  "productionOperatorOnlyLocal": {
+    "rpcStatus": 200,
+    "applicantStatus": 501,
+    "operatorHttpStatus": 404,
+    "authTokens": 0,
+    "loginOutbox": 0,
+    "mailJobs": 0
+  },
+  "dependencyScan": {
+    "tool": "OSV-Scanner 2.4.0",
+    "lockfiles": 19,
+    "vulnerabilities": 0
+  },
+  "bundles": {
+    "default_private_disabled": {
+      "index_bg.wasm": {
+        "bytes": 949549,
+        "gzip_bytes": 345286
+      },
+      "index.js": {
+        "bytes": 26601,
+        "gzip_bytes": 7168
+      }
+    },
+    "development_without_test_hooks": {
+      "index_bg.wasm": {
+        "bytes": 950984,
+        "gzip_bytes": 345427
+      },
+      "index.js": {
+        "bytes": 26601,
+        "gzip_bytes": 7168
+      }
+    },
+    "production_explicit_gates_disabled": {
+      "index_bg.wasm": {
+        "bytes": 958913,
+        "gzip_bytes": 347899
+      },
+      "index.js": {
+        "bytes": 26981,
+        "gzip_bytes": 7240
+      }
+    }
+  },
+  "productionDeployPerformed": false,
+  "ownerOAuthSessionVerified": false,
+  "realMailSent": 0
+}

@@ -1,0 +1,49 @@
+# LT mail transport / retry
+
+独立branch feature/koto/LtMailPart1。API本体・番号付きmigration・本番設定は変更しない。実メールは送っていない。
+
+## 接続API
+
+API Cargo.toml に `lt-mail = { path = "../lt-mail", features = ["worker-runtime"] }` を追加し、内部schedulerから `runtime::enqueue(&db,&Envelope,Clock::System)` と `runtime::dispatch_one(&db,&Transport,unique_attempt_id,Clock::System)` を呼ぶ。提案SQL `proposals/outbox-dispatch.sql` の番号はAPI担当が決める。D1は同じworker 0.8.7。wasm32 targetでcheckする。
+
+Envelope = {id,recipient,kind,expires,action_url}。expiresはepoch秒（既存outboxはミリ秒）。idは既存outbox idと同一。宛先・kindは元outboxに一致しなければ投入不可。jobの配達有効期間は最大24時間という暫定実装上限。確認リンクは1時間以下。保持期限が先ならそちらを優先。未確定保持期限は無期限配達を意味せず、APIが短い配達期限を指定する。確認メールもAPI担当がpurpose付き確認tokenと同じtransactionでoutboxへ投入する必要がある。現在のlt_fake_mailをこのcrateが勝手に読み取ることはない。
+
+TransportはDisabled/Fake(Outcome)/Http{endpoint,bearer}の排他enum。DB lt_mail_modeも一致しないとclaim不可。既定disabled。**既存fake_dispatchもAPI担当がこのmodeを必ず検査して排他化すること**。接続前に旧fake_dispatchと新dispatcherを並行起動しない。資格情報の生成・設定・参照は行っていない。秘密はruntime設定から内部だけで渡す。公開HTTP経路やブラウザーからtransport/contextを指定させない。
+
+claimは単一UPDATE RETURNING。attempt fenceの一致だけが結果を確定し、元outboxのsentも同じfenceに従属。Temporaryのみ指数backoff（最大5試行）。Permanentは停止。通信切断/未知応答/中断leaseはUncertainで隔離し、自動再送しない。外部配達のexactly-onceは保証しない。結果不明の手動確認・再送方針は運用判断。返却は件数のみでrecipient/link/token/外部本文をログに出さない。
+
+## 既存費用内の経路比較（2026-10-25公式資料確認）
+
+- WorkersはTCP+TLSに対応し、25番は既定で不可。SMTP465を直結する技術経路はあるが、SMTP対話・認証・MIME・状態管理の追加実装が必要。Rust常駐サーバーは仮定しない。
+- ロリポップはエコノミーでPHP CGIを提供。HTTPS → PHP → 既存sendmailという中継なら既存環境で実装可能。今回はRust HTTP transportとPHP候補をコード化。実契約のPHPバージョン・mail()可否・Fromの許可・送信上限残量・HTTPSを本番接続前に確認する。
+- エコノミー上限は契約全体100/h・1000/day。中継は保守的に80/h・800/dayに予約制限するが、他アプリの送信量も合算されるため運用調整が必要。無料の別サービスや契約アップグレードを追加しない。
+
+公式: https://developers.cloudflare.com/workers/runtime-apis/tcp-sockets/ 、https://lolipop.jp/manual/hp/cgi/ 、https://lolipop.jp/terms/prohibition/ 、https://lolipop.jp/manual/mail/mail-set/
+
+## PHP中継候補
+
+relay/relay.phpは設定未指定/disabledなら送信不能。config.example.phpは空値だけ。設定ファイルとprivate_dirはWeb公開領域外、HTTPSを必須とする。32文字以上の別途承認済みbearerをhash_equalsで検証し、From/Reply-To/subject/bodyテンプレートを固定。任意本文/任意ヘッダー/他originへのリンクを受け付けない。確認リンクは許可originの/auth/verify、通知は/applicationsだけ。認証を通った信頼済みWorkerだけが代表者宛先を渡す。公開ブラウザーからのCORSや匿名送信を許可しない。
+
+flock付きprivate receiptで同じidを二重送信しない。mail()呼出前にuncertain記録を置き、クラッシュ/送信成否不明は自動再送しない。リンクや宛先をreceiptに保存せず、hash/state/expiresだけ。private_dirの期限切れreceiptは保持削除対象だが、削除コード/有効化は今回しない。relayも設定ファイルもアップロードしない。
+
+**未検証**: PHP候補は8.1以上を要する。PHP実行環境がこのタスクPATHにないためPHP構文/実行試験、実際のHTTPS/メール送信、D1+Worker上のdispatcher縦断は未完了。fake試験だけで実送信完成と扱わない。API担当によるSQL接続・期限削除・設定排他・scheduler接続が必要。新機能を本番有効化する設定は含まない。
+
+## 検証
+
+cargo test --locked --offline、cargo check --locked --offline --target wasm32-unknown-unknown --features worker-runtime、cargo fmt --check、python -m unittest discover -s tests -v。Rustは成功/一時失敗/恒久失敗/期限/不明/上限、SQLiteは実際にRustが使うclaim SQLの二重実行・mode・期限・fence・保持削除連動を検証する。
+
+最終ローカル検証: Rust unit 6件、SQLite claim/競合 7件、wasm32 worker-runtime check、fmt checkが成功。API本体への接続とPHP実行・実送信は未検証。
+
+
+API接続追補: 配送元はlt_mail_outbox viewで、申請通知と独立したlogin通知をnamespace付きIDで統合する。APIが0027〜0029の番号付きmigrationを所有する。固定Clockはtest-clock featureだけで使用でき、APIのruntime-testsから渡す。通常はClock::System。lt_mail_jobsのtransport/delivered_atが配送receiptとなり、旧fake dispatcherへfallbackしない。HTTP transportはAPI側では生成しない。
+
+
+運用保持処理の追補: receipt掃除は独立retention_enabled=falseが既定。固定cleanup命令と送信と同じlockを使用し、元の配送期限到達後だけを整理する。API scheduledのLT_RETENTION_ENABLEDも既定falseで、本番有効化は別確認。現在の境界と検証は [retention-production.md](../../docs/lt/retention-production.md) を参照。以前の未接続・掃除未実装という記述は初期段階の記録である。
+
+### 本番のLT専用配置
+
+`relay/install.template.php` は通常は期限0で拒否する一時配置入口です。配置時だけ30分以内の期限、LT専用鍵のSHA-256、送信する固定本文全体のSHA-256を埋めます。HTTPS POST以外は拒否し、宛先は既存 `web/pandd-music` の外にある `pandd-lt-private` だけです。Music設定を読み込まず、同じコード・同じ専用鍵以外で既存領域を更新しません。公開ファイルは `public-entry.php` を `lt-mail.php` として配置します。
+
+FTPS資格情報は承認済み既存ファイルから接続時だけ内部利用し、証明書検証を必須にします。LT鍵を公開ファイル・作業ファイル・ログ・コマンド引数へ入れず、PHPのWeb外設定とWorker Secretにだけ保持します。配置入口は成功/失敗後にFTPSで撤去し、URL不存在を確認します。期限を延ばして残置しません。PHPの送信を有効にしただけではAPIの送信gate・DB transport modeは有効になりません。
+
+一時入口の構文・認証・固定本文・期限・再要求・コード変更拒否・Music不変は `tests/php_install_test.py` がローカルHTTP/PHPと架空鍵だけで検証します。`php_no_send.py` からCIで実行し、メール関数には到達しません。本番の配送成功とは別の検証です。

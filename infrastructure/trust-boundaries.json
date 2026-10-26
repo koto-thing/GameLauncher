@@ -5,7 +5,9 @@
       "components": [
         "apps/store-web",
         "apps/community-web",
-        "services/platform-api"
+        "services/platform-api",
+        "services/lt-api",
+        "services/lt-mail"
       ],
       "data": ["platform-db", "community-db", "ugc-r2", "analytics-db"],
       "deniedCapabilities": ["intake-r2", "distribution-r2-write", "manifest-signing-key"]
@@ -17,6 +19,7 @@
         "apps/launcher-download-web",
         "apps/launcher-download-worker",
         "apps/music",
+        "apps/lt-web",
         "services/distribution-content"
       ],
       "data": ["signed-manifests", "public-downloads"],

@@ -1,0 +1,35 @@
+[package]
+name = "lt-api"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+lt-mail = { path = "../lt-mail", features = ["worker-runtime"] }
+worker = { version = "=0.8.7", features = ["d1"] }
+
+serde_json = "=1.0.154"
+
+serde = { version = "=1.0.229", features = ["derive"] }
+serde-wasm-bindgen = "=0.6.5"
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+futures-util = "=0.3.34"
+sha2 = "=0.11.1"
+js-sys = "=0.3.106"
+web-sys = { version = "=0.3.106", features = ["Crypto"] }
+
+[features]
+local-development = []
+production-api = []
+runtime-tests = ["lt-mail/test-clock"]
+
+[workspace]
+
+# Wasmの初回実行負荷を比較する単一release候補
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = "debuginfo"

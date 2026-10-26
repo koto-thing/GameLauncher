@@ -1,0 +1,45 @@
+{
+  "apiSource": "8b6ca03aa42eae5e6c70df567f599d70c52d1032",
+  "routeSource": "d9e0ea5255b9d24d9ea1aa3ca45bd02f9990f888",
+  "localOnly": true,
+  "workerTests": {
+    "suites": 12,
+    "tests": 41,
+    "passed": true
+  },
+  "adminRegressionTests": 44,
+  "sharedTests": 6,
+  "publicUnitTests": 22,
+  "liveChromeJourney": {
+    "passed": true,
+    "fixtureResponses": false,
+    "signedOperatorCookieFixture": true,
+    "realRoute": true,
+    "namedServiceBinding": true,
+    "rustD1": true,
+    "fakeMailOnly": true,
+    "steps": [
+      "confirm email",
+      "submit application",
+      "approve and publish",
+      "return",
+      "edit and resubmit",
+      "reapprove",
+      "timetable update preserving content",
+      "withdrawal confirmation",
+      "event cancellation",
+      "applicant parent state refresh"
+    ],
+    "viewports": [
+      "desktop",
+      "390px"
+    ]
+  },
+  "productFix": "Omit empty optional description/affiliation/profile instead of sending schema-invalid empty strings",
+  "pending": [
+    "retention D1 adapter",
+    "representative email change integration",
+    "mail dispatcher integration",
+    "production connection and deployment"
+  ]
+}

@@ -12,15 +12,15 @@ PandDは1つのモノレポで管理する。ソースコードの配置と実�
 
 ### 1. 一般利用者環境（platform）
 
-- 対象: `apps/store-web`、`apps/community-web`、`services/platform-api`
-- 保持可能: 一般ユーザーセッション、Platform DB、Community DB、UGC用R2への限定Binding
+- 対象: `apps/store-web`、`apps/community-web`、`services/platform-api`、`services/lt-api`、`services/lt-mail`
+- 保持可能: 一般ユーザーセッション、Platform DB、Community DB、LT専用D1・session/token・通知outbox、UGC用R2への限定Binding
 - プレイ統計の受付・集計はPlatform API内のAnalyticsモジュールが所有し、専用Analytics D1を使用する
 - 禁止: Intake、公開先R2、署名鍵、GitHub Actions実行権限へのアクセス
 - 認証: PandDアカウント。運営者用GitHub認証を流用しない
 
 ### 2. 配信環境（distribution）
 
-- 対象: `apps/docs`、`apps/launcher`、`apps/launcher-download-web`、`apps/launcher-download-worker`、`apps/music`、`services/distribution-content`
+- 対象: `apps/docs`、`apps/launcher`、`apps/launcher-download-web`、`apps/launcher-download-worker`、`apps/music`、`apps/lt-web`、`services/distribution-content`
 - 保持可能: 公開Manifest、公開ゲーム、公開画像、公開OST
 - 禁止: DB書き込み権限、決済資格情報、署名秘密鍵、Intakeへのアクセス
 - ランチャーは署名済みManifestとPlatform APIの所有権判定だけを信頼する
@@ -35,6 +35,8 @@ PandDは1つのモノレポで管理する。ソースコードの配置と実�
 具体的な所有関係は`infrastructure/trust-boundaries.json`を正とする。
 
 Musicの公開UIはdistribution、管理API・認証・D1は既存`apps/admin-web`のoperationsに置く。`apps/music`からビルドする管理UIもAdmin Web上で実行する。レンタルサーバーPHPの非公開保存・署名受信口は[Music構成](music/architecture.md)で定義し、通常の公開閲覧・再生はWorkersを呼ばない。
+
+LTの公開UI `apps/lt-web` はdistributionに置き、D1やメール送信資格情報を持たない。申請・専用session/token・公開snapshot・通知outboxはplatformの `services/lt-api` が所有し、`services/lt-mail` がその通知を配送する。LT専用認証はPlatformユーザーsessionと分離し、Platform DBや署名鍵を共有しない。管理操作は既存Admin Webの権限再検証とService Bindingを通す。
 
 ## 業務モジュール
 

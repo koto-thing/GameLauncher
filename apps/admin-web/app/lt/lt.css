@@ -1,0 +1,16 @@
+.lt-manager { color: var(--ink, #17202b); overflow-wrap: anywhere; }
+.lt-manager button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin: 4px; padding: 9px 14px; border: 1px solid #d9d6ce; border-radius: 8px; background: #fffefb; color: #17202b; font: inherit; cursor: pointer; }
+.lt-manager button:hover { border-color: #155eef; }
+.lt-manager button:disabled { opacity: .5; cursor: default; }
+.lt-manager button:focus-visible, .lt-manager input:focus-visible, .lt-manager textarea:focus-visible, .lt-manager a:focus-visible { outline: 3px solid #155eef; outline-offset: 2px; }
+.lt-manager label { display: block; margin: 12px 0; }
+.lt-manager input, .lt-manager textarea { display: block; width: 100%; max-width: 640px; padding: 10px; border: 1px solid #d9d6ce; border-radius: 8px; background: #fffefb; color: #17202b; font: inherit; box-sizing: border-box; }
+.lt-manager textarea { min-height: 100px; }
+.lt-manager h2, .lt-manager h3 { margin: 20px 0 12px; font-weight: 700; }
+.lt-manager p { margin: 12px 0; }
+.lt-manager fieldset { min-width: 0; }
+.lt-manager [role=alert] { padding: 12px; border: 1px solid #b42318; border-radius: 8px; }
+.lt-manager a { color: #155eef; text-decoration: underline; }
+.lt-manager li { margin: 12px 0; }
+
+.lt-manager input[type="checkbox"] { display: inline-block; width: auto; margin-right: 8px; }

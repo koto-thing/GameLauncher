@@ -1,0 +1,313 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/events",
+    "access": "public",
+    "request": null,
+    "response": "PublicEventPage",
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/events/:eventId",
+    "access": "public",
+    "request": null,
+    "response": "PublicEvent",
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/events/:eventId/talks/:talkId",
+    "access": "public",
+    "request": null,
+    "response": "PublicTalk",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/auth/email",
+    "access": "public",
+    "request": "EmailRequestInput",
+    "response": "EmailAccepted",
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/auth/verify",
+    "access": "public",
+    "request": "EmailVerificationInput",
+    "response": "ApplicantSession",
+    "representation": "html",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/auth/verify",
+    "access": "public",
+    "request": "EmailVerificationInput",
+    "response": "ApplicantSession",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/auth/logout",
+    "access": "applicant",
+    "request": null,
+    "response": "EmptyResponse",
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/applications",
+    "access": "applicant",
+    "request": null,
+    "response": "ApplicationPage",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/applications",
+    "access": "applicant",
+    "request": "SubmitApplication",
+    "response": "Application",
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/applications/:id",
+    "access": "owner",
+    "request": null,
+    "response": "Application",
+    "error": "ApiError"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/lt/v1/applications/:id",
+    "access": "owner",
+    "request": "EditApplicationInput",
+    "response": "Application",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/applications/:id/resubmit",
+    "access": "owner",
+    "request": "EmptyMutation",
+    "response": "Application",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/applications/:id/withdraw",
+    "access": "owner",
+    "request": "EmptyMutation",
+    "response": "Application",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/applications/:id/request-withdrawal",
+    "access": "owner",
+    "request": "EmptyMutation",
+    "response": "Application",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/applications/:id/cancel-withdrawal",
+    "access": "owner",
+    "request": "EmptyMutation",
+    "response": "Application",
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/operator/events",
+    "access": "lt.operate",
+    "request": null,
+    "response": "EventSettingsPage",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/events",
+    "access": "lt.operate",
+    "request": "CreateEventInput",
+    "response": "EventSettings",
+    "error": "ApiError"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/lt/v1/operator/events/:id",
+    "access": "lt.operate",
+    "request": "UpdateEventInput",
+    "response": "EventSettings",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/events/:id/copy",
+    "access": "lt.operate",
+    "request": "EmptyMutation",
+    "response": "EventSettings",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/events/:id/cancel",
+    "access": "lt.operate",
+    "request": "EmptyMutation",
+    "response": "EventSettings",
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/operator/events/:id/applications",
+    "access": "lt.operate",
+    "request": null,
+    "response": "OperatorApplicationPage",
+    "error": "ApiError"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/lt/v1/operator/events/:id/timetable",
+    "access": "lt.operate",
+    "request": "SaveTimetableInput",
+    "response": "OperatorTimetable",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/approve",
+    "access": "lt.operate",
+    "request": "ApproveInput",
+    "response": "OperatorApplication",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/return",
+    "access": "lt.operate",
+    "request": "ReviewInput",
+    "response": "OperatorApplication",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/reapprove",
+    "access": "lt.operate",
+    "request": "ReapproveInput",
+    "response": "OperatorApplication",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/hold",
+    "access": "lt.operate",
+    "request": "ReviewInput",
+    "response": "OperatorApplication",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/reject",
+    "access": "lt.operate",
+    "request": "ReviewInput",
+    "response": "OperatorApplication",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/confirm-withdrawal",
+    "access": "lt.operate",
+    "request": "ReviewInput",
+    "response": "OperatorApplication",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/email-change/investigate",
+    "access": "lt.emailChange",
+    "request": "InvestigateEmailInput",
+    "response": "EmailChangeRequest",
+    "productionEnabled": false,
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/email-change/send-verification",
+    "access": "lt.emailChange",
+    "request": "EmailChangeActionInput",
+    "response": "EmailChangeRequest",
+    "productionEnabled": false,
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/email-change/confirm",
+    "access": "lt.emailChange",
+    "request": "EmailChangeActionInput",
+    "response": "EmailChangeRequest",
+    "productionEnabled": false,
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/auth/session",
+    "access": "applicant",
+    "request": null,
+    "response": "SessionStatus",
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/operator/events/:id",
+    "access": "lt.operate",
+    "request": null,
+    "response": "EventSettings",
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/operator/events/:id/timetable",
+    "access": "lt.operate",
+    "request": null,
+    "response": "OperatorTimetable",
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/operator/applications/:id",
+    "access": "lt.operate",
+    "request": null,
+    "response": "OperatorApplication",
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/operator/applications/:id/email-change",
+    "access": "lt.emailChange",
+    "request": null,
+    "response": "EmailChangeStatus",
+    "productionEnabled": false,
+    "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/auth/email-change",
+    "access": "public",
+    "request": null,
+    "response": "ConfirmationPage",
+    "productionEnabled": false,
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/auth/email-change/verify",
+    "access": "public",
+    "request": "EmailChangeVerificationInput",
+    "response": "EmailAccepted",
+    "productionEnabled": false,
+    "error": "ApiError"
+  }
+]

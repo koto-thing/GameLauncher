@@ -1,0 +1,13 @@
+{
+  "jsonschema": "4.26.0 with format extras",
+  "rfc3339-validator": "0.1.4",
+  "idna": "3.20",
+  "pinnedPythonPackages": 17,
+  "isolatedVenvContractTests": 10,
+  "pipCheck": "passed",
+  "osvScanner": "2.4.0",
+  "scannedDependencyFiles": 19,
+  "vulnerabilities": 0,
+  "linuxCi": "pending next push",
+  "formatChecksWeakened": false
+}

@@ -1,0 +1,67 @@
+{
+  "status": "implemented locally, physical deletion disabled",
+  "migration": "0040_email_change.sql; 0030-0039 reserved for retention owner",
+  "tables": {
+    "lt_email_changes": {
+      "subject": "application_id -> lt_applications.id; event_id -> lt_events.id",
+      "private_fields": [
+        "old_email",
+        "new_email",
+        "actor",
+        "identity_method",
+        "identity_result",
+        "checked_at",
+        "verified_at"
+      ],
+      "expires": "fixed event private_expires in milliseconds"
+    },
+    "lt_email_change_tokens": {
+      "subject": "request_id -> lt_email_changes.id",
+      "purpose": "email_change",
+      "secret": "SHA256 hash only",
+      "expires": "min(issued_at+1h, event private_expires), milliseconds",
+      "used": "single conditional UPDATE; no login session"
+    },
+    "lt_email_change_payloads": {
+      "subject": "outbox_id -> lt_outbox.id; token_hash -> lt_email_change_tokens.hash",
+      "private_fields": [
+        "action_url"
+      ],
+      "expires": "linked token deadline; scrub on consumption/revocation/expiry",
+      "mail_job_id": "application:<outbox_id>"
+    },
+    "lt_email_change_operations": {
+      "subject": "application_id/request_id, verified actor and operation_id",
+      "private_fields": [
+        "payload_hash and subject IDs; no cached DTO"
+      ],
+      "expires": "fixed event private_expires",
+      "read_gate": "fresh role/parent TTL, current request and current owner; superseded receipt ->409"
+    },
+    "lt_email_change_audit": {
+      "subject": "application_id/event_id/request_id",
+      "private_fields": [
+        "actor",
+        "action",
+        "occurred_at"
+      ],
+      "expires": "fixed event private_expires"
+    }
+  },
+  "retention_handler": {
+    "mode": "dry-run only; no production deletion enabled",
+    "input": "server-selected event IDs with fixed private_expires<=trusted cutoff; exact application/request/source IDs",
+    "child_order": [
+      "lt_mail_jobs for application:<email-change payload outbox IDs>",
+      "lt_email_change_payloads",
+      "lt_outbox rows for associated verification/final notifications (shared business-outbox handler)",
+      "lt_email_change_tokens",
+      "lt_email_change_operations and lt_email_change_audit",
+      "lt_email_changes",
+      "lt_applications (shared handler after all private children)"
+    ],
+    "guard": "recheck exact event cutoff/IDs in transaction, repeat safely; never extend cutoff",
+    "auth_boundary": "do not purge login token/session by email match; they have independent expiry. Old-address session invalidation occurs only in authorized email confirm transaction",
+    "public_archive": "normal ended public snapshot/event row retained; cancellation follows existing separate deletion policy"
+  }
+}

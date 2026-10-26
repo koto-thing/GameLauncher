@@ -1,0 +1,12 @@
+{
+  "contractCommit": "c739fb22d6a6e68252522e4567d2ed3981c4de6a",
+  "ui": "EmailChangePanel in application detail. Initial read checks access before showing controls. Identity method/result, explicit check, send/resend, pending/verified status, separate final confirm. Authoritative application reload after confirmation updates displayed owner.",
+  "retry": "EmailChangeFlow synchronously locks duplicate clicks, freezes exact pending body/operationId, keeps draft values and errors until successful explicit operation, reuses same operation for uncertain retry, refuses changing operation while pending. 401/403/409 block until refreshed. Refresh detects replaced request/version before dropping old pending mutation. Initial status reads deduplicate for repeated effects.",
+  "proxy": "Assistant denied for both /email-change status GET and /email-change/... actions. Admin/executive unconnected501 guard retained for integration owner; no production/mock fallback added.",
+  "unitChecks": "48/48 tests passed: email flow fixture, proxy, review state and existing operations/admission/session regressions. Contract 9 tests passed in preceding contract commit. TypeScript noEmit and scoped ESLint passed.",
+  "browser": "Chrome localhost18939 fictional fixture: inputs/check retained after committed response loss; same-operation retry succeeds; send shows pending and disables confirm; fake new-address confirmation then explicit reload enables final confirm; confirmed state disables send/confirm; Assistant initial403 hides mutation controls. Keyboard Enter tested for final confirm.",
+  "fixtureServer": "node tests/lt-email-browser/server.mjs at127.0.0.1:18939. Transport injected only in fixture; no real mail or users.",
+  "notVerified": "Real Rust integration, real token revocation and old-session invalidation are not implemented by UI/fixture. Mock token revocation and stale-request409 tested in local model fixture; backend integration owner must verify real persistence and races. No browser responsive matrix for new panel in this iteration.",
+  "build": "Vinext build passed using existing ignored policy wasm read-only copied from integration worktree; no policy binaries committed. No new dependencies or package settings.",
+  "restrictions": "No production, real mail, user changes, new credentials, permission settings, push/PR or shared worktree edits."
+}

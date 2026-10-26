@@ -19,6 +19,7 @@
     "db:generate": "drizzle-kit generate",
     "music:build": "npm --prefix ../music run build:manager",
     "rust:build": "node scripts/build-intake-policy.js && node scripts/build-music-upload-policy.js",
+    "test:lt-worker": "node --test tests/lt-worker-live/*.live.mjs",
     "test:prepared": "node ../music/scripts/check-prepared.mjs && node --test"
   },
   "dependencies": {

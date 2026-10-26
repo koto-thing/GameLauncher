@@ -1,0 +1,20 @@
+{
+  "baseCommit": "4c9e809f15937b5d91b74898bfb42cb35cc918a6",
+  "ordinaryTests": {
+    "admin": {"command": "npm test", "passed": 180, "failed": 0, "skipped": 0},
+    "music": {"command": "npm run build && npm test", "passed": 43, "failed": 0, "skipped": 0},
+    "adminTypecheckAndScopedLint": "passed",
+    "fixture": "Explicit internal RPC fixture validates shared request/response schemas; signed cookie, live membership/role revalidation, Origin rejection and untrusted header removal remain exercised."
+  },
+  "regressionReproduction": "Both original live tests returned 503 instead of 200 with an unavailable explicit loopback bridge.",
+  "liveIntegration": {
+    "command": "npm run test:lt-worker",
+    "workflow": ".github/workflows/lt-check.yml",
+    "runner": "scripts/lt/verify-runtime-ci.py",
+    "required": true,
+    "missingBridge": "Fails; no skip or production fallback",
+    "scope": "Fresh local D1 fixtures, actual Rust Worker, signed management proxy, actual route, browser flows and retention rollback",
+    "localExecution": "Not executed as a complete Linux CI job; Python and both live test files passed syntax checks. GitHub execution remains required."
+  },
+  "safety": "Only generated local data and local tools; no real mail, production data, new production credentials, push or deployment."
+}

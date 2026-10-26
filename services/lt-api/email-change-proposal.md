@@ -1,0 +1,15 @@
+# 例外メール変更 API（ローカル実装）
+
+契約c739fb2をそのまま取り込み、調査・確認送信・現在request取得・公開確認・最終確定を実装した。共有契約を独自編集していない。Admin/Executiveだけが運営操作を行い、AssistantはGET/replayを含め403。実在ユーザーや本番の権限は変更しない。
+
+対象は運営が選んだ申請1件だけ。同一開催回の新メールに有効申請があれば409 DUPLICATE_APPLICATIONで止め、統合/上書きしない。各管理mutationはapplication/request両versionとoperationIdを検査し、単一の申請UPDATEが勝った内部nonceにだけrequest・token・audit・outbox・receiptを従属させる。申請versionは調査/送信/確定ごとに進める。本人確認はidentityChecked:true、identityCheckMethod 1〜80文字・空白のみ不可、identityCheckResult:'confirmed'を要求し、actor/timeは信頼済みcontext/時計から記録する。証明画像や写しは収集しない。
+
+GET /auth/email-changeは非消費。POST /api/lt/v1/auth/email-change/verifyだけがpurpose=email_changeのtokenを一度消費し、EmailAcceptedを返す。session発行/Set-Cookieはない。tokenは256bit暗号学的乱数、hash保存、期限1時間（固定保持期限が近ければ短縮）。再送は古い未使用tokenを失効させる。新アドレス確認後も別のAdmin/Executive操作で最終確定する。
+
+確定は所有者と私有DTOの代表者メールを原子的に変更し、旧メールのLT session/未使用login linkを失効、auditと旧/新宛先へのfake通知outboxを一度だけ生成する。他開催・他申請の所有権や公開snapshot/時刻/予約枠は変えない。旧メールは残る他開催へのアクセスにも再ログインが必要。再ログインした旧ownerも移管対象の古い本人receiptを取得/再利用できない。運営の古い業務receiptは現在の代表者メールを合成し、メール変更receipt自体はcurrent requestから再構成する。supersedeされたrequestのreceiptは409。
+
+開催stateはscheduled/started/endedかつ公開有効・保持期限内だけを変更可能とし、全体中止は未完了requestをcancelledにしてリンクを失効させる。GETは保持期限内の中止状態も読める。本文受信後とSQL書込時にも最新の状態/期限を検査する。確認済み証跡は再調査または全体中止で無効化され、保持期限内だけ最終確定できる。verificationExpiresAtは未使用link交換の期限。
+
+新私有テーブルと保管handler境界はemail-change-retention-plan.json。0040のみ使用し0030〜0039は触っていない。物理削除はdry-runの件数確認のみ。メールは既存の排他的fake engineを利用し、lease修正fe18078を取り込んだがruntime自体は変更していない。PHPの許可kind/pathには新しい確認リンクを追加しただけで、PHP実行・外部送信・秘密設定・prod有効化はしていない。
+
+試験proxyの/test/role/*は内部Rustのrole検証用ハーネスで、実管理proxyの認証を証明しない。公開fetchは運営routeを持たずactor headerでは実行不可。/test/change-mailはruntime-testsだけの別ポートでfake配送済みlinkを取得し、通常bundle/公開fetchには存在しない。

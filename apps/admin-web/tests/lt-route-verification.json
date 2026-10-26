@@ -1,0 +1,19 @@
+{
+  "baseCommit": "7165397a00254720a43aeae06e8a5e933658190f",
+  "runtimeRoute": "app/api/lt/v1/operator/[...path]/route.ts resolves env.LT_INTERNAL through ltInternalAdapter and calls existing proxyLt",
+  "binding": "LT_INTERNAL.operate(context, request), named LtOperator entrypoint; no public HTTP fallback; absent binding keeps 503",
+  "ports": { "rust": 18917, "rustInspector": 18918, "testBridge": 18919, "browser": 18920, "bridgeInspector": 18921 },
+  "database": "services/lt-api/.wrangler/route-test; independent lt-route-local database; migrations 0001 through 0024 applied locally",
+  "tests": "10/10 route integration and proxy tests passed on host; signed fixture cookie -> actual route export -> real proxy -> adapter -> local test bridge -> named binding -> Rust. Also checked unauthenticated spoof, wrong Origin, stripped actor/role/cookie headers, role revocation, and binding absent 503.",
+  "browser": "Chrome http://127.0.0.1:18920 displayed actual LtManager, loaded Local route Rust event from Rust DB, opened detail, changed title to Local route Rust event updated in browser, saved successfully. Browser fetch is not mocked; local HTTP middleware loads actual route.ts with existing auth fixture and binding test transport.",
+  "checks": { "typescript": "passed", "scopedEslint": "passed", "diffCheck": "passed" },
+  "generatedAssets": "Existing compiled Rust Worker build and admin policy wasm copied read-only from specified integration worktree for local execution; no source there changed; generated binaries are ignored and not committed.",
+  "restrictions": "No production binding/secret/config changes, real mail, production SQL, new real credentials, permission changes, push or PR. Existing integration ports and database unused.",
+  "reproduce": [
+    "services/lt-api: node node_modules/wrangler/bin/wrangler.js d1 migrations apply lt-route-local --local --config route-local.toml --persist-to .wrangler/route-test",
+    "services/lt-api: wrangler dev --config route-local.toml --port 18917 --inspector-port 18918 --persist-to .wrangler/route-test",
+    "services/lt-api: wrangler dev --config route-bridge-local.toml --port 18919 --inspector-port 18921",
+    "apps/admin-web: node --test tests/lt-route-integration.test.mjs tests/lt-proxy.test.mjs",
+    "apps/admin-web: node tests/lt-route-browser/server.mjs"
+  ]
+}

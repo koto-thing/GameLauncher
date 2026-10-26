@@ -1,0 +1,13 @@
+{
+  "baseline": "e570c491fc1c53a05b07d1dd0bcd4877fcfcaf27",
+  "hypothesis": "Unconsumed response streams can affect Wrangler test-harness connection lifetime.",
+  "change": "Test-only fetchComplete drains each actual Worker response via arrayBuffer before issuing the next request and reconstructs a response with identical status, statusText, headers and body for all existing assertions. No retry, application error conversion or production change.",
+  "comparison": {
+    "original": "Multiple isolated serial runs reproduced network-category non-JSON 500; ten intervening runs passed.",
+    "explicitConsumption": "20 consecutive fresh Worker runs passed; full admin suite 188 passed, zero failures/skips.",
+    "conclusion": "Evidence supports response lifecycle involvement; finite successful runs do not establish the exact runtime root cause or guarantee CI stability."
+  },
+  "diagnostics": "Unexpected 500 reports request ordinal and count of fully consumed preceding responses. No body, token, secret, URL or identifier is printed.",
+  "processObservation": "Public Wrangler TestHarness API exposes no child PID/exit callback. An OS read of own diagnostic process tree confirmed test Node existence at inspection, but was not contemporaneous with a 500 and does not establish workerd liveness at failure.",
+  "remaining": "Confirm on Linux CI. If failure recurs, preceding-response count rules out incomplete client-side response consumption; obtain fixed runtime event classification without raw log publication."
+}
