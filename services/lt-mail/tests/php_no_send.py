@@ -17,7 +17,7 @@ with tempfile.TemporaryDirectory(prefix='lt-php-no-send-') as folder:
         ('disabled', {}, '', 'temporary'),
         ('non-https', {'LT_MAIL_PRIVATE_CONFIG':str(config)}, "$_SERVER['REQUEST_METHOD']='POST';", 'permanent'),
         ('unauthenticated', {'LT_MAIL_PRIVATE_CONFIG':str(config)}, "$_SERVER['REQUEST_METHOD']='POST';$_SERVER['HTTPS']='on';", 'permanent'),
-        ('non-json', {'LT_MAIL_PRIVATE_CONFIG':str(config)}, "$_SERVER['REQUEST_METHOD']='POST';$_SERVER['HTTPS']='on';$_SERVER['HTTP_AUTHORIZATION']='Bearer "+'fixture-'*8+"';$_SERVER['CONTENT_TYPE']='text/plain';", 'permanent'),
+        ('non-json', {'LT_MAIL_PRIVATE_CONFIG':str(config)}, "$_SERVER['REQUEST_METHOD']='POST';$_SERVER['HTTPS']='on';$_SERVER['HTTP_X_LT_MAIL_AUTH']='Bearer "+'fixture-'*8+"';$_SERVER['CONTENT_TYPE']='text/plain';", 'permanent'),
     ]:
         router.write_text('<?php '+setup+'require '+json.dumps(str(relay).replace('\\','/'))+';',encoding='utf-8')
         child = dict(os.environ)

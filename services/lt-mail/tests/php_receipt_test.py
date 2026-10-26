@@ -34,10 +34,10 @@ def main():
         # Linux CIでは独立PHP workerで本物のflock競合を起こす
         if os.name!='nt':env['PHP_CLI_SERVER_WORKERS']='2'
         process=subprocess.Popen([php,'-S',f'127.0.0.1:{port}',str(router)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,env=env,start_new_session=os.name!='nt')
-        def request(payload,auth=True):
+        def request(payload,auth=True,header='X-LT-Mail-Auth',credential=bearer):
             """localhostのPHPだけへJSONを送って応答を読み切る"""
             headers={'Content-Type':'application/json'}
-            if auth:headers['Authorization']='Bearer '+bearer
+            if auth:headers[header]='Bearer '+credential
             req=urllib.request.Request(f'http://127.0.0.1:{port}/relay',data=json.dumps(payload).encode(),headers=headers,method='POST')
             try:r=urllib.request.urlopen(req,timeout=10)
             except urllib.error.HTTPError as e:r=e
@@ -49,6 +49,8 @@ def main():
                     if request({'operation':'cleanup'},False)[0]==401:break
                 except OSError:time.sleep(.05)
             else:raise AssertionError('PHP fixture not ready')
+            assert request({'operation':'cleanup'},header='Authorization')[0]==401
+            assert request({'operation':'cleanup'},credential='wrong-fixture')[0]==401
             assert request({'operation':'cleanup'})==(503,{'result':'temporary'})
             assert not sent.exists()
             payload=dict(id='fixture-delivery',recipient='nobody@example.invalid',kind='approved',expires=int(time.time())+60,action_url='https://lt.example.invalid/applications')

@@ -47,3 +47,9 @@ API接続追補: 配送元はlt_mail_outbox viewで、申請通知と独立し�
 FTPS資格情報は承認済み既存ファイルから接続時だけ内部利用し、証明書検証を必須にします。LT鍵を公開ファイル・作業ファイル・ログ・コマンド引数へ入れず、PHPのWeb外設定とWorker Secretにだけ保持します。配置入口は成功/失敗後にFTPSで撤去し、URL不存在を確認します。期限を延ばして残置しません。PHPの送信を有効にしただけではAPIの送信gate・DB transport modeは有効になりません。
 
 一時入口の構文・認証・固定本文・期限・再要求・コード変更拒否・Music不変は `tests/php_install_test.py` がローカルHTTP/PHPと架空鍵だけで検証します。`php_no_send.py` からCIで実行し、メール関数には到達しません。本番の配送成功とは別の検証です。
+
+### CGI 認証ヘッダー
+
+Rust HTTP transport・一時 installer・PHP relay は `X-LT-Mail-Auth: Bearer …` に統一します。CGI へ標準 Authorization が転送されない場合にも、同じ専用鍵の定時間照合を行います。旧ヘッダーへの fallback や認証省略はありません。秘密値はログに含めません。
+
+新規 installer は `LT_INSTALL_FRESH=true` が既定で、既存の専用ディレクトリ（空でも）を409で拒否します。既存ファイルや install.lock の削除・上書きで復旧しません。同じ鍵による明示更新だけは別途 fresh=false を指定し、既存の設定・コード照合を維持します。

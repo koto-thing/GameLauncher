@@ -7,6 +7,7 @@ set_error_handler(static function (): bool { return true; });
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 const LT_INSTALL_DEADLINE = 0;
+const LT_INSTALL_FRESH = true;
 const LT_INSTALL_BODY_SHA256 = '';
 const LT_INSTALL_BEARER_SHA256 = '';
 
@@ -18,7 +19,7 @@ function lt_install_reply(int $status, bool $installed): never {
 }
 
 if (LT_INSTALL_DEADLINE <= time() || LT_INSTALL_DEADLINE > time()+1800 || ($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || ($_SERVER['HTTPS'] ?? '') !== 'on') lt_install_reply(403, false);
-$auth = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+$auth = $_SERVER['HTTP_X_LT_MAIL_AUTH'] ?? '';
 if (!is_string($auth) || !str_starts_with($auth, 'Bearer ') || !hash_equals(LT_INSTALL_BEARER_SHA256, hash('sha256', substr($auth, 7)))) lt_install_reply(401, false);
 $raw = file_get_contents('php://input', false, null, 0, 131073);
 if (!is_string($raw) || strlen($raw)>131072 || !hash_equals(LT_INSTALL_BODY_SHA256, hash('sha256', $raw))) lt_install_reply(400, false);
@@ -31,7 +32,9 @@ try {
     $private = dirname($web).'/pandd-lt-private';
     if (is_link($private)) lt_install_reply(409, false);
     $config = ['enabled'=>true, 'retention_enabled'=>$p['retention'], 'bearer'=>$p['bearer'], 'from'=>'info@koto-thing.com', 'public_origin'=>'https://lt.koto-thing.com', 'private_dir'=>$private.'/receipts'];
+    if (file_exists($private) && !is_dir($private)) lt_install_reply(409, false);
     if (is_dir($private)) {
+        if (LT_INSTALL_FRESH) lt_install_reply(409, false);
         // 再要求は同一LT鍵・同一コードに限る。既存の別所有領域を上書きしない
         if (is_link($private.'/config.php') || !is_file($private.'/config.php')) lt_install_reply(409, false);
         $oldHash = hash_file('sha256', $private.'/config.php');

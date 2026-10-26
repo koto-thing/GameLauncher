@@ -18,7 +18,7 @@ if (!$path || !is_file($path)) reply(503, 'temporary');
 $c = require $path;
 if (($c['enabled'] ?? false) !== true && ($c['retention_enabled'] ?? false) !== true) reply(503, 'temporary');
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || ($_SERVER['HTTPS'] ?? '') !== 'on') reply(403, 'permanent');
-$auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+$auth = $_SERVER['HTTP_X_LT_MAIL_AUTH'] ?? '';
 if (!is_string($c['bearer'] ?? null) || strlen($c['bearer']) < 32 || !hash_equals('Bearer '.$c['bearer'], $auth)) reply(401, 'permanent');
 if (!str_starts_with($_SERVER['CONTENT_TYPE'] ?? '', 'application/json')) reply(400, 'permanent');
 $raw = file_get_contents('php://input', false, null, 0, 8193);
