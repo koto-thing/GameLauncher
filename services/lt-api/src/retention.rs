@@ -214,7 +214,8 @@ pub async fn scheduled(env: &Env, db: &D1Database) -> Result<()> {
     if rows.first().is_none_or(|v| v["valid"] != 1) {
         return Err(Error::RustError("LT_RETENTION_GUARD".into()));
     }
-    let now = crate::lifecycle::now(db).await?;
+    // 未知schemaでは更新せず、無アクセス開催も予定終了日時から期限を固定する
+    let now = crate::lifecycle::reconcile(db).await?;
     // 削除済みの公開アーカイブは再選択せず、既知の私有子表が残る開催だけを選ぶ
     let candidates = db.prepare("SELECT e.id FROM lt_events e WHERE e.state IN ('ended','cancelled') AND e.private_expires<=?1 AND (EXISTS(SELECT 1 FROM lt_event_configs x WHERE x.id=e.id) OR EXISTS(SELECT 1 FROM lt_applications x WHERE x.event_id=e.id) OR EXISTS(SELECT 1 FROM lt_recruitment x WHERE x.event_id=e.id) OR EXISTS(SELECT 1 FROM lt_schedule x WHERE x.event_id=e.id) OR EXISTS(SELECT 1 FROM lt_event_operations x WHERE x.event_id=e.id) OR EXISTS(SELECT 1 FROM lt_schedule_operations x WHERE x.event_id=e.id) OR EXISTS(SELECT 1 FROM lt_event_cancellations x WHERE x.event_id=e.id) OR EXISTS(SELECT 1 FROM lt_approval_receipts x WHERE x.event_id=e.id) OR e.cancel_actor IS NOT NULL OR e.cancel_operation IS NOT NULL OR e.cancel_hash IS NOT NULL OR (e.state='cancelled' AND (EXISTS(SELECT 1 FROM lt_public_events x WHERE x.event_id=e.id) OR EXISTS(SELECT 1 FROM lt_public_talks x WHERE x.event_id=e.id)))) ORDER BY e.private_expires,e.id LIMIT 1").bind(&[now.into()])?.all().await?.results::<Value>()?;
     if let Some(event) = candidates.first().and_then(|v| v["id"].as_str()) {
