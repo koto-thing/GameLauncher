@@ -2,10 +2,10 @@ name: Music validation
 on:
   workflow_dispatch:
   pull_request:
-    paths: ["rust-toolchain.toml", 'apps/music/**', 'apps/admin-web/**', 'server/music/**', 'contracts/music/**', '.github/workflows/music-check.yml']
+    paths: ["rust-toolchain.toml", 'apps/music/**', 'apps/admin-web/**', 'apps/lt-web/**', 'server/music/**', 'contracts/music/**', '.github/workflows/music-check.yml']
   push:
     branches: [master]
-    paths: ["rust-toolchain.toml", 'apps/music/**', 'apps/admin-web/**', 'server/music/**', 'contracts/music/**', '.github/workflows/music-check.yml']
+    paths: ["rust-toolchain.toml", 'apps/music/**', 'apps/admin-web/**', 'apps/lt-web/**', 'server/music/**', 'contracts/music/**', '.github/workflows/music-check.yml']
 permissions:
   contents: read
 concurrency:
@@ -27,6 +27,8 @@ jobs:
       - run: npm ci
       - run: npm ci
         working-directory: apps/admin-web
+      - run: npm ci
+        working-directory: apps/lt-web
       - name: Install repository Rust toolchain and Wasm target
         working-directory: .
         run: |
