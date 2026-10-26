@@ -461,6 +461,7 @@ export function PublicSite() {
                     {event.title}
                   </a>
                 </h1>
+                {event.guidance && <p className="event-guidance public-prose">{event.guidance}</p>}
                 <div className="hero-buttons">
                   <a
                     className="btn coral"
@@ -505,7 +506,6 @@ export function PublicSite() {
                 <div className="f-val">開催案内をご確認ください</div>
               </div>
             </div>
-            {event.guidance && <p className="event-guidance public-prose">{event.guidance}</p>}
             <div className="content-row">
               <section className="panel sessions-panel">
                 <div className="section-head">
