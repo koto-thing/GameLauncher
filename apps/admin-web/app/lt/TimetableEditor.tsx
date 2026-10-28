@@ -6,6 +6,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { fixedTransitions, moveSchedule, reflowSchedule, scheduleGroups } from "../../lib/lt/timetable";
 import { localEventTime, utcEventTime } from "../../lib/lt/event-time";
+import { previewSchedule } from "../../lib/lt/schedule-rules";
 import { scheduleDiff } from "../../lib/lt/schedule-diff";
 import type { ScheduleBlock, EventSettings, OperatorApplication } from "../../../../contracts/lt/v1";
 
@@ -53,8 +54,8 @@ export function TimetableEditor({ blocks, event, applications, onSave, disabled 
 
   /** @brief 入力エラーを画面へ表示する @param action 編集操作 */
   function edit(action: () => ScheduleBlock[]) {
-    try { setDraft(localize(action())); setError(""); }
-    catch { setError("開始・終了日時を入力してください。夏時間の切替で存在しない、または重複する時刻も指定できません。"); }
+    try { const items = action(); setDraft(localize(automatic ? previewSchedule(items, event) : items)); setError(""); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "日時を確認してください"); }
   }
 
   /** @brief タイトルと登壇者を表示する @param block 枠 @returns 表示名 */
@@ -70,16 +71,16 @@ export function TimetableEditor({ blocks, event, applications, onSave, disabled 
    */
   function save() {
     try {
-      const items = utcDraft();
+      const items = automatic ? previewSchedule(utcDraft(), event) : utcDraft();
       let cursor = Date.parse(event.startsAt);
       for (const b of items) {
         const start = Date.parse(b.startsAt), end = Date.parse(b.endsAt);
-        if (start !== cursor || end < start || (end === start && b.kind !== "transition")) { setError("開催開始日時から、隙間や重複がないように指定してください。「時刻を連続配置」で整えられます。"); return; }
+        if (start < cursor || end < start || (end === start && b.kind !== "transition")) { setError("開催開始より前、または直前の枠と重複する時刻です。「固定枠を保って自動調整」で整えられます。"); return; }
         if ((b.kind === "talk" && end - start !== event.talkMinutes * 60000) || (b.kind === "transition" && end - start !== event.transitionMinutes * 60000)) { setError(`発表は${event.talkMinutes}分、転換は${event.transitionMinutes}分で指定してください。共通の長さは開催回の設定で変更できます。`); return; }
         cursor = end;
       }
       setError(""); setPreview(items);
-    } catch { setError("各枠の開始・終了日時を確認してください。"); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "各枠の日時を確認してください"); }
   }
 
   /** @brief 開会・休憩・閉会を適切な位置へ追加する @param kind 種類 */
@@ -94,31 +95,33 @@ export function TimetableEditor({ blocks, event, applications, onSave, disabled 
   }
 
   return <fieldset disabled={disabled}><legend>時間割</legend>
-    {automatic && <p>発表順を変更できます。時刻と開会・休憩・閉会は、保存時に開催設定のルールから計算します。</p>}
+    {automatic && <p>発表順を変更できます。固定した枠はその時刻を保ち、残りを開催ルールから計算します。固定済みの時刻を変える場合は、先に固定を解除して確定してください。</p>}
     {error && <p role="alert">{error}</p>}
     <fieldset disabled={preview !== null}><legend>枠の編集</legend>
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={({ active }) => setActiveId(String(active.id))} onDragCancel={() => setActiveId(null)} onDragEnd={({ active, over }) => { setActiveId(null); if (!disabled && over && active.id !== over.id) edit(() => moveSchedule(utcDraft(), String(active.id), String(over.id))); }}>
       <SortableContext items={groups.map(g => g[0].id)} strategy={verticalListSortingStrategy}>
         <ol className="lt-schedule-list">{groups.map(group => <ScheduleCard key={group[0].id} id={group[0].id} title={title(group[0])} disabled={disabled || (automatic && group[0].kind !== "talk") || group[0].kind === "opening" || group[0].kind === "closing"}>
           {group.filter(block => block.kind !== "transition").map(block => <div key={block.id} className="lt-schedule-times" role="group" aria-label={labels[block.kind]}><span className="lt-badge">{labels[block.kind]}</span>
-            <div className="lt-schedule-range">{(["startsAt", "endsAt"] as const).map(field => <span key={field} className="lt-schedule-endpoint">{field === "endsAt" && <span aria-hidden="true">～</span>}<input aria-label={`${labels[block.kind]}の${field === "startsAt" ? "開始日時" : "終了日時"}`} type="datetime-local" step="60" readOnly={automatic} value={block[field]} onClick={e => { if (!automatic) e.currentTarget.showPicker?.(); }} onChange={e => { const value = e.currentTarget.value; setDraft(items => items.map(item => item.id === block.id ? { ...item, [field]: value } : item)); }} /></span>)}</div>
+            <div className="lt-schedule-range">{(["startsAt", "endsAt"] as const).map(field => <span key={field} className="lt-schedule-endpoint">{field === "endsAt" && <span aria-hidden="true">～</span>}<input aria-label={`${labels[block.kind]}の${field === "startsAt" ? "開始日時" : "終了日時"}`} type="datetime-local" step="60" readOnly={block.locked || (automatic && field === "endsAt")} value={block[field]} onClick={e => { if (!block.locked && !(automatic && field === "endsAt")) e.currentTarget.showPicker?.(); }} onChange={e => { const value = e.currentTarget.value; setDraft(items => items.map(item => { if (item.id !== block.id) return item; if (field === "startsAt" && value) { try { const duration = Date.parse(utcEventTime(item.endsAt, zone)) - Date.parse(utcEventTime(item.startsAt, zone)); return { ...item, startsAt: value, endsAt: localEventTime(new Date(Date.parse(utcEventTime(value, zone)) + duration).toISOString(), zone) }; } catch { return { ...item, startsAt: value }; } } return { ...item, [field]: value }; })); }} /></span>)}</div>
+            <label><input type="checkbox" checked={!!block.locked} onChange={e => { const locked = e.currentTarget.checked; setDraft(items => items.map(item => item.id === block.id ? { ...item, locked } : item)); }} />この枠の時刻を固定</label>
           </div>)}
-          {!automatic && group[0].kind !== "talk" && <button type="button" onClick={() => edit(() => reflowSchedule(utcDraft().filter(b => b.id !== group[0].id), event.startsAt))}>削除</button>}
+          {!automatic && !group[0].locked && group[0].kind !== "talk" && <button type="button" onClick={() => edit(() => reflowSchedule(utcDraft().filter(b => b.id !== group[0].id), event.startsAt))}>削除</button>}
         </ScheduleCard>)}</ol>
       </SortableContext>
       <DragOverlay>{activeId && <div className="lt-schedule-overlay">{title(draft.find(b => b.id === activeId)!)}</div>}</DragOverlay>
     </DndContext>
     {!automatic && <div>{(["opening", "break", "closing"] as const).map(kind => <button key={kind} type="button" disabled={kind !== "break" && draft.some(b => b.kind === kind)} onClick={() => add(kind)}>{labels[kind]}を追加</button>)}</div>}
-    {!automatic && <button type="button" onClick={() => edit(() => reflowSchedule(utcDraft(), event.startsAt))}>時刻を連続配置</button>}
+    <button type="button" onClick={() => edit(() => previewSchedule(utcDraft(), event))}>固定枠を保って自動調整</button>
     <button type="button" onClick={save}>変更をプレビュー</button><button type="button" onClick={() => { setDraft(localize(blocks)); setPreview(null); setError(""); }}>編集を取り消す</button>
     </fieldset>
     {preview && <section aria-label="時間割変更の確認"><h3>変更前後の確認</h3><p>以下の時刻は{zone}です</p>
-      <table><thead><tr><th>枠</th><th>変更前</th><th>変更後</th><th>移動</th></tr></thead><tbody>{scheduleDiff(blocks, preview).map(change => <tr key={change.id}>
+      <div className="lt-table-scroll"><table className="lt-table"><thead><tr><th>枠</th><th>変更前</th><th>変更後</th><th>移動</th><th>固定</th></tr></thead><tbody>{scheduleDiff(blocks, preview).map(change => <tr key={change.id}>
         <td>{title((change.after ?? change.before)!)}</td>
         <td>{change.before ? `${localEventTime(change.before.startsAt, zone)} ～ ${localEventTime(change.before.endsAt, zone)}` : "追加"}</td>
         <td>{change.after ? `${localEventTime(change.after.startsAt, zone)} ～ ${localEventTime(change.after.endsAt, zone)}` : "削除"}</td>
         <td>{change.minutes === null ? "—" : `${change.minutes > 0 ? "+" : ""}${change.minutes}分`}</td>
-      </tr>)}</tbody></table>
+        <td>{change.after?.locked ? "固定" : "固定なし"}</td>
+      </tr>)}</tbody></table></div>
       <button type="button" onClick={() => { onSave(preview); setPreview(null); }}>この変更を一括確定</button>
       <button type="button" onClick={() => setPreview(null)}>確認を閉じる</button>
     </section>}

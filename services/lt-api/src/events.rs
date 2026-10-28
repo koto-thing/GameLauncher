@@ -322,7 +322,12 @@ pub async fn handle(
             raw.clone()
         } else {
             if !raw.as_object().is_some_and(|o| {
-                o.len() == 3 && o.contains_key("data") && o.contains_key("expectedVersion")
+                (o.len() == 3
+                    || (o.len() == 4
+                        && o.get("expectedScheduleVersion")
+                            .is_some_and(|v| v.as_u64().is_some_and(|v| v > 0))))
+                    && o.contains_key("data")
+                    && o.contains_key("expectedVersion")
             }) {
                 return error("VALIDATION", 422);
             }
@@ -377,7 +382,7 @@ pub async fn handle(
     };
     let before = crate::schedule_notifications::Snapshot::load(db, &id).await?;
     let statement = if update {
-        db.prepare("UPDATE lt_event_configs SET dto=?1,actor=?2,operation_id=?3,payload_hash=?4,expected_version=?5 WHERE id=?6").bind(&[dto.into(),actor.into(),op.clone().into(),hash.clone().into(),(expected as f64).into(),id.clone().into()])?
+        db.prepare("UPDATE lt_event_configs SET dto=?1,actor=?2,operation_id=?3,payload_hash=?4,expected_version=?5 WHERE id=?6 AND (?7 IS NULL OR ?7=(SELECT version FROM lt_schedule WHERE event_id=?6))").bind(&[dto.into(),actor.into(),op.clone().into(),hash.clone().into(),(expected as f64).into(),id.clone().into(),raw["expectedScheduleVersion"].as_u64().map(|v| JsValue::from_f64(v as f64)).unwrap_or(JsValue::NULL)])?
     } else {
         db.prepare("INSERT INTO lt_event_configs(id,dto,actor,operation_id,payload_hash,source_id,source_version) VALUES(?1,?2,?3,?4,?5,?6,?7)").bind(&[id.clone().into(),dto.into(),actor.into(),op.clone().into(),hash.clone().into(),if copy{JsValue::from_str(p[5])}else{JsValue::NULL},if copy{JsValue::from_f64(expected as f64)}else{JsValue::NULL}])?
     };
@@ -398,7 +403,7 @@ pub async fn handle(
             poster,
             rules,
             schedule,
-            before.statement(db, actor, &op, false)?,
+            before.statement(db, actor, &op, "event")?,
         ])
         .await;
     match result {
@@ -428,7 +433,7 @@ pub async fn handle(
         }
         Ok(r) => {
             if r[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
-                return error("NOT_FOUND", 404);
+                return error("VERSION_CONFLICT", 409);
             }
         }
     }

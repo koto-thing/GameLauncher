@@ -83,6 +83,12 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
     // 運営ルートは公開入口に登録しない
     let private = match applicant::handle(&mut req, &env).await {
         Ok(value) => value,
+        Err(error) if error.to_string().contains("LT_FIXED_CONFLICT") => Some(
+            Response::from_json(
+                &json!({"error":{"code":"FIXED_CONFLICT","requestId":"applicant"}}),
+            )?
+            .with_status(409),
+        ),
         Err(error) if error.to_string().contains("LT_SCHEDULE_FULL") => Some(
             Response::from_json(
                 &json!({"error":{"code":"SCHEDULE_FULL","requestId":"applicant"}}),

@@ -710,7 +710,9 @@
         "materialDeadlineAt": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Instant"
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "format": "date-time"
             },
             {
               "type": "null"
@@ -1010,7 +1012,9 @@
         "materialDeadlineAt": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Instant"
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "format": "date-time"
             },
             {
               "type": "null"
@@ -1245,7 +1249,8 @@
                 "RETENTION_EXPIRED",
                 "SERVICE_UNAVAILABLE",
                 "NOT_IMPLEMENTED",
-                "SCHEDULE_FULL"
+                "SCHEDULE_FULL",
+                "FIXED_CONFLICT"
               ]
             },
             "requestId": {
@@ -1805,6 +1810,10 @@
             "closingMinutes",
             "endsBy"
           ]
+        },
+        "expectedScheduleVersion": {
+          "type": "integer",
+          "minimum": 1
         }
       },
       "required": [
@@ -2446,7 +2455,8 @@
         "RETENTION_EXPIRED",
         "SERVICE_UNAVAILABLE",
         "NOT_IMPLEMENTED",
-        "SCHEDULE_FULL"
+        "SCHEDULE_FULL",
+        "FIXED_CONFLICT"
       ]
     },
     "NotificationKind": {
@@ -2716,10 +2726,12 @@
       ],
       "properties": {
         "expectedVersion": {
-          "$ref": "#/$defs/Version"
+          "type": "integer",
+          "minimum": 1
         },
         "operationId": {
-          "$ref": "#/$defs/Id"
+          "type": "string",
+          "minLength": 1
         },
         "data": {
           "type": "object",

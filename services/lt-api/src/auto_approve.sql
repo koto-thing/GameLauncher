@@ -7,11 +7,11 @@ SET dto=(
   '$.published',json_set(json_extract(a.dto,'$.content'),
    '$.id',a.id,'$.eventId',a.event_id,'$.version',a.version+1,
    '$.startsAt',CASE WHEN json_extract(s.blocks,'$[#-1].kind')='closing'
-    THEN json_extract(s.blocks,'$[#-1].startsAt')
+    THEN CASE WHEN json_extract(s.blocks,'$[#-1].locked')=1 THEN COALESCE(json_extract(s.blocks,'$[#-2].endsAt'),json_extract(p.dto,'$.startsAt')) ELSE json_extract(s.blocks,'$[#-1].startsAt') END
     ELSE COALESCE(json_extract(s.blocks,'$[#-1].endsAt'),json_extract(p.dto,'$.startsAt')) END,
    '$.endsAt',strftime('%Y-%m-%dT%H:%M:%fZ',
     CASE WHEN json_extract(s.blocks,'$[#-1].kind')='closing'
-     THEN json_extract(s.blocks,'$[#-1].startsAt')
+     THEN CASE WHEN json_extract(s.blocks,'$[#-1].locked')=1 THEN COALESCE(json_extract(s.blocks,'$[#-2].endsAt'),json_extract(p.dto,'$.startsAt')) ELSE json_extract(s.blocks,'$[#-1].startsAt') END
      ELSE COALESCE(json_extract(s.blocks,'$[#-1].endsAt'),json_extract(p.dto,'$.startsAt')) END,
     '+'||r.talk_minutes||' minutes'),
    '$.cancelled',json('false')))

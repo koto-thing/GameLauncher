@@ -483,6 +483,9 @@ async fn applications(
     dto["version"] = json!(v["expectedVersion"].as_u64().unwrap() + 1);
     if edit {
         dto["content"] = data["content"].clone();
+        if dto["materialUrl"] != data["materialUrl"] {
+            dto["materialReviewedUrl"] = json!("");
+        }
         dto["materialUrl"] = data["materialUrl"].clone();
     }
     match action {

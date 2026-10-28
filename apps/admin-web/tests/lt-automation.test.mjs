@@ -20,3 +20,17 @@ test("対応一覧は終了・辞退済みを除き、受付順で複数理由�
   assert.deepEqual(items[2].reasons, ["審査待ち", "資料未確認"]);
   assert.deepEqual(actionItems([{ ...base, review: "approved", materialUrl: "https://example.invalid", materialReviewed: true }]), []);
 });
+
+
+test("固定休憩は生成規則の境界が変わっても保持し、重なりと終了超過を説明する", async () => {
+  const { previewSchedule } = await import("../lib/lt/schedule-rules.ts");
+  const event = { startsAt: "2026-11-01T01:00:00.000Z", scheduleMode: "automatic", openingMinutes: 5, closingMinutes: 5, breakEvery: 4, breakMinutes: 10, talkMinutes: 10, transitionMinutes: 1 };
+  const talk = { id: "t", talkId: "a", kind: "talk", startsAt: "2026-11-01T01:05:00.000Z", endsAt: "2026-11-01T01:15:00.000Z" };
+  const rest = { id: "rest", kind: "break", startsAt: "2026-11-01T01:30:00.000Z", endsAt: "2026-11-01T01:40:00.000Z", locked: true };
+  const blocks = previewSchedule([talk, rest], event);
+  assert.deepEqual(blocks.find(block => block.id === rest.id), rest);
+  assert.equal(blocks.at(-1).endsAt, "2026-11-01T01:45:00.000Z");
+  assert.throws(() => previewSchedule([talk, rest], { ...event, talkMinutes: 30 }), /6分重なります/);
+  assert.throws(() => previewSchedule([talk, rest], { ...event, endsBy: "2026-11-01T01:42:00.000Z" }), /3分超過/);
+  assert.throws(() => previewSchedule([{ ...talk, locked: true }], { ...event, talkMinutes: 11 }), /固定枠の長さ/);
+});

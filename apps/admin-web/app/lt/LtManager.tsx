@@ -39,7 +39,7 @@ async function api<T>(path: string, method = "GET", body?: unknown): Promise<T> 
     const detail = await response.json().catch(() => null);
     const names: Record<string, string> = { title: "開催名", venue: "会場", startsAt: "開始日時", timeZone: "タイムゾーン", opensAt: "募集開始", closesAt: "募集終了", capacity: "定員", talkMinutes: "発表時間", transitionMinutes: "転換時間", blocks: "時間割", note: "運営メモ" };
     const fields = Array.isArray(detail?.error?.fields) ? detail.error.fields.map((field: { path?: string }) => names[String(field.path).split(".").pop() ?? ""]).filter(Boolean).join("、") : "";
-    throw new ApiFailure(detail?.error?.code === "SCHEDULE_FULL" ? "終了上限を超えるため保存・受付できません。終了上限、発表時間、休憩の設定を調整してください。" : detail?.error?.code === "CAPACITY_FULL" ? "登壇枠が満員、または予約済み件数より定員が少なくなっています。定員と申請状況を確認してください。" : detail?.error?.code === "INVALID_TRANSITION" ? "現在の開催・申請状態では操作できません。開始後の時間割設定変更や、コピーした開催回の募集日時を確認してください。" : response.status === 409 ? "他の操作で更新されています。再読込して内容を確認してください。" : response.status === 401 ? "ログインが必要です。" : response.status === 403 ? "この操作の権限がありません。" : response.status === 422 ? `入力を確認してください${fields ? `: ${fields}` : ""}` : `操作できませんでした (${response.status})`, response.status, detail?.error?.code);
+    throw new ApiFailure(detail?.error?.code === "FIXED_CONFLICT" ? "固定枠が移動・削除されるため確定できません。固定枠と直前の発表時間を確認し、必要なら固定を解除して保存してください。" : detail?.error?.code === "SCHEDULE_FULL" ? "終了上限を超えるため保存・受付できません。終了上限、発表時間、休憩の設定を調整してください。" : detail?.error?.code === "CAPACITY_FULL" ? "登壇枠が満員、または予約済み件数より定員が少なくなっています。定員と申請状況を確認してください。" : detail?.error?.code === "INVALID_TRANSITION" ? "現在の開催・申請状態では操作できません。開始後の時間割設定変更や、コピーした開催回の募集日時を確認してください。" : response.status === 409 ? "他の操作で更新されています。再読込して内容を確認してください。" : response.status === 401 ? "ログインが必要です。" : response.status === 403 ? "この操作の権限がありません。" : response.status === 422 ? `入力を確認してください${fields ? `: ${fields}` : ""}` : `操作できませんでした (${response.status})`, response.status, detail?.error?.code);
   }
   return response.json() as Promise<T>;
 }
@@ -75,7 +75,6 @@ export function LtManager() {
   const [timetable, setTimetable] = useState<OperatorTimetable | null>(null);
   const [events, setEvents] = useState<EventSettings[]>([]);
   const [event, setEvent] = useState<EventSettings | null>(null);
-  const [applicationCursor, setApplicationCursor] = useState<string | null>(null);
   const [applications, setApplications] = useState<OperatorApplication[]>([]);
   const [selected, setSelected] = useState<OperatorApplication | null>(null);
   const [note, setNote] = useState("");
@@ -103,11 +102,11 @@ export function LtManager() {
   async function open(item: EventSettings) {
     const [result, schedule, detail] = await Promise.all([fetchApplications(item.id), api<OperatorTimetable>(`/events/${encodeURIComponent(item.id)}/timetable`), api<EventSettings>(`/events/${encodeURIComponent(item.id)}`)]);
     setCancelConfirm(false); setTimetable(schedule);
-    setApplicationCursor(result.nextCursor); setEvent(detail); setApplications(result.items); setSelected(null);
+    setEvent(detail); setApplications(result.items); setSelected(null);
   }
-  function mutate(path: string, version: number, data: unknown, complete: (result: unknown) => void | Promise<void>, method = "POST") {
+  function mutate(path: string, version: number, data: unknown, complete: (result: unknown) => void | Promise<void>, method = "POST", expectedScheduleVersion?: number) {
     // 再試行でも operationId を維持し、不確かな成功を重複適用しない
-    const payload = { expectedVersion: version, operationId: crypto.randomUUID(), data };
+    const payload = { expectedVersion: version, operationId: crypto.randomUUID(), data, ...(expectedScheduleVersion === undefined ? {} : { expectedScheduleVersion }) };
     void run(async () => { await complete(await api(path, method, payload)); setMessage("保存しました"); });
   }
   /**
@@ -120,7 +119,7 @@ export function LtManager() {
     const application = selected;
     if (!event || !timetable) return;
     const tail = timetable.blocks.at(-1);
-    const assignedStart = tail?.kind === "closing" ? tail.startsAt : tail?.endsAt ?? event.startsAt;
+    const assignedStart = tail?.kind === "closing" ? (tail.locked ? timetable.blocks.at(-2)?.endsAt ?? event.startsAt : tail.startsAt) : tail?.endsAt ?? event.startsAt;
     const data = action === "approve" ? { startsAt: event.scheduleMode === "automatic" ? assignedStart : new Date(startsAt).toISOString(), expectedEventVersion: event.version, expectedScheduleVersion: timetable.version } : action === "reapprove" ? { expectedEventVersion: event.version } : action === "confirm-withdrawal" ? {} : { note };
     mutate(`/applications/${encodeURIComponent(application.id)}/${action}`, application.version, data, async result => {
       const updated = result as OperatorApplication;
@@ -156,17 +155,14 @@ export function LtManager() {
     </div> : event ? <div key="event">
       <button onClick={() => { setEvent(null); setApplications([]); }}>開催回一覧に戻る</button><h2>{event.title}</h2>{!event.publishEnabled && <p role="status">非公開・募集停止中です。受付日時を確定して保存してください。</p>}
       <div className="lt-stats" aria-label="全申請の集計"><div><span>全申請</span><strong>{applications.length}</strong></div><div><span>承認済み</span><strong>{applications.filter(item => item.review === "approved").length}</strong></div><div><span>審査・保留中</span><strong>{applications.filter(item => ["pending", "held", "resubmitted"].includes(item.review)).length}</strong></div><div><span>辞退の確認待ち</span><strong>{applications.filter(item => item.withdrawal === "requested").length}</strong></div></div>
-      {applicationCursor && <p className="lt-hint">集計は読み込み済みの申請が対象です。「申請をさらに表示」で追加できます。</p>}
-      <section className="lt-panel" aria-label="いま運営が対応すること"><h3>いま運営が対応すること</h3>
-        {applicationCursor && <p>読み込み済みの申請が対象です。残りの申請も読み込んで確認してください。</p>}
+      <section className="lt-panel" aria-label="いま運営が対応すること"><h3>いま運営が対応すること</h3><p>空き枠: {Math.max(0, event.capacity - applications.filter(item => item.slotReserved).length)}件。キャンセル待ちは受付順に表示しています。空きが出たら候補を開き、「繰り上げを承認」で確定してください。</p>
         {actionItems(applications).length === 0 ? <p>対応待ちはありません</p> : <ul>{actionItems(applications).map(({application, reasons}) => <li key={application.id}><button onClick={() => void run(async () => { const detail = await api<OperatorApplication>(`/applications/${encodeURIComponent(application.id)}`); setSelected(detail); setNote(detail.operatorNote); setStartsAt(""); })}>{application.content.title}</button> — {reasons.join("、")}</li>)}</ul>}
       </section>
       <section className="lt-panel" id="lt-applications"><div className="lt-panel-heading"><h3>申請一覧</h3></div>{applications.length === 0 && <p>申請はありません</p>}
       <div className="lt-table-scroll"><table className="lt-table"><thead><tr><th scope="col">発表タイトル / 登壇者</th><th scope="col">審査状況</th><th scope="col">辞退状況</th></tr></thead><tbody>{applications.map(item => <tr key={item.id}><td><button className="lt-title-button" onClick={() => { void run(async () => { const detail = await api<OperatorApplication>(`/applications/${encodeURIComponent(item.id)}`); setSelected(detail); setNote(detail.operatorNote); setStartsAt(""); }); }}>{item.content.title}</button><small>{item.content.speakers.map(speaker => speaker.displayName).join("、")}</small></td><td><span className="lt-badge">{item.waitlisted ? "キャンセル待ち" : ({ pending: "審査待ち", held: "保留", approved: "承認済み", returned: "差し戻し", resubmitted: "再申請", rejected: "見送り", withdrawn: "辞退済み" })[item.review]}</span></td><td>{({ none: "—", requested: "確認待ち", confirmed: "確定" })[item.withdrawal]}</td></tr>)}</tbody></table></div>
-      {applicationCursor && <button onClick={() => void run(async () => { const page = await api<OperatorApplicationPage>(`/events/${encodeURIComponent(event.id)}/applications?cursor=${encodeURIComponent(applicationCursor)}`); setApplications(items => [...items, ...page.items]); setApplicationCursor(page.nextCursor); })}>申請をさらに表示</button>}
       </section><section className="lt-panel" id="lt-timetable"><div className="lt-panel-heading"><h3>タイムテーブル編集</h3></div>{timetable && <TimetableEditor key={`${timetable.eventId}:${timetable.version}:${event.timeZone}`} blocks={timetable.blocks} event={event} applications={applications} disabled={busy || needsReload} onSave={blocks => mutate(`/events/${encodeURIComponent(event.id)}/timetable`, timetable.version, { blocks, expectedEventVersion: event.version }, result => { const saved = result as OperatorTimetable; setTimetable(saved); setEvent(current => current ? syncTimetableEvent(current, saved) : current); }, "PUT")} />}
     </section>
-      <section className="lt-panel" id="lt-settings"><div className="lt-panel-heading"><h3>開催回の設定</h3></div><EventForm key={`${event.id}:${event.version}`} value={event} onSave={value => mutate(`/events/${encodeURIComponent(event.id)}`, event.version, value, async result => { const updated = result as EventSettings; setEvents(items => items.map(item => item.id === updated.id ? updated : item)); await open(updated); }, "PATCH")} />
+      <section className="lt-panel" id="lt-settings"><div className="lt-panel-heading"><h3>開催回の設定</h3></div><EventForm key={`${event.id}:${event.version}`} value={event} blocks={timetable?.blocks} onSave={value => mutate(`/events/${encodeURIComponent(event.id)}`, event.version, value, async result => { const updated = result as EventSettings; setEvents(items => items.map(item => item.id === updated.id ? updated : item)); await open(updated); }, "PATCH", timetable?.version)} />
       </section><section className="lt-panel" id="lt-exceptions"><h3>例外対応・手動処理</h3><button onClick={() => mutate(`/events/${encodeURIComponent(event.id)}/copy`, event.version, {}, async result => { await loadEvents(); await open(result as EventSettings); })}>この運営ルールから次回を作成</button>
       <button disabled={event.state === "cancelled"} onClick={() => setCancelConfirm(true)}>開催中止</button>
       {cancelConfirm && <div role="group" aria-label="開催中止の確認"><p>この開催回を中止しますか？</p><button onClick={() => mutate(`/events/${encodeURIComponent(event.id)}/cancel`, event.version, {}, result => { const updated = result as EventSettings; setEvent(updated); setEvents(items => items.map(item => item.id === updated.id ? updated : item)); setCancelConfirm(false); })}>中止を確定</button><button onClick={() => setCancelConfirm(false)}>中止を取り消す</button></div>}

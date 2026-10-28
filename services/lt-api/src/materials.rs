@@ -78,6 +78,9 @@ pub async fn save(
         return error("RETENTION_EXPIRED", 410);
     }
     let dto: Value = serde_json::from_str(row["dto"].as_str().unwrap())?;
+    if crate::applicant::expired(&dto, now) {
+        return error("RETENTION_EXPIRED", 410);
+    }
     let scope = if operator { "operator" } else { "applicant" };
     let hash = Sha256::digest(format!("{id}:material:{operator}:{raw}").as_bytes())
         .iter()
@@ -107,7 +110,7 @@ pub async fn save(
     } else {
         ""
     };
-    let update = db.prepare("UPDATE lt_applications SET version=version+1,dto=json_set(dto,'$.version',version+1,'$.materialUrl',?1,'$.materialReviewedUrl',?2),operation_id=?3,payload_hash=?4,actor_id=?5 WHERE id=?6 AND version=?7 AND (?8=1 OR email=?9) AND json_extract(dto,'$.withdrawal')='none' AND json_extract(dto,'$.review') NOT IN ('rejected','withdrawn') AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND e.state IN ('scheduled','started') AND (e.private_expires IS NULL OR e.private_expires>?10))")
+    let update = db.prepare("UPDATE lt_applications SET version=version+1,dto=json_set(dto,'$.version',version+1,'$.materialUrl',?1,'$.materialReviewedUrl',?2),operation_id=?3,payload_hash=?4,actor_id=?5 WHERE id=?6 AND version=?7 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',?10/1000.0,'unixepoch')) AND (?8=1 OR email=?9) AND json_extract(dto,'$.withdrawal')='none' AND json_extract(dto,'$.review') NOT IN ('rejected','withdrawn') AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_applications.event_id AND e.state IN ('scheduled','started') AND (e.private_expires IS NULL OR e.private_expires>?10))")
         .bind(&[input.data.material_url.clone().into(),checked.into(),input.operation_id.clone().into(),hash.clone().into(),if operator { actor.into() } else { JsValue::NULL },id.into(),(input.expected_version as f64).into(),(if operator {1.0} else {0.0}).into(),actor.into(),now.into()])?;
     let mut statements = vec![update];
     if !operator {

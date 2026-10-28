@@ -12,6 +12,20 @@ def load(name):
     return json.loads((ROOT / name).read_text(encoding="utf-8"))
 
 class ContractTests(unittest.TestCase):
+    def test_local_schema_references_resolve(self):
+        """共有契約に存在しない型への参照を残さない"""
+        schema = load("dto.schema.json")
+        def visit(value):
+            if isinstance(value, dict):
+                if value.get("$ref", "").startswith("#/"):
+                    target = schema
+                    for part in value["$ref"][2:].split("/"):
+                        target = target[part.replace("~1", "/").replace("~0", "~")]
+                for child in value.values(): visit(child)
+            elif isinstance(value, list):
+                for child in value: visit(child)
+        visit(schema)
+
     # optional依存不足でformatが黙って素通りしないよう確認する
     def test_required_date_time_checker(self):
         checker = FormatChecker()

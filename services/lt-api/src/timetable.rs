@@ -212,7 +212,7 @@ pub async fn save(
             saved,
             generated,
             receipt,
-            before.statement(db, actor, &input.operation_id, true)?,
+            before.statement(db, actor, &input.operation_id, "schedule")?,
         ])
         .await?;
     if changed[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {

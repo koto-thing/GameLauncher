@@ -10,6 +10,7 @@ ALTER TABLE lt_recruitment ADD COLUMN ends_by TEXT;
 CREATE VIEW lt_generated_schedule AS
 WITH talks AS (
  SELECT s.event_id,json_extract(b.value,'$.id') AS id,json_extract(b.value,'$.talkId') AS talk_id,
+  CAST(b.key AS INTEGER) AS original_position,
   row_number() OVER(PARTITION BY s.event_id ORDER BY CAST(b.key AS INTEGER)) AS position,
   count(*) OVER(PARTITION BY s.event_id) AS total
  FROM lt_schedule s,json_each(s.blocks) b WHERE json_extract(b.value,'$.kind')='talk'
@@ -17,28 +18,40 @@ WITH talks AS (
  SELECT event_id,'auto:opening' AS id,'opening' AS kind,NULL AS talk_id,0 AS position,opening_minutes*60000 AS duration
  FROM lt_recruitment WHERE opening_minutes>0
  UNION ALL
- SELECT t.event_id,t.id,'talk',t.talk_id,t.position*3-2,r.talk_minutes*60000 FROM talks t JOIN lt_recruitment r ON r.event_id=t.event_id
+ SELECT t.event_id,
+  CASE step.value WHEN 0 THEN t.id WHEN 1 THEN t.id||':transition' ELSE 'auto:break:'||t.talk_id END,
+  CASE step.value WHEN 0 THEN 'talk' WHEN 1 THEN 'transition' ELSE 'break' END,
+  CASE WHEN step.value=0 THEN t.talk_id ELSE NULL END,t.position*3-2+step.value,
+  CASE step.value WHEN 0 THEN r.talk_minutes WHEN 1 THEN r.transition_minutes ELSE r.break_minutes END*60000
+ FROM talks t JOIN lt_recruitment r ON r.event_id=t.event_id,json_each('[0,1,2]') step
+ WHERE step.value<2 OR (t.position%r.break_every=0 AND t.position<t.total AND r.break_minutes>0
+ AND NOT EXISTS(SELECT 1 FROM lt_schedule s,json_each(s.blocks) b WHERE s.event_id=t.event_id AND json_extract(b.value,'$.id')='auto:break:'||t.talk_id AND json_extract(b.value,'$.locked')=1))
  UNION ALL
- SELECT t.event_id,t.id||':transition','transition',NULL,t.position*3-1,r.transition_minutes*60000 FROM talks t JOIN lt_recruitment r ON r.event_id=t.event_id
- UNION ALL
- SELECT t.event_id,'auto:break:'||t.talk_id,'break',NULL,t.position*3,r.break_minutes*60000 FROM talks t JOIN lt_recruitment r ON r.event_id=t.event_id
- WHERE t.position%r.break_every=0 AND t.position<t.total AND r.break_minutes>0
+ SELECT s.event_id,json_extract(b.value,'$.id'),'break',NULL,3*(SELECT count(*) FROM talks t WHERE t.event_id=s.event_id AND t.original_position<CAST(b.key AS INTEGER))+0.1+CAST(b.key AS INTEGER)/1000000.0,CAST((unixepoch(json_extract(b.value,'$.endsAt'),'subsec')-unixepoch(json_extract(b.value,'$.startsAt'),'subsec'))*1000 AS INTEGER)
+ FROM lt_schedule s,json_each(s.blocks) b WHERE json_extract(b.value,'$.kind')='break' AND json_extract(b.value,'$.locked')=1
  UNION ALL
  SELECT r.event_id,'auto:closing','closing',NULL,COALESCE((SELECT max(position) FROM talks t WHERE t.event_id=r.event_id),0)*3+1,r.closing_minutes*60000
  FROM lt_recruitment r WHERE r.closing_minutes>0
 ), timed AS (
  SELECT *,COALESCE(sum(duration) OVER(PARTITION BY event_id ORDER BY position ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS offset_ms
  FROM pieces
+), anchors AS (
+ SELECT t.*,json_extract(old.value,'$.locked') AS locked,
+  CASE WHEN json_extract(old.value,'$.locked')=1 THEN unixepoch(json_extract(old.value,'$.startsAt'),'subsec')*1000-unixepoch(json_extract(p.dto,'$.startsAt'),'subsec')*1000-t.offset_ms ELSE 0 END AS delay
+ FROM timed t JOIN lt_schedule s ON s.event_id=t.event_id JOIN lt_public_events p ON p.event_id=t.event_id
+ LEFT JOIN json_each(s.blocks) old ON json_extract(old.value,'$.id')=t.id
+), placed AS (
+ SELECT *,max(0,max(delay) OVER(PARTITION BY event_id ORDER BY position ROWS UNBOUNDED PRECEDING)) AS delay_ms FROM anchors
 ), encoded AS (
- SELECT t.event_id,t.position,
+ SELECT t.event_id,t.position,t.locked,
   json_object('id',t.id,'kind',t.kind,
-   'startsAt',strftime('%Y-%m-%dT%H:%M:%fZ',(unixepoch(json_extract(p.dto,'$.startsAt'),'subsec')*1000+t.offset_ms)/1000.0,'unixepoch'),
-   'endsAt',strftime('%Y-%m-%dT%H:%M:%fZ',(unixepoch(json_extract(p.dto,'$.startsAt'),'subsec')*1000+t.offset_ms+t.duration)/1000.0,'unixepoch')) AS block,
+   'startsAt',strftime('%Y-%m-%dT%H:%M:%fZ',(unixepoch(json_extract(p.dto,'$.startsAt'),'subsec')*1000+t.offset_ms+t.delay_ms)/1000.0,'unixepoch'),
+   'endsAt',strftime('%Y-%m-%dT%H:%M:%fZ',(unixepoch(json_extract(p.dto,'$.startsAt'),'subsec')*1000+t.offset_ms+t.delay_ms+t.duration)/1000.0,'unixepoch')) AS block,
   t.talk_id
- FROM timed t JOIN lt_public_events p ON p.event_id=t.event_id
+ FROM placed t JOIN lt_public_events p ON p.event_id=t.event_id
 )
 SELECT s.event_id,COALESCE((SELECT json_group_array(json(block)) FROM (
- SELECT CASE WHEN talk_id IS NOT NULL THEN json_set(block,'$.talkId',talk_id) ELSE block END AS block
+ SELECT CASE WHEN locked=1 THEN json_set(CASE WHEN talk_id IS NOT NULL THEN json_set(block,'$.talkId',talk_id) ELSE block END,'$.locked',json('true')) ELSE CASE WHEN talk_id IS NOT NULL THEN json_set(block,'$.talkId',talk_id) ELSE block END END AS block
  FROM encoded WHERE event_id=s.event_id ORDER BY position
 )),'[]') AS blocks FROM lt_schedule s;
 
@@ -51,12 +64,17 @@ WITH pieces AS (
  FROM lt_schedule s JOIN lt_recruitment r ON r.event_id=s.event_id,json_each(s.blocks) b
 ), timed AS (
  SELECT *,COALESCE(sum(duration) OVER(PARTITION BY event_id ORDER BY position ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS offset_ms FROM pieces
+), anchors AS (
+ SELECT t.*,CASE WHEN json_extract(t.block,'$.locked')=1 THEN unixepoch(json_extract(t.block,'$.startsAt'),'subsec')*1000-unixepoch(json_extract(p.dto,'$.startsAt'),'subsec')*1000-t.offset_ms ELSE 0 END AS delay
+ FROM timed t JOIN lt_public_events p ON p.event_id=t.event_id
+), placed AS (
+ SELECT *,max(0,max(delay) OVER(PARTITION BY event_id ORDER BY position ROWS UNBOUNDED PRECEDING)) AS delay_ms FROM anchors
 )
 SELECT s.event_id,COALESCE((SELECT json_group_array(json(block)) FROM (
  SELECT json_set(t.block,
-  '$.startsAt',strftime('%Y-%m-%dT%H:%M:%fZ',(unixepoch(json_extract(p.dto,'$.startsAt'),'subsec')*1000+t.offset_ms)/1000.0,'unixepoch'),
-  '$.endsAt',strftime('%Y-%m-%dT%H:%M:%fZ',(unixepoch(json_extract(p.dto,'$.startsAt'),'subsec')*1000+t.offset_ms+t.duration)/1000.0,'unixepoch')) AS block
- FROM timed t JOIN lt_public_events p ON p.event_id=t.event_id WHERE t.event_id=s.event_id ORDER BY t.position
+  '$.startsAt',strftime('%Y-%m-%dT%H:%M:%fZ',(unixepoch(json_extract(p.dto,'$.startsAt'),'subsec')*1000+t.offset_ms+t.delay_ms)/1000.0,'unixepoch'),
+  '$.endsAt',strftime('%Y-%m-%dT%H:%M:%fZ',(unixepoch(json_extract(p.dto,'$.startsAt'),'subsec')*1000+t.offset_ms+t.delay_ms+t.duration)/1000.0,'unixepoch')) AS block
+ FROM placed t JOIN lt_public_events p ON p.event_id=t.event_id WHERE t.event_id=s.event_id ORDER BY t.position
 )),'[]') AS blocks FROM lt_schedule s;
 
 -- 終了上限を超える更新は、申請・承認・通知を含むトランザクションごと拒否する
@@ -106,10 +124,10 @@ BEGIN
    ) AS value
   )
   SELECT CASE WHEN json_extract(blocks,'$[#-1].kind')='closing' THEN
-   json_insert(value,'$[#]',json_set(json_extract(blocks,'$[#-1]'),
+   json_insert(value,'$[#]',CASE WHEN json_extract(blocks,'$[#-1].locked')=1 THEN json_extract(blocks,'$[#-1]') ELSE json_set(json_extract(blocks,'$[#-1]'),
     '$.startsAt',json_extract(value,'$[#-1].endsAt'),
     '$.endsAt',strftime('%Y-%m-%dT%H:%M:%fZ',json_extract(blocks,'$[#-1].endsAt'),
-     '+'||(SELECT talk_minutes+transition_minutes FROM lt_recruitment WHERE event_id=NEW.event_id)||' minutes')))
+     '+'||(SELECT talk_minutes+transition_minutes FROM lt_recruitment WHERE event_id=NEW.event_id)||' minutes')) END)
    ELSE value END FROM appended
  ) WHERE event_id=NEW.event_id;
  -- 自動時間割は最新の発表順とルールから再生成する
@@ -143,5 +161,16 @@ BEGIN
  INSERT INTO lt_outbox(id,operation_id,application_id,kind,recipient,expires)
  SELECT NEW.operation_id||':'||NEW.id,NEW.operation_id,NEW.id,
  CASE WHEN json_extract(NEW.dto,'$.review')='returned' THEN 'returned' WHEN json_extract(NEW.dto,'$.review')='rejected' THEN 'rejected' WHEN json_extract(OLD.dto,'$.review')='resubmitted' AND json_extract(NEW.dto,'$.review')='approved' THEN 'reapproved' ELSE 'withdrawalConfirmed' END,NEW.email,(SELECT private_expires FROM lt_events WHERE id=NEW.event_id)
- WHERE json_extract(NEW.dto,'$.review') IN ('returned','rejected') OR (json_extract(OLD.dto,'$.review')='resubmitted' AND json_extract(NEW.dto,'$.review')='approved') OR (json_extract(OLD.dto,'$.withdrawal')='requested' AND json_extract(NEW.dto,'$.withdrawal')='confirmed');
+ WHERE (json_extract(NEW.dto,'$.review') IN ('returned','rejected') AND json_extract(OLD.dto,'$.review')!=json_extract(NEW.dto,'$.review')) OR (json_extract(OLD.dto,'$.review')='resubmitted' AND json_extract(NEW.dto,'$.review')='approved') OR (json_extract(OLD.dto,'$.withdrawal')='requested' AND json_extract(NEW.dto,'$.withdrawal')='confirmed');
 END;
+
+-- 固定を明示解除した保存だけを例外にし、再計算による固定時刻の移動を拒否する
+CREATE TRIGGER lt_schedule_fixed_guard BEFORE UPDATE OF blocks ON lt_schedule
+WHEN EXISTS(
+ SELECT 1 FROM json_each(OLD.blocks) old
+ LEFT JOIN json_each(NEW.blocks) next ON json_extract(next.value,'$.id')=json_extract(old.value,'$.id')
+ WHERE json_extract(old.value,'$.locked')=1
+ AND (json_extract(old.value,'$.kind')!='talk' OR EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=json_extract(old.value,'$.talkId') AND json_extract(a.dto,'$.slotReserved')=1))
+ AND (next.value IS NULL OR (json_extract(next.value,'$.locked')=1 AND (json_extract(next.value,'$.talkId') IS NOT json_extract(old.value,'$.talkId') OR json_extract(next.value,'$.kind')!=json_extract(old.value,'$.kind') OR json_extract(next.value,'$.startsAt')!=json_extract(old.value,'$.startsAt') OR json_extract(next.value,'$.endsAt')!=json_extract(old.value,'$.endsAt'))))
+) OR (EXISTS(SELECT 1 FROM json_each(NEW.blocks) b WHERE json_extract(b.value,'$.locked')=1) AND EXISTS(SELECT 1 FROM json_each(NEW.blocks) b JOIN json_each(NEW.blocks) previous ON CAST(previous.key AS INTEGER)=CAST(b.key AS INTEGER)-1 WHERE json_extract(b.value,'$.startsAt')<json_extract(previous.value,'$.endsAt')))
+BEGIN SELECT RAISE(ABORT,'LT_FIXED_CONFLICT'); END;

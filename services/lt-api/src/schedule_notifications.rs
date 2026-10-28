@@ -37,7 +37,7 @@ impl Snapshot {
     /// - `db`: 通知を保存するデータベース
     /// - `actor`: 操作を確定した運営者
     /// - `operation`: 一括確定の識別子
-    /// - `schedule`: 時間割の確定ならtrue、開催設定ならfalse
+    /// - `scope`: 確定した操作の種類（schedule、event、operator）
     ///
     /// # 戻り値
     /// 設定更新と同じ原子処理で実行する通知挿入文
@@ -49,14 +49,18 @@ impl Snapshot {
         db: &D1Database,
         actor: &str,
         operation: &str,
-        schedule: bool,
+        scope: &str,
     ) -> Result<D1PreparedStatement> {
-        let receipt = if schedule {
-            "lt_schedule_operations"
-        } else {
-            "lt_event_operations"
+        let (receipt, event_match) = match scope {
+            "schedule" => ("lt_schedule_operations", "event_id=?3"),
+            "event" => ("lt_event_operations", "event_id=?3"),
+            "operator" => (
+                "lt_operator_operations",
+                "application_id IN (SELECT id FROM lt_applications WHERE event_id=?3)",
+            ),
+            _ => return Err(Error::RustError("Invalid notification scope".into())),
         };
-        db.prepare(format!("INSERT INTO lt_outbox(id,operation_id,application_id,kind,recipient,expires) SELECT ?1||':schedule:'||a.id,?1,a.id,'scheduleChanged',a.email,e.private_expires FROM lt_applications a JOIN lt_events e ON e.id=a.event_id JOIN lt_public_events p ON p.event_id=e.id JOIN json_each(?2) old ON json_extract(old.value,'$.id')=a.id WHERE a.event_id=?3 AND a.email!='' AND a.active=1 AND json_extract(a.dto,'$.review') NOT IN ('rejected','withdrawn') AND json_extract(a.dto,'$.withdrawal')='none' AND (json_extract(p.dto,'$.startsAt')!=?4 OR (json_extract(a.dto,'$.slotReserved')=1 AND (json_extract(old.value,'$.start') IS NOT json_extract(a.dto,'$.published.startsAt') OR json_extract(old.value,'$.end') IS NOT json_extract(a.dto,'$.published.endsAt')))) AND EXISTS(SELECT 1 FROM {receipt} WHERE actor=?5 AND operation_id=?1 AND event_id=?3) ON CONFLICT DO NOTHING"))
+        db.prepare(format!("INSERT INTO lt_outbox(id,operation_id,application_id,kind,recipient,expires) SELECT ?1||':schedule:'||a.id,?1,a.id,'scheduleChanged',a.email,e.private_expires FROM lt_applications a JOIN lt_events e ON e.id=a.event_id JOIN lt_public_events p ON p.event_id=e.id JOIN json_each(?2) old ON json_extract(old.value,'$.id')=a.id WHERE a.event_id=?3 AND a.email!='' AND a.active=1 AND json_extract(a.dto,'$.review') NOT IN ('rejected','withdrawn') AND json_extract(a.dto,'$.withdrawal')='none' AND (json_extract(p.dto,'$.startsAt')!=?4 OR (json_extract(a.dto,'$.slotReserved')=1 AND (json_extract(old.value,'$.start') IS NOT json_extract(a.dto,'$.published.startsAt') OR json_extract(old.value,'$.end') IS NOT json_extract(a.dto,'$.published.endsAt')))) AND EXISTS(SELECT 1 FROM {receipt} WHERE actor=?5 AND operation_id=?1 AND {event_match}) ON CONFLICT DO NOTHING"))
             .bind(&[operation.into(),self.talks.to_string().into(),self.event_id.clone().into(),self.starts_at.clone().into(),actor.into()])
     }
 }

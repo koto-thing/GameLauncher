@@ -1,8 +1,11 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import type { EventSettings } from "../../../../contracts/lt/v1";
-import { scheduleCapacity } from "../../lib/lt/schedule-rules";
+import type { EventSettings, ScheduleBlock } from "../../../../contracts/lt/v1";
+import { scheduleDiff } from "../../lib/lt/schedule-diff";
+import { previewSchedule, scheduleCapacity } from "../../lib/lt/schedule-rules";
 import { localEventTime, utcEventTime } from "../../lib/lt/event-time";
+
+type SettingsInput = Omit<EventSettings, "id" | "version" | "state" | "publishEnabled">;
 
 const dates = ["startsAt", "opensAt", "closesAt"] as const;
 const dateLabels = { startsAt: "開始日時", opensAt: "募集開始日時", closesAt: "募集終了日時" };
@@ -25,7 +28,8 @@ function editable(value: EventSettings) {
  * @param props.onSave 編集した設定を保存する処理
  * @returns 編集画面のReact要素
  */
-export function EventForm({ value, onSave }: { value: EventSettings; onSave: (value: Omit<EventSettings, "id" | "version" | "state" | "publishEnabled">) => void }) {
+export function EventForm({ value, blocks = [], onSave }: { value: EventSettings; blocks?: ScheduleBlock[]; onSave: (value: SettingsInput) => void }) {
+  const [preview, setPreview] = useState<{ settings: SettingsInput; blocks: ScheduleBlock[] } | null>(null);
   const [draft, setDraft] = useState(() => editable(value));
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -78,9 +82,11 @@ export function EventForm({ value, onSave }: { value: EventSettings; onSave: (va
       const endsBy = draft.scheduleMode === "automatic" && draft.endsBy ? utcEventTime(draft.endsBy, draft.timeZone, value.endsBy ?? "") : null;
       if (endsBy && computedCapacity < 1) { setError("終了上限までに発表を1件も配置できません。終了上限か時間割ルールを調整してください。"); return; }
       setError("");
-      onSave({ title: draft.title, venue: draft.venue, guidance: draft.guidance, ...(draft.posterUrl?.trim() ? { posterUrl: draft.posterUrl.trim() } : {}), timeZone: draft.timeZone, startsAt, opensAt, closesAt, approvalMode: draft.approvalMode, scheduleMode: draft.scheduleMode, openingMinutes: draft.openingMinutes, breakEvery: draft.breakEvery, breakMinutes: draft.breakMinutes, closingMinutes: draft.closingMinutes, endsBy, ...(draft.planning ? { planning: draft.planning } : {}), capacity: computedCapacity, talkMinutes: draft.talkMinutes, transitionMinutes: draft.transitionMinutes });
-    } catch { setError("日時を確認してください。夏時間の切替で存在しない時刻・重複する時刻は指定できません"); }
+      const settings: SettingsInput = { title: draft.title, venue: draft.venue, guidance: draft.guidance, ...(draft.posterUrl?.trim() ? { posterUrl: draft.posterUrl.trim() } : {}), timeZone: draft.timeZone, startsAt, opensAt, closesAt, approvalMode: draft.approvalMode, scheduleMode: draft.scheduleMode, openingMinutes: draft.openingMinutes, breakEvery: draft.breakEvery, breakMinutes: draft.breakMinutes, closingMinutes: draft.closingMinutes, endsBy, ...(draft.planning ? { planning: draft.planning } : {}), capacity: computedCapacity, talkMinutes: draft.talkMinutes, transitionMinutes: draft.transitionMinutes };
+      setPreview({ settings, blocks: value.state === "scheduled" ? previewSchedule(blocks, { ...value, ...settings }) : blocks });
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "日時と時間割を確認してください"); }
   }}>
+    <fieldset disabled={!!preview}><legend>開催設定</legend>
     <label>承認方式<select value={draft.approvalMode} onChange={e => setDraft({ ...draft, approvalMode: e.currentTarget.value as EventSettings["approvalMode"] })}><option value="automatic">自動承認</option><option value="manual">手動承認</option></select><small>自動承認では初回申請を即時公開し、発表時刻を割り当てます。差し戻し後の再提出と、切替前の審査待ちは手動確認です。</small></label>
     <label>時間割方式<select value={draft.scheduleMode} onChange={e => setDraft({ ...draft, scheduleMode: e.currentTarget.value as EventSettings["scheduleMode"], endsBy: e.currentTarget.value === "manual" ? "" : draft.endsBy })}><option value="automatic">ルールから自動生成</option><option value="manual">手動で時間割を編集</option></select></label>
     {draft.scheduleMode === "automatic" && <fieldset><legend>時間割ルール</legend>
@@ -91,7 +97,7 @@ export function EventForm({ value, onSave }: { value: EventSettings; onSave: (va
     <label>開催名<input required value={draft.title} onChange={e => setDraft({ ...draft, title: e.currentTarget.value })} /></label>
     <label>会場<input required value={draft.venue} onChange={e => setDraft({ ...draft, venue: e.currentTarget.value })} /></label>
     <label>案内<textarea rows={4} value={draft.guidance} onChange={e => setDraft({ ...draft, guidance: e.currentTarget.value })} /></label>
-    <label>ポスター画像<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (file) void uploadPoster(file); }} /><small>PNG・JPEG・WebP／5MBまで。選択後、「設定を保存」で公開します。</small>{uploading && <span role="status">アップロード中…</span>}</label>
+    <label>ポスター画像<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (file) void uploadPoster(file); }} /><small>PNG・JPEG・WebP／5MBまで。選択後、設定の変更を確認して確定すると公開します。</small>{uploading && <span role="status">アップロード中…</span>}</label>
     {draft.posterUrl?.startsWith("https://") && <div className="lt-event-poster"><img src={draft.posterUrl} alt="ポスターのプレビュー" referrerPolicy="no-referrer" /><button type="button" disabled={uploading} onClick={() => setDraft({ ...draft, posterUrl: undefined })}>ポスターを削除</button></div>}
     <label>タイムゾーン<select value={draft.timeZone} onChange={e => setDraft({ ...draft, timeZone: e.currentTarget.value })}>{zones.map(zone => <option key={zone} value={zone}>{zone === "Asia/Tokyo" ? "日本標準時（東京・UTC+09:00）" : zone === "UTC" ? "協定世界時（UTC）" : zone}</option>)}</select><small>以下の日時は選択した地域の時刻です</small></label>
     {dates.map(key => <label key={key}>{dateLabels[key]}<input type="datetime-local" required={key === "startsAt" || !draft.planning?.relativeRecruitment} disabled={key !== "startsAt" && draft.planning?.relativeRecruitment} step="60" value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.currentTarget.value })} onClick={e => { if (e.currentTarget.showPicker) e.currentTarget.showPicker(); }} /></label>)}
@@ -104,7 +110,11 @@ export function EventForm({ value, onSave }: { value: EventSettings; onSave: (va
         <p>未提出・未確認の申請へ期限前に1回案内します。提出済みの資料は運営側で確認済みにしてください。</p>
       </>}
     </fieldset>
+    </fieldset>
+    {preview && <section aria-label="開催設定の変更確認"><h4>変更の確認</h4><p>開催: {localEventTime(preview.settings.startsAt, draft.timeZone)} ／ 募集: {localEventTime(preview.settings.opensAt, draft.timeZone)} ～ {localEventTime(preview.settings.closesAt, draft.timeZone)}</p><p>変更される時間割: {scheduleDiff(blocks, preview.blocks).length}枠。開催日時や発表時刻が変わる場合は対象者へ通知します。</p>
+      <ul>{scheduleDiff(blocks, preview.blocks).map(change => <li key={change.id}>{({ talk: "発表", transition: "転換", opening: "開会", break: "休憩", closing: "閉会" })[(change.after ?? change.before)!.kind]}: {change.before ? `${localEventTime(change.before.startsAt, draft.timeZone)} ～ ${localEventTime(change.before.endsAt, draft.timeZone)}` : "追加"} → {change.after ? `${localEventTime(change.after.startsAt, draft.timeZone)} ～ ${localEventTime(change.after.endsAt, draft.timeZone)}` : "削除"}{change.minutes !== null && `（${change.minutes > 0 ? "+" : ""}${change.minutes}分）`}</li>)}</ul>
+      <button type="button" onClick={() => onSave(preview.settings)}>この変更を一括確定</button><button type="button" onClick={() => setPreview(null)}>編集に戻る</button></section>}
     {error && <p role="alert">{error}</p>}
-    <button disabled={uploading}>設定を保存</button><button type="button" disabled={uploading} onClick={() => { setDraft(editable(value)); setError(""); }}>編集を取り消す</button>
+    <button disabled={uploading || !!preview}>設定の変更を確認</button><button type="button" disabled={uploading} onClick={() => { setDraft(editable(value)); setPreview(null); setError(""); }}>編集を取り消す</button>
   </form>;
 }
