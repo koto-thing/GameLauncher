@@ -9,7 +9,6 @@
   "main": "worker.ts",
   "triggers": {
     "crons": [
-      "0 18 * * *",
       "*/5 * * * *"
     ]
   },
