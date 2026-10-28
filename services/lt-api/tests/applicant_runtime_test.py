@@ -1,7 +1,8 @@
-import unittest,json,urllib.request,urllib.error,subprocess,uuid,concurrent.futures
+import unittest,json,urllib.request,urllib.error,subprocess,uuid,concurrent.futures,os
 from pathlib import Path
 from schema_assertions import assert_response
-BASE='http://127.0.0.1:18877'
+BASE=os.environ.get('LT_TEST_API_ORIGIN','http://127.0.0.1:18877')
+OPERATOR_BASE=os.environ.get('LT_TEST_OPERATOR_ORIGIN','http://127.0.0.1:18878')
 def sql(command):
  # 長いfixture復元SQLをファイル引数にしてWindowsのcommand長制限を避ける
  path=Path('.wrangler')/('test-sql-'+uuid.uuid4().hex+'.sql');path.write_text(command,encoding='utf-8')
@@ -22,13 +23,18 @@ def request(path,data=None,cookie=None,method=None,origin=BASE):
  assert_response(path,req.get_method(),r.status,value)
  return r.status,value,r.headers
 def mail(email):
- req=urllib.request.Request('http://127.0.0.1:18878/test/fake-mail',data=email.encode(),headers={'Content-Type':'text/plain'},method='POST')
+ req=urllib.request.Request(OPERATOR_BASE+'/test/fake-mail',data=email.encode(),headers={'Content-Type':'text/plain'},method='POST')
  with urllib.request.urlopen(req) as response:return json.load(response)['confirmationUrl']
 
 class ApplicantRuntime(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
-  sql("INSERT INTO lt_recruitment(event_id,opens,closes,capacity,reserved) VALUES('open',0,9999999999999,20,0) ON CONFLICT DO NOTHING")
+  """本人API試験用の手動承認開催回を準備する
+
+  Returns:
+      戻り値なし
+  """
+  sql("INSERT INTO lt_recruitment(schedule_mode,approval_mode,event_id,opens,closes,capacity,reserved) VALUES('manual','manual','open',0,9999999999999,20,0) ON CONFLICT DO NOTHING")
  def login(self):
   email=uuid.uuid4().hex+'@example.invalid'
   self.assertEqual(request('/api/lt/v1/auth/email',{'email':email})[0],202)

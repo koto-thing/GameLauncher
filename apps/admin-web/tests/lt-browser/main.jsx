@@ -4,18 +4,24 @@ import { LtManager } from "../../app/lt/LtManager";
 import "../../app/globals.css";
 
 // 本番エントリーから参照しない架空データ専用fixture
-const event = { id: "fixture-event", version: 1, state: "scheduled", title: "架空LT会", venue: "架空会場", guidance: "", startsAt: "2026-11-01T01:00:00.000Z", timeZone: "Asia/Tokyo", opensAt: "2026-10-01T01:00:00.000Z", closesAt: "2026-10-31T01:00:00.000Z", capacity: 20, talkMinutes: 10, transitionMinutes: 1 };
+const event = { id: "fixture-event", version: 1, state: "scheduled", publishEnabled: true, title: "架空LT会", venue: "架空会場", guidance: "", startsAt: "2026-11-01T01:00:00.000Z", timeZone: "Asia/Tokyo", opensAt: "2026-10-01T01:00:00.000Z", closesAt: "2026-10-31T01:00:00.000Z", capacity: 20, talkMinutes: 10, transitionMinutes: 1, approvalMode: "manual", scheduleMode: "manual", openingMinutes: 0, breakEvery: 4, breakMinutes: 0, closingMinutes: 0, endsBy: null };
 const events = [event];
-let application = { id: "fixture-application", eventId: event.id, version: 1, content: { title: "架空発表", abstract: "架空の申請原稿", speakers: [{ displayName: "架空登壇者" }] }, materialUrl: "https://example.invalid/slides", representativeEmail: "fixture@example.invalid", review: "pending", withdrawal: "none", firstSubmittedAt: event.opensAt, everApproved: false, slotReserved: false, retentionExpiresAt: null, published: null, operatorNote: "" };
+let application = { id: "fixture-application", eventId: event.id, version: 1, eventState: "scheduled", materialReviewed: false, content: { title: "架空発表", abstract: "架空の申請原稿", speakers: [{ displayName: "架空登壇者" }] }, materialUrl: "https://example.invalid/slides", representativeEmail: "fixture@example.invalid", review: "pending", withdrawal: "none", firstSubmittedAt: event.opensAt, everApproved: false, slotReserved: false, retentionExpiresAt: null, published: null, operatorNote: "" };
 let timetable = { eventId: event.id, version: 1, eventVersion: 1, blocks: [] };
+let notificationsEnabled = false;
 let nextFailure = 0;
 let denied = false;
 const receipts = new Map();
 function fail(status, code) { return Response.json({ error: { code, requestId: "fixture" } }, { status }); }
 window.fetch = async (input, init) => {
-  const path = String(input); const body = init?.body ? JSON.parse(String(init.body)) : null;
+  const path = String(input).split("?")[0]; const body = init?.body ? JSON.parse(String(init.body)) : null;
   await new Promise(resolve => setTimeout(resolve, 100));
   if (denied) return fail(403, "FORBIDDEN");
+  if (path === "/api/lt/notifications") {
+    if (body) notificationsEnabled = body.enabled;
+    return Response.json({ enabled: notificationsEnabled, registered: notificationsEnabled, publicKey: "B".repeat(87), userId: "fixture", status: { outcome: "ok", checked_at: Date.now() }, failures: 0 });
+  }
+  if (path.endsWith("/monitor")) return Response.json({ checkedAt: Date.now(), maintenance: { status: "stale", enabled: true, heartbeat: { startedAt: null, succeededAt: null, completedAt: null, outcome: "never" } }, mail: { mode: "http", configured: true, testRecipientOnly: false, states: [{ state: "uncertain", count: 1 }], backlog: { count: 0, oldestAt: null } }, items: [{ key: "withdrawal:fixture", eventId: event.id, title: event.title, applicationId: application.id, reason: "withdrawal" }] });
   const parts = path.split("/");
   const currentEvent = events.find(item => item.id === parts[6]) ?? event;
   if (init?.method === "GET" || !init?.method) {
@@ -42,11 +48,12 @@ window.fetch = async (input, init) => {
     if (action === "confirm-withdrawal" && application.withdrawal !== "requested") return fail(422, "INVALID_TRANSITION");
     application = { ...application, version: application.version + 1, review: ({ approve: "approved", return: "returned", hold: "held", reject: "rejected", reapprove: "approved", "confirm-withdrawal": "withdrawn" })[action] ?? application.review, everApproved: action === "approve" || application.everApproved };
     if (action === "approve" || action === "reapprove") application.published = { ...application.content, id: application.id, eventId: event.id, version: application.version, startsAt: body.data.startsAt ?? event.startsAt, endsAt: "2026-11-01T01:10:00.000Z", cancelled: false };
+    if (action === "material") application = { ...application, materialReviewed: true };
     if (action === "confirm-withdrawal") application = { ...application, withdrawal: "confirmed", slotReserved: false, published: null };
     result = application;
   } else {
     if (body.expectedVersion !== currentEvent.version) return fail(409, "VERSION_CONFLICT");
-    if (path.endsWith("/copy")) { result = { ...currentEvent, id: "fixture-copy", version: 1, state: "scheduled", title: "架空LT会コピー" }; events.push(result); }
+    if (path.endsWith("/copy")) { result = { ...currentEvent, id: "fixture-copy", version: 1, state: "scheduled", publishEnabled: true, title: "架空LT会コピー" }; events.push(result); }
     else { Object.assign(currentEvent, body.data, { version: currentEvent.version + 1, ...(path.endsWith("/cancel") ? { state: "cancelled" } : {}) }); result = currentEvent; }
   }
   receipts.set(body.operationId, structuredClone(result));

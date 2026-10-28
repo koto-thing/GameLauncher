@@ -33,6 +33,7 @@ struct Application {
     version: u64,
     content: Content,
     material_url: String,
+    material_deadline_at: Option<String>,
     representative_email: String,
     review: String,
     withdrawal: String,
@@ -54,7 +55,18 @@ pub fn sanitize(value: &Value) -> Option<Value> {
     if let Some(published) = &dto.published {
         dto.published = Some(crate::public_dto::validate(published, true)?);
     }
-    serde_json::to_value(dto).ok()
+    let mut result = serde_json::to_value(dto).ok()?;
+    result["materialReviewed"] = Value::Bool(
+        value["materialUrl"]
+            .as_str()
+            .is_some_and(|url| !url.is_empty() && value["materialReviewedUrl"] == url),
+    );
+    result["waitlisted"] = Value::Bool(
+        value["waitlisted"] == true
+            && value["everApproved"] != true
+            && !["rejected", "withdrawn"].contains(&value["review"].as_str().unwrap_or("")),
+    );
+    Some(result)
 }
 
 /// 運営DTOも本人の具体型から構築し、保存メモだけを加える

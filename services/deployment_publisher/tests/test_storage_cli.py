@@ -18,7 +18,11 @@ class StorageCliTests(unittest.TestCase):
     """Verify real command arguments, remote verification, and error classification"""
 
     def test_upload_then_pointer_promotion_and_remote_access_failure(self):
-        """Publish through a real CLI and ensure a 403 cannot become an overwrite"""
+        """実CLIの公開と403拒否を検証する
+
+        Returns:
+            戻り値なし
+        """
         objects = {}
         writes = []
         deny = False
@@ -71,10 +75,11 @@ class StorageCliTests(unittest.TestCase):
                     path = root / "public" / key
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_bytes(b"fixture")
+                # 小さなS3 fixtureでは任意のチェックサム転送を無効にし、保存メタデータの検証に絞る
                 environment = dict(os.environ, AWS_ACCESS_KEY_ID="local-fixture", AWS_SECRET_ACCESS_KEY="local-fixture",
                                    AWS_DEFAULT_REGION="us-east-1", AWS_EC2_METADATA_DISABLED="true",
                                    AWS_CONFIG_FILE=str(root / "no-config"), AWS_SHARED_CREDENTIALS_FILE=str(root / "no-credentials"),
-                                   AWS_MAX_ATTEMPTS="1")
+                                   AWS_MAX_ATTEMPTS="1", AWS_REQUEST_CHECKSUM_CALCULATION="WHEN_REQUIRED")
                 arguments = ["--output", str(root / "public"), "--endpoint", f"http://127.0.0.1:{server.server_port}", "--bucket", "fixture"]
                 for operation, count in [("upload-immutable", 1), ("promote-pointers", 3)]:
                     result = subprocess.run([PUBLISHER, operation, *arguments], capture_output=True, text=True, env=environment)

@@ -8,12 +8,17 @@ mod gate;
 mod input;
 mod lifecycle;
 mod mail;
+mod materials;
+mod monitor;
 mod operations;
 mod operator;
 mod operator_metadata;
+mod planning;
 mod receipts;
 #[cfg(any(feature = "runtime-tests", feature = "production-api"))]
 mod retention;
+mod schedule_notifications;
+mod schedule_rules;
 mod session_info;
 #[cfg(feature = "runtime-tests")]
 mod test_hooks;
@@ -24,8 +29,14 @@ mod timetable;
 pub use operator::{fake_dispatch, operator_request};
 
 /// 固定時刻の状態更新と最大1件の配送だけを定期実行する
-/// 引数: Cloudflareのscheduled event、環境、実行context
-/// 戻り値: なし。私有情報を含む例外やURLをログに出さない
+///
+/// # 引数
+/// - `_event`: Cloudflareの定期実行イベント
+/// - `env`: データベースと運用設定
+/// - `_ctx`: 定期実行コンテキスト
+///
+/// # 戻り値
+/// 戻り値なし、失敗は機密情報を含めず記録する
 #[cfg(feature = "production-api")]
 #[event(scheduled)]
 pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
@@ -39,8 +50,16 @@ pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) 
     if !maintenance && !retention {
         return;
     }
+    let Ok(db) = env.d1("DB") else {
+        console_error!("LT maintenance database unavailable");
+        return;
+    };
+    let started = Date::now().as_millis() as f64;
     let result = async {
-        let db = env.d1("DB")?;
+        db.prepare("UPDATE lt_maintenance_status SET started_at=?1,outcome='running' WHERE id=1")
+            .bind(&[started.into()])?
+            .run()
+            .await?;
         if retention {
             crate::retention::scheduled(&env, &db).await?;
             crate::mail::clean_receipts(&env).await?;
@@ -53,16 +72,32 @@ pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) 
         Ok::<(), Error>(())
     }
     .await;
-    if result.is_err() {
+    let outcome = if result.is_ok() { "ok" } else { "failed" };
+    let completed = Date::now().as_millis() as f64;
+    // 遅れて完了した古い実行が新しい実行記録を上書きしない
+    let recorded = async {
+        db.prepare("UPDATE lt_maintenance_status SET completed_at=?1,outcome=?2,succeeded_at=CASE WHEN ?2='ok' THEN ?1 ELSE succeeded_at END WHERE id=1 AND started_at=?3")
+            .bind(&[completed.into(), outcome.into(), started.into()])?.run().await
+    }.await;
+    if result.is_err() || recorded.is_err() {
         console_error!("LT maintenance failed");
     }
 }
 
 mod public_dto;
 
-/// 公開 HTTP と D1 読み取りを Rust で処理する
-/// 引数: HTTP リクエスト、環境、コンテキスト
-/// 戻り値: 公開 DTO または拒否応答
+/// 公開HTTPを処理し、終了上限などの契約エラーを応答へ変換する
+///
+/// # 引数
+/// - `req`: 公開APIへのHTTPリクエスト
+/// - `env`: データベースを含むWorker環境
+/// - `_ctx`: Workerの実行コンテキスト
+///
+/// # 戻り値
+/// 公開DTOまたは拒否を示すHTTP応答
+///
+/// # エラー
+/// 契約エラーに変換できない内部処理の失敗
 #[event(fetch)]
 pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
     let path = req.path();
@@ -70,6 +105,18 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
     // 運営ルートは公開入口に登録しない
     let private = match applicant::handle(&mut req, &env).await {
         Ok(value) => value,
+        Err(error) if error.to_string().contains("LT_FIXED_CONFLICT") => Some(
+            Response::from_json(
+                &json!({"error":{"code":"FIXED_CONFLICT","requestId":"applicant"}}),
+            )?
+            .with_status(409),
+        ),
+        Err(error) if error.to_string().contains("LT_SCHEDULE_FULL") => Some(
+            Response::from_json(
+                &json!({"error":{"code":"SCHEDULE_FULL","requestId":"applicant"}}),
+            )?
+            .with_status(409),
+        ),
         Err(error) if error.to_string().contains("LT_OPERATION_CONFLICT") => Some(
             Response::from_json(
                 &json!({"error":{"code":"VERSION_CONFLICT","requestId":"applicant"}}),

@@ -700,6 +700,24 @@
               "type": "null"
             }
           ]
+        },
+        "materialReviewed": {
+          "type": "boolean"
+        },
+        "waitlisted": {
+          "type": "boolean"
+        },
+        "materialDeadlineAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -984,6 +1002,24 @@
               "type": "null"
             }
           ]
+        },
+        "materialReviewed": {
+          "type": "boolean"
+        },
+        "waitlisted": {
+          "type": "boolean"
+        },
+        "materialDeadlineAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -1164,13 +1200,22 @@
           ]
         },
         "materialUrl": {
-          "type": "string",
-          "format": "uri",
-          "pattern": "^https?://"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri"
+            },
+            {
+              "const": ""
+            }
+          ]
         },
         "operationId": {
           "type": "string",
           "minLength": 1
+        },
+        "joinWaitlist": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -1203,7 +1248,9 @@
                 "RATE_LIMITED",
                 "RETENTION_EXPIRED",
                 "SERVICE_UNAVAILABLE",
-                "NOT_IMPLEMENTED"
+                "NOT_IMPLEMENTED",
+                "SCHEDULE_FULL",
+                "FIXED_CONFLICT"
               ]
             },
             "requestId": {
@@ -1430,6 +1477,55 @@
           "type": "string",
           "maxLength": 2048,
           "pattern": "^https://"
+        },
+        "approvalMode": {
+          "type": "string",
+          "enum": [
+            "automatic",
+            "manual"
+          ]
+        },
+        "planning": {
+          "$ref": "#/$defs/Planning"
+        },
+        "scheduleMode": {
+          "type": "string",
+          "enum": [
+            "automatic",
+            "manual"
+          ]
+        },
+        "openingMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "breakEvery": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "breakMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "closingMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "endsBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -1446,7 +1542,14 @@
         "capacity",
         "talkMinutes",
         "transitionMinutes",
-        "publishEnabled"
+        "publishEnabled",
+        "approvalMode",
+        "scheduleMode",
+        "openingMinutes",
+        "breakEvery",
+        "breakMinutes",
+        "closingMinutes",
+        "endsBy"
       ]
     },
     "CreateEventInput": {
@@ -1503,6 +1606,55 @@
           "type": "string",
           "maxLength": 2048,
           "pattern": "^https://"
+        },
+        "approvalMode": {
+          "type": "string",
+          "enum": [
+            "automatic",
+            "manual"
+          ]
+        },
+        "planning": {
+          "$ref": "#/$defs/Planning"
+        },
+        "scheduleMode": {
+          "type": "string",
+          "enum": [
+            "automatic",
+            "manual"
+          ]
+        },
+        "openingMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "breakEvery": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "breakMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "closingMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "endsBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -1516,7 +1668,14 @@
         "capacity",
         "talkMinutes",
         "transitionMinutes",
-        "operationId"
+        "operationId",
+        "approvalMode",
+        "scheduleMode",
+        "openingMinutes",
+        "breakEvery",
+        "breakMinutes",
+        "closingMinutes",
+        "endsBy"
       ]
     },
     "UpdateEventInput": {
@@ -1581,6 +1740,55 @@
               "type": "string",
               "maxLength": 2048,
               "pattern": "^https://"
+            },
+            "approvalMode": {
+              "type": "string",
+              "enum": [
+                "automatic",
+                "manual"
+              ]
+            },
+            "planning": {
+              "$ref": "#/$defs/Planning"
+            },
+            "scheduleMode": {
+              "type": "string",
+              "enum": [
+                "automatic",
+                "manual"
+              ]
+            },
+            "openingMinutes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1440
+            },
+            "breakEvery": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "breakMinutes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1440
+            },
+            "closingMinutes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1440
+            },
+            "endsBy": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -1593,8 +1801,19 @@
             "closesAt",
             "capacity",
             "talkMinutes",
-            "transitionMinutes"
+            "transitionMinutes",
+            "approvalMode",
+            "scheduleMode",
+            "openingMinutes",
+            "breakEvery",
+            "breakMinutes",
+            "closingMinutes",
+            "endsBy"
           ]
+        },
+        "expectedScheduleVersion": {
+          "type": "integer",
+          "minimum": 1
         }
       },
       "required": [
@@ -1645,9 +1864,15 @@
               "$ref": "#/$defs/TalkContent"
             },
             "materialUrl": {
-              "type": "string",
-              "format": "uri",
-              "pattern": "^https?://"
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uri"
+                },
+                {
+                  "const": ""
+                }
+              ]
             }
           },
           "required": [
@@ -1796,6 +2021,9 @@
           "type": "string",
           "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
           "format": "date-time"
+        },
+        "locked": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -2226,7 +2454,9 @@
         "RATE_LIMITED",
         "RETENTION_EXPIRED",
         "SERVICE_UNAVAILABLE",
-        "NOT_IMPLEMENTED"
+        "NOT_IMPLEMENTED",
+        "SCHEDULE_FULL",
+        "FIXED_CONFLICT"
       ]
     },
     "NotificationKind": {
@@ -2237,7 +2467,9 @@
         "reapproved",
         "rejected",
         "withdrawalConfirmed",
-        "eventCancelled"
+        "eventCancelled",
+        "materialReminder",
+        "scheduleChanged"
       ]
     },
     "NotificationOutbox": {
@@ -2481,6 +2713,81 @@
               }
             }
           }
+        }
+      }
+    },
+    "MaterialInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ],
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "materialUrl"
+          ],
+          "properties": {
+            "materialUrl": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uri"
+                },
+                {
+                  "const": ""
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "Planning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relativeRecruitment",
+        "opensDaysBefore",
+        "closesDaysBefore",
+        "materialDaysBefore",
+        "reminderDaysBefore"
+      ],
+      "properties": {
+        "relativeRecruitment": {
+          "type": "boolean"
+        },
+        "opensDaysBefore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 365
+        },
+        "closesDaysBefore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 365
+        },
+        "materialDaysBefore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 365
+        },
+        "reminderDaysBefore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 365
         }
       }
     }

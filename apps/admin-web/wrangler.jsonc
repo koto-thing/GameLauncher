@@ -9,12 +9,14 @@
   "main": "worker.ts",
   "triggers": {
     "crons": [
-      "0 18 * * *"
+      "0 18 * * *",
+      "*/5 * * * *"
     ]
   },
   "vars": {
     "REQUEST_RETENTION_MODE": "active",
     "D1_METRICS_ENABLED": "false",
+    "LT_SYNTHETIC_METRICS": "true",
     "LOCAL_DEV_AUTH": "false",
     "GITHUB_CALLBACK_URL": "https://pandd-deployment-control-plane.gotoukenta62.workers.dev/api/auth/github/callback",
     "MUSIC_ENABLED": "true",
@@ -53,6 +55,7 @@
     }
   ],
   "services": [
+    { "binding": "LT_INTERNAL", "service": "pandd-lt-api", "entrypoint": "LtOperator" },
     {
       "binding": "PLATFORM_API",
       "service": "pandd-platform-api"

@@ -265,3 +265,23 @@ export const operatorInvitations = sqliteTable("operator_invitations", {
   issuerVersion: text("issuer_version").notNull(), kind: text("kind",{enum:["invite","reapprove"]}).notNull(),
   expiresAt: text("expires_at").notNull(), acceptedAt: text("accepted_at"), acceptedToken: text("accepted_token"), revokedAt: text("revoked_at"),
 }, table => [uniqueIndex("operator_invitation_pending").on(table.recipient).where(sql`${table.acceptedAt} IS NULL AND ${table.revokedAt} IS NULL`)]);
+
+
+// 通知受信は本人の明示同意と在籍バージョンに結び付ける
+export const ltPushPreferences = sqliteTable("lt_push_preferences", {
+  userId: text("user_id").primaryKey(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  admissionVersion: text("admission_version").notNull(),
+});
+
+// 配信先はブラウザーごとに一意とし、鍵と配信結果を非公開で保存する
+export const ltPushSubscriptions = sqliteTable("lt_push_subscriptions", {
+  endpoint: text("endpoint").primaryKey(), userId: text("user_id").notNull(),
+  subscription: text("subscription").notNull(), signature: text("signature").notNull().default(""),
+  leaseUntil: integer("lease_until").notNull().default(0),
+  lastSentAt: integer("last_sent_at"), lastError: integer("last_error"),
+}, table => [index("lt_push_user").on(table.userId)]);
+
+export const ltPushStatus = sqliteTable("lt_push_status", {
+  id: integer("id").primaryKey(), checkedAt: integer("checked_at"), outcome: text("outcome").notNull(),
+});

@@ -43,7 +43,7 @@ try:
             except Exception:
                 if attempt == 99: raise
                 time.sleep(.3)
-    settings = {'operationId':uuid.uuid4().hex,'title':'Metadata test','venue':'Local','guidance':'Local only','startsAt':'2030-11-03T04:00:00.000Z','timeZone':'Asia/Tokyo','opensAt':'2020-01-01T00:00:00.000Z','closesAt':'2030-11-01T14:59:00.000Z','capacity':10,'talkMinutes':10,'transitionMinutes':5}
+    settings = {'operationId':uuid.uuid4().hex,'title':'Metadata test','venue':'Local','guidance':'Local only','startsAt':'2030-11-03T04:00:00.000Z','timeZone':'Asia/Tokyo','opensAt':'2020-01-01T00:00:00.000Z','closesAt':'2030-11-01T14:59:00.000Z','capacity':10,'talkMinutes':10,'transitionMinutes':5, "approvalMode": "manual", "scheduleMode": "manual", "openingMinutes": 0, "breakEvery": 4, "breakMinutes": 0, "closingMinutes": 0, "endsBy": None}
     event = request('/operator/events',settings,operator=True)
     # ポスターの保存・変更・削除とURL検証を実DB経路で確認する
     base = {k:v for k,v in settings.items() if k != 'operationId'}

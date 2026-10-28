@@ -162,9 +162,24 @@ pub async fn cancel(
     )
 }
 
-/// 辞退確定と必要な全block繰上げを同一batchで行う
-/// 引数: DB、更新予定DTO、申請ID、旧version、op/hash、actor、note、requestId
-/// 戻り値: 型付き運営DTOまたは競合
+/// 辞退確定と開催前の時間割再生成を同じトランザクションで行う
+///
+/// # 引数
+/// - `db`: 申請と時間割を保存するデータベース
+/// - `planned`: 更新予定の申請DTO
+/// - `id`: 辞退する申請のID
+/// - `version`: 更新前の申請版
+/// - `op`: 重複実行を防ぐ操作ID
+/// - `hash`: 操作内容を照合するハッシュ
+/// - `actor`: 操作を行う運営者のID
+/// - `note`: 保存する運営メモ
+/// - `request_id`: エラー応答の追跡用ID
+///
+/// # 戻り値
+/// 更新済み申請または競合を示すHTTP応答
+///
+/// # エラー
+/// データベース処理または保存済み日時の解析に失敗した場合
 pub async fn withdraw(
     db: &D1Database,
     planned: &Value,
@@ -222,12 +237,16 @@ pub async fn withdraw(
                 .map_err(|_| Error::RustError("Invalid timetable".into()))?
                 .timestamp_millis();
         blocks.drain(index..index + 2);
+        let mut shift = end - start;
         for block in blocks.iter_mut().skip(index) {
+            if block["locked"] == true {
+                shift = 0;
+            }
             for key in ["startsAt", "endsAt"] {
                 let time = chrono::DateTime::parse_from_rfc3339(block[key].as_str().unwrap())
                     .map_err(|_| Error::RustError("Invalid timetable".into()))?
                     .timestamp_millis()
-                    - (end - start);
+                    - shift;
                 block[key] = json!(
                     js_sys::Date::new(&(time as f64).into())
                         .to_iso_string()
@@ -243,8 +262,9 @@ pub async fn withdraw(
     dto["slotReserved"] = json!(false);
     dto["published"]["cancelled"] = json!(true);
     dto["published"]["version"] = dto["version"].clone();
+    let notification = crate::schedule_notifications::Snapshot::load(db, event).await?;
     // 勝者申請のop/version/hashにだけ時間割変更を従属させる
-    let changed=db.batch(vec![db.prepare("UPDATE lt_applications SET dto=json_set(?1,'$.published.startsAt',json_extract(dto,'$.published.startsAt'),'$.published.endsAt',json_extract(dto,'$.published.endsAt')),version=version+1,active=0,operation_id=?2,payload_hash=?3,actor_id=?4,operator_note=?5,transition_id=?10 WHERE id=?6 AND version=?7 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch')) AND json_extract(dto,'$.withdrawal')='requested' AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id WHERE e.id=lt_applications.event_id AND e.version=?8 AND s.version=?9 AND e.state!='cancelled')").bind(&[dto.to_string().into(),op.into(),hash.into(),actor.into(),note.into(),id.into(),(version as f64).into(),row["event_version"].as_f64().unwrap().into(),row["schedule_version"].as_f64().unwrap().into(),attempt.clone().into()])?,db.prepare("UPDATE lt_schedule SET blocks=?1,version=version+1,operation_id=?2,actor_id=?3,payload_hash=?4 WHERE event_id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=?7 AND a.version=?8 AND a.operation_id=?9 AND a.payload_hash=?4 AND a.actor_id=?3 AND json_extract(a.dto,'$.withdrawal')='confirmed' AND a.transition_id=?10)").bind(&[serde_json::to_string(&blocks)?.into(),format!("{op}:timetable").into(),actor.into(),hash.into(),event.into(),row["schedule_version"].as_f64().unwrap().into(),id.into(),((version+1) as f64).into(),op.into(),attempt.into()])?]).await?;
+    let changed=db.batch(vec![db.prepare("UPDATE lt_applications SET dto=json_set(?1,'$.published.startsAt',json_extract(dto,'$.published.startsAt'),'$.published.endsAt',json_extract(dto,'$.published.endsAt')),version=version+1,active=0,operation_id=?2,payload_hash=?3,actor_id=?4,operator_note=?5,transition_id=?10 WHERE id=?6 AND version=?7 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch')) AND json_extract(dto,'$.withdrawal')='requested' AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id WHERE e.id=lt_applications.event_id AND e.version=?8 AND s.version=?9 AND e.state!='cancelled')").bind(&[dto.to_string().into(),op.into(),hash.into(),actor.into(),note.into(),id.into(),(version as f64).into(),row["event_version"].as_f64().unwrap().into(),row["schedule_version"].as_f64().unwrap().into(),attempt.clone().into()])?,db.prepare("UPDATE lt_schedule SET blocks=?1,version=version+1,operation_id=?2,actor_id=?3,payload_hash=?4 WHERE event_id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=?7 AND a.version=?8 AND a.operation_id=?9 AND a.payload_hash=?4 AND a.actor_id=?3 AND json_extract(a.dto,'$.withdrawal')='confirmed' AND a.transition_id=?10)").bind(&[serde_json::to_string(&blocks)?.into(),format!("{op}:timetable").into(),actor.into(),hash.into(),event.into(),row["schedule_version"].as_f64().unwrap().into(),id.into(),((version+1) as f64).into(),op.into(),attempt.clone().into()])?,db.prepare("UPDATE lt_schedule SET blocks=(SELECT g.blocks FROM lt_generated_schedule g WHERE g.event_id=?1),version=version+1,operation_id=?2 WHERE event_id=?1 AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_recruitment r ON r.event_id=e.id JOIN lt_applications a ON a.event_id=e.id WHERE e.id=?1 AND e.state='scheduled' AND r.schedule_mode='automatic' AND a.id=?3 AND a.transition_id=?4 AND a.operation_id=?5 AND a.actor_id=?6)").bind(&[event.into(),format!("{op}:generated").into(),id.into(),attempt.into(),op.into(),actor.into()])?, notification.statement(db, actor, op, "operator")?]).await?;
     if changed[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
         if let Some(response) =
             crate::receipts::response(db, "operator", actor, op, hash, request_id).await?

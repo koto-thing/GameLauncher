@@ -8,13 +8,14 @@ struct Parent {
     publish: bool,
     expires: Option<f64>,
     now: f64,
+    material_deadline: Option<String>,
 }
 impl Parent {
     /// 同一request内の親状態を読み取る
     /// 引数: DB、開催ID
     /// 戻り値: 親状態
     async fn load(db: &D1Database, id: &str) -> Result<Self> {
-        let rows=db.prepare("SELECT state,cancelled_at,publish_enabled,private_expires FROM lt_events WHERE id=?1").bind(&[id.into()])?.all().await?.results::<Value>()?;
+        let rows=db.prepare("SELECT state,cancelled_at,publish_enabled,private_expires,(SELECT strftime('%Y-%m-%dT%H:%M:%fZ',json_extract(dto,'$.startsAt'),'-'||json_extract(dto,'$.planning.materialDaysBefore')||' days') FROM lt_event_configs WHERE id=lt_events.id) AS material_deadline FROM lt_events WHERE id=?1").bind(&[id.into()])?.all().await?.results::<Value>()?;
         let row = rows
             .first()
             .ok_or_else(|| Error::RustError("LT_NOT_FOUND".into()))?;
@@ -24,6 +25,7 @@ impl Parent {
             publish: row["publish_enabled"] == 1,
             expires: row["private_expires"].as_f64(),
             now: crate::lifecycle::now(db).await?,
+            material_deadline: row["material_deadline"].as_str().map(str::to_owned),
         })
     }
     /// 古いreceiptにも現在の親状態と期限を合成する
@@ -34,6 +36,7 @@ impl Parent {
             return None;
         }
         let mut dto = value.clone();
+        dto["materialDeadlineAt"] = json!(self.material_deadline);
         dto["eventState"] = self.state.clone();
         dto["eventCancelledAt"] = self.cancelled.clone();
         if let Some(expires) = self.expires {

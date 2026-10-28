@@ -42,6 +42,8 @@ struct Block {
     talk_id: Option<String>,
     starts_at: String,
     ends_at: String,
+    #[serde(rename = "locked", skip_serializing)]
+    _locked: Option<bool>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

@@ -5,6 +5,9 @@ const messages: Record<string, string> = {
   VERSION_CONFLICT: "状態が変更されました。再読み込みして内容を確認してください。",
   RETENTION_EXPIRED: "データの保持期限が終了しました。",
   TOKEN_INVALID: "確認リンクが無効、使用済み、または期限切れです。",
+  FIXED_CONFLICT: "固定された時間割に配置できません。運営へお問い合わせください。",
+  SCHEDULE_FULL: "終了上限までの発表枠が埋まりました。運営へお問い合わせください。",
+  CAPACITY_FULL: "登壇枠が満員になりました。",
   RATE_LIMITED: "時間をおいて再度操作してください。",
 };
 /**

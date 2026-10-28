@@ -317,5 +317,21 @@
     "request": "OperatorMetadataInput",
     "response": "OperatorApplication",
     "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/applications/:id/material",
+    "access": "owner",
+    "request": "MaterialInput",
+    "response": "Application",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/material",
+    "access": "lt.operate",
+    "request": "MaterialInput",
+    "response": "OperatorApplication",
+    "error": "ApiError"
   }
 ]

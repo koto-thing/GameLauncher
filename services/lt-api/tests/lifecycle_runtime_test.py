@@ -21,7 +21,12 @@ class LifecycleRuntime(unittest.TestCase):
   if commands:sql(';'.join(commands))
 
  def create(self):
-  self.fields={'title':'状態境界','venue':'架空会場','guidance':'','startsAt':'2030-01-02T01:00:00.000Z','timeZone':'UTC','opensAt':'2030-01-01T00:00:00.000Z','closesAt':'2030-01-02T00:00:00.000Z','capacity':2,'talkMinutes':10,'transitionMinutes':5}
+  """手動承認方式の試験用開催回を作成する
+
+  Returns:
+      作成した開催回のDTO
+  """
+  self.fields={'title':'状態境界','venue':'架空会場','guidance':'','startsAt':'2030-01-02T01:00:00.000Z','timeZone':'UTC','opensAt':'2030-01-01T00:00:00.000Z','closesAt':'2030-01-02T00:00:00.000Z','capacity':2,'talkMinutes':10,'transitionMinutes':5, "approvalMode": "manual", "scheduleMode": "manual", "openingMinutes": 0, "breakEvery": 4, "breakMinutes": 0, "closingMinutes": 0, "endsBy": None}
   status,event=operate('/events',self.fields|{'operationId':uuid.uuid4().hex});self.assertEqual(status,200);self.created.append(event['id']);return event
  def application(self,event):
   h=applicants.ApplicantRuntime();cookie,email=h.login();body=h.payload()|{'eventId':event['id']}

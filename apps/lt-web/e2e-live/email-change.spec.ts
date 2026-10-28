@@ -75,6 +75,13 @@ test("実proxyとRustで代表者メール変更を最終確定する", async ({
         capacity: 2,
         talkMinutes: 10,
         transitionMinutes: 1,
+        approvalMode: "manual",
+        scheduleMode: "manual",
+        openingMinutes: 0,
+        breakEvery: 4,
+        breakMinutes: 0,
+        closingMinutes: 0,
+        endsBy: null,
         operationId: id(),
       },
     });
@@ -114,8 +121,14 @@ test("実proxyとRustで代表者メール変更を最終確定する", async ({
         "'",
     );
     await admin.reload();
-    await admin.getByRole("button", { name: new RegExp(title) }).click();
-    await admin.getByRole("button", { name: /Email target/ }).click();
+    await admin
+      .locator(".lt-event-list")
+      .getByRole("button", { name: new RegExp(title) })
+      .click();
+    await admin
+      .locator("#lt-applications")
+      .getByRole("button", { name: /Email target/ })
+      .click();
     const panel = admin.getByRole("region", { name: "代表者メール変更" });
     await panel.getByLabel("新しいメールアドレス").fill(newEmail);
     await panel.getByLabel("本人確認方法").fill("架空データの手動照合");

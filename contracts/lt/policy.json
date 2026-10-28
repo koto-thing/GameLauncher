@@ -52,7 +52,9 @@
     "reapproved",
     "rejected",
     "withdrawalConfirmed",
-    "eventCancelled"
+    "eventCancelled",
+    "materialReminder",
+    "scheduleChanged"
   ],
   "guards": {
     "withdraw": {
