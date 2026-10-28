@@ -3,13 +3,12 @@
 .lt-manager { display: grid; grid-template-columns: 217px minmax(0, 1fr); color: var(--ink); background: var(--paper); min-height: 80vh; }
 .lt-sidebar { background: var(--panel); border-right: 1px solid var(--line); padding: 30px 18px; }
 .lt-sidebar nav { display: grid; gap: 7px; }
-.lt-sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 12px 10px; border-radius: 7px; text-decoration: none; font-size: 14px; color: var(--ink); }
-.lt-sidebar nav a:hover, .lt-sidebar nav a:focus-visible { background: var(--accent-soft); color: var(--accent-ink); }
-.lt-sidebar nav a:first-child { background: var(--accent-soft); color: var(--accent-ink); }
+.lt-sidebar nav button { display: flex; align-items: center; gap: 10px; padding: 12px 10px; border-radius: 7px; text-align: left; width: 100%; margin: 0; border: 0; background: transparent; font-size: 14px; color: var(--ink); }
+.lt-sidebar nav button:hover, .lt-sidebar nav button:focus-visible { background: var(--accent-soft); color: var(--accent-ink); }
+.lt-sidebar nav button[aria-current="page"] { background: var(--accent-soft); color: var(--accent-ink); }
 .lt-content { min-width: 0; padding: 30px 36px 60px; }
 .lt-heading { margin-bottom: 24px; }
 .lt-heading h1 { font-size: 27px; font-weight: 750; margin: 7px 0; }
-.lt-hint { color: var(--muted); font-size: 14px; line-height: 1.8; }
 .lt-manager h2 { font-size: 23px; font-weight: 700; margin: 20px 0 14px; }
 .lt-manager h3 { font-size: 18px; font-weight: 700; margin: 0 0 12px; }
 .lt-manager p { line-height: 1.8; }
@@ -20,15 +19,16 @@
 .lt-manager label { display: grid; gap: 7px; font-size: 14px; margin: 12px 0; font-weight: 600; }
 .lt-manager input:not([type=checkbox]), .lt-manager textarea, .lt-manager select { width: 100%; min-width: 0; border: 1px solid var(--input-line); border-radius: 6px; padding: 10px 12px; background: var(--panel); color: var(--ink); font: inherit; font-weight: 400; }
 .lt-manager textarea { min-height: 110px; resize: vertical; }
-.lt-manager label:has(input[type=checkbox]) { display: flex; align-items: center; }
+.lt-manager label:has(input[type=checkbox]) { display: flex; align-items: center; justify-content: flex-start; gap: 8px; }
+.lt-manager input[type=checkbox] { width: 18px; height: 18px; flex: 0 0 18px; margin: 0; padding: 0; accent-color: var(--accent); }
 .lt-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 11px; padding: 24px; margin: 22px 0; scroll-margin-top: 24px; }
 .lt-panel-heading { border-bottom: 1px solid var(--line); padding-bottom: 15px; margin-bottom: 18px; }
 .lt-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 24px 0; }
 .lt-stats > div { background: var(--panel); padding: 20px 18px; border: 1px solid var(--line); border-radius: 10px; }
-.lt-stats span { color: var(--muted); font-size: 12px; }
+.lt-stats span { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .lt-stats strong { display: block; font-size: 34px; font-weight: 700; margin-top: 7px; }
-.lt-event-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 22px; }
-.lt-event-form > label:nth-child(3) { grid-column: 1 / -1; }
+.lt-event-form { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }
+
 .lt-event-form > button:first-of-type, .lt-events > button { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
 .lt-event-list { padding: 0; list-style: none; margin: 24px 0 0; }
 .lt-event-list li { border-top: 1px solid var(--line); padding: 15px 0; }
@@ -38,7 +38,6 @@
 .lt-table th { background: var(--surface-soft); color: var(--muted); font-size: 12px; padding: 12px; white-space: nowrap; }
 .lt-table td { border-bottom: 1px solid var(--line); padding: 15px 12px; min-width: 110px; }
 .lt-table td:first-child { min-width: 220px; }
-.lt-table small { display: block; color: var(--muted); margin-top: 4px; }
 .lt-manager .lt-title-button { text-align: left; border: 0; background: transparent; padding: 0; margin: 0; color: var(--accent-ink); font-weight: 650; }
 .lt-badge { display: inline-block; padding: 4px 9px; border-radius: 20px; background: var(--accent-soft); color: var(--accent-ink); white-space: nowrap; font-size: 12px; }
 .lt-manager [role=alert] { border: 1px solid var(--error-line); background: var(--error-surface); color: var(--red); padding: 16px; border-radius: 8px; }
@@ -51,10 +50,10 @@
 .lt-review > h3, .lt-review > section { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
 .lt-review > a { color: var(--accent-ink); text-decoration: underline; }
 /* 狭い画面ではナビゲーションとフォームを縦に並べる */
-@media (max-width: 800px) { .lt-manager { grid-template-columns: 1fr; } .lt-sidebar { border-right: 0; border-bottom: 1px solid var(--line); padding: 18px; } .lt-sidebar nav { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 15px; } .lt-sidebar nav a { font-size: 12px; padding: 9px 6px; } .lt-nav-label, .lt-sidebar-note { display: none; } .lt-content { padding: 20px 16px 40px; } .lt-panel { padding: 18px; } .lt-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .lt-event-form { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { .lt-manager { grid-template-columns: 1fr; } .lt-sidebar { border-right: 0; border-bottom: 1px solid var(--line); padding: 18px; } .lt-sidebar nav { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 15px; } .lt-sidebar nav button { font-size: 12px; padding: 9px 6px; } .lt-nav-label, .lt-sidebar-note { display: none; } .lt-content { padding: 20px 16px 40px; } .lt-panel { padding: 18px; } .lt-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
 
 .lt-event-form > button { align-self: end; justify-self: start; }
-.lt-event-form > button:first-of-type { grid-column: 1; }
+
 
 /* デスクトップでは左端のナビを固定し、本文だけをスクロールする */
 @media (min-width: 801px) {
@@ -107,3 +106,55 @@
 .lt-event-poster img { width: 180px; max-height: 260px; object-fit: contain; border-radius: 6px; }
 .lt-event-form label:has(input[type="file"]) { align-self: start; }
 .lt-event-form input[type="file"] { height: auto; }
+
+/* 選択した画面だけを表示し、入力途中のフォームは保持する */
+.lt-manager [hidden] { display: none !important; }
+.lt-manager button svg, .lt-manager h2 svg, .lt-manager p > svg, .lt-stats svg { width: 20px; height: 20px; flex-shrink: 0; vertical-align: middle; }
+.lt-manager button svg { margin-right: 8px; }
+.lt-manager h2:has(svg), .lt-empty { display: flex; align-items: center; gap: 10px; }
+.lt-monitor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.lt-monitor-grid .lt-panel { margin: 0; }
+.lt-health { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.lt-health h2, .lt-health p { margin: 0; }
+.lt-health .lt-health-value { font-size: 24px; font-weight: 700; }
+.lt-manager summary { cursor: pointer; padding: 8px 0; }
+.lt-manager summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.lt-action-list { list-style: none; padding: 0; }
+.lt-action-list button { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; width: 100%; text-align: left; }
+.lt-action-list button svg { margin-left: auto; }
+.lt-event-list button { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.lt-event-list button > span:first-of-type { flex: 1; }
+.lt-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 800px) {
+  .lt-monitor-grid { grid-template-columns: 1fr; }
+  .lt-sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 0; }
+}
+
+.lt-manager button:has(> svg) { display: inline-flex; align-items: center; gap: 8px; }
+.lt-manager button > svg { margin-right: 0; }
+.lt-manager p > svg { display: inline; margin-right: 6px; }
+
+/* 開催設定はフォーム全幅を使い、関連する入力を詰めて並べる */
+.lt-event-form > fieldset { flex: 0 0 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px 20px; margin: 0; padding: 16px; }
+.lt-event-form label { margin: 0; min-width: 0; }
+.lt-event-form input:not([type=checkbox]), .lt-event-form select, .lt-event-form textarea { margin: 0; }
+.lt-event-form textarea { min-height: 80px; }
+.lt-event-form fieldset > fieldset { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px 20px; margin: 0; padding: 14px; }
+.lt-event-form label:has(textarea), .lt-event-form label:has(input[type=file]), .lt-event-form label:has(input[type=checkbox]), .lt-event-poster { grid-column: 1 / -1; }
+.lt-event-form fieldset p { margin: 0; align-self: end; }
+.lt-event-form > section, .lt-event-form > [role=alert] { flex-basis: 100%; }
+/* 固定操作を日時欄の下に置き、枠種別の狭い列には配置しない */
+.lt-schedule-times > label { grid-column: 2; justify-self: start; margin: 0; }
+@media (max-width: 650px) {
+  .lt-event-form > fieldset, .lt-event-form fieldset > fieldset { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 12px; }
+  .lt-schedule-times > label { grid-column: 1; }
+}
+
+/* 状態の記号を文言の隣に置く */
+.lt-health-value { display: flex; align-items: center; gap: 10px; }
+.lt-state-ok { color: var(--green); }
+.lt-state-error { color: var(--red); }
+/* 運営ルールの説明はホバーとキーボードフォーカス時に表示する */
+.lt-rule-tooltip { position: relative; width: fit-content; max-width: 100%; }
+.lt-tooltip { display: none; position: absolute; z-index: 10; top: 100%; left: 0; width: 340px; max-width: min(340px, 65vw); padding: 12px; background: var(--ink); color: var(--panel); border-radius: 6px; box-shadow: 0 4px 16px #0003; font-weight: 400; line-height: 1.6; }
+.lt-rule-tooltip:hover .lt-tooltip, .lt-rule-tooltip:focus-within .lt-tooltip { display: block; }
