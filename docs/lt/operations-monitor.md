@@ -22,7 +22,7 @@ LT APIの毎分cronだけが `lt_maintenance_status` を更新する。5分以�
 1. LT専用D1へ `0042`～`0044` の未適用スキーマを適用する。管理D1には `0008_lt_push.sql` を適用する
 2. 管理Workerのsecret `LT_PUSH_PUBLIC_KEY` と `LT_PUSH_PRIVATE_KEY` に専用P-256 VAPID鍵を設定する。秘密鍵をGit・ログへ書き込まない
 3. LT APIのproduction-apiビルド、公開LTサイト、管理Workerを配備する。管理Workerの `LT_INTERNAL` は既存 `pandd-lt-api#LtOperator` を使う
-4. 既存の毎日03:00の保持処理と、追加の5分通知cronを併存させる。LTの保持削除設定は変更しない
+4. 管理Workerのcronは5分ごとの1件にまとめる。通知は毎回、既存の保持処理は日本時間03:00だけ実行し、無料枠のアカウント全体5件を超えない。LTの保持削除設定は変更しない
 5. 稼働記録の更新、未認証APIの拒否、service worker配信を確認する。利用者の通知許可は本人が管理画面から行う
 
 暗号化とVAPID署名には [webcrypto-web-push](https://github.com/block65/webcrypto-web-push) を使用する。購読先はChrome・Firefox・Edge・Safariのプッシュサービスに限定し、外部リダイレクトは追従しない。
