@@ -15,7 +15,17 @@ import {
 import type { Application, PublicEventPage, Speaker } from "./types";
 import "./application.css";
 
-/** @brief 発表内容と登壇者情報を入力する @param props 申請と保存操作 @returns 申請フォーム */
+/**
+ * 公開条件を案内し、発表内容と登壇者情報を入力する
+ *
+ * @param props 申請フォームの入力
+ * @param props.application 編集対象の申請、新規申請ならnull
+ * @param props.events 選択可能な開催回
+ * @param props.busy 送信中の操作を抑止する状態
+ * @param props.save 入力した申請を保存する処理
+ * @param props.cancel 編集を取り消す処理
+ * @returns 編集画面のReact要素
+ */
 export function ApplicationForm({
   application: a,
   events,
@@ -91,6 +101,11 @@ export function ApplicationForm({
         </div>
         <span className="required-guide">＊ 必須</span>
       </div>
+      {!a && (
+        <p>
+          自動承認の開催回では、申請と同時に発表内容・登壇者情報・発表時刻が公開されます。公開後の修正は運営へご連絡ください。
+        </p>
+      )}
       {error && <p role="alert">{error}</p>}
       <fieldset className="application-body" disabled={busy}>
         <section className="application-card" aria-labelledby="talk-content-title">

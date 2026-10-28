@@ -33,13 +33,29 @@ def mutation(v,data=None):return {'expectedVersion':v,'operationId':uuid.uuid4()
 
 class RetentionD1(unittest.TestCase):
  def test_atomic_retention(self):
+  """保持期限後の削除が原子的に確定することを検証する
+
+  Returns:
+      戻り値なし
+  """
   sql("UPDATE lt_events SET state='cancelled',publish_enabled=0 WHERE state!='cancelled'")
   clock('2030-01-01T00:00:00.000Z')
   sql("UPDATE lt_mail_mode SET mode='fake'")
   suffix=uuid.uuid4().hex[:8]
   live='retention-live-'+suffix
   def create(name,opens,closes,start):
-   fields={'title':name+suffix,'venue':'Fixture','guidance':'','startsAt':start,'timeZone':'Asia/Tokyo','opensAt':opens,'closesAt':closes,'capacity':2,'talkMinutes':10,'transitionMinutes':1,'operationId':uuid.uuid4().hex}
+   """手動承認方式の試験用開催回を作成する
+
+   Args:
+       name: 開催名の接頭辞
+       opens: 募集開始日時
+       closes: 募集終了日時
+       start: 開催開始日時
+
+   Returns:
+       作成した開催回のDTO
+   """
+   fields={'title':name+suffix,'venue':'Fixture','guidance':'','startsAt':start,'timeZone':'Asia/Tokyo','opensAt':opens,'closesAt':closes,'capacity':2,'talkMinutes':10,'transitionMinutes':1, "approvalMode": "manual",'operationId':uuid.uuid4().hex}
    status,event=op('/events',fields);self.assertEqual(status,200);return event
   normal=create('normal','2029-12-31T00:00:00.000Z','2030-01-02T00:00:00.000Z','2030-01-30T15:30:00.000Z')
   helper=a.ApplicantRuntime(); cookie,email=helper.login();body=helper.payload();body['eventId']=normal['id'];status,app,_=a.request('/api/lt/v1/applications',body,cookie);self.assertEqual(status,200)

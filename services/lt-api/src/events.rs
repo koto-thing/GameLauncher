@@ -19,6 +19,7 @@ struct Settings {
     capacity: u32,
     talk_minutes: u32,
     transition_minutes: u32,
+    approval_mode: String,
 }
 
 /// ポスターを認証情報のないHTTPS画像URLに限定する
@@ -63,9 +64,13 @@ fn zone(name: &str) -> bool {
     run().is_ok()
 }
 
-/// 設定の期間と共通時間を検証する
-/// 引数: 設定
-/// 戻り値: 有効か
+/// 設定の期間・共通時間・承認方式を検証する
+///
+/// # 引数
+/// - `s`: 作成または更新する開催設定
+///
+/// # 戻り値
+/// 全設定が有効ならtrue
 fn valid(s: &Settings) -> bool {
     let (Some(open), Some(close), Some(start)) =
         (time(&s.opens_at), time(&s.closes_at), time(&s.starts_at))
@@ -77,6 +82,7 @@ fn valid(s: &Settings) -> bool {
         && s.poster_url
             .as_ref()
             .is_none_or(|url| valid_poster_url(url))
+        && ["automatic", "manual"].contains(&s.approval_mode.as_str())
         && s.capacity > 0
         && s.talk_minutes > 0
         && s.capacity <= 10000
@@ -87,12 +93,20 @@ fn valid(s: &Settings) -> bool {
         && zone(&s.time_zone)
 }
 
-/// 既存回の設定を具体DTOにする
-/// 引数: DB、開催ID
-/// 戻り値: 設定またはNone
+/// 開催回の現在の設定を取得する
+///
+/// # 引数
+/// - `db`: 開催設定を保存するデータベース
+/// - `id`: 取得する開催回のID
+///
+/// # 戻り値
+/// 有効な開催設定、存在しないか保持期限後ならNone
+///
+/// # エラー
+/// データベースの読取に失敗した場合
 pub async fn detail(db: &D1Database, id: &str) -> Result<Option<Value>> {
     let now = crate::lifecycle::now(db).await?;
-    let rows=db.prepare("SELECT p.dto,e.version,e.state,e.publish_enabled,e.private_expires,r.opens,r.closes,r.capacity,r.talk_minutes,r.transition_minutes FROM lt_events e JOIN lt_public_events p ON p.event_id=e.id JOIN lt_recruitment r ON r.event_id=e.id WHERE e.id=?1").bind(&[id.into()])?.all().await?.results::<Value>()?;
+    let rows=db.prepare("SELECT p.dto,e.version,e.state,e.publish_enabled,e.private_expires,r.opens,r.closes,r.capacity,r.talk_minutes,r.transition_minutes,r.approval_mode FROM lt_events e JOIN lt_public_events p ON p.event_id=e.id JOIN lt_recruitment r ON r.event_id=e.id WHERE e.id=?1").bind(&[id.into()])?.all().await?.results::<Value>()?;
     let Some(r) = rows.first() else {
         return Ok(None);
     };
@@ -106,16 +120,26 @@ pub async fn detail(db: &D1Database, id: &str) -> Result<Option<Value>> {
             .as_string()
             .unwrap()
     };
-    let mut result = json!({"id":id,"version":r["version"],"state":r["state"],"publishEnabled":r["publish_enabled"]==1,"title":p["title"],"venue":p["venue"],"guidance":p["guidance"],"startsAt":p["startsAt"],"timeZone":p["timeZone"],"opensAt":instant(&r["opens"]),"closesAt":instant(&r["closes"]),"capacity":r["capacity"],"talkMinutes":r["talk_minutes"],"transitionMinutes":r["transition_minutes"]});
+    let mut result = json!({"id":id,"version":r["version"],"state":r["state"],"publishEnabled":r["publish_enabled"]==1,"title":p["title"],"venue":p["venue"],"guidance":p["guidance"],"startsAt":p["startsAt"],"timeZone":p["timeZone"],"opensAt":instant(&r["opens"]),"closesAt":instant(&r["closes"]),"capacity":r["capacity"],"talkMinutes":r["talk_minutes"],"transitionMinutes":r["transition_minutes"],"approvalMode":r["approval_mode"]});
     if let Some(url) = p.get("posterUrl") {
         result["posterUrl"] = url.clone();
     }
     Ok(Some(result))
 }
 
-/// 開催設定の一覧・作成・更新・限定コピーを扱う
-/// 引数: request、DB、actor、requestId
-/// 戻り値: 対象ルートの応答またはNone
+/// 開催設定の一覧・作成・更新・コピーを扱う
+///
+/// # 引数
+/// - `req`: 認証済み運営リクエスト
+/// - `db`: 開催設定を保存するデータベース
+/// - `actor`: 操作を行う運営者のID
+/// - `request_id`: エラー応答の追跡用ID
+///
+/// # 戻り値
+/// 対象ルートのHTTP応答、対象外ならNone
+///
+/// # エラー
+/// データベース処理に失敗した場合
 pub async fn handle(
     req: &mut Request,
     db: &D1Database,
@@ -215,7 +239,7 @@ pub async fn handle(
         if old["version"] != expected {
             return error("VERSION_CONFLICT", 409);
         }
-        // コピーするのは指定4項目のみ。他の値は独立した開発提案初期値
+        // 会場・枠数・共通時間・承認方式を引き継ぎ、日付は新しい開催回用に作る
         let start = now + 30.0 * 86400000.0;
         let instant = |t: f64| {
             js_sys::Date::new(&t.into())
@@ -232,6 +256,7 @@ pub async fn handle(
             capacity: old["capacity"].as_u64().unwrap() as u32,
             talk_minutes: old["talkMinutes"].as_u64().unwrap() as u32,
             transition_minutes: old["transitionMinutes"].as_u64().unwrap() as u32,
+            approval_mode: old["approvalMode"].as_str().unwrap().into(),
             starts_at: instant(start),
             opens_at: instant(start - 7.0 * 86400000.0),
             closes_at: instant(start - 3600000.0),
@@ -273,7 +298,11 @@ pub async fn handle(
     // 設定と公開ポスターを同じトランザクションで反映する
     let poster = db.prepare("UPDATE lt_public_events SET dto=CASE WHEN ?1 IS NULL THEN json_remove(dto,'$.posterUrl') ELSE json_set(dto,'$.posterUrl',?1) END WHERE event_id=?2 AND EXISTS(SELECT 1 FROM lt_event_configs c WHERE c.id=?2 AND c.operation_id=?3 AND c.actor=?4)")
         .bind(&[settings.poster_url.as_ref().map(|v| JsValue::from_str(v)).unwrap_or(JsValue::NULL), id.clone().into(), op.clone().into(), actor.into()])?;
-    let result = db.batch(vec![statement, poster]).await;
+
+    // 受付処理が参照する承認方式も設定と同時に確定する
+    let approval = db.prepare("UPDATE lt_recruitment SET approval_mode=?1 WHERE event_id=?2 AND EXISTS(SELECT 1 FROM lt_event_configs c WHERE c.id=?2 AND c.operation_id=?3 AND c.actor=?4)")
+        .bind(&[settings.approval_mode.into(), id.clone().into(), op.clone().into(), actor.into()])?;
+    let result = db.batch(vec![statement, poster, approval]).await;
     match result {
         Err(e) => {
             if let Some(response) =

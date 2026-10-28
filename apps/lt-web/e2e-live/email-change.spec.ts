@@ -75,6 +75,7 @@ test("実proxyとRustで代表者メール変更を最終確定する", async ({
         capacity: 2,
         talkMinutes: 10,
         transitionMinutes: 1,
+        approvalMode: "manual",
         operationId: id(),
       },
     });

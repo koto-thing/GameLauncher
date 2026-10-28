@@ -773,6 +773,10 @@
     [
       "transition_minutes",
       "INTEGER"
+    ],
+    [
+      "approval_mode",
+      "TEXT"
     ]
   ],
   "lt_retention_apps": [

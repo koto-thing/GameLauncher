@@ -23,7 +23,7 @@ test('signed GitHub fixture through real proxy to explicit internal RPC fixture'
  assert.equal(result.status,200); assert.ok(Array.isArray((await result.json()).items));
  // 通常操作成功でも主体は署名Cookieからのみ取得する
  const year=4000+Math.floor(Math.random()*2000);
- const mutation={title:'Fixture integration',venue:'Example',guidance:'',startsAt:`${year}-03-01T04:00:00.000Z`,timeZone:'UTC',opensAt:`${year}-01-01T00:00:00.000Z`,closesAt:`${year}-02-01T00:00:00.000Z`,capacity:1,talkMinutes:5,transitionMinutes:1,operationId:crypto.randomUUID()};
+ const mutation={title:'Fixture integration',venue:'Example',guidance:'',startsAt:`${year}-03-01T04:00:00.000Z`,timeZone:'UTC',opensAt:`${year}-01-01T00:00:00.000Z`,closesAt:`${year}-02-01T00:00:00.000Z`,capacity:1,talkMinutes:5,transitionMinutes:1, approvalMode: "manual",operationId:crypto.randomUUID()};
  const created=await proxyLtCore(request('/events',{method:'POST',headers:{Origin:'http://127.0.0.1:8792','Content-Type':'application/json','x-role':'admin'},body:JSON.stringify(mutation)}),auth,adapter);
  assert.equal(created.status,200); const value=await created.json(); assert.equal(value.title,mutation.title);
  f.sql.prepare("DELETE FROM platform_roles WHERE github_user_id='1'").run();

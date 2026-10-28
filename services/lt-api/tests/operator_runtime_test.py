@@ -13,9 +13,14 @@ def operate(path,data=None,method=None):
  return r.status,value
 class OperatorRuntime(unittest.TestCase):
  def test_approval_last_slot_and_archive(self):
+  """手動承認の最後の枠を競合させ、公開アーカイブを検証する
+
+  Returns:
+      戻り値なし
+  """
   event='race-'+uuid.uuid4().hex
   base=json.loads(sql("SELECT dto FROM lt_public_events WHERE event_id='open'")[0]['dto']);base.update(id=event,schedule=[],version=1)
-  sql("INSERT INTO lt_events(id,state,public_opens_at) VALUES('"+event+"','scheduled',0); INSERT INTO lt_recruitment(event_id,opens,closes,capacity) VALUES('"+event+"',0,9999999999999,1); INSERT INTO lt_schedule(event_id) VALUES('"+event+"'); INSERT INTO lt_public_events VALUES('"+event+"','"+json.dumps(base,ensure_ascii=False).replace("'","''")+"')")
+  sql("INSERT INTO lt_events(id,state,public_opens_at) VALUES('"+event+"','scheduled',0); INSERT INTO lt_recruitment(approval_mode,event_id,opens,closes,capacity) VALUES('manual','"+event+"',0,9999999999999,1); INSERT INTO lt_schedule(event_id) VALUES('"+event+"'); INSERT INTO lt_public_events VALUES('"+event+"','"+json.dumps(base,ensure_ascii=False).replace("'","''")+"')")
   ids=[];cookies=[]
   for _ in range(2):
    helper=applicants.ApplicantRuntime();cookie,_=helper.login();p=helper.payload();p['eventId']=event

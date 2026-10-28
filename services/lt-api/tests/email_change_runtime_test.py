@@ -26,9 +26,14 @@ class EmailChangeRuntime(unittest.TestCase):
   status,self.app,_=request('/api/lt/v1/applications',self.body,self.cookie);self.assertEqual(status,200)
   self.path='/applications/'+self.app['id']+'/email-change';self.new=uuid.uuid4().hex+'@example.invalid'
  def target_in_new_event(self):
+  """メール変更試験用に別の開催回と本人申請を準備する
+
+  Returns:
+      戻り値なし
+  """
   event='email-'+uuid.uuid4().hex
   base=json.loads(sql("SELECT dto FROM lt_public_events WHERE event_id='open'")[0]['dto']);base.update(id=event,schedule=[],version=1)
-  sql("INSERT INTO lt_events(id,state,public_opens_at) VALUES('"+event+"','scheduled',0);INSERT INTO lt_public_events VALUES('"+event+"','"+json.dumps(base).replace("'","''")+"');INSERT INTO lt_schedule(event_id) VALUES('"+event+"');INSERT INTO lt_recruitment(event_id,opens,closes,capacity) VALUES('"+event+"',0,9999999999999,20)")
+  sql("INSERT INTO lt_events(id,state,public_opens_at) VALUES('"+event+"','scheduled',0);INSERT INTO lt_public_events VALUES('"+event+"','"+json.dumps(base).replace("'","''")+"');INSERT INTO lt_schedule(event_id) VALUES('"+event+"');INSERT INTO lt_recruitment(approval_mode,event_id,opens,closes,capacity) VALUES('manual','"+event+"',0,9999999999999,20)")
   self.body=self.helper.payload()|{'eventId':event};status,self.app,_=request('/api/lt/v1/applications',self.body,self.cookie);self.assertEqual(status,200);self.path='/applications/'+self.app['id']+'/email-change'
  def login_for(self,email):
   self.assertEqual(request('/api/lt/v1/auth/email',{'email':email})[0],202)
@@ -47,9 +52,14 @@ class EmailChangeRuntime(unittest.TestCase):
  def confirm(self,dto):return mutation(dto['applicationVersion'],{'requestId':dto['id'],'expectedRequestVersion':dto['version']})
  def test_full_flow_scope_old_sessions_receipts_and_current_owner(self):
   # 別開催の所有権は移動しない。旧メールのlogin sessionは共通なので失効する
+  """メール変更後の所有者・セッション・再送結果を検証する
+
+  Returns:
+      戻り値なし
+  """
   event='other-'+uuid.uuid4().hex
   base=json.loads(sql("SELECT dto FROM lt_public_events WHERE event_id='open'")[0]['dto']);base.update(id=event,schedule=[],version=1)
-  sql("INSERT INTO lt_events(id,state,public_opens_at) VALUES('"+event+"','scheduled',0);INSERT INTO lt_public_events VALUES('"+event+"','"+json.dumps(base).replace("'","''")+"');INSERT INTO lt_schedule(event_id) VALUES('"+event+"');INSERT INTO lt_recruitment(event_id,opens,closes,capacity) VALUES('"+event+"',0,9999999999999,20)")
+  sql("INSERT INTO lt_events(id,state,public_opens_at) VALUES('"+event+"','scheduled',0);INSERT INTO lt_public_events VALUES('"+event+"','"+json.dumps(base).replace("'","''")+"');INSERT INTO lt_schedule(event_id) VALUES('"+event+"');INSERT INTO lt_recruitment(approval_mode,event_id,opens,closes,capacity) VALUES('manual','"+event+"',0,9999999999999,20)")
   other=self.helper.payload()|{'eventId':event};other_app=request('/api/lt/v1/applications',other,self.cookie)[1]
   request('/api/lt/v1/auth/email',{'email':self.old});old_link=mail(self.old).split('token=')[1]
   dto,investigate=self.investigate();self.assertEqual(dto['applicationVersion'],2)

@@ -28,7 +28,12 @@ def mail(email):
 class ApplicantRuntime(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
-  sql("INSERT INTO lt_recruitment(event_id,opens,closes,capacity,reserved) VALUES('open',0,9999999999999,20,0) ON CONFLICT DO NOTHING")
+  """本人API試験用の手動承認開催回を準備する
+
+  Returns:
+      戻り値なし
+  """
+  sql("INSERT INTO lt_recruitment(approval_mode,event_id,opens,closes,capacity,reserved) VALUES('manual','open',0,9999999999999,20,0) ON CONFLICT DO NOTHING")
  def login(self):
   email=uuid.uuid4().hex+'@example.invalid'
   self.assertEqual(request('/api/lt/v1/auth/email',{'email':email})[0],202)

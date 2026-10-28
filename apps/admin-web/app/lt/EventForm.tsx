@@ -12,7 +12,14 @@ function editable(value: EventSettings) {
   return { ...value, timeZone, startsAt: localEventTime(value.startsAt, timeZone), opensAt: localEventTime(value.opensAt, timeZone), closesAt: localEventTime(value.closesAt, timeZone) };
 }
 
-/** @brief 地域を選んでカレンダーから開催日時を設定する @param props 設定と保存処理 @returns 開催設定フォーム */
+/**
+ * 開催日時と承認方式を編集する
+ *
+ * @param props 開催設定フォームの入力
+ * @param props.value 現在の開催設定
+ * @param props.onSave 編集した設定を保存する処理
+ * @returns 編集画面のReact要素
+ */
 export function EventForm({ value, onSave }: { value: EventSettings; onSave: (value: Omit<EventSettings, "id" | "version" | "state" | "publishEnabled">) => void }) {
   const [draft, setDraft] = useState(() => editable(value));
   const [error, setError] = useState("");
@@ -57,9 +64,10 @@ export function EventForm({ value, onSave }: { value: EventSettings; onSave: (va
       const closesAt = utcEventTime(draft.closesAt, draft.timeZone, value.closesAt);
       if (Date.parse(opensAt) >= Date.parse(closesAt)) { setError("募集終了日時は募集開始日時より後にしてください"); return; }
       setError("");
-      onSave({ title: draft.title, venue: draft.venue, guidance: draft.guidance, ...(draft.posterUrl?.trim() ? { posterUrl: draft.posterUrl.trim() } : {}), timeZone: draft.timeZone, startsAt, opensAt, closesAt, capacity: draft.capacity, talkMinutes: draft.talkMinutes, transitionMinutes: draft.transitionMinutes });
+      onSave({ title: draft.title, venue: draft.venue, guidance: draft.guidance, ...(draft.posterUrl?.trim() ? { posterUrl: draft.posterUrl.trim() } : {}), timeZone: draft.timeZone, startsAt, opensAt, closesAt, approvalMode: draft.approvalMode, capacity: draft.capacity, talkMinutes: draft.talkMinutes, transitionMinutes: draft.transitionMinutes });
     } catch { setError("日時を確認してください。夏時間の切替で存在しない時刻・重複する時刻は指定できません"); }
   }}>
+    <label>承認方式<select value={draft.approvalMode} onChange={e => setDraft({ ...draft, approvalMode: e.currentTarget.value as EventSettings["approvalMode"] })}><option value="automatic">自動承認</option><option value="manual">手動承認</option></select><small>自動承認では初回申請を即時公開し、発表時刻を割り当てます。差し戻し後の再提出と、切替前の審査待ちは手動確認です。</small></label>
     <label>開催名<input required value={draft.title} onChange={e => setDraft({ ...draft, title: e.currentTarget.value })} /></label>
     <label>会場<input required value={draft.venue} onChange={e => setDraft({ ...draft, venue: e.currentTarget.value })} /></label>
     <label>案内<textarea rows={4} value={draft.guidance} onChange={e => setDraft({ ...draft, guidance: e.currentTarget.value })} /></label>
