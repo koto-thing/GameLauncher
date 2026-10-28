@@ -1,5 +1,6 @@
 "use client";
 import "./lt.css";
+import { OperationsMonitor } from "./OperationsMonitor";
 import { LayoutDashboard, ListChecks, CalendarClock, Settings, ShieldAlert } from "lucide-react";
 /* eslint-disable @next/next/no-html-link-for-pages */
 import { EmailChangePanel } from "./EmailChangePanel";
@@ -130,6 +131,12 @@ export function LtManager() {
   return <section className="lt-manager" aria-busy={busy}>
     <aside className="lt-sidebar"><nav aria-label="LT管理メニュー"><a href="#lt-overview"><LayoutDashboard aria-hidden="true" />ダッシュボード</a>{event && !selected && !creating && <><a href="#lt-applications"><ListChecks aria-hidden="true" />登壇申請</a><a href="#lt-timetable"><CalendarClock aria-hidden="true" />タイムテーブル</a><a href="#lt-settings"><Settings aria-hidden="true" />開催回設定</a><a href="#lt-exceptions"><ShieldAlert aria-hidden="true" />例外対応</a></>}</nav></aside>
     <div className="lt-content" id="lt-overview"><header className="lt-heading"><h1>LT会</h1></header>
+    <OperationsMonitor onOpen={(eventId, applicationId) => void run(async () => {
+      const detail = await api<EventSettings>(`/events/${encodeURIComponent(eventId)}`);
+      await open(detail);
+      setCreating(false);
+      if (applicationId) setSelected(await api<OperatorApplication>(`/applications/${encodeURIComponent(applicationId)}`));
+    })} />
     {error && <div role="alert"><p>{error}</p>{canRetry && <button disabled={busy} onClick={() => retry.current && void run(retry.current)}>再試行</button>}<button disabled={busy} onClick={() => void run(async () => { await loadEvents(); setEvent(null); setSelected(null); setNeedsReload(false); })}>再読込</button></div>}
     <p role="status">{busy ? "処理中…" : message}</p>
     <fieldset disabled={busy || needsReload} style={{ border: 0, padding: 0, minWidth: 0 }}>

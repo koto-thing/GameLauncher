@@ -128,6 +128,9 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     let path = req.path();
     let p: Vec<_> = path.trim_matches('/').split('/').collect();
     let db = env.d1("DB")?;
+    if req.method() == Method::Get && path == "/api/lt/v1/operator/monitor" {
+        return crate::monitor::snapshot(&db, env).await;
+    }
     let now = crate::lifecycle::reconcile(&db).await?;
     if !p.starts_with(&["api", "lt", "v1", "operator"]) {
         return error("NOT_FOUND", 404, c);

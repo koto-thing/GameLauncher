@@ -8,6 +8,7 @@ const event = { id: "fixture-event", version: 1, state: "scheduled", publishEnab
 const events = [event];
 let application = { id: "fixture-application", eventId: event.id, version: 1, eventState: "scheduled", materialReviewed: false, content: { title: "架空発表", abstract: "架空の申請原稿", speakers: [{ displayName: "架空登壇者" }] }, materialUrl: "https://example.invalid/slides", representativeEmail: "fixture@example.invalid", review: "pending", withdrawal: "none", firstSubmittedAt: event.opensAt, everApproved: false, slotReserved: false, retentionExpiresAt: null, published: null, operatorNote: "" };
 let timetable = { eventId: event.id, version: 1, eventVersion: 1, blocks: [] };
+let notificationsEnabled = false;
 let nextFailure = 0;
 let denied = false;
 const receipts = new Map();
@@ -16,6 +17,11 @@ window.fetch = async (input, init) => {
   const path = String(input).split("?")[0]; const body = init?.body ? JSON.parse(String(init.body)) : null;
   await new Promise(resolve => setTimeout(resolve, 100));
   if (denied) return fail(403, "FORBIDDEN");
+  if (path === "/api/lt/notifications") {
+    if (body) notificationsEnabled = body.enabled;
+    return Response.json({ enabled: notificationsEnabled, registered: notificationsEnabled, publicKey: "B".repeat(87), userId: "fixture", status: { outcome: "ok", checked_at: Date.now() }, failures: 0 });
+  }
+  if (path.endsWith("/monitor")) return Response.json({ checkedAt: Date.now(), maintenance: { status: "stale", enabled: true, heartbeat: { startedAt: null, succeededAt: null, completedAt: null, outcome: "never" } }, mail: { mode: "http", configured: true, testRecipientOnly: false, states: [{ state: "uncertain", count: 1 }], backlog: { count: 0, oldestAt: null } }, items: [{ key: "withdrawal:fixture", eventId: event.id, title: event.title, applicationId: application.id, reason: "withdrawal" }] });
   const parts = path.split("/");
   const currentEvent = events.find(item => item.id === parts[6]) ?? event;
   if (init?.method === "GET" || !init?.method) {

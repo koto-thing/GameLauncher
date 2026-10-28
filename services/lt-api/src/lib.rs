@@ -9,6 +9,7 @@ mod input;
 mod lifecycle;
 mod mail;
 mod materials;
+mod monitor;
 mod operations;
 mod operator;
 mod operator_metadata;
@@ -28,8 +29,14 @@ mod timetable;
 pub use operator::{fake_dispatch, operator_request};
 
 /// 固定時刻の状態更新と最大1件の配送だけを定期実行する
-/// 引数: Cloudflareのscheduled event、環境、実行context
-/// 戻り値: なし。私有情報を含む例外やURLをログに出さない
+///
+/// # 引数
+/// - `_event`: Cloudflareの定期実行イベント
+/// - `env`: データベースと運用設定
+/// - `_ctx`: 定期実行コンテキスト
+///
+/// # 戻り値
+/// 戻り値なし、失敗は機密情報を含めず記録する
 #[cfg(feature = "production-api")]
 #[event(scheduled)]
 pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
@@ -43,8 +50,16 @@ pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) 
     if !maintenance && !retention {
         return;
     }
+    let Ok(db) = env.d1("DB") else {
+        console_error!("LT maintenance database unavailable");
+        return;
+    };
+    let started = Date::now().as_millis() as f64;
     let result = async {
-        let db = env.d1("DB")?;
+        db.prepare("UPDATE lt_maintenance_status SET started_at=?1,outcome='running' WHERE id=1")
+            .bind(&[started.into()])?
+            .run()
+            .await?;
         if retention {
             crate::retention::scheduled(&env, &db).await?;
             crate::mail::clean_receipts(&env).await?;
@@ -57,7 +72,14 @@ pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) 
         Ok::<(), Error>(())
     }
     .await;
-    if result.is_err() {
+    let outcome = if result.is_ok() { "ok" } else { "failed" };
+    let completed = Date::now().as_millis() as f64;
+    // 遅れて完了した古い実行が新しい実行記録を上書きしない
+    let recorded = async {
+        db.prepare("UPDATE lt_maintenance_status SET completed_at=?1,outcome=?2,succeeded_at=CASE WHEN ?2='ok' THEN ?1 ELSE succeeded_at END WHERE id=1 AND started_at=?3")
+            .bind(&[completed.into(), outcome.into(), started.into()])?.run().await
+    }.await;
+    if result.is_err() || recorded.is_err() {
         console_error!("LT maintenance failed");
     }
 }

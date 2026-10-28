@@ -99,11 +99,15 @@ def main():
     try:
         # ready確認もOFF tickもlifecycleを進めない
         off=start(False); before=counts(); tick(off); assert counts()==before
+        assert sql("SELECT outcome FROM lt_maintenance_status")[0]["results"] == [{"outcome": "never"}]
         initial=sql("SELECT id,state,ended_at,private_expires FROM lt_events WHERE id IN ('normal','started') ORDER BY id")[0]['results']
         assert initial==[dict(id='normal',state='scheduled',ended_at=None,private_expires=None),dict(id='started',state='started',ended_at=None,private_expires=None)]
 
         # relay未設定の失敗があっても、元の予定終了日で終了・削除が成立する
         on=start(True); tick(on)
+        heartbeat = sql("SELECT started_at,completed_at,outcome FROM lt_maintenance_status")[0]["results"][0]
+        assert heartbeat["started_at"] > 0 and heartbeat["completed_at"] >= heartbeat["started_at"]
+        assert heartbeat["outcome"] == "failed"
         anchors=sql("SELECT id,state,ended_at,datetime(private_expires/1000,'unixepoch') AS expiry FROM lt_events WHERE id IN ('normal','started') ORDER BY id")[0]['results']
         assert anchors==[dict(id='normal',state='ended',ended_at='2020-01-03T00:00:00.000Z',expiry='2020-04-03 00:00:00'),dict(id='started',state='ended',ended_at='2022-01-03T00:00:00.000Z',expiry='2022-04-03 00:00:00')]
         assert counts()==dict(private=3,public=4,auth=0,jobs=0)
