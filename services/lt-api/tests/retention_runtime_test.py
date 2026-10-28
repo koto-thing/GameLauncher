@@ -55,7 +55,7 @@ class RetentionD1(unittest.TestCase):
    Returns:
        作成した開催回のDTO
    """
-   fields={'title':name+suffix,'venue':'Fixture','guidance':'','startsAt':start,'timeZone':'Asia/Tokyo','opensAt':opens,'closesAt':closes,'capacity':2,'talkMinutes':10,'transitionMinutes':1, "approvalMode": "manual",'operationId':uuid.uuid4().hex}
+   fields={'title':name+suffix,'venue':'Fixture','guidance':'','startsAt':start,'timeZone':'Asia/Tokyo','opensAt':opens,'closesAt':closes,'capacity':2,'talkMinutes':10,'transitionMinutes':1, "approvalMode": "manual", "scheduleMode": "manual", "openingMinutes": 0, "breakEvery": 4, "breakMinutes": 0, "closingMinutes": 0, "endsBy": None,'operationId':uuid.uuid4().hex}
    status,event=op('/events',fields);self.assertEqual(status,200);return event
   normal=create('normal','2029-12-31T00:00:00.000Z','2030-01-02T00:00:00.000Z','2030-01-30T15:30:00.000Z')
   helper=a.ApplicantRuntime(); cookie,email=helper.login();body=helper.payload();body['eventId']=normal['id'];status,app,_=a.request('/api/lt/v1/applications',body,cookie);self.assertEqual(status,200)

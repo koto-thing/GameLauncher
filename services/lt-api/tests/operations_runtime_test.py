@@ -17,7 +17,7 @@ class Fixture:
   Returns:
       作成した開催回と試験に使う設定
   """
-  fields={'title':'運営完了試験','venue':'試験会場','guidance':'','startsAt':'2026-11-01T01:00:00.000Z','timeZone':'UTC','opensAt':'2026-10-25T00:00:00.000Z','closesAt':'2026-10-31T00:00:00.000Z','capacity':capacity,'talkMinutes':10,'transitionMinutes':5, "approvalMode": "manual"}
+  fields={'title':'運営完了試験','venue':'試験会場','guidance':'','startsAt':'2026-11-01T01:00:00.000Z','timeZone':'UTC','opensAt':'2026-10-25T00:00:00.000Z','closesAt':'2026-10-31T00:00:00.000Z','capacity':capacity,'talkMinutes':10,'transitionMinutes':5, "approvalMode": "manual", "scheduleMode": "manual", "openingMinutes": 0, "breakEvery": 4, "breakMinutes": 0, "closingMinutes": 0, "endsBy": None}
   status,event=operate('/events',fields|{'operationId':uuid.uuid4().hex});assert status==200,(status,event);self.ids.append(event['id']);return event,fields
  def submit(self,event):
   h=applicants.ApplicantRuntime();cookie,email=h.login();body=h.payload();body['eventId']=event

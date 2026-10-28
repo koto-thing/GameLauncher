@@ -417,9 +417,16 @@ async fn applications(
             if !duplicates.is_empty() {
                 return error("DUPLICATE_APPLICATION", 409);
             }
-            let full=db.prepare("SELECT event_id FROM lt_recruitment WHERE event_id=?1 AND reserved>=capacity AND opens<=?2 AND closes>?2").bind(&[event.into(),now.into()])?.all().await?.results::<Value>()?;
+            let full=db.prepare("SELECT event_id,ends_by FROM lt_recruitment WHERE event_id=?1 AND reserved>=capacity AND opens<=?2 AND closes>?2").bind(&[event.into(),now.into()])?.all().await?.results::<Value>()?;
             if !full.is_empty() {
-                return error("CAPACITY_FULL", 409);
+                return error(
+                    if full[0]["ends_by"].is_null() {
+                        "CAPACITY_FULL"
+                    } else {
+                        "SCHEDULE_FULL"
+                    },
+                    409,
+                );
             }
             return error("RECRUITMENT_CLOSED", 409);
         }

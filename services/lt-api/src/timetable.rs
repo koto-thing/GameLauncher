@@ -104,9 +104,20 @@ fn valid(
     &talks == required
 }
 
-/// 条件付き時間割保存を実行する
-/// 引数: request、DB、開催ID、actor、requestId
-/// 戻り値: 運営時間割DTOまたは契約エラー
+/// 発表順を保存し、自動方式の補助枠と応答を再生成する
+///
+/// # 引数
+/// - `req`: 保存する時間割と期待版を含むリクエスト
+/// - `db`: 時間割と開催設定を保存するデータベース
+/// - `event`: 対象の開催回ID
+/// - `actor`: 操作を行う運営者のID
+/// - `request_id`: エラー応答の追跡用ID
+///
+/// # 戻り値
+/// 保存済み時間割または契約エラーのHTTP応答
+///
+/// # エラー
+/// データベース処理に失敗した場合
 pub async fn save(
     req: &mut Request,
     db: &D1Database,
@@ -185,8 +196,14 @@ pub async fn save(
         }
     }
     // 保存版のversionと親event版を同じUPDATEで照合する
-    let changed=db.prepare("UPDATE lt_schedule SET blocks=?1,version=version+1,operation_id=?2,actor_id=?3,payload_hash=?4 WHERE event_id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_schedule.event_id AND e.version=?7 AND e.state!='cancelled' AND (e.private_expires IS NULL OR e.private_expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER)))").bind(&[raw["data"]["blocks"].to_string().into(),input.operation_id.clone().into(),actor.into(),hash.clone().into(),event.into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into()])?.run().await?;
-    if changed.meta()?.unwrap().changes.unwrap_or(0) == 0 {
+    let saved=db.prepare("UPDATE lt_schedule SET blocks=?1,version=version+1,operation_id=?2,actor_id=?3,payload_hash=?4 WHERE event_id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_schedule.event_id AND e.version=?7 AND e.state!='cancelled' AND (e.private_expires IS NULL OR e.private_expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER)))").bind(&[raw["data"]["blocks"].to_string().into(),input.operation_id.clone().into(),actor.into(),hash.clone().into(),event.into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into()])?;
+    // 自動方式では編集後の発表順を採用し、補助枠を開催ルールへ揃える
+    let generated = db.prepare("UPDATE lt_schedule SET blocks=(SELECT g.blocks FROM lt_generated_schedule g WHERE g.event_id=?1),version=version+1,operation_id=?2 WHERE event_id=?1 AND version=?3 AND operation_id=?4 AND actor_id=?5 AND payload_hash=?6 AND (SELECT schedule_mode FROM lt_recruitment WHERE event_id=?1)='automatic'")
+        .bind(&[event.into(), format!("{}:generated",input.operation_id).into(), ((input.expected_version+1) as f64).into(), input.operation_id.clone().into(), actor.into(), hash.clone().into()])?;
+    let receipt = db.prepare("UPDATE lt_schedule_operations SET result=(SELECT json_object('eventId',s.event_id,'version',s.version,'eventVersion',e.version,'blocks',json(s.blocks)) FROM lt_schedule s JOIN lt_events e ON e.id=s.event_id WHERE s.event_id=?1) WHERE actor=?2 AND operation_id=?3 AND EXISTS(SELECT 1 FROM lt_schedule s WHERE s.event_id=?1 AND s.operation_id=?4 AND s.version=?5 AND s.payload_hash=?6)")
+        .bind(&[event.into(),actor.into(),input.operation_id.clone().into(),format!("{}:generated",input.operation_id).into(),((input.expected_version+2) as f64).into(),hash.clone().into()])?;
+    let changed = db.batch(vec![saved, generated, receipt]).await?;
+    if changed[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
         if let Some(response) = crate::receipts::response(
             db,
             "schedule",
@@ -201,9 +218,16 @@ pub async fn save(
         }
         return error("VERSION_CONFLICT", 409);
     }
-    Response::from_json(
-        &json!({"eventId":event,"version":input.expected_version+1,"eventVersion":input.data.expected_event_version,"blocks":raw["data"]["blocks"]}),
+    crate::receipts::response(
+        db,
+        "schedule",
+        actor,
+        &input.operation_id,
+        &hash,
+        request_id,
     )
+    .await?
+    .ok_or_else(|| Error::RustError("Missing timetable receipt".into()))
 }
 
 /// 省略可能IDの明示nullを拒否する

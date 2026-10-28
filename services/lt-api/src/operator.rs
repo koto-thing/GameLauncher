@@ -33,9 +33,18 @@ struct ApproveData {
     expected_schedule_version: u64,
 }
 
-/// named service binding からだけ呼ぶ内部入口
-/// 引数: proxy が検証した context、HTTP request、ホストが渡す binding 環境
-/// 戻り値: Rust で生成した HTTP 応答
+/// 内部サービス接続から運営操作を受け、契約エラーをHTTP応答へ変換する
+///
+/// # 引数
+/// - `context`: プロキシで検証済みの運営者とリクエスト情報
+/// - `request`: 運営APIへのHTTPリクエスト
+/// - `env`: ホストが渡すWorker環境
+///
+/// # 戻り値
+/// 運営処理で生成したHTTP応答
+///
+/// # エラー
+/// コンテキストが不正、または契約エラーに変換できない内部処理の失敗
 #[wasm_bindgen]
 pub async fn operator_request(
     context: JsValue,
@@ -66,6 +75,9 @@ pub async fn operator_request(
             error("DUPLICATE_APPLICATION", 409, &context)
                 .map_err(|e| JsValue::from_str(&e.to_string()))?
         }
+        Err(e) if e.to_string().contains("LT_SCHEDULE_FULL") => {
+            error("SCHEDULE_FULL", 409, &context).map_err(|e| JsValue::from_str(&e.to_string()))?
+        }
         Err(e) if e.to_string().contains("LT_CAPACITY_FULL") => {
             error("CAPACITY_FULL", 409, &context).map_err(|e| JsValue::from_str(&e.to_string()))?
         }
@@ -88,9 +100,18 @@ fn error(code: &str, status: u16, c: &OperatorContext) -> Result<Response> {
     )
 }
 
-/// 内部運営の承認を原子的に適用する
-/// 引数: request、環境、検証済み context
-/// 戻り値: 運営 DTO または未対応応答
+/// 内部運営の承認と公開時間割への反映を原子的に適用する
+///
+/// # 引数
+/// - `req`: 認証済み運営リクエスト
+/// - `env`: データベースを含むWorker環境
+/// - `c`: 検証済みの運営者とリクエスト情報
+///
+/// # 戻り値
+/// 運営DTOまたは契約エラーのHTTP応答
+///
+/// # エラー
+/// データベース処理に失敗した場合
 async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Response> {
     // RPC context だけで本番を有効化せず、開発ビルドにも限定する
     if !crate::gate::operator_enabled(env) {
@@ -264,7 +285,7 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     dto["slotReserved"] = json!(true);
     dto["published"] = published;
     // UPDATE 0件では trigger は動かず、枠・公開版・outbox・audit は作られない
-    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=?4 WHERE id=?5 AND version=?6 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch')) AND json_extract(dto,'$.everApproved')=0 AND json_extract(dto,'$.review') IN ('pending','held') AND json_extract(dto,'$.withdrawal')='none' AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id JOIN lt_public_events pe ON pe.event_id=e.id WHERE e.id=lt_applications.event_id AND json_extract(pe.dto,'$.startsAt')<=?10 AND COALESCE(json_extract(s.blocks,'$[#-1].endsAt'),json_extract(pe.dto,'$.startsAt'))=?10 AND COALESCE(json_extract(s.blocks,'$[#-1].kind'),'opening')!='closing' AND e.version=?7 AND s.version=?8 AND e.publish_enabled=1 AND e.state IN ('scheduled','started') AND NOT EXISTS(SELECT 1 FROM json_each(s.blocks) b WHERE json_extract(b.value,'$.startsAt')<?9 AND json_extract(b.value,'$.endsAt')>?10))").bind(&[dto.to_string().into(),input.operation_id.clone().into(),payload.clone().into(),c.actor_id.clone().into(),p[5].into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into(),(input.data.expected_schedule_version as f64).into(),end.into(),input.data.starts_at.into()])?.run().await?;
+    let changed=db.prepare("UPDATE lt_applications SET version=version+1,dto=?1,operation_id=?2,payload_hash=?3,actor_id=?4 WHERE id=?5 AND version=?6 AND (json_extract(dto,'$.retentionExpiresAt') IS NULL OR json_extract(dto,'$.retentionExpiresAt')>strftime('%Y-%m-%dT%H:%M:%fZ',(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000))/1000.0,'unixepoch')) AND json_extract(dto,'$.everApproved')=0 AND json_extract(dto,'$.review') IN ('pending','held') AND json_extract(dto,'$.withdrawal')='none' AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id JOIN lt_public_events pe ON pe.event_id=e.id WHERE e.id=lt_applications.event_id AND json_extract(pe.dto,'$.startsAt')<=?10 AND CASE WHEN json_extract(s.blocks,'$[#-1].kind')='closing' THEN json_extract(s.blocks,'$[#-1].startsAt') ELSE COALESCE(json_extract(s.blocks,'$[#-1].endsAt'),json_extract(pe.dto,'$.startsAt')) END=?10 AND e.version=?7 AND s.version=?8 AND e.publish_enabled=1 AND e.state IN ('scheduled','started') AND NOT EXISTS(SELECT 1 FROM json_each(s.blocks) b WHERE json_extract(b.value,'$.kind')!='closing' AND json_extract(b.value,'$.startsAt')<?9 AND json_extract(b.value,'$.endsAt')>?10))").bind(&[dto.to_string().into(),input.operation_id.clone().into(),payload.clone().into(),c.actor_id.clone().into(),p[5].into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into(),(input.data.expected_schedule_version as f64).into(),end.into(),input.data.starts_at.into()])?.run().await?;
     if changed.meta()?.unwrap().changes.unwrap_or(0) == 0 {
         if let Some(response) = crate::receipts::response(
             &db,
@@ -280,8 +301,16 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
         }
         return error("VERSION_CONFLICT", 409, c);
     }
-    dto["operatorNote"] = row["operator_note"].clone();
-    Response::from_json(&crate::views::app(&db, &dto, true).await?)
+    crate::receipts::response(
+        &db,
+        "operator",
+        &c.actor_id,
+        &input.operation_id,
+        &payload,
+        &c.request_id,
+    )
+    .await?
+    .ok_or_else(|| Error::RustError("Missing approval receipt".into()))
 }
 
 /// 差し戻しと再承認などを版条件で適用する

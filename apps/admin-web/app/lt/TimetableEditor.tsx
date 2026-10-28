@@ -19,9 +19,19 @@ function ScheduleCard({ id, title, disabled, children }: { id: string; title: st
   </li>;
 }
 
-/** @brief 開催地域の日時で時間割を編集する @param props 保存済み時間割と開催設定 @returns 編集画面 */
+/**
+ * 開催地域の日時で時間割を編集し、自動方式では発表順だけを変更する
+ * @param props 時間割編集の入力
+ * @param props.blocks 保存済みの時間割
+ * @param props.event 開催設定と生成ルール
+ * @param props.applications 表示名を取得する申請一覧
+ * @param props.onSave 編集済みの時間割を保存する処理
+ * @param props.disabled 編集を禁止するか
+ * @returns 時間割の編集画面
+ */
 export function TimetableEditor({ blocks, event, applications, onSave, disabled }: { blocks: ScheduleBlock[]; event: EventSettings; applications: OperatorApplication[]; onSave: (blocks: ScheduleBlock[]) => void; disabled: boolean }) {
   const zone = event.timeZone;
+  const automatic = event.scheduleMode === "automatic";
   // 入力途中の日時も保持し、保存と並び替えの直前にUTCへ変換する
   const localize = (items: ScheduleBlock[]) => items.map(b => ({ ...b, startsAt: localEventTime(b.startsAt, zone), endsAt: localEventTime(b.endsAt, zone) }));
   const [draft, setDraft] = useState(() => localize(blocks));
@@ -79,20 +89,21 @@ export function TimetableEditor({ blocks, event, applications, onSave, disabled 
   }
 
   return <fieldset disabled={disabled}><legend>時間割</legend>
+    {automatic && <p>発表順を変更できます。時刻と開会・休憩・閉会は、保存時に開催設定のルールから計算します。</p>}
     {error && <p role="alert">{error}</p>}
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={({ active }) => setActiveId(String(active.id))} onDragCancel={() => setActiveId(null)} onDragEnd={({ active, over }) => { setActiveId(null); if (!disabled && over && active.id !== over.id) edit(() => moveSchedule(utcDraft(), String(active.id), String(over.id))); }}>
       <SortableContext items={groups.map(g => g[0].id)} strategy={verticalListSortingStrategy}>
-        <ol className="lt-schedule-list">{groups.map(group => <ScheduleCard key={group[0].id} id={group[0].id} title={title(group[0])} disabled={disabled || group[0].kind === "opening" || group[0].kind === "closing"}>
+        <ol className="lt-schedule-list">{groups.map(group => <ScheduleCard key={group[0].id} id={group[0].id} title={title(group[0])} disabled={disabled || (automatic && group[0].kind !== "talk") || group[0].kind === "opening" || group[0].kind === "closing"}>
           {group.filter(block => block.kind !== "transition").map(block => <div key={block.id} className="lt-schedule-times" role="group" aria-label={labels[block.kind]}><span className="lt-badge">{labels[block.kind]}</span>
-            <div className="lt-schedule-range">{(["startsAt", "endsAt"] as const).map(field => <span key={field} className="lt-schedule-endpoint">{field === "endsAt" && <span aria-hidden="true">～</span>}<input aria-label={`${labels[block.kind]}の${field === "startsAt" ? "開始日時" : "終了日時"}`} type="datetime-local" step="60" value={block[field]} onClick={e => e.currentTarget.showPicker?.()} onChange={e => { const value = e.currentTarget.value; setDraft(items => items.map(item => item.id === block.id ? { ...item, [field]: value } : item)); }} /></span>)}</div>
+            <div className="lt-schedule-range">{(["startsAt", "endsAt"] as const).map(field => <span key={field} className="lt-schedule-endpoint">{field === "endsAt" && <span aria-hidden="true">～</span>}<input aria-label={`${labels[block.kind]}の${field === "startsAt" ? "開始日時" : "終了日時"}`} type="datetime-local" step="60" readOnly={automatic} value={block[field]} onClick={e => { if (!automatic) e.currentTarget.showPicker?.(); }} onChange={e => { const value = e.currentTarget.value; setDraft(items => items.map(item => item.id === block.id ? { ...item, [field]: value } : item)); }} /></span>)}</div>
           </div>)}
-          {group[0].kind !== "talk" && <button type="button" onClick={() => edit(() => reflowSchedule(utcDraft().filter(b => b.id !== group[0].id), event.startsAt))}>削除</button>}
+          {!automatic && group[0].kind !== "talk" && <button type="button" onClick={() => edit(() => reflowSchedule(utcDraft().filter(b => b.id !== group[0].id), event.startsAt))}>削除</button>}
         </ScheduleCard>)}</ol>
       </SortableContext>
       <DragOverlay>{activeId && <div className="lt-schedule-overlay">{title(draft.find(b => b.id === activeId)!)}</div>}</DragOverlay>
     </DndContext>
-    <div>{(["opening", "break", "closing"] as const).map(kind => <button key={kind} type="button" disabled={kind !== "break" && draft.some(b => b.kind === kind)} onClick={() => add(kind)}>{labels[kind]}を追加</button>)}</div>
-    <button type="button" onClick={() => edit(() => reflowSchedule(utcDraft(), event.startsAt))}>時刻を連続配置</button>
+    {!automatic && <div>{(["opening", "break", "closing"] as const).map(kind => <button key={kind} type="button" disabled={kind !== "break" && draft.some(b => b.kind === kind)} onClick={() => add(kind)}>{labels[kind]}を追加</button>)}</div>}
+    {!automatic && <button type="button" onClick={() => edit(() => reflowSchedule(utcDraft(), event.startsAt))}>時刻を連続配置</button>}
     <button type="button" onClick={save}>時間割を保存</button><button type="button" onClick={() => { setDraft(localize(blocks)); setError(""); }}>編集を取り消す</button>
   </fieldset>;
 }

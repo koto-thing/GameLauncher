@@ -34,7 +34,7 @@ test('actual UI route uses internal binding after signed session validation', as
  const response = await route.GET(request({headers:{'x-role':'admin','x-actor-id':'forged'}}));
  assert.equal(response.status,200); assert.ok(Array.isArray((await response.json()).items));
  const start=Date.UTC(2200,0,1)+Math.floor(Math.random()*1000000000)*60000;
- const created=await route.POST(request({method:"POST",headers:{Origin:"http://127.0.0.1:18920","Content-Type":"application/json","x-role":"admin"},body:JSON.stringify({title:"Local route Rust event",venue:"Example",guidance:"",startsAt:new Date(start).toISOString(),timeZone:"UTC",opensAt:new Date(start-120000).toISOString(),closesAt:new Date(start-60000).toISOString(),capacity:1,talkMinutes:5,transitionMinutes:1, approvalMode: "manual",operationId:crypto.randomUUID()})})); assert.equal(created.status,200);
+ const created=await route.POST(request({method:"POST",headers:{Origin:"http://127.0.0.1:18920","Content-Type":"application/json","x-role":"admin"},body:JSON.stringify({title:"Local route Rust event",venue:"Example",guidance:"",startsAt:new Date(start).toISOString(),timeZone:"UTC",opensAt:new Date(start-120000).toISOString(),closesAt:new Date(start-60000).toISOString(),capacity:1,talkMinutes:5,transitionMinutes:1, approvalMode: "manual", scheduleMode: "manual", openingMinutes: 0, breakEvery: 4, breakMinutes: 0, closingMinutes: 0, endsBy: null,operationId:crypto.randomUUID()})})); assert.equal(created.status,200);
  delete env.LT_INTERNAL; assert.equal((await route.GET(request())).status,503); env.LT_INTERNAL=binding;
  f.sql.prepare("DELETE FROM platform_roles WHERE github_user_id='1'").run();
  assert.equal((await route.GET(request())).status,401);

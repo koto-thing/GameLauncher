@@ -4,7 +4,7 @@ import { LtManager } from "../../app/lt/LtManager";
 import "../../app/globals.css";
 
 // 本番エントリーから参照しない架空データ専用fixture
-const event = { id: "fixture-event", version: 1, state: "scheduled", title: "架空LT会", venue: "架空会場", guidance: "", startsAt: "2026-11-01T01:00:00.000Z", timeZone: "Asia/Tokyo", opensAt: "2026-10-01T01:00:00.000Z", closesAt: "2026-10-31T01:00:00.000Z", capacity: 20, talkMinutes: 10, transitionMinutes: 1, approvalMode: "manual" };
+const event = { id: "fixture-event", version: 1, state: "scheduled", title: "架空LT会", venue: "架空会場", guidance: "", startsAt: "2026-11-01T01:00:00.000Z", timeZone: "Asia/Tokyo", opensAt: "2026-10-01T01:00:00.000Z", closesAt: "2026-10-31T01:00:00.000Z", capacity: 20, talkMinutes: 10, transitionMinutes: 1, approvalMode: "manual", scheduleMode: "manual", openingMinutes: 0, breakEvery: 4, breakMinutes: 0, closingMinutes: 0, endsBy: null };
 const events = [event];
 let application = { id: "fixture-application", eventId: event.id, version: 1, content: { title: "架空発表", abstract: "架空の申請原稿", speakers: [{ displayName: "架空登壇者" }] }, materialUrl: "https://example.invalid/slides", representativeEmail: "fixture@example.invalid", review: "pending", withdrawal: "none", firstSubmittedAt: event.opensAt, everApproved: false, slotReserved: false, retentionExpiresAt: null, published: null, operatorNote: "" };
 let timetable = { eventId: event.id, version: 1, eventVersion: 1, blocks: [] };

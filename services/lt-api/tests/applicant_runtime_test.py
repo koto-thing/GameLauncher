@@ -33,7 +33,7 @@ class ApplicantRuntime(unittest.TestCase):
   Returns:
       戻り値なし
   """
-  sql("INSERT INTO lt_recruitment(approval_mode,event_id,opens,closes,capacity,reserved) VALUES('manual','open',0,9999999999999,20,0) ON CONFLICT DO NOTHING")
+  sql("INSERT INTO lt_recruitment(schedule_mode,approval_mode,event_id,opens,closes,capacity,reserved) VALUES('manual','manual','open',0,9999999999999,20,0) ON CONFLICT DO NOTHING")
  def login(self):
   email=uuid.uuid4().hex+'@example.invalid'
   self.assertEqual(request('/api/lt/v1/auth/email',{'email':email})[0],202)

@@ -49,7 +49,7 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
       capacity: 2,
       talkMinutes: 10,
       transitionMinutes: 1,
-      approvalMode: "manual",
+      approvalMode: "manual", scheduleMode: "manual", openingMinutes: 0, breakEvery: 4, breakMinutes: 0, closingMinutes: 0, endsBy: null,
     };
     const created = await operator.request.post(origin + "/api/lt/v1/operator/events", {
       headers,
