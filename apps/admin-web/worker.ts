@@ -8,6 +8,7 @@ import { observeD1 } from "../../packages/observability/d1";
  * @param env データベースと保持設定
  * @param now 定期実行時刻のミリ秒
  * @returns 戻り値なし
+ * @throws 保持処理のデータベース操作に失敗した場合
  */
 async function retainRequests(env: Cloudflare.Env, now: number): Promise<void> {
   const db = observeD1(env.DB, "deployment-control-plane", env.D1_METRICS_ENABLED === "true");
@@ -23,6 +24,7 @@ export default {
    * @param controller 定期実行時刻とcron式
    * @param env データベースと配信設定
    * @returns 処理完了を示すPromise
+   * @throws 通知または保持処理が失敗した場合、両方の完了後に失敗を返す
    */
   async scheduled(controller: { scheduledTime: number; cron: string }, env: Cloudflare.Env): Promise<void> {
     const time = new Date(controller.scheduledTime);
