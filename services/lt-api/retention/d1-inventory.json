@@ -541,6 +541,16 @@
       "INTEGER"
     ]
   ],
+  "lt_generated_schedule": [
+    [
+      "event_id",
+      "TEXT"
+    ],
+    [
+      "blocks",
+      ""
+    ]
+  ],
   "lt_login_outbox": [
     [
       "id",
@@ -777,6 +787,40 @@
     [
       "approval_mode",
       "TEXT"
+    ],
+    [
+      "schedule_mode",
+      "TEXT"
+    ],
+    [
+      "opening_minutes",
+      "INTEGER"
+    ],
+    [
+      "break_every",
+      "INTEGER"
+    ],
+    [
+      "break_minutes",
+      "INTEGER"
+    ],
+    [
+      "closing_minutes",
+      "INTEGER"
+    ],
+    [
+      "ends_by",
+      "TEXT"
+    ]
+  ],
+  "lt_reflowed_schedule": [
+    [
+      "event_id",
+      "TEXT"
+    ],
+    [
+      "blocks",
+      ""
     ]
   ],
   "lt_retention_apps": [

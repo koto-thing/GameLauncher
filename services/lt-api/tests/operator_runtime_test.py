@@ -20,7 +20,7 @@ class OperatorRuntime(unittest.TestCase):
   """
   event='race-'+uuid.uuid4().hex
   base=json.loads(sql("SELECT dto FROM lt_public_events WHERE event_id='open'")[0]['dto']);base.update(id=event,schedule=[],version=1)
-  sql("INSERT INTO lt_events(id,state,public_opens_at) VALUES('"+event+"','scheduled',0); INSERT INTO lt_recruitment(approval_mode,event_id,opens,closes,capacity) VALUES('manual','"+event+"',0,9999999999999,1); INSERT INTO lt_schedule(event_id) VALUES('"+event+"'); INSERT INTO lt_public_events VALUES('"+event+"','"+json.dumps(base,ensure_ascii=False).replace("'","''")+"')")
+  sql("INSERT INTO lt_events(id,state,public_opens_at) VALUES('"+event+"','scheduled',0); INSERT INTO lt_recruitment(schedule_mode,approval_mode,event_id,opens,closes,capacity) VALUES('manual','manual','"+event+"',0,9999999999999,1); INSERT INTO lt_schedule(event_id) VALUES('"+event+"'); INSERT INTO lt_public_events VALUES('"+event+"','"+json.dumps(base,ensure_ascii=False).replace("'","''")+"')")
   ids=[];cookies=[]
   for _ in range(2):
    helper=applicants.ApplicantRuntime();cookie,_=helper.login();p=helper.payload();p['eventId']=event

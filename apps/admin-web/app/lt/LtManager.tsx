@@ -14,16 +14,32 @@ import { actionItems } from "../../lib/lt/action-items";
 import { TimetableEditor } from "./TimetableEditor";
 const root = "/api/lt/v1/operator";
 type Task = () => Promise<void>;
-class ApiFailure extends Error { constructor(message: string, readonly status: number) { super(message); } }
+class ApiFailure extends Error {
+  /**
+   * APIのエラー内容と再読込の判断に使う情報を保持する
+   * @param message 利用者向けの説明
+   * @param status HTTPステータス
+   * @param code APIのエラーコード
+   * @returns エラーインスタンス
+   */
+  constructor(message: string, readonly status: number, readonly code?: string) { super(message); }
+}
 
-/** @brief 運営APIの失敗と競合を表示用エラーに変換する @param path APIパス @param method HTTP動詞 @param body ペイロード @returns 応答 */
+/**
+ * 運営APIの失敗と競合を表示用エラーに変換する
+ * @param path APIパス
+ * @param method HTTP動詞
+ * @param body 送信するペイロード
+ * @returns APIの応答
+ * @throws APIが失敗した場合の表示用エラー
+ */
 async function api<T>(path: string, method = "GET", body?: unknown): Promise<T> {
   const response = await fetch(root + path, { method, credentials: "same-origin", cache: "no-store", headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
   if (!response.ok) {
     const detail = await response.json().catch(() => null);
     const names: Record<string, string> = { title: "開催名", venue: "会場", startsAt: "開始日時", timeZone: "タイムゾーン", opensAt: "募集開始", closesAt: "募集終了", capacity: "定員", talkMinutes: "発表時間", transitionMinutes: "転換時間", blocks: "時間割", note: "運営メモ" };
     const fields = Array.isArray(detail?.error?.fields) ? detail.error.fields.map((field: { path?: string }) => names[String(field.path).split(".").pop() ?? ""]).filter(Boolean).join("、") : "";
-    throw new ApiFailure(response.status === 409 ? "他の操作で更新されています。再読込して内容を確認してください。" : response.status === 401 ? "ログインが必要です。" : response.status === 403 ? "この操作の権限がありません。" : response.status === 422 ? `入力を確認してください${fields ? `: ${fields}` : ""}` : `操作できませんでした (${response.status})`, response.status);
+    throw new ApiFailure(detail?.error?.code === "SCHEDULE_FULL" ? "終了上限を超えるため保存・受付できません。終了上限、発表時間、休憩の設定を調整してください。" : detail?.error?.code === "CAPACITY_FULL" ? "登壇枠が満員、または予約済み件数より定員が少なくなっています。定員と申請状況を確認してください。" : detail?.error?.code === "INVALID_TRANSITION" ? "現在の開催・申請状態では操作できません。開始後の時間割設定変更や、コピーした開催回の募集日時を確認してください。" : response.status === 409 ? "他の操作で更新されています。再読込して内容を確認してください。" : response.status === 401 ? "ログインが必要です。" : response.status === 403 ? "この操作の権限がありません。" : response.status === 422 ? `入力を確認してください${fields ? `: ${fields}` : ""}` : `操作できませんでした (${response.status})`, response.status, detail?.error?.code);
   }
   return response.json() as Promise<T>;
 }
@@ -70,11 +86,15 @@ export function LtManager() {
   const lock = useRef(false);
   const retry = useRef<Task | null>(null);
 
-  // 同じ操作の二重送信を同期的に止める
+  /**
+   * 二重送信を止め、失敗の種類に応じて再読込や再試行を案内する
+   * @param task 実行する非同期操作
+   * @returns 操作の完了を示すPromise
+   */
   async function run(task: Task) {
     if (lock.current) return;
     lock.current = true; setBusy(true); setError(""); setMessage(""); retry.current = task; setCanRetry(false);
-    try { await task(); retry.current = null; } catch (cause) { if (cause instanceof ApiFailure && [401, 403, 409].includes(cause.status)) setNeedsReload(true); if (cause instanceof ApiFailure && cause.status >= 400 && cause.status < 500) retry.current = null; setError(cause instanceof Error ? cause.message : "操作できませんでした"); }
+    try { await task(); retry.current = null; } catch (cause) { if (cause instanceof ApiFailure && ([401, 403].includes(cause.status) || cause.code === "VERSION_CONFLICT")) setNeedsReload(true); if (cause instanceof ApiFailure && cause.status >= 400 && cause.status < 500) retry.current = null; setError(cause instanceof Error ? cause.message : "操作できませんでした"); }
     finally { lock.current = false; setBusy(false); setCanRetry(retry.current !== null); }
   }
   async function loadEvents() { setEvents(await fetchEvents()); }
@@ -90,11 +110,18 @@ export function LtManager() {
     const payload = { expectedVersion: version, operationId: crypto.randomUUID(), data };
     void run(async () => { await complete(await api(path, method, payload)); setMessage("保存しました"); });
   }
+  /**
+   * 審査操作を保存し、自動時間割では末尾の空き位置を割り当てる
+   * @param action 実行する審査操作名
+   * @returns 戻り値なし
+   */
   function review(action: string) {
     if (!selected) return;
     const application = selected;
     if (!event || !timetable) return;
-    const data = action === "approve" ? { startsAt: new Date(startsAt).toISOString(), expectedEventVersion: event.version, expectedScheduleVersion: timetable.version } : action === "reapprove" ? { expectedEventVersion: event.version } : action === "confirm-withdrawal" ? {} : { note };
+    const tail = timetable.blocks.at(-1);
+    const assignedStart = tail?.kind === "closing" ? tail.startsAt : tail?.endsAt ?? event.startsAt;
+    const data = action === "approve" ? { startsAt: event.scheduleMode === "automatic" ? assignedStart : new Date(startsAt).toISOString(), expectedEventVersion: event.version, expectedScheduleVersion: timetable.version } : action === "reapprove" ? { expectedEventVersion: event.version } : action === "confirm-withdrawal" ? {} : { note };
     mutate(`/applications/${encodeURIComponent(application.id)}/${action}`, application.version, data, async result => {
       const updated = result as OperatorApplication;
       setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item));
@@ -107,7 +134,7 @@ export function LtManager() {
     {error && <div role="alert"><p>{error}</p>{canRetry && <button disabled={busy} onClick={() => retry.current && void run(retry.current)}>再試行</button>}<button disabled={busy} onClick={() => void run(async () => { await loadEvents(); setEvent(null); setSelected(null); setNeedsReload(false); })}>再読込</button></div>}
     <p role="status">{busy ? "処理中…" : message}</p>
     <fieldset disabled={busy || needsReload} style={{ border: 0, padding: 0, minWidth: 0 }}>
-    {creating ? <div key="create" className="lt-panel"><button onClick={() => setCreating(false)}>作成を中断</button><h2>開催回を作成</h2><EventForm value={{ id: "", version: 1, state: "scheduled", publishEnabled: false, title: "", venue: "", guidance: "", startsAt: "", timeZone: "", opensAt: "", closesAt: "", approvalMode: "automatic", planning: { relativeRecruitment: true, opensDaysBefore: 28, closesDaysBefore: 7, materialDaysBefore: 3, reminderDaysBefore: 1 }, capacity: 20, talkMinutes: 10, transitionMinutes: 1 }} onSave={data => { const body = { ...data, operationId: crypto.randomUUID() }; void run(async () => { const created = await api<EventSettings>("/events", "POST", body); await loadEvents(); await open(created); setCreating(false); }); }} /></div> : selected ? <div key="application" className="lt-panel lt-review">
+    {creating ? <div key="create" className="lt-panel"><button onClick={() => setCreating(false)}>作成を中断</button><h2>開催回を作成</h2><EventForm value={{ id: "", version: 1, state: "scheduled", publishEnabled: false, title: "", venue: "", guidance: "", startsAt: "", timeZone: "", opensAt: "", closesAt: "", approvalMode: "automatic", planning: { relativeRecruitment: true, opensDaysBefore: 28, closesDaysBefore: 7, materialDaysBefore: 3, reminderDaysBefore: 1 }, scheduleMode: "automatic", openingMinutes: 5, breakEvery: 4, breakMinutes: 10, closingMinutes: 5, endsBy: null, capacity: 20, talkMinutes: 10, transitionMinutes: 1 }} onSave={data => { const body = { ...data, operationId: crypto.randomUUID() }; void run(async () => { const created = await api<EventSettings>("/events", "POST", body); await loadEvents(); await open(created); setCreating(false); }); }} /></div> : selected ? <div key="application" className="lt-panel lt-review">
       <button onClick={() => { setSelected(null); setNote(""); setStartsAt(""); }}>申請一覧に戻る</button>
       <h2>{selected.content.title}</h2><p>審査: {selected.waitlisted ? "キャンセル待ち" : selected.review} / 辞退: {selected.withdrawal}</p>
       {selected.review === "approved" && selected.withdrawal === "none" && <SessionEditor key={`${selected.id}:${selected.version}`} application={selected} onSave={(data, done) => mutate(`/applications/${encodeURIComponent(selected.id)}/metadata`, selected.version, data, result => { const updated = result as OperatorApplication; setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); done(); })} />}
@@ -118,9 +145,9 @@ export function LtManager() {
       <div>{selected.content.speakers.map((speaker, index) => <div key={index}><strong>{speaker.displayName}</strong><SpeakerLinks links={speaker.links} /></div>)}</div>
       <h3>公開版</h3>{selected.published ? <><p>{selected.published.title}</p><p>{selected.published.abstract}</p><p>{selected.published.startsAt}</p><dl className="lt-session-facts"><SessionFacts session={selected.published.session} /></dl></> : <p>未公開</p>}
       <label>運営メモ<textarea value={note} onInput={e => setNote(e.currentTarget.value)} /></label>
-      <label>発表開始日時<input type="datetime-local" value={startsAt} onInput={e => setStartsAt(e.currentTarget.value)} /></label>
+      {event?.scheduleMode === "automatic" ? <p>承認すると時間割の末尾へ自動配置します。</p> : <label>発表開始日時<input type="datetime-local" value={startsAt} onInput={e => setStartsAt(e.currentTarget.value)} /></label>}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      <button disabled={!startsAt || !canReview(selected, "approve")} onClick={() => review("approve")}>{selected.waitlisted ? "繰り上げを承認" : "承認"}</button>
+      <button disabled={(event?.scheduleMode !== "automatic" && !startsAt) || !canReview(selected, "approve")} onClick={() => review("approve")}>{selected.waitlisted ? "繰り上げを承認" : "承認"}</button>
       <button disabled={!canReapprove(selected)} onClick={() => review("reapprove")}>再承認</button>
       <button disabled={!canReview(selected, "return")} onClick={() => review("return")}>差し戻し</button><button disabled={!canReview(selected, "hold")} onClick={() => review("hold")}>保留</button>
       <button disabled={!canReview(selected, "reject")} onClick={() => review("reject")}>見送り</button>
@@ -139,7 +166,7 @@ export function LtManager() {
       {applicationCursor && <button onClick={() => void run(async () => { const page = await api<OperatorApplicationPage>(`/events/${encodeURIComponent(event.id)}/applications?cursor=${encodeURIComponent(applicationCursor)}`); setApplications(items => [...items, ...page.items]); setApplicationCursor(page.nextCursor); })}>申請をさらに表示</button>}
       </section><section className="lt-panel" id="lt-timetable"><div className="lt-panel-heading"><h3>タイムテーブル編集</h3></div>{timetable && <TimetableEditor key={`${timetable.eventId}:${timetable.version}:${event.timeZone}`} blocks={timetable.blocks} event={event} applications={applications} disabled={busy || needsReload} onSave={blocks => mutate(`/events/${encodeURIComponent(event.id)}/timetable`, timetable.version, { blocks, expectedEventVersion: event.version }, result => { const saved = result as OperatorTimetable; setTimetable(saved); setEvent(current => current ? syncTimetableEvent(current, saved) : current); }, "PUT")} />}
     </section>
-      <section className="lt-panel" id="lt-settings"><div className="lt-panel-heading"><h3>開催回の設定</h3></div><EventForm key={`${event.id}:${event.version}`} value={event} onSave={value => mutate(`/events/${encodeURIComponent(event.id)}`, event.version, value, result => { const updated = result as EventSettings; setEvent(updated); setEvents(items => items.map(item => item.id === updated.id ? updated : item)); }, "PATCH")} />
+      <section className="lt-panel" id="lt-settings"><div className="lt-panel-heading"><h3>開催回の設定</h3></div><EventForm key={`${event.id}:${event.version}`} value={event} onSave={value => mutate(`/events/${encodeURIComponent(event.id)}`, event.version, value, async result => { const updated = result as EventSettings; setEvents(items => items.map(item => item.id === updated.id ? updated : item)); await open(updated); }, "PATCH")} />
       </section><section className="lt-panel" id="lt-exceptions"><h3>例外対応・手動処理</h3><button onClick={() => mutate(`/events/${encodeURIComponent(event.id)}/copy`, event.version, {}, async result => { await loadEvents(); await open(result as EventSettings); })}>この運営ルールから次回を作成</button>
       <button disabled={event.state === "cancelled"} onClick={() => setCancelConfirm(true)}>開催中止</button>
       {cancelConfirm && <div role="group" aria-label="開催中止の確認"><p>この開催回を中止しますか？</p><button onClick={() => mutate(`/events/${encodeURIComponent(event.id)}/cancel`, event.version, {}, result => { const updated = result as EventSettings; setEvent(updated); setEvents(items => items.map(item => item.id === updated.id ? updated : item)); setCancelConfirm(false); })}>中止を確定</button><button onClick={() => setCancelConfirm(false)}>中止を取り消す</button></div>}

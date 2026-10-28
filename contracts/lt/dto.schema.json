@@ -1244,7 +1244,8 @@
                 "RATE_LIMITED",
                 "RETENTION_EXPIRED",
                 "SERVICE_UNAVAILABLE",
-                "NOT_IMPLEMENTED"
+                "NOT_IMPLEMENTED",
+                "SCHEDULE_FULL"
               ]
             },
             "requestId": {
@@ -1481,6 +1482,45 @@
         },
         "planning": {
           "$ref": "#/$defs/Planning"
+        },
+        "scheduleMode": {
+          "type": "string",
+          "enum": [
+            "automatic",
+            "manual"
+          ]
+        },
+        "openingMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "breakEvery": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "breakMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "closingMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "endsBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -1498,7 +1538,13 @@
         "talkMinutes",
         "transitionMinutes",
         "publishEnabled",
-        "approvalMode"
+        "approvalMode",
+        "scheduleMode",
+        "openingMinutes",
+        "breakEvery",
+        "breakMinutes",
+        "closingMinutes",
+        "endsBy"
       ]
     },
     "CreateEventInput": {
@@ -1565,6 +1611,45 @@
         },
         "planning": {
           "$ref": "#/$defs/Planning"
+        },
+        "scheduleMode": {
+          "type": "string",
+          "enum": [
+            "automatic",
+            "manual"
+          ]
+        },
+        "openingMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "breakEvery": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "breakMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "closingMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1440
+        },
+        "endsBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -1579,7 +1664,13 @@
         "talkMinutes",
         "transitionMinutes",
         "operationId",
-        "approvalMode"
+        "approvalMode",
+        "scheduleMode",
+        "openingMinutes",
+        "breakEvery",
+        "breakMinutes",
+        "closingMinutes",
+        "endsBy"
       ]
     },
     "UpdateEventInput": {
@@ -1654,6 +1745,45 @@
             },
             "planning": {
               "$ref": "#/$defs/Planning"
+            },
+            "scheduleMode": {
+              "type": "string",
+              "enum": [
+                "automatic",
+                "manual"
+              ]
+            },
+            "openingMinutes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1440
+            },
+            "breakEvery": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "breakMinutes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1440
+            },
+            "closingMinutes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1440
+            },
+            "endsBy": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -1667,7 +1797,13 @@
             "capacity",
             "talkMinutes",
             "transitionMinutes",
-            "approvalMode"
+            "approvalMode",
+            "scheduleMode",
+            "openingMinutes",
+            "breakEvery",
+            "breakMinutes",
+            "closingMinutes",
+            "endsBy"
           ]
         }
       },
@@ -2309,7 +2445,8 @@
         "RATE_LIMITED",
         "RETENTION_EXPIRED",
         "SERVICE_UNAVAILABLE",
-        "NOT_IMPLEMENTED"
+        "NOT_IMPLEMENTED",
+        "SCHEDULE_FULL"
       ]
     },
     "NotificationKind": {

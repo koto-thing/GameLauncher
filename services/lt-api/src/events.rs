@@ -22,6 +22,29 @@ struct Settings {
     approval_mode: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     planning: Option<crate::planning::Planning>,
+    schedule_mode: String,
+    opening_minutes: u32,
+    break_every: u32,
+    break_minutes: u32,
+    closing_minutes: u32,
+    #[serde(deserialize_with = "required_end")]
+    ends_by: Option<String>,
+}
+
+/// 必須の終了上限キーから日時またはnullを読み取る
+///
+/// # 引数
+/// - `deserializer`: 終了上限のJSON入力
+///
+/// # 戻り値
+/// 指定した終了上限、nullなら上限なし
+///
+/// # エラー
+/// 文字列またはnull以外の場合
+fn required_end<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<String>, D::Error> {
+    Option::<String>::deserialize(deserializer)
 }
 
 /// ポスターを認証情報のないHTTPS画像URLに限定する
@@ -88,6 +111,14 @@ fn valid(s: &Settings) -> bool {
         && s.planning
             .as_ref()
             .is_none_or(crate::planning::Planning::valid)
+        && ["automatic", "manual"].contains(&s.schedule_mode.as_str())
+        && s.opening_minutes <= 1440
+        && s.closing_minutes <= 1440
+        && s.break_minutes <= 1440
+        && (1..=10000).contains(&s.break_every)
+        && s.ends_by.as_ref().is_none_or(|end| {
+            s.schedule_mode == "automatic" && time(end).is_some_and(|end| end > start)
+        })
         && s.capacity > 0
         && s.talk_minutes > 0
         && s.capacity <= 10000
@@ -111,7 +142,7 @@ fn valid(s: &Settings) -> bool {
 /// データベースの読取に失敗した場合
 pub async fn detail(db: &D1Database, id: &str) -> Result<Option<Value>> {
     let now = crate::lifecycle::now(db).await?;
-    let rows=db.prepare("SELECT p.dto,(SELECT dto FROM lt_event_configs WHERE id=e.id) AS config,e.version,e.state,e.publish_enabled,e.private_expires,r.opens,r.closes,r.capacity,r.talk_minutes,r.transition_minutes,r.approval_mode FROM lt_events e JOIN lt_public_events p ON p.event_id=e.id JOIN lt_recruitment r ON r.event_id=e.id WHERE e.id=?1").bind(&[id.into()])?.all().await?.results::<Value>()?;
+    let rows=db.prepare("SELECT p.dto,(SELECT dto FROM lt_event_configs WHERE id=e.id) AS config,e.version,e.state,e.publish_enabled,e.private_expires,r.opens,r.closes,r.capacity,r.talk_minutes,r.transition_minutes,r.approval_mode,r.schedule_mode,r.opening_minutes,r.break_every,r.break_minutes,r.closing_minutes,r.ends_by FROM lt_events e JOIN lt_public_events p ON p.event_id=e.id JOIN lt_recruitment r ON r.event_id=e.id WHERE e.id=?1").bind(&[id.into()])?.all().await?.results::<Value>()?;
     let Some(r) = rows.first() else {
         return Ok(None);
     };
@@ -125,7 +156,7 @@ pub async fn detail(db: &D1Database, id: &str) -> Result<Option<Value>> {
             .as_string()
             .unwrap()
     };
-    let mut result = json!({"id":id,"version":r["version"],"state":r["state"],"publishEnabled":r["publish_enabled"]==1,"title":p["title"],"venue":p["venue"],"guidance":p["guidance"],"startsAt":p["startsAt"],"timeZone":p["timeZone"],"opensAt":instant(&r["opens"]),"closesAt":instant(&r["closes"]),"capacity":r["capacity"],"talkMinutes":r["talk_minutes"],"transitionMinutes":r["transition_minutes"],"approvalMode":r["approval_mode"]});
+    let mut result = json!({"id":id,"version":r["version"],"state":r["state"],"publishEnabled":r["publish_enabled"]==1,"title":p["title"],"venue":p["venue"],"guidance":p["guidance"],"startsAt":p["startsAt"],"timeZone":p["timeZone"],"opensAt":instant(&r["opens"]),"closesAt":instant(&r["closes"]),"capacity":r["capacity"],"talkMinutes":r["talk_minutes"],"transitionMinutes":r["transition_minutes"],"approvalMode":r["approval_mode"],"scheduleMode":r["schedule_mode"],"openingMinutes":r["opening_minutes"],"breakEvery":r["break_every"],"breakMinutes":r["break_minutes"],"closingMinutes":r["closing_minutes"],"endsBy":r["ends_by"]});
     if let Some(url) = p.get("posterUrl") {
         result["posterUrl"] = url.clone();
     }
@@ -272,6 +303,15 @@ pub async fn handle(
                 .get("planning")
                 .map(|value| serde_json::from_value(value.clone()))
                 .transpose()?,
+            schedule_mode: old["scheduleMode"].as_str().unwrap().into(),
+            opening_minutes: old["openingMinutes"].as_u64().unwrap() as u32,
+            break_every: old["breakEvery"].as_u64().unwrap() as u32,
+            break_minutes: old["breakMinutes"].as_u64().unwrap() as u32,
+            closing_minutes: old["closingMinutes"].as_u64().unwrap() as u32,
+            ends_by: old["endsBy"]
+                .as_str()
+                .and_then(|end| time(end).zip(time(old["startsAt"].as_str().unwrap())))
+                .map(|(end, old_start)| instant(start + (end - old_start) as f64)),
             starts_at: instant(start),
             opens_at: instant(start - 7.0 * 86400000.0),
             closes_at: instant(start - 3600000.0),
@@ -311,6 +351,21 @@ pub async fn handle(
     if !valid(&settings) {
         return error("VALIDATION", 422);
     }
+    // 終了上限がある自動時間割では、休憩と閉会を含めて募集可能数を決める
+    if let Some(end) = &settings.ends_by {
+        settings.capacity = crate::schedule_rules::capacity(
+            time(end).unwrap() - time(&settings.starts_at).unwrap(),
+            settings.talk_minutes,
+            settings.transition_minutes,
+            settings.opening_minutes,
+            settings.closing_minutes,
+            settings.break_every,
+            settings.break_minutes,
+        );
+        if settings.capacity == 0 {
+            return error("SCHEDULE_FULL", 409);
+        }
+    }
     let dto = serde_json::to_string(&settings)?;
     let id = if update {
         p[5].to_owned()
@@ -331,13 +386,18 @@ pub async fn handle(
         .bind(&[settings.poster_url.as_ref().map(|v| JsValue::from_str(v)).unwrap_or(JsValue::NULL), id.clone().into(), op.clone().into(), actor.into()])?;
 
     // 受付処理が参照する承認方式も設定と同時に確定する
-    let approval = db.prepare("UPDATE lt_recruitment SET approval_mode=?1 WHERE event_id=?2 AND EXISTS(SELECT 1 FROM lt_event_configs c WHERE c.id=?2 AND c.operation_id=?3 AND c.actor=?4)")
-        .bind(&[settings.approval_mode.into(), id.clone().into(), op.clone().into(), actor.into()])?;
+    let rules = db.prepare("UPDATE lt_recruitment SET approval_mode=?1,schedule_mode=?2,opening_minutes=?3,break_every=?4,break_minutes=?5,closing_minutes=?6,ends_by=?7 WHERE event_id=?8 AND EXISTS(SELECT 1 FROM lt_event_configs c WHERE c.id=?8 AND c.operation_id=?9 AND c.actor=?10)")
+        .bind(&[settings.approval_mode.into(), settings.schedule_mode.clone().into(), settings.opening_minutes.into(), settings.break_every.into(), settings.break_minutes.into(), settings.closing_minutes.into(), settings.ends_by.as_ref().map(|v| JsValue::from_str(v)).unwrap_or(JsValue::NULL), id.clone().into(), op.clone().into(), actor.into()])?;
+
+    // 開催前だけ最新の時間割を同じトランザクションで再配置し、公開版にも反映する
+    let schedule = db.prepare("UPDATE lt_schedule SET blocks=CASE WHEN ?1='automatic' THEN (SELECT g.blocks FROM lt_generated_schedule g WHERE g.event_id=?2) ELSE (SELECT g.blocks FROM lt_reflowed_schedule g WHERE g.event_id=?2) END,version=version+1,operation_id=?3,actor_id=?4,payload_hash=?5 WHERE event_id=?2 AND blocks!=CASE WHEN ?1='automatic' THEN (SELECT g.blocks FROM lt_generated_schedule g WHERE g.event_id=?2) ELSE (SELECT g.blocks FROM lt_reflowed_schedule g WHERE g.event_id=?2) END AND EXISTS(SELECT 1 FROM lt_events e JOIN lt_event_configs c ON c.id=e.id WHERE e.id=?2 AND e.state='scheduled' AND c.operation_id=?6 AND c.actor=?4)")
+        .bind(&[settings.schedule_mode.into(), id.clone().into(), format!("{op}:settings-schedule").into(), actor.into(), hash.clone().into(), op.clone().into()])?;
     let result = db
         .batch(vec![
             statement,
             poster,
-            approval,
+            rules,
+            schedule,
             before.statement(db, actor, &op, false)?,
         ])
         .await;
@@ -351,6 +411,9 @@ pub async fn handle(
             let text = e.to_string();
             if text.contains("LT_RECRUITMENT_OVERLAP") {
                 return error("RECRUITMENT_CLOSED", 409);
+            }
+            if text.contains("LT_SCHEDULE_FULL") {
+                return error("SCHEDULE_FULL", 409);
             }
             if text.contains("LT_CAPACITY_FULL") {
                 return error("CAPACITY_FULL", 409);

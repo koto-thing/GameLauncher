@@ -17,6 +17,7 @@ mod receipts;
 #[cfg(any(feature = "runtime-tests", feature = "production-api"))]
 mod retention;
 mod schedule_notifications;
+mod schedule_rules;
 mod session_info;
 #[cfg(feature = "runtime-tests")]
 mod test_hooks;
@@ -63,9 +64,18 @@ pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) 
 
 mod public_dto;
 
-/// 公開 HTTP と D1 読み取りを Rust で処理する
-/// 引数: HTTP リクエスト、環境、コンテキスト
-/// 戻り値: 公開 DTO または拒否応答
+/// 公開HTTPを処理し、終了上限などの契約エラーを応答へ変換する
+///
+/// # 引数
+/// - `req`: 公開APIへのHTTPリクエスト
+/// - `env`: データベースを含むWorker環境
+/// - `_ctx`: Workerの実行コンテキスト
+///
+/// # 戻り値
+/// 公開DTOまたは拒否を示すHTTP応答
+///
+/// # エラー
+/// 契約エラーに変換できない内部処理の失敗
 #[event(fetch)]
 pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response> {
     let path = req.path();
@@ -73,6 +83,12 @@ pub async fn main(mut req: Request, env: Env, _ctx: Context) -> Result<Response>
     // 運営ルートは公開入口に登録しない
     let private = match applicant::handle(&mut req, &env).await {
         Ok(value) => value,
+        Err(error) if error.to_string().contains("LT_SCHEDULE_FULL") => Some(
+            Response::from_json(
+                &json!({"error":{"code":"SCHEDULE_FULL","requestId":"applicant"}}),
+            )?
+            .with_status(409),
+        ),
         Err(error) if error.to_string().contains("LT_OPERATION_CONFLICT") => Some(
             Response::from_json(
                 &json!({"error":{"code":"VERSION_CONFLICT","requestId":"applicant"}}),
