@@ -36,7 +36,7 @@ pub fn create_key(private: &Path, public: &Path) -> Result<()> {
     );
 
     // 鍵を生成し、秘密鍵を限定した権限で新規作成する
-    let key = SigningKey::generate(&mut rand::rngs::OsRng);
+    let key = SigningKey::from_bytes(&rand::random());
     for path in [private, public] {
         fs::create_dir_all(path.parent().context("key parent")?)?;
     }

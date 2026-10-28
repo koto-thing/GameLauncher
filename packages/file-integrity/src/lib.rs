@@ -96,7 +96,7 @@ fn open_file(path: &Path) -> Result<File> {
 ///
 /// SHA-256 の小文字16進文字列
 pub fn hash_bytes(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 /// メモリ使用量を制限し、各ブロックでキャンセルを確認しながらハッシュ化する
@@ -127,7 +127,7 @@ pub fn hash_reader(mut reader: impl Read, cancelled: impl Fn() -> bool) -> Resul
     }
     Ok(FileDigest {
         size,
-        sha256: format!("{:x}", digest.finalize()),
+        sha256: hex::encode(digest.finalize()),
     })
 }
 
@@ -210,7 +210,7 @@ fn transfer(
 
     // チャンクの検証失敗を呼出元へ返し、一時出力の確定を防ぐ
     ensure!(
-        format!("{:x}", digest.finalize()) == expected,
+        hex::encode(digest.finalize()) == expected,
         Failure::Integrity
     );
     Ok(())
@@ -290,7 +290,7 @@ pub fn assemble(
 
     // 全体のハッシュが一致した場合にだけ出力先へ確定する
     ensure!(
-        format!("{:x}", whole.finalize()) == digest,
+        hex::encode(whole.finalize()) == digest,
         Failure::Integrity
     );
     commit(temporary, destination, &cancelled)
@@ -441,7 +441,7 @@ pub fn split_file(
         sha256: if expected_size <= chunk_size as u64 {
             last_digest
         } else {
-            format!("{:x}", whole.finalize())
+            hex::encode(whole.finalize())
         },
     })
 }
@@ -502,7 +502,7 @@ mod tests {
         )?;
         assert_eq!(reader.bytes, content.len());
         assert_eq!(output, content);
-        assert_eq!(format!("{:x}", whole.finalize()), digest);
+        assert_eq!(hex::encode(whole.finalize()), digest);
         assert!(
             transfer(
                 &mut Cursor::new(&content),

@@ -292,9 +292,44 @@ function App() {
                   </p>
                 )}
                 {a.retentionExpiresAt && <p>保持期限: {a.retentionExpiresAt}</p>}
-                {a.published && <p>発表時刻: {date(a.published.startsAt, a.eventId)} ～ {date(a.published.endsAt, a.eventId)}</p>}
-                {a.materialUrl && <a href={a.materialUrl} rel="noreferrer">資料</a>}
-                {["scheduled", "started"].includes(a.eventState) && !["rejected", "withdrawn"].includes(a.review) && a.withdrawal === "none" && <MaterialForm key={`${a.id}:${a.version}`} application={a} disabled={busy} onSave={materialUrl => void run(async () => { const data = { materialUrl }; await api(`/applications/${encodeURIComponent(a.id)}/material`, { method: "POST", body: JSON.stringify({ expectedVersion: a.version, operationId: (await operation(`${a.id}/material`, { expectedVersion: a.version, data })).id, data }) }); })} />}
+                {a.published && (
+                  <p>
+                    発表時刻: {date(a.published.startsAt, a.eventId)} ～{" "}
+                    {date(a.published.endsAt, a.eventId)}
+                  </p>
+                )}
+                {a.materialUrl && (
+                  <a href={a.materialUrl} rel="noreferrer">
+                    資料
+                  </a>
+                )}
+                {["scheduled", "started"].includes(a.eventState) &&
+                  !["rejected", "withdrawn"].includes(a.review) &&
+                  a.withdrawal === "none" && (
+                    <MaterialForm
+                      key={`${a.id}:${a.version}`}
+                      application={a}
+                      disabled={busy}
+                      onSave={(materialUrl) =>
+                        void run(async () => {
+                          const data = { materialUrl };
+                          await api(`/applications/${encodeURIComponent(a.id)}/material`, {
+                            method: "POST",
+                            body: JSON.stringify({
+                              expectedVersion: a.version,
+                              operationId: (
+                                await operation(`${a.id}/material`, {
+                                  expectedVersion: a.version,
+                                  data,
+                                })
+                              ).id,
+                              data,
+                            }),
+                          });
+                        })
+                      }
+                    />
+                  )}
                 {actions(a).map((action) => (
                   <button
                     key={action}

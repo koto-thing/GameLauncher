@@ -328,7 +328,7 @@ impl<C: Control> Session<'_, C> {
         }
 
         // サイズかハッシュが不一致なら破棄し一致した場合だけ同期する
-        if position != chunk.size || format!("{:x}", hasher.finalize()) != chunk.digest {
+        if position != chunk.size || hex::encode(hasher.finalize()) != chunk.digest {
             file.set_len(0)?;
             self.report(index, 0);
             return Err(Failure::Http { retryable: true }.into());

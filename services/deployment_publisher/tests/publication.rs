@@ -213,7 +213,7 @@ fn chunks_preserve_the_wire_format_and_detect_corruption() -> Result<()> {
         manifest,
         files::chunk_file(&source, &output, "https://example.test")?
     );
-    let digest = format!("{:x}", Sha256::digest(&bytes));
+    let digest = hex::encode(Sha256::digest(&bytes));
     fs::write(output.join(format!("v1/blobs/sha256/{digest}")), b"corrupt")?;
     assert!(files::chunk_file(&source, &output, "https://example.test").is_err());
     fs::write(&source, b"")?;

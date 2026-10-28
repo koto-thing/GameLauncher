@@ -14,7 +14,7 @@ const statusNames = { ok: "稼働中", disabled: "停止設定", stale: "実行�
  * @throws ログイン切れや通信失敗の場合
  */
 async function read<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, { cache: "no-store", credentials: "same-origin", ...init });
+  const response = await fetch(path, { cache: "no-store", credentials: "same-origin", signal: AbortSignal.timeout(15000), ...init });
   if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? "ログインと運営権限を確認してください" : "状態を取得・保存できませんでした。再試行してください。");
   return response.json() as Promise<T>;
 }
@@ -60,8 +60,15 @@ export function OperationsMonitor({ onOpen }: { onOpen: (eventId: string, applic
      */
     async function refresh() {
       try {
-        const [next, preference] = await Promise.all([read<OperationsSnapshot>("/api/lt/v1/operator/monitor"), loadSettings()]);
-        if (active && !lock.current) { setSupported("serviceWorker" in navigator && "PushManager" in window && "Notification" in window); setSnapshot(next); setSettings(preference); setError(""); }
+        // 稼働APIの障害中でも、本人が通知を停止できるよう設定は独立して反映する
+        const [next, preference] = await Promise.allSettled([read<OperationsSnapshot>("/api/lt/v1/operator/monitor"), loadSettings()]);
+        if (active && !lock.current) {
+          setSupported("serviceWorker" in navigator && "PushManager" in window && "Notification" in window);
+          if (next.status === "fulfilled") setSnapshot(next.value);
+          if (preference.status === "fulfilled") setSettings(preference.value);
+          const failed = next.status === "rejected" ? next : preference.status === "rejected" ? preference : null;
+          setError(failed ? failed.reason instanceof Error ? failed.reason.message : "状態を確認できませんでした" : "");
+        }
       } catch (cause) {
         if (active) setError(cause instanceof Error ? cause.message : "状態を確認できませんでした");
       } finally {

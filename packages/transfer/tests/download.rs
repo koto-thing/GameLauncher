@@ -58,7 +58,7 @@ fn server(response: Vec<u8>) -> (String, thread::JoinHandle<String>) {
 fn chunk(url: String, body: &[u8]) -> Chunk {
     Chunk {
         url,
-        digest: format!("{:x}", Sha256::digest(body)),
+        digest: hex::encode(Sha256::digest(body)),
         size: body.len() as u64,
     }
 }

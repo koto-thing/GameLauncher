@@ -71,7 +71,7 @@ export async function dispatchOperationsPush(env: PushEnv, now: number): Promise
         if (keys.length) {
           const subscription = validSubscription(JSON.parse(row.subscription));
           if (!subscription) throw new Error("Invalid subscription");
-          const payload = await buildPushPayload({ data: JSON.stringify({ userId: row.user_id }), options: { ttl: 300 } }, subscription, { subject: "mailto:panddmail@gmail.com", publicKey: env.LT_PUSH_PUBLIC_KEY, privateKey: env.LT_PUSH_PRIVATE_KEY });
+          const payload = await buildPushPayload({ data: "{}", options: { ttl: 300 } }, subscription, { subject: "mailto:panddmail@gmail.com", publicKey: env.LT_PUSH_PUBLIC_KEY, privateKey: env.LT_PUSH_PRIVATE_KEY });
           const result = await fetch(subscription.endpoint, { ...payload, redirect: "error", signal: AbortSignal.timeout(10000) });
           if (result.status === 404 || result.status === 410) {
             await db.prepare("DELETE FROM lt_push_subscriptions WHERE endpoint=?").bind(row.endpoint).run();
