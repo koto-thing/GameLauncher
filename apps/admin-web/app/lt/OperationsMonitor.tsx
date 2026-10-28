@@ -1,10 +1,11 @@
 "use client";
+import { Activity, Bell, BellOff, CircleCheck, CircleX, Mail, TriangleAlert, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { OperationsSnapshot, PushSettings } from "../../lib/lt/monitor-types";
 
 const settingsPath = "/api/lt/notifications";
 const reasonNames = { withdrawal: "辞退依頼の確認", vacancy: "空き枠あり・キャンセル待ちの繰り上げ", material: "資料期限超過（未提出・未確認）" };
-const statusNames = { ok: "稼働中", disabled: "停止設定", stale: "実行未確認・5分以上の遅延", failed: "直近の処理が失敗" };
+const statusNames = { ok: "稼働中", disabled: "停止設定", stale: "遅延・未確認", failed: "処理失敗" };
 
 /**
  * 認証済みAPIを取得し、失敗時に画面表示用のエラーを返す
@@ -17,15 +18,6 @@ async function read<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { cache: "no-store", credentials: "same-origin", signal: AbortSignal.timeout(15000), ...init });
   if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? "ログインと運営権限を確認してください" : "状態を取得・保存できませんでした。再試行してください。");
   return response.json() as Promise<T>;
-}
-
-/**
- * UTCミリ秒を利用者の現地時刻に変換する
- * @param value 記録された時刻、未実行はnull
- * @returns 画面に表示する時刻
- */
-function time(value: number | null | undefined): string {
-  return value == null ? "記録なし" : new Date(value).toLocaleString("ja-JP");
 }
 
 /**
@@ -55,7 +47,7 @@ export function OperationsMonitor({ onOpen }: { onOpen: (eventId: string, applic
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     /**
-     * 重複取得を避けて60秒ごとに最新状態を読む
+     * 重複取得を避けて3時間ごとに最新状態を読む
      * @returns 戻り値なし
      */
     async function refresh() {
@@ -72,7 +64,7 @@ export function OperationsMonitor({ onOpen }: { onOpen: (eventId: string, applic
       } catch (cause) {
         if (active) setError(cause instanceof Error ? cause.message : "状態を確認できませんでした");
       } finally {
-        if (active) timer = setTimeout(refresh, 60000);
+        if (active) timer = setTimeout(refresh, 3 * 60 * 60 * 1000);
       }
     }
     void refresh();
@@ -111,28 +103,35 @@ export function OperationsMonitor({ onOpen }: { onOpen: (eventId: string, applic
     finally { lock.current = false; setBusy(false); }
   }
 
-  return <section id="lt-monitor" className="lt-panel" aria-label="自動運営と通知">
-    <h2>自動運営と通知</h2>
+  // 状態の文言と記号を併記して正常・異常を見分けられるようにする
+  const notificationHealthy = settings?.status?.outcome === "ok" && (snapshot?.checkedAt ?? Infinity) - (settings.status.checked_at ?? 0) <= (3 * 60 + 15) * 60 * 1000;
+  return <section id="lt-monitor" aria-label="自動運営と通知">
     {error && <p role="alert">{error} 最新状態は未確認です。</p>}
     {!snapshot && !error && <p>稼働状況を確認しています…</p>}
-    {snapshot && <>
-      <p><strong>定期処理：{statusNames[snapshot.maintenance.status]}</strong></p>
-      <p>最終成功：{time(snapshot.maintenance.heartbeat.succeededAt)} ／ 最終実行：{time(snapshot.maintenance.heartbeat.startedAt)}</p>
-      <p>メール配送：{snapshot.mail.mode === "http" && snapshot.mail.configured ? "有効" : "停止・設定未完了"}{snapshot.mail.testRecipientOnly && "（試験宛先のみ）"} ／ 送信待ち {snapshot.mail.backlog.count} 件</p>
-      {snapshot.mail.states.filter(item => ["failed", "uncertain"].includes(item.state)).map(item => <p key={item.state} role="status">{item.state === "failed" ? "送信失敗" : "送信結果不明（再送前に配送結果の確認が必要）"}：{item.count} 件</p>)}
-      {snapshot.mail.backlog.oldestAt !== null && snapshot.checkedAt - snapshot.mail.backlog.oldestAt > 900000 && <p role="status">15分以上待機しているメールがあります。</p>}
-      <h3>要対応事項（全開催回）</h3>
-      {snapshot.items.length ? <ul>{snapshot.items.map(item => <li key={item.key}><button onClick={() => onOpen(item.eventId, item.applicationId)}>{item.title}：{reasonNames[item.reason]}</button></li>)}</ul> : <p>現在、辞退依頼・繰り上げ可能な空き枠・資料期限超過はありません。</p>}
-      <p>確認時刻：{time(snapshot.checkedAt)}（60秒ごとに更新）</p>
-    </>}
-    <h3>自分へのデスクトップ通知</h3>
-    <p>受信設定：{settings ? settings.enabled ? "有効" : "無効" : "確認中"} ／ このブラウザー：{settings?.registered ? "登録済み" : "未登録"}</p>
-    <p>初期状態は無効です。有効にすると、画面を閉じていても要対応事項の変化を通知します。配信確認は5分ごとです。</p>
-    {!supported && <p>このブラウザーはプッシュ通知に対応していません。</p>}
-    {settings && !settings.publicKey && <p>サーバーの通知配信設定が未完了です。</p>}
-    {supported && <button disabled={busy || !settings?.publicKey || settings.registered && settings.enabled} onClick={() => void changeNotifications(true)}>このブラウザーで通知を有効にする</button>}
-    <button disabled={busy || !settings?.enabled} onClick={() => void changeNotifications(false)}>自分の全端末で通知を停止</button>
-    {settings?.failures ? <p role="status">通知の配信に失敗した端末が {settings.failures} 件あります。5分後に再試行します。</p> : null}
-    <p>通知確認処理：{settings?.status?.outcome === "ok" && (snapshot?.checkedAt ?? Infinity) - (settings.status.checked_at ?? 0) <= 900000 ? "正常" : settings?.status?.outcome === "failed" ? "失敗" : "未稼働・設定未完了"} ／ 最終確認：{time(settings?.status?.checked_at)}</p>
+    <div className="lt-monitor-grid">
+      <section className="lt-panel lt-health"><h2><Activity aria-hidden="true" />自動運営</h2>
+        <p className="lt-health-value">{snapshot ? statusNames[snapshot.maintenance.status] : "確認中"}{snapshot && (snapshot.maintenance.status === "ok" ? <CircleCheck className="lt-state-ok" aria-label="正常" /> : <CircleX className="lt-state-error" aria-label="要確認" />)}</p>
+        {snapshot && <>
+          <p><Mail aria-hidden="true" />{snapshot.mail.mode === "http" && snapshot.mail.configured ? `メール送信待ち ${snapshot.mail.backlog.count} 件` : "メール停止・設定未完了"}{snapshot.mail.testRecipientOnly && "（試験配信）"}</p>
+          {snapshot.maintenance.status === "stale" && <p role="status">5分以上、実行を確認できていません</p>}
+          {snapshot.mail.states.filter(item => ["failed", "uncertain"].includes(item.state)).map(item => <p key={item.state} role="status">{item.state === "failed" ? "メール送信失敗" : "送信結果不明・再送前に確認"}：{item.count} 件</p>)}
+          {snapshot.mail.backlog.oldestAt !== null && snapshot.checkedAt - snapshot.mail.backlog.oldestAt > 900000 && <p role="status">15分以上待機しているメールがあります</p>}
+        </>}
+      </section>
+      <section className="lt-panel lt-health"><h2><Bell aria-hidden="true" />デスクトップ通知</h2>
+        <p className="lt-health-value">{settings ? settings.enabled ? settings.registered ? "オン" : "このブラウザーは未登録" : "オフ" : "確認中"}{settings && (notificationHealthy && !settings.failures ? <CircleCheck className="lt-state-ok" aria-label="通知処理は正常" /> : <CircleX className="lt-state-error" aria-label="通知処理は要確認" />)}</p>
+        <div className="lt-actions">
+          {supported && <button disabled={busy || !settings?.publicKey || settings.registered && settings.enabled} onClick={() => void changeNotifications(true)}><Bell aria-hidden="true" />このブラウザーで受け取る</button>}
+          <button disabled={busy || !settings?.enabled} onClick={() => void changeNotifications(false)}><BellOff aria-hidden="true" />全端末で停止</button>
+        </div>
+        {!supported && <p>このブラウザーは通知に対応していません</p>}
+        {settings && !settings.publicKey && <p role="status">通知の配信設定が未完了です</p>}
+        {settings?.failures ? <p role="status">配信失敗：{settings.failures} 端末（3時間後に再試行）</p> : null}
+        {settings && !notificationHealthy && <p role="status">通知処理：{settings.status?.outcome === "failed" ? "失敗" : "未稼働・未確認"}</p>}
+      </section>
+    </div>
+    {snapshot && <section className="lt-panel"><h2>{snapshot.items.length > 0 ? <TriangleAlert aria-hidden="true" /> : <CircleCheck aria-hidden="true" />}要対応{snapshot.items.length > 0 && ` ${snapshot.items.length} 件`}</h2>
+      {snapshot.items.length ? <ul className="lt-action-list">{snapshot.items.map(item => <li key={item.key}><button onClick={() => onOpen(item.eventId, item.applicationId)}><span>{item.title}</span><span>{reasonNames[item.reason]}</span><ChevronRight aria-hidden="true" /></button></li>)}</ul> : <p className="lt-empty"><CircleCheck aria-hidden="true" />対応待ちはありません</p>}
+    </section>}
   </section>;
 }

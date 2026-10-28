@@ -25,6 +25,7 @@ function editable(value: EventSettings) {
  *
  * @param props 開催設定フォームの入力
  * @param props.value 現在の開催設定
+ * @param props.blocks 現在の時間割
  * @param props.onSave 編集した設定を保存する処理
  * @returns 編集画面のReact要素
  */
@@ -87,27 +88,27 @@ export function EventForm({ value, blocks = [], onSave }: { value: EventSettings
     } catch (cause) { setError(cause instanceof Error ? cause.message : "日時と時間割を確認してください"); }
   }}>
     <fieldset disabled={!!preview}><legend>開催設定</legend>
-    <label>承認方式<select value={draft.approvalMode} onChange={e => setDraft({ ...draft, approvalMode: e.currentTarget.value as EventSettings["approvalMode"] })}><option value="automatic">自動承認</option><option value="manual">手動承認</option></select><small>自動承認では初回申請を即時公開し、発表時刻を割り当てます。差し戻し後の再提出と、切替前の審査待ちは手動確認です。</small></label>
+    <label>承認方式<select value={draft.approvalMode} onChange={e => setDraft({ ...draft, approvalMode: e.currentTarget.value as EventSettings["approvalMode"] })}><option value="automatic">自動承認</option><option value="manual">手動承認</option></select></label>
     <label>時間割方式<select value={draft.scheduleMode} onChange={e => setDraft({ ...draft, scheduleMode: e.currentTarget.value as EventSettings["scheduleMode"], endsBy: e.currentTarget.value === "manual" ? "" : draft.endsBy })}><option value="automatic">ルールから自動生成</option><option value="manual">手動で時間割を編集</option></select></label>
     {draft.scheduleMode === "automatic" && <fieldset><legend>時間割ルール</legend>
       {(["openingMinutes", "breakEvery", "breakMinutes", "closingMinutes"] as const).map(key => <label key={key}>{({ openingMinutes: "開会 (分)", breakEvery: "何発表ごとに休憩するか", breakMinutes: "休憩 (分)", closingMinutes: "閉会 (分)" })[key]}<input type="number" required min={key === "breakEvery" ? 1 : 0} max={key === "breakEvery" ? 10000 : 1440} value={draft[key]} onChange={e => setDraft({ ...draft, [key]: Number(e.currentTarget.value) })} /></label>)}
-      <label>終了上限<input type="datetime-local" step="60" value={draft.endsBy} onChange={e => setDraft({ ...draft, endsBy: e.currentTarget.value })} /><small>指定すると募集可能数を自動計算します。超過時は受付や設定変更を止め、発表時間は短縮しません。</small></label>
+      <label>終了上限<input type="datetime-local" step="60" value={draft.endsBy} onChange={e => setDraft({ ...draft, endsBy: e.currentTarget.value })} /></label>
       <p>募集可能数: {computedCapacity}件</p>
     </fieldset>}
     <label>開催名<input required value={draft.title} onChange={e => setDraft({ ...draft, title: e.currentTarget.value })} /></label>
     <label>会場<input required value={draft.venue} onChange={e => setDraft({ ...draft, venue: e.currentTarget.value })} /></label>
     <label>案内<textarea rows={4} value={draft.guidance} onChange={e => setDraft({ ...draft, guidance: e.currentTarget.value })} /></label>
-    <label>ポスター画像<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (file) void uploadPoster(file); }} /><small>PNG・JPEG・WebP／5MBまで。選択後、設定の変更を確認して確定すると公開します。</small>{uploading && <span role="status">アップロード中…</span>}</label>
+    <label>ポスター画像（PNG・JPEG・WebP、5MBまで）<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (file) void uploadPoster(file); }} />{uploading && <span role="status">アップロード中…</span>}</label>
     {draft.posterUrl?.startsWith("https://") && <div className="lt-event-poster"><img src={draft.posterUrl} alt="ポスターのプレビュー" referrerPolicy="no-referrer" /><button type="button" disabled={uploading} onClick={() => setDraft({ ...draft, posterUrl: undefined })}>ポスターを削除</button></div>}
-    <label>タイムゾーン<select value={draft.timeZone} onChange={e => setDraft({ ...draft, timeZone: e.currentTarget.value })}>{zones.map(zone => <option key={zone} value={zone}>{zone === "Asia/Tokyo" ? "日本標準時（東京・UTC+09:00）" : zone === "UTC" ? "協定世界時（UTC）" : zone}</option>)}</select><small>以下の日時は選択した地域の時刻です</small></label>
+    <label>タイムゾーン<select value={draft.timeZone} onChange={e => setDraft({ ...draft, timeZone: e.currentTarget.value })}>{zones.map(zone => <option key={zone} value={zone}>{zone === "Asia/Tokyo" ? "日本標準時（東京・UTC+09:00）" : zone === "UTC" ? "協定世界時（UTC）" : zone}</option>)}</select></label>
     {dates.map(key => <label key={key}>{dateLabels[key]}<input type="datetime-local" required={key === "startsAt" || !draft.planning?.relativeRecruitment} disabled={key !== "startsAt" && draft.planning?.relativeRecruitment} step="60" value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.currentTarget.value })} onClick={e => { if (e.currentTarget.showPicker) e.currentTarget.showPicker(); }} /></label>)}
     {(["capacity", "talkMinutes", "transitionMinutes"] as const).map(key => <label key={key}>{({ capacity: "定員", talkMinutes: "発表時間 (分)", transitionMinutes: "転換時間 (分)" })[key]}<input type="number" min={key === "transitionMinutes" ? 0 : 1} required disabled={key === "capacity" && draft.scheduleMode === "automatic" && !!draft.endsBy} value={key === "capacity" ? computedCapacity : draft[key]} onChange={e => setDraft({ ...draft, [key]: Number(e.currentTarget.value) })} /></label>)}
     <fieldset><legend>開催日から逆算する運営ルール</legend>
-      <label><input type="checkbox" checked={!!draft.planning} onChange={e => setDraft({ ...draft, planning: e.currentTarget.checked ? { relativeRecruitment: true, opensDaysBefore: 28, closesDaysBefore: 7, materialDaysBefore: 3, reminderDaysBefore: 1 } : undefined })} />相対締切・資料リマインドを使用</label>
-      {draft.planning && <><p>1日は24時間として開催開始から逆算します。設定のコピーにも引き継がれます。</p>
+      <label className="lt-rule-tooltip"><input type="checkbox" aria-label="相対締切・資料リマインドを使用" aria-describedby={`planning-help-${value.id || "new"}`} checked={!!draft.planning} onChange={e => setDraft({ ...draft, planning: e.currentTarget.checked ? { relativeRecruitment: true, opensDaysBefore: 28, closesDaysBefore: 7, materialDaysBefore: 3, reminderDaysBefore: 1 } : undefined })} /><span>相対締切・資料リマインドを使用</span><span className="lt-tooltip" role="tooltip" id={`planning-help-${value.id || "new"}`}>開催日から募集・資料提出の締切を逆算します。資料が未提出・未確認の申請には、期限前に1回リマインドします</span></label>
+      {draft.planning && <>
         <label><input type="checkbox" checked={draft.planning.relativeRecruitment} onChange={e => setDraft({ ...draft, planning: { ...draft.planning!, relativeRecruitment: e.currentTarget.checked } })} />募集期間も開催日から逆算</label>
         {(["opensDaysBefore", "closesDaysBefore", "materialDaysBefore", "reminderDaysBefore"] as const).map(key => <label key={key}>{({ opensDaysBefore: "募集開始（開催の何日前）", closesDaysBefore: "募集終了（開催の何日前）", materialDaysBefore: "資料提出期限（開催の何日前）", reminderDaysBefore: "案内（資料期限の何日前）" })[key]}<input type="number" min="0" max="365" required value={draft.planning![key]} onChange={e => setDraft({ ...draft, planning: { ...draft.planning!, [key]: Number(e.currentTarget.value) } })} /></label>)}
-        <p>未提出・未確認の申請へ期限前に1回案内します。提出済みの資料は運営側で確認済みにしてください。</p>
+
       </>}
     </fieldset>
     </fieldset>

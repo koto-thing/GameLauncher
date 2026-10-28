@@ -81,7 +81,7 @@ export async function dispatchOperationsPush(env: PushEnv, now: number): Promise
         }
         await db.prepare("UPDATE lt_push_subscriptions SET signature=?,last_sent_at=?,last_error=NULL,lease_until=0 WHERE endpoint=?").bind(signature, now, row.endpoint).run();
       } catch {
-        // 宛先や鍵をログへ出さず、次回は5分後に再試行する
+        // 宛先や鍵をログへ出さず、次の3時間周期で再試行する
         await db.prepare("UPDATE lt_push_subscriptions SET last_error=? WHERE endpoint=?").bind(now, row.endpoint).run();
       }
     }

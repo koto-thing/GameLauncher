@@ -1,8 +1,7 @@
 "use client";
 import "./lt.css";
 import { OperationsMonitor } from "./OperationsMonitor";
-import { LayoutDashboard, ListChecks, CalendarClock, Settings, ShieldAlert } from "lucide-react";
-/* eslint-disable @next/next/no-html-link-for-pages */
+import { LayoutDashboard, ListChecks, CalendarClock, Settings, ShieldAlert, CalendarDays, Plus, ArrowLeft, Users, CircleCheck, Clock, UserMinus } from "lucide-react";
 import { EmailChangePanel } from "./EmailChangePanel";
 import { canReapprove, canReview, syncTimetableEvent } from "../../lib/lt/operator-state";
 import { useEffect, useRef, useState } from "react";
@@ -14,6 +13,14 @@ import { EventForm } from "./EventForm";
 import { actionItems } from "../../lib/lt/action-items";
 import { TimetableEditor } from "./TimetableEditor";
 const root = "/api/lt/v1/operator";
+type EventView = "overview" | "applications" | "timetable" | "settings" | "exceptions";
+const eventViews = [
+  { id: "overview", label: "概要", icon: LayoutDashboard },
+  { id: "applications", label: "登壇申請", icon: ListChecks },
+  { id: "timetable", label: "タイムテーブル", icon: CalendarClock },
+  { id: "settings", label: "開催回設定", icon: Settings },
+  { id: "exceptions", label: "例外対応", icon: ShieldAlert },
+] as const;
 type Task = () => Promise<void>;
 class ApiFailure extends Error {
   /**
@@ -69,6 +76,7 @@ async function fetchApplications(eventId: string): Promise<OperatorApplicationPa
  * @returns 編集画面のReact要素
  */
 export function LtManager() {
+  const [view, setView] = useState<EventView>("overview");
   const [needsReload, setNeedsReload] = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [canRetry, setCanRetry] = useState(false);
@@ -100,8 +108,14 @@ export function LtManager() {
   async function loadEvents() { setEvents(await fetchEvents()); }
   useEffect(() => { let active = true; void fetchEvents().then(items => { if (active) setEvents(items); }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : "読込に失敗しました"); }); return () => { active = false; }; }, []);
 
+  /**
+   * 開催回の最新情報を取得し、別の開催回では概要を表示する
+   * @param item 開く開催回
+   * @returns 読み込みの完了を示すPromise
+   */
   async function open(item: EventSettings) {
     const [result, schedule, detail] = await Promise.all([fetchApplications(item.id), api<OperatorTimetable>(`/events/${encodeURIComponent(item.id)}/timetable`), api<EventSettings>(`/events/${encodeURIComponent(item.id)}`)]);
+    if (event?.id !== item.id) setView("overview");
     setCancelConfirm(false); setTimetable(schedule);
     setEvent(detail); setApplications(result.items); setSelected(null);
   }
@@ -129,19 +143,26 @@ export function LtManager() {
     });
   }
   return <section className="lt-manager" aria-busy={busy}>
-    <aside className="lt-sidebar"><nav aria-label="LT管理メニュー"><a href="#lt-overview"><LayoutDashboard aria-hidden="true" />ダッシュボード</a>{event && !selected && !creating && <><a href="#lt-applications"><ListChecks aria-hidden="true" />登壇申請</a><a href="#lt-timetable"><CalendarClock aria-hidden="true" />タイムテーブル</a><a href="#lt-settings"><Settings aria-hidden="true" />開催回設定</a><a href="#lt-exceptions"><ShieldAlert aria-hidden="true" />例外対応</a></>}</nav></aside>
+    <aside className="lt-sidebar"><nav aria-label="LT管理メニュー">
+      <button disabled={busy} aria-current={!event && !creating ? "page" : undefined} onClick={() => { setEvent(null); setSelected(null); setCreating(false); }}><CalendarDays aria-hidden="true" />開催回一覧</button>
+      {event && !creating && eventViews.map(({ id, label, icon: Icon }) => <button key={id} disabled={busy} aria-current={view === id ? "page" : undefined} onClick={() => { setView(id); setSelected(null); setNote(""); setStartsAt(""); setCancelConfirm(false); }}><Icon aria-hidden="true" />{label}</button>)}
+    </nav></aside>
     <div className="lt-content" id="lt-overview"><header className="lt-heading"><h1>LT会</h1></header>
-    <OperationsMonitor onOpen={(eventId, applicationId) => void run(async () => {
+    {!event && !creating && <OperationsMonitor onOpen={(eventId, applicationId) => void run(async () => {
       const detail = await api<EventSettings>(`/events/${encodeURIComponent(eventId)}`);
       await open(detail);
       setCreating(false);
-      if (applicationId) setSelected(await api<OperatorApplication>(`/applications/${encodeURIComponent(applicationId)}`));
-    })} />
+      setView(applicationId ? "applications" : "overview");
+      if (applicationId) {
+        const application = await api<OperatorApplication>(`/applications/${encodeURIComponent(applicationId)}`);
+        setSelected(application); setNote(application.operatorNote); setStartsAt("");
+      }
+    })} />}
     {error && <div role="alert"><p>{error}</p>{canRetry && <button disabled={busy} onClick={() => retry.current && void run(retry.current)}>再試行</button>}<button disabled={busy} onClick={() => void run(async () => { await loadEvents(); setEvent(null); setSelected(null); setNeedsReload(false); })}>再読込</button></div>}
     <p role="status">{busy ? "処理中…" : message}</p>
     <fieldset disabled={busy || needsReload} style={{ border: 0, padding: 0, minWidth: 0 }}>
     {creating ? <div key="create" className="lt-panel"><button onClick={() => setCreating(false)}>作成を中断</button><h2>開催回を作成</h2><EventForm value={{ id: "", version: 1, state: "scheduled", publishEnabled: false, title: "", venue: "", guidance: "", startsAt: "", timeZone: "", opensAt: "", closesAt: "", approvalMode: "automatic", planning: { relativeRecruitment: true, opensDaysBefore: 28, closesDaysBefore: 7, materialDaysBefore: 3, reminderDaysBefore: 1 }, scheduleMode: "automatic", openingMinutes: 5, breakEvery: 4, breakMinutes: 10, closingMinutes: 5, endsBy: null, capacity: 20, talkMinutes: 10, transitionMinutes: 1 }} onSave={data => { const body = { ...data, operationId: crypto.randomUUID() }; void run(async () => { const created = await api<EventSettings>("/events", "POST", body); await loadEvents(); await open(created); setCreating(false); }); }} /></div> : selected ? <div key="application" className="lt-panel lt-review">
-      <button onClick={() => { setSelected(null); setNote(""); setStartsAt(""); }}>申請一覧に戻る</button>
+      <button onClick={() => { setSelected(null); setView("applications"); setNote(""); setStartsAt(""); }}><ArrowLeft aria-hidden="true" />申請一覧に戻る</button>
       <h2>{selected.content.title}</h2><p>審査: {selected.waitlisted ? "キャンセル待ち" : selected.review} / 辞退: {selected.withdrawal}</p>
       {selected.review === "approved" && selected.withdrawal === "none" && <SessionEditor key={`${selected.id}:${selected.version}`} application={selected} onSave={(data, done) => mutate(`/applications/${encodeURIComponent(selected.id)}/metadata`, selected.version, data, result => { const updated = result as OperatorApplication; setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); done(); })} />}
       <p>代表者メール: {selected.representativeEmail || "未登録（手動受付）"}</p><h3>申請原稿</h3><dl className="lt-session-facts"><SessionFacts session={selected.content.session} /></dl><p style={{ whiteSpace: "pre-wrap" }}>{selected.content.abstract}</p><p>{selected.content.description}</p>
@@ -160,21 +181,22 @@ export function LtManager() {
       <button disabled={selected.withdrawal !== "requested"} onClick={() => review("confirm-withdrawal")}>辞退確定</button></div>
       <EmailChangePanel key={selected.id} applicationId={selected.id} applicationVersion={selected.version} onConfirmed={async () => { const updated = await api<OperatorApplication>(`/applications/${encodeURIComponent(selected.id)}`); setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); }} />
     </div> : event ? <div key="event">
-      <button onClick={() => { setEvent(null); setApplications([]); }}>開催回一覧に戻る</button><h2>{event.title}</h2>{!event.publishEnabled && <p role="status">非公開・募集停止中です。受付日時を確定して保存してください。</p>}
-      <div className="lt-stats" aria-label="全申請の集計"><div><span>全申請</span><strong>{applications.length}</strong></div><div><span>承認済み</span><strong>{applications.filter(item => item.review === "approved").length}</strong></div><div><span>審査・保留中</span><strong>{applications.filter(item => ["pending", "held", "resubmitted"].includes(item.review)).length}</strong></div><div><span>辞退の確認待ち</span><strong>{applications.filter(item => item.withdrawal === "requested").length}</strong></div></div>
-      <section className="lt-panel" aria-label="いま運営が対応すること"><h3>いま運営が対応すること</h3><p>空き枠: {Math.max(0, event.capacity - applications.filter(item => item.slotReserved).length)}件。キャンセル待ちは受付順に表示しています。空きが出たら候補を開き、「繰り上げを承認」で確定してください。</p>
+      <button onClick={() => { setEvent(null); setApplications([]); }}><ArrowLeft aria-hidden="true" />開催回一覧に戻る</button><h2>{event.title}</h2>{!event.publishEnabled && <p role="status">非公開・募集停止中です。受付日時を確定して保存してください。</p>}
+      <div hidden={view !== "overview"}><div className="lt-stats" aria-label="全申請の集計"><div><span><Users aria-hidden="true" />全申請</span><strong>{applications.length}</strong></div><div><span><CircleCheck aria-hidden="true" />承認済み</span><strong>{applications.filter(item => item.review === "approved").length}</strong></div><div><span><Clock aria-hidden="true" />審査・保留中</span><strong>{applications.filter(item => ["pending", "held", "resubmitted"].includes(item.review)).length}</strong></div><div><span><UserMinus aria-hidden="true" />辞退の確認待ち</span><strong>{applications.filter(item => item.withdrawal === "requested").length}</strong></div></div>
+      <section className="lt-panel" aria-label="要対応"><h3>要対応</h3><p>空き枠: {Math.max(0, event.capacity - applications.filter(item => item.slotReserved).length)}件</p>
         {actionItems(applications).length === 0 ? <p>対応待ちはありません</p> : <ul>{actionItems(applications).map(({application, reasons}) => <li key={application.id}><button onClick={() => void run(async () => { const detail = await api<OperatorApplication>(`/applications/${encodeURIComponent(application.id)}`); setSelected(detail); setNote(detail.operatorNote); setStartsAt(""); })}>{application.content.title}</button> — {reasons.join("、")}</li>)}</ul>}
       </section>
-      <section className="lt-panel" id="lt-applications"><div className="lt-panel-heading"><h3>申請一覧</h3></div>{applications.length === 0 && <p>申請はありません</p>}
-      <div className="lt-table-scroll"><table className="lt-table"><thead><tr><th scope="col">発表タイトル / 登壇者</th><th scope="col">審査状況</th><th scope="col">辞退状況</th></tr></thead><tbody>{applications.map(item => <tr key={item.id}><td><button className="lt-title-button" onClick={() => { void run(async () => { const detail = await api<OperatorApplication>(`/applications/${encodeURIComponent(item.id)}`); setSelected(detail); setNote(detail.operatorNote); setStartsAt(""); }); }}>{item.content.title}</button><small>{item.content.speakers.map(speaker => speaker.displayName).join("、")}</small></td><td><span className="lt-badge">{item.waitlisted ? "キャンセル待ち" : ({ pending: "審査待ち", held: "保留", approved: "承認済み", returned: "差し戻し", resubmitted: "再申請", rejected: "見送り", withdrawn: "辞退済み" })[item.review]}</span></td><td>{({ none: "—", requested: "確認待ち", confirmed: "確定" })[item.withdrawal]}</td></tr>)}</tbody></table></div>
-      </section><section className="lt-panel" id="lt-timetable"><div className="lt-panel-heading"><h3>タイムテーブル編集</h3></div>{timetable && <TimetableEditor key={`${timetable.eventId}:${timetable.version}:${event.timeZone}`} blocks={timetable.blocks} event={event} applications={applications} disabled={busy || needsReload} onSave={blocks => mutate(`/events/${encodeURIComponent(event.id)}/timetable`, timetable.version, { blocks, expectedEventVersion: event.version }, result => { const saved = result as OperatorTimetable; setTimetable(saved); setEvent(current => current ? syncTimetableEvent(current, saved) : current); }, "PUT")} />}
+      </div>
+      <section hidden={view !== "applications"} className="lt-panel" id="lt-applications"><div className="lt-panel-heading"><h3>申請一覧</h3></div>{applications.length === 0 && <p>申請はありません</p>}
+      <div className="lt-table-scroll"><table className="lt-table"><thead><tr><th scope="col">発表タイトル</th><th scope="col">登壇者</th><th scope="col">審査状況</th><th scope="col">辞退状況</th></tr></thead><tbody>{applications.map(item => <tr key={item.id}><td><button className="lt-title-button" onClick={() => { void run(async () => { const detail = await api<OperatorApplication>(`/applications/${encodeURIComponent(item.id)}`); setSelected(detail); setNote(detail.operatorNote); setStartsAt(""); }); }}>{item.content.title}</button></td><td>{item.content.speakers.map(speaker => speaker.displayName).join("、")}</td><td><span className="lt-badge">{item.waitlisted ? "キャンセル待ち" : ({ pending: "審査待ち", held: "保留", approved: "承認済み", returned: "差し戻し", resubmitted: "再申請", rejected: "見送り", withdrawn: "辞退済み" })[item.review]}</span></td><td>{({ none: "—", requested: "確認待ち", confirmed: "確定" })[item.withdrawal]}</td></tr>)}</tbody></table></div>
+      </section><section hidden={view !== "timetable"} className="lt-panel" id="lt-timetable"><div className="lt-panel-heading"><h3>タイムテーブル編集</h3></div>{timetable && <TimetableEditor key={`${timetable.eventId}:${timetable.version}:${event.timeZone}`} blocks={timetable.blocks} event={event} applications={applications} disabled={busy || needsReload} onSave={blocks => mutate(`/events/${encodeURIComponent(event.id)}/timetable`, timetable.version, { blocks, expectedEventVersion: event.version }, result => { const saved = result as OperatorTimetable; setTimetable(saved); setEvent(current => current ? syncTimetableEvent(current, saved) : current); }, "PUT")} />}
     </section>
-      <section className="lt-panel" id="lt-settings"><div className="lt-panel-heading"><h3>開催回の設定</h3></div><EventForm key={`${event.id}:${event.version}`} value={event} blocks={timetable?.blocks} onSave={value => mutate(`/events/${encodeURIComponent(event.id)}`, event.version, value, async result => { const updated = result as EventSettings; setEvents(items => items.map(item => item.id === updated.id ? updated : item)); await open(updated); }, "PATCH", timetable?.version)} />
-      </section><section className="lt-panel" id="lt-exceptions"><h3>例外対応・手動処理</h3><button onClick={() => mutate(`/events/${encodeURIComponent(event.id)}/copy`, event.version, {}, async result => { await loadEvents(); await open(result as EventSettings); })}>この運営ルールから次回を作成</button>
+      <section hidden={view !== "settings"} className="lt-panel" id="lt-settings"><div className="lt-panel-heading"><h3>開催回の設定</h3></div><EventForm key={`${event.id}:${event.version}`} value={event} blocks={timetable?.blocks} onSave={value => mutate(`/events/${encodeURIComponent(event.id)}`, event.version, value, async result => { const updated = result as EventSettings; setEvents(items => items.map(item => item.id === updated.id ? updated : item)); await open(updated); }, "PATCH", timetable?.version)} />
+      </section><section hidden={view !== "exceptions"} className="lt-panel" id="lt-exceptions"><h3>例外対応・手動処理</h3><button onClick={() => mutate(`/events/${encodeURIComponent(event.id)}/copy`, event.version, {}, async result => { await loadEvents(); await open(result as EventSettings); })}>この運営ルールから次回を作成</button>
       <button disabled={event.state === "cancelled"} onClick={() => setCancelConfirm(true)}>開催中止</button>
       {cancelConfirm && <div role="group" aria-label="開催中止の確認"><p>この開催回を中止しますか？</p><button onClick={() => mutate(`/events/${encodeURIComponent(event.id)}/cancel`, event.version, {}, result => { const updated = result as EventSettings; setEvent(updated); setEvents(items => items.map(item => item.id === updated.id ? updated : item)); setCancelConfirm(false); })}>中止を確定</button><button onClick={() => setCancelConfirm(false)}>中止を取り消す</button></div>}
       </section>
-    </div> : <div key="events" className="lt-panel lt-events"><h2>開催回一覧</h2>{events.length === 0 && !error && <p>開催回がありません。最初の開催回を作成してください。</p>}<button onClick={() => setCreating(true)}>開催回を作成</button><ul className="lt-event-list">{events.map(item => <li key={item.id}><button onClick={() => void run(() => open(item))}>{item.title} ({item.state}) {!item.publishEnabled && "非公開・日時未確定"}</button></li>)}</ul></div>}
+    </div> : <div key="events" className="lt-panel lt-events"><h2>開催回一覧</h2>{events.length === 0 && !error && <p>開催回がありません。最初の開催回を作成してください。</p>}<button onClick={() => setCreating(true)}><Plus aria-hidden="true" />開催回を作成</button><ul className="lt-event-list">{events.map(item => <li key={item.id}><button onClick={() => void run(() => open(item))}><CalendarDays aria-hidden="true" /><span>{item.title}</span><span className="lt-badge">{({ scheduled: "開催予定", started: "開催中", ended: "終了", cancelled: "中止" })[item.state]}</span> {!item.publishEnabled && "非公開・日時未確定"}</button></li>)}</ul></div>}
     </fieldset>
     </div>
   </section>;
