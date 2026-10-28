@@ -289,10 +289,7 @@ pub fn assemble(
     }
 
     // 全体のハッシュが一致した場合にだけ出力先へ確定する
-    ensure!(
-        hex::encode(whole.finalize()) == digest,
-        Failure::Integrity
-    );
+    ensure!(hex::encode(whole.finalize()) == digest, Failure::Integrity);
     commit(temporary, destination, &cancelled)
 }
 
