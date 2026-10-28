@@ -26,6 +26,8 @@ struct Block {
     talk_id: Option<String>,
     starts_at: String,
     ends_at: String,
+    #[serde(default)]
+    locked: bool,
 }
 
 /// UTCミリ秒表記を検証する
@@ -62,7 +64,7 @@ fn valid(
         };
         if b.id.is_empty()
             || !ids.insert(&b.id)
-            || Some(s) != previous
+            || previous.is_none_or(|previous| s < previous)
             || e < s
             || (e == s && b.kind != "transition")
         {
@@ -82,7 +84,9 @@ fn valid(
                 }
             }
             "transition" => {
-                if i == 0
+                if b.locked
+                    || i == 0
+                    || millis(&blocks[i - 1].ends_at) != Some(s)
                     || blocks[i - 1].kind != "talk"
                     || e - s != transition * 60000
                     || b.talk_id.is_some()
@@ -185,8 +189,15 @@ pub async fn save(
         }
     }
     // 保存版のversionと親event版を同じUPDATEで照合する
-    let changed=db.prepare("UPDATE lt_schedule SET blocks=?1,version=version+1,operation_id=?2,actor_id=?3,payload_hash=?4 WHERE event_id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_schedule.event_id AND e.version=?7 AND e.state!='cancelled' AND (e.private_expires IS NULL OR e.private_expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER)))").bind(&[raw["data"]["blocks"].to_string().into(),input.operation_id.clone().into(),actor.into(),hash.clone().into(),event.into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into()])?.run().await?;
-    if changed.meta()?.unwrap().changes.unwrap_or(0) == 0 {
+    let before = crate::schedule_notifications::Snapshot::load(db, event).await?;
+    let update=db.prepare("UPDATE lt_schedule SET blocks=?1,version=version+1,operation_id=?2,actor_id=?3,payload_hash=?4 WHERE event_id=?5 AND version=?6 AND EXISTS(SELECT 1 FROM lt_events e WHERE e.id=lt_schedule.event_id AND e.version=?7 AND e.state!='cancelled' AND (e.private_expires IS NULL OR e.private_expires>CAST(COALESCE((SELECT now_ms FROM lt_clock WHERE id=1),unixepoch('subsec')*1000) AS INTEGER)))").bind(&[raw["data"]["blocks"].to_string().into(),input.operation_id.clone().into(),actor.into(),hash.clone().into(),event.into(),(input.expected_version as f64).into(),(input.data.expected_event_version as f64).into()])?;
+    let changed = db
+        .batch(vec![
+            update,
+            before.statement(db, actor, &input.operation_id, true)?,
+        ])
+        .await?;
+    if changed[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
         if let Some(response) = crate::receipts::response(
             db,
             "schedule",

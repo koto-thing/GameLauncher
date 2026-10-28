@@ -1,10 +1,10 @@
 import unittest,json,uuid,urllib.request,urllib.error,concurrent.futures
-from applicant_runtime_test import sql,request
+from applicant_runtime_test import sql,request,OPERATOR_BASE
 from schema_assertions import assert_response
 import applicant_runtime_test as applicants
 
 def operate(path,data=None,method=None):
- req=urllib.request.Request('http://127.0.0.1:18878/api/lt/v1/operator'+path,data=None if data is None else json.dumps(data).encode(),headers={'Content-Type':'application/json'},method=method)
+ req=urllib.request.Request(OPERATOR_BASE+'/api/lt/v1/operator'+path,data=None if data is None else json.dumps(data).encode(),headers={'Content-Type':'application/json'},method=method)
  try:r=urllib.request.urlopen(req)
  except urllib.error.HTTPError as e:r=e
  raw=r.read();value=json.loads(raw) if r.headers.get('Content-Type','').startswith('application/json') else raw.decode()

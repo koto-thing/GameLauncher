@@ -43,6 +43,7 @@ pub async fn reconcile(db: &D1Database) -> Result<f64> {
     statements.push(db.prepare(sql).bind(&[now.into()])?);
     // 未作成の時間割は0長として扱い、存在しない発表を見込んだ終了時刻を公開しない
     statements.push(db.prepare("UPDATE lt_public_events SET dto=json_set(dto,'$.endsAt',json_extract(dto,'$.startsAt'),'$.version',json_extract(dto,'$.version')+1) WHERE event_id IN (SELECT e.id FROM lt_events e JOIN lt_schedule s ON s.event_id=e.id WHERE e.publish_enabled=1 AND json_array_length(s.blocks)=0) AND json_extract(dto,'$.endsAt')!=json_extract(dto,'$.startsAt')"));
+    statements.extend(crate::planning::reminders(db, now)?);
     statements.extend(crate::mail::scrub_statements(db, now)?);
     // 全DMLを1回の原子batchで実行し、state/snapshotの途中だけ確定させない
     db.batch(statements).await?;

@@ -20,6 +20,8 @@ struct Settings {
     talk_minutes: u32,
     transition_minutes: u32,
     approval_mode: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    planning: Option<crate::planning::Planning>,
 }
 
 /// ポスターを認証情報のないHTTPS画像URLに限定する
@@ -83,6 +85,9 @@ fn valid(s: &Settings) -> bool {
             .as_ref()
             .is_none_or(|url| valid_poster_url(url))
         && ["automatic", "manual"].contains(&s.approval_mode.as_str())
+        && s.planning
+            .as_ref()
+            .is_none_or(crate::planning::Planning::valid)
         && s.capacity > 0
         && s.talk_minutes > 0
         && s.capacity <= 10000
@@ -106,7 +111,7 @@ fn valid(s: &Settings) -> bool {
 /// データベースの読取に失敗した場合
 pub async fn detail(db: &D1Database, id: &str) -> Result<Option<Value>> {
     let now = crate::lifecycle::now(db).await?;
-    let rows=db.prepare("SELECT p.dto,e.version,e.state,e.publish_enabled,e.private_expires,r.opens,r.closes,r.capacity,r.talk_minutes,r.transition_minutes,r.approval_mode FROM lt_events e JOIN lt_public_events p ON p.event_id=e.id JOIN lt_recruitment r ON r.event_id=e.id WHERE e.id=?1").bind(&[id.into()])?.all().await?.results::<Value>()?;
+    let rows=db.prepare("SELECT p.dto,(SELECT dto FROM lt_event_configs WHERE id=e.id) AS config,e.version,e.state,e.publish_enabled,e.private_expires,r.opens,r.closes,r.capacity,r.talk_minutes,r.transition_minutes,r.approval_mode FROM lt_events e JOIN lt_public_events p ON p.event_id=e.id JOIN lt_recruitment r ON r.event_id=e.id WHERE e.id=?1").bind(&[id.into()])?.all().await?.results::<Value>()?;
     let Some(r) = rows.first() else {
         return Ok(None);
     };
@@ -123,6 +128,12 @@ pub async fn detail(db: &D1Database, id: &str) -> Result<Option<Value>> {
     let mut result = json!({"id":id,"version":r["version"],"state":r["state"],"publishEnabled":r["publish_enabled"]==1,"title":p["title"],"venue":p["venue"],"guidance":p["guidance"],"startsAt":p["startsAt"],"timeZone":p["timeZone"],"opensAt":instant(&r["opens"]),"closesAt":instant(&r["closes"]),"capacity":r["capacity"],"talkMinutes":r["talk_minutes"],"transitionMinutes":r["transition_minutes"],"approvalMode":r["approval_mode"]});
     if let Some(url) = p.get("posterUrl") {
         result["posterUrl"] = url.clone();
+    }
+    if let Some(config) = r["config"].as_str() {
+        let config: Value = serde_json::from_str(config)?;
+        if let Some(planning) = config.get("planning") {
+            result["planning"] = planning.clone();
+        }
     }
     Ok(Some(result))
 }
@@ -223,7 +234,7 @@ pub async fn handle(
             None => return error("VALIDATION", 422),
         }
     };
-    let settings: Settings = if copy {
+    let mut settings: Settings = if copy {
         if !raw.as_object().is_some_and(|o| {
             o.len() == 3
                 && o.contains_key("expectedVersion")
@@ -257,6 +268,10 @@ pub async fn handle(
             talk_minutes: old["talkMinutes"].as_u64().unwrap() as u32,
             transition_minutes: old["transitionMinutes"].as_u64().unwrap() as u32,
             approval_mode: old["approvalMode"].as_str().unwrap().into(),
+            planning: old
+                .get("planning")
+                .map(|value| serde_json::from_value(value.clone()))
+                .transpose()?,
             starts_at: instant(start),
             opens_at: instant(start - 7.0 * 86400000.0),
             closes_at: instant(start - 3600000.0),
@@ -278,6 +293,21 @@ pub async fn handle(
             Err(_) => return error("VALIDATION", 422),
         }
     };
+    // 相対募集日程は保存時にサーバーでも計算し、開催日変更に追従させる
+    if let Some(plan) = &settings.planning {
+        if plan.relative_recruitment {
+            let Some(open) = crate::planning::before(&settings.starts_at, plan.opens_days_before)
+            else {
+                return error("VALIDATION", 422);
+            };
+            let Some(close) = crate::planning::before(&settings.starts_at, plan.closes_days_before)
+            else {
+                return error("VALIDATION", 422);
+            };
+            settings.opens_at = open;
+            settings.closes_at = close;
+        }
+    }
     if !valid(&settings) {
         return error("VALIDATION", 422);
     }
@@ -290,6 +320,7 @@ pub async fn handle(
             .map(|b| format!("{b:02x}"))
             .collect::<String>()
     };
+    let before = crate::schedule_notifications::Snapshot::load(db, &id).await?;
     let statement = if update {
         db.prepare("UPDATE lt_event_configs SET dto=?1,actor=?2,operation_id=?3,payload_hash=?4,expected_version=?5 WHERE id=?6").bind(&[dto.into(),actor.into(),op.clone().into(),hash.clone().into(),(expected as f64).into(),id.clone().into()])?
     } else {
@@ -302,7 +333,14 @@ pub async fn handle(
     // 受付処理が参照する承認方式も設定と同時に確定する
     let approval = db.prepare("UPDATE lt_recruitment SET approval_mode=?1 WHERE event_id=?2 AND EXISTS(SELECT 1 FROM lt_event_configs c WHERE c.id=?2 AND c.operation_id=?3 AND c.actor=?4)")
         .bind(&[settings.approval_mode.into(), id.clone().into(), op.clone().into(), actor.into()])?;
-    let result = db.batch(vec![statement, poster, approval]).await;
+    let result = db
+        .batch(vec![
+            statement,
+            poster,
+            approval,
+            before.statement(db, actor, &op, false)?,
+        ])
+        .await;
     match result {
         Err(e) => {
             if let Some(response) =

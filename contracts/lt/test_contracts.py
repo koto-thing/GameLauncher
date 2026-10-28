@@ -67,7 +67,7 @@ class ContractTests(unittest.TestCase):
         self.assertFalse(policy["sessionSeconds"]["productionEnabled"])
         self.assertEqual(policy["mailAdapter"],"fake")
         self.assertEqual(policy["retentionMode"],"dry-run")
-        self.assertEqual(len(policy["notificationKinds"]),7)
+        self.assertEqual(set(policy["notificationKinds"]), set(load("dto.schema.json")["$defs"]["NotificationKind"]["enum"]))
         self.assertIn("SERVICE_UNAVAILABLE", load("dto.schema.json")["$defs"]["ErrorCode"]["enum"])
         self.assertIn("NOT_IMPLEMENTED", load("dto.schema.json")["$defs"]["ErrorCode"]["enum"])
 

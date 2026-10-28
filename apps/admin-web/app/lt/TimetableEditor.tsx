@@ -6,6 +6,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { fixedTransitions, moveSchedule, reflowSchedule, scheduleGroups } from "../../lib/lt/timetable";
 import { localEventTime, utcEventTime } from "../../lib/lt/event-time";
+import { scheduleDiff } from "../../lib/lt/schedule-diff";
 import type { ScheduleBlock, EventSettings, OperatorApplication } from "../../../../contracts/lt/v1";
 
 const labels = { talk: "発表", transition: "転換", opening: "開会", break: "休憩", closing: "閉会" };
@@ -26,6 +27,7 @@ export function TimetableEditor({ blocks, event, applications, onSave, disabled 
   const localize = (items: ScheduleBlock[]) => items.map(b => ({ ...b, startsAt: localEventTime(b.startsAt, zone), endsAt: localEventTime(b.endsAt, zone) }));
   const [draft, setDraft] = useState(() => localize(blocks));
   const [error, setError] = useState("");
+  const [preview, setPreview] = useState<ScheduleBlock[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const groups = scheduleGroups(draft);
@@ -52,7 +54,10 @@ export function TimetableEditor({ blocks, event, applications, onSave, disabled 
     return content ? `${content.speakers.map(s => s.displayName).join("、")} — ${content.title}` : labels[block.kind];
   }
 
-  /** @brief 保存条件を確認して親へ渡す */
+  /**
+   * 時間割を検証して確定前の差分を表示する
+   * @returns 戻り値なし
+   */
   function save() {
     try {
       const items = utcDraft();
@@ -63,7 +68,7 @@ export function TimetableEditor({ blocks, event, applications, onSave, disabled 
         if ((b.kind === "talk" && end - start !== event.talkMinutes * 60000) || (b.kind === "transition" && end - start !== event.transitionMinutes * 60000)) { setError(`発表は${event.talkMinutes}分、転換は${event.transitionMinutes}分で指定してください。共通の長さは開催回の設定で変更できます。`); return; }
         cursor = end;
       }
-      setError(""); onSave(items);
+      setError(""); setPreview(items);
     } catch { setError("各枠の開始・終了日時を確認してください。"); }
   }
 
@@ -80,6 +85,7 @@ export function TimetableEditor({ blocks, event, applications, onSave, disabled 
 
   return <fieldset disabled={disabled}><legend>時間割</legend>
     {error && <p role="alert">{error}</p>}
+    <fieldset disabled={preview !== null}><legend>枠の編集</legend>
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={({ active }) => setActiveId(String(active.id))} onDragCancel={() => setActiveId(null)} onDragEnd={({ active, over }) => { setActiveId(null); if (!disabled && over && active.id !== over.id) edit(() => moveSchedule(utcDraft(), String(active.id), String(over.id))); }}>
       <SortableContext items={groups.map(g => g[0].id)} strategy={verticalListSortingStrategy}>
         <ol className="lt-schedule-list">{groups.map(group => <ScheduleCard key={group[0].id} id={group[0].id} title={title(group[0])} disabled={disabled || group[0].kind === "opening" || group[0].kind === "closing"}>
@@ -93,6 +99,17 @@ export function TimetableEditor({ blocks, event, applications, onSave, disabled 
     </DndContext>
     <div>{(["opening", "break", "closing"] as const).map(kind => <button key={kind} type="button" disabled={kind !== "break" && draft.some(b => b.kind === kind)} onClick={() => add(kind)}>{labels[kind]}を追加</button>)}</div>
     <button type="button" onClick={() => edit(() => reflowSchedule(utcDraft(), event.startsAt))}>時刻を連続配置</button>
-    <button type="button" onClick={save}>時間割を保存</button><button type="button" onClick={() => { setDraft(localize(blocks)); setError(""); }}>編集を取り消す</button>
+    <button type="button" onClick={save}>変更をプレビュー</button><button type="button" onClick={() => { setDraft(localize(blocks)); setPreview(null); setError(""); }}>編集を取り消す</button>
+    </fieldset>
+    {preview && <section aria-label="時間割変更の確認"><h3>変更前後の確認</h3><p>以下の時刻は{zone}です</p>
+      <table><thead><tr><th>枠</th><th>変更前</th><th>変更後</th><th>移動</th></tr></thead><tbody>{scheduleDiff(blocks, preview).map(change => <tr key={change.id}>
+        <td>{title((change.after ?? change.before)!)}</td>
+        <td>{change.before ? `${localEventTime(change.before.startsAt, zone)} ～ ${localEventTime(change.before.endsAt, zone)}` : "追加"}</td>
+        <td>{change.after ? `${localEventTime(change.after.startsAt, zone)} ～ ${localEventTime(change.after.endsAt, zone)}` : "削除"}</td>
+        <td>{change.minutes === null ? "—" : `${change.minutes > 0 ? "+" : ""}${change.minutes}分`}</td>
+      </tr>)}</tbody></table>
+      <button type="button" onClick={() => { onSave(preview); setPreview(null); }}>この変更を一括確定</button>
+      <button type="button" onClick={() => setPreview(null)}>確認を閉じる</button>
+    </section>}
   </fieldset>;
 }

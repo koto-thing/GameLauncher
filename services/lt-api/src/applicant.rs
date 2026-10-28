@@ -74,14 +74,7 @@ fn content(v: &Value, url: &Value) -> bool {
                             .all(|k| s.get(*k).is_none() || text(&s[*k]))
                 })
         })
-        && url.as_str().is_some_and(|s| {
-            Url::parse(s).is_ok_and(|u| {
-                ["https", "http"].contains(&u.scheme())
-                    && u.host_str().is_some()
-                    && u.username().is_empty()
-                    && u.password().is_none()
-            })
-        })
+        && url.as_str().is_some_and(crate::materials::valid_url)
 }
 
 /// 本人 API をローカル開発機能として処理する
@@ -269,6 +262,9 @@ async fn applications(
 ) -> Result<Response> {
     let path = req.path();
     let p: Vec<_> = path.trim_matches('/').split('/').collect();
+    if req.method() == Method::Post && p.len() == 6 && p[5] == "material" {
+        return crate::materials::save(req, db, p[4], owner, false, "applicant").await;
+    }
     if req.method() == Method::Get {
         let mut stmt = db.prepare(if p.len() == 4 {
             "SELECT dto FROM lt_applications WHERE email=?1 ORDER BY id"
@@ -324,8 +320,9 @@ async fn applications(
         object(
             &v,
             &["eventId", "content", "materialUrl", "operationId"],
-            &[],
+            &["joinWaitlist"],
         ) && text(&v["eventId"])
+            && v.get("joinWaitlist").is_none_or(Value::is_boolean)
     } else {
         object(&v, &["expectedVersion", "operationId", "data"], &[])
             && v["expectedVersion"].as_u64().is_some_and(|n| n > 0)
@@ -398,7 +395,7 @@ async fn applications(
             .unwrap();
         let dto = json!({"id":id,"eventId":event,"version":1,"content":data["content"],"materialUrl":data["materialUrl"],"representativeEmail":owner,"review":"pending","withdrawal":"none","firstSubmittedAt":date,"everApproved":false,"slotReserved":false,"retentionExpiresAt":null,"published":null});
         // 同一 batch の後続は勝った operation を持つ申請だけに従属する
-        let inserted=db.batch(vec![db.prepare("INSERT INTO lt_applications(id,event_id,email,version,dto,operation_id,payload_hash) SELECT ?1,?2,?3,1,?4,?5,?6 FROM lt_recruitment r JOIN lt_events e ON e.id=r.event_id WHERE r.event_id=?2 AND e.publish_enabled=1 AND e.state='scheduled' AND r.opens<=?7 AND r.closes>?7 AND r.reserved<r.capacity AND NOT EXISTS(SELECT 1 FROM lt_applications WHERE event_id=?2 AND email=?3 AND active=1) AND NOT EXISTS(SELECT 1 FROM lt_applicant_operations WHERE actor=?3 AND operation_id=?5) ON CONFLICT DO NOTHING").bind(&[id.clone().into(),event.into(),owner.into(),dto.to_string().into(),op.into(),payload.clone().into(),now.into()])?,db.prepare(include_str!("auto_approve.sql")).bind(&[id.clone().into()])?,db.prepare("INSERT INTO lt_applicant_operations(actor,operation_id,payload_hash,application_id,result) SELECT email,?2,?3,id,dto FROM lt_applications WHERE id=?1 ON CONFLICT DO NOTHING").bind(&[id.clone().into(),op.into(),payload.clone().into()])?]).await?;
+        let inserted=db.batch(vec![db.prepare("INSERT INTO lt_applications(id,event_id,email,version,dto,operation_id,payload_hash) SELECT ?1,?2,?3,1,json_set(?4,'$.waitlisted',json(CASE WHEN r.reserved>=r.capacity THEN 'true' ELSE 'false' END)),?5,?6 FROM lt_recruitment r JOIN lt_events e ON e.id=r.event_id WHERE r.event_id=?2 AND e.publish_enabled=1 AND e.state='scheduled' AND r.opens<=?7 AND r.closes>?7 AND (r.reserved<r.capacity OR ?8=1) AND NOT EXISTS(SELECT 1 FROM lt_applications WHERE event_id=?2 AND email=?3 AND active=1) AND NOT EXISTS(SELECT 1 FROM lt_applicant_operations WHERE actor=?3 AND operation_id=?5) ON CONFLICT DO NOTHING").bind(&[id.clone().into(),event.into(),owner.into(),dto.to_string().into(),op.into(),payload.clone().into(),now.into(),(if v["joinWaitlist"] == true { 1.0 } else { 0.0 }).into()])?,db.prepare(include_str!("auto_approve.sql")).bind(&[id.clone().into()])?,db.prepare("INSERT INTO lt_outbox(id,operation_id,application_id,kind,recipient) SELECT operation_id||':'||id,operation_id,id,'submitted',email FROM lt_applications WHERE id=?1 AND json_extract(dto,'$.waitlisted')=1 ON CONFLICT DO NOTHING").bind(&[id.clone().into()])?,db.prepare("INSERT INTO lt_applicant_operations(actor,operation_id,payload_hash,application_id,result) SELECT email,?2,?3,id,dto FROM lt_applications WHERE id=?1 ON CONFLICT DO NOTHING").bind(&[id.clone().into(),op.into(),payload.clone().into()])?]).await?;
         if inserted[0].meta()?.unwrap().changes.unwrap_or(0) == 0 {
             if let Some(response) =
                 crate::receipts::response(db, "applicant", owner, op, &payload, "applicant").await?

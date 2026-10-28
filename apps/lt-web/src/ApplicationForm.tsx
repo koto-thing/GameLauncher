@@ -42,7 +42,7 @@ export function ApplicationForm({
   const [speakers, setSpeakers] = useState<Speaker[]>(a?.content.speakers ?? [{ displayName: "" }]);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [error, setError] = useState("");
-  const openEvents = events.items.filter((e) => e.recruitment === "open");
+  const openEvents = events.items.filter((e) => ["open", "full"].includes(e.recruitment));
 
   // 対象の登壇者だけを更新する
   function changeSpeaker(index: number, update: Partial<Speaker>) {
@@ -88,7 +88,7 @@ export function ApplicationForm({
               })),
             },
             materialUrl: String(f.get("materialUrl")),
-            ...(!a ? { eventId: String(f.get("eventId")) } : {}),
+            ...(!a ? { eventId: String(f.get("eventId")), joinWaitlist: f.get("joinWaitlist") === "on" } : {}),
           });
         } catch (cause) {
           setError(cause instanceof Error ? cause.message : "入力内容を確認してください");
@@ -106,6 +106,7 @@ export function ApplicationForm({
           自動承認の開催回では、申請と同時に発表内容・登壇者情報・発表時刻が公開されます。公開後の修正は運営へご連絡ください。
         </p>
       )}
+      {!a && <label><input type="checkbox" name="joinWaitlist" />満枠の場合はキャンセル待ちに登録する（運営の承認後に登壇確定・公開）</label>}
       {error && <p role="alert">{error}</p>}
       <fieldset className="application-body" disabled={busy}>
         <section className="application-card" aria-labelledby="talk-content-title">
@@ -120,7 +121,7 @@ export function ApplicationForm({
                 <option value="">開催回を選択</option>
                 {openEvents.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {e.title}
+                    {e.title}{e.recruitment === "full" ? "（満枠・キャンセル待ち）" : ""}
                   </option>
                 ))}
               </select>
@@ -285,12 +286,11 @@ export function ApplicationForm({
             <Paperclip aria-hidden="true" />
             発表資料
           </h2>
-          <label className="required-field">
-            資料URL
+          <label>
+            資料URL（後から提出可）
             <input
               name="materialUrl"
               type="url"
-              required
               defaultValue={a?.materialUrl}
               pattern="https?://.*"
               placeholder="https://"

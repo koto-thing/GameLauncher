@@ -127,6 +127,10 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
         )
         .await;
     }
+    if req.method() == Method::Post && p.len() == 7 && p[4] == "applications" && p[6] == "material"
+    {
+        return crate::materials::save(req, &db, p[5], &c.actor_id, true, &c.request_id).await;
+    }
     if req.method() == Method::Put && p.len() == 7 && p[4] == "events" && p[6] == "timetable" {
         return crate::timetable::save(req, &db, p[5], &c.actor_id, &c.request_id).await;
     }

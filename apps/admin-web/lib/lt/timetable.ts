@@ -39,11 +39,12 @@ export function scheduleGroups(blocks: ScheduleBlock[]): ScheduleBlock[][] {
 }
 
 /**
- * 各枠の長さを保って連続配置する
+ * 固定枠の時刻と各枠の長さを保って順番に配置する
  *
  * @param blocks 時間割
  * @param start 開始日時
  * @returns 再計算した時間割
+ * @throws 固定枠に直前の枠が衝突する場合
  */
 export function reflowSchedule(blocks: ScheduleBlock[], start: string): ScheduleBlock[] {
   let cursor = Date.parse(start);
@@ -60,6 +61,11 @@ export function reflowSchedule(blocks: ScheduleBlock[], start: string): Schedule
   // 各枠の長さを維持し、直前の終了時刻を次の開始時刻にする
   return blocks.map((block) => {
     const duration = Date.parse(block.endsAt) - Date.parse(block.startsAt);
+    if (block.locked) {
+      const fixed = Date.parse(block.startsAt);
+      if (cursor > fixed) throw new Error(`固定枠に${Math.ceil((cursor - fixed) / 60000)}分重なります。直前の枠を移動するか、固定を解除してください`);
+      cursor = fixed;
+    }
     const startsAt = new Date(cursor).toISOString();
     cursor += duration;
     return { ...block, startsAt, endsAt: new Date(cursor).toISOString() };

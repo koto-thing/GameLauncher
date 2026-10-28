@@ -10,6 +10,7 @@ import type { EventSettings, OperatorApplication, EventSettingsPage, OperatorApp
 import { SessionFacts, SpeakerLinks } from "../../../lt-web/src/SessionFacts";
 import { SessionEditor } from "./SessionEditor";
 import { EventForm } from "./EventForm";
+import { actionItems } from "../../lib/lt/action-items";
 import { TimetableEditor } from "./TimetableEditor";
 const root = "/api/lt/v1/operator";
 type Task = () => Promise<void>;
@@ -28,6 +29,22 @@ async function api<T>(path: string, method = "GET", body?: unknown): Promise<T> 
 }
 
 async function fetchEvents(): Promise<EventSettings[]> { const items: EventSettings[] = []; let cursor: string | null = null; do { const page: EventSettingsPage = await api("/events" + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : "")); items.push(...page.items); cursor = page.nextCursor; } while (cursor); return items; }
+
+/**
+ * 要対応一覧に未読の申請を残さないよう全ページを取得する
+ * @param eventId 対象開催回のID
+ * @returns 受付順の全申請
+ */
+async function fetchApplications(eventId: string): Promise<OperatorApplicationPage> {
+  const items: OperatorApplication[] = [];
+  let cursor: string | null = null;
+  do {
+    const page: OperatorApplicationPage = await api(`/events/${encodeURIComponent(eventId)}/applications?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+    items.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor);
+  return { items, nextCursor: null };
+}
 
 /**
  * 開催回と申請・時間割を管理する
@@ -64,7 +81,7 @@ export function LtManager() {
   useEffect(() => { let active = true; void fetchEvents().then(items => { if (active) setEvents(items); }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : "読込に失敗しました"); }); return () => { active = false; }; }, []);
 
   async function open(item: EventSettings) {
-    const [result, schedule, detail] = await Promise.all([api<OperatorApplicationPage>(`/events/${encodeURIComponent(item.id)}/applications`), api<OperatorTimetable>(`/events/${encodeURIComponent(item.id)}/timetable`), api<EventSettings>(`/events/${encodeURIComponent(item.id)}`)]);
+    const [result, schedule, detail] = await Promise.all([fetchApplications(item.id), api<OperatorTimetable>(`/events/${encodeURIComponent(item.id)}/timetable`), api<EventSettings>(`/events/${encodeURIComponent(item.id)}`)]);
     setCancelConfirm(false); setTimetable(schedule);
     setApplicationCursor(result.nextCursor); setEvent(detail); setApplications(result.items); setSelected(null);
   }
@@ -90,19 +107,20 @@ export function LtManager() {
     {error && <div role="alert"><p>{error}</p>{canRetry && <button disabled={busy} onClick={() => retry.current && void run(retry.current)}>再試行</button>}<button disabled={busy} onClick={() => void run(async () => { await loadEvents(); setEvent(null); setSelected(null); setNeedsReload(false); })}>再読込</button></div>}
     <p role="status">{busy ? "処理中…" : message}</p>
     <fieldset disabled={busy || needsReload} style={{ border: 0, padding: 0, minWidth: 0 }}>
-    {creating ? <div key="create" className="lt-panel"><button onClick={() => setCreating(false)}>作成を中断</button><h2>開催回を作成</h2><EventForm value={{ id: "", version: 1, state: "scheduled", publishEnabled: false, title: "", venue: "", guidance: "", startsAt: "", timeZone: "", opensAt: "", closesAt: "", approvalMode: "automatic", capacity: 20, talkMinutes: 10, transitionMinutes: 1 }} onSave={data => { const body = { ...data, operationId: crypto.randomUUID() }; void run(async () => { const created = await api<EventSettings>("/events", "POST", body); await loadEvents(); await open(created); setCreating(false); }); }} /></div> : selected ? <div key="application" className="lt-panel lt-review">
+    {creating ? <div key="create" className="lt-panel"><button onClick={() => setCreating(false)}>作成を中断</button><h2>開催回を作成</h2><EventForm value={{ id: "", version: 1, state: "scheduled", publishEnabled: false, title: "", venue: "", guidance: "", startsAt: "", timeZone: "", opensAt: "", closesAt: "", approvalMode: "automatic", planning: { relativeRecruitment: true, opensDaysBefore: 28, closesDaysBefore: 7, materialDaysBefore: 3, reminderDaysBefore: 1 }, capacity: 20, talkMinutes: 10, transitionMinutes: 1 }} onSave={data => { const body = { ...data, operationId: crypto.randomUUID() }; void run(async () => { const created = await api<EventSettings>("/events", "POST", body); await loadEvents(); await open(created); setCreating(false); }); }} /></div> : selected ? <div key="application" className="lt-panel lt-review">
       <button onClick={() => { setSelected(null); setNote(""); setStartsAt(""); }}>申請一覧に戻る</button>
-      <h2>{selected.content.title}</h2><p>審査: {selected.review} / 辞退: {selected.withdrawal}</p>
+      <h2>{selected.content.title}</h2><p>審査: {selected.waitlisted ? "キャンセル待ち" : selected.review} / 辞退: {selected.withdrawal}</p>
       {selected.review === "approved" && selected.withdrawal === "none" && <SessionEditor key={`${selected.id}:${selected.version}`} application={selected} onSave={(data, done) => mutate(`/applications/${encodeURIComponent(selected.id)}/metadata`, selected.version, data, result => { const updated = result as OperatorApplication; setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); done(); })} />}
       <p>代表者メール: {selected.representativeEmail || "未登録（手動受付）"}</p><h3>申請原稿</h3><dl className="lt-session-facts"><SessionFacts session={selected.content.session} /></dl><p style={{ whiteSpace: "pre-wrap" }}>{selected.content.abstract}</p><p>{selected.content.description}</p>
       <p>{selected.content.speakers.map(speaker => speaker.displayName).join("、")}</p>
       {/^(https?):\/\//i.test(selected.materialUrl) ? <a href={selected.materialUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">資料を確認</a> : <p>資料未提出</p>}
+      {selected.materialUrl && <p>資料: {selected.materialReviewed ? "確認済み" : "未確認"} <button disabled={selected.materialReviewed || selected.withdrawal !== "none" || !["scheduled", "started"].includes(selected.eventState)} onClick={() => mutate(`/applications/${encodeURIComponent(selected.id)}/material`, selected.version, { materialUrl: selected.materialUrl }, result => { const updated = result as OperatorApplication; setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); })}>この資料を確認済みにする</button></p>}
       <div>{selected.content.speakers.map((speaker, index) => <div key={index}><strong>{speaker.displayName}</strong><SpeakerLinks links={speaker.links} /></div>)}</div>
       <h3>公開版</h3>{selected.published ? <><p>{selected.published.title}</p><p>{selected.published.abstract}</p><p>{selected.published.startsAt}</p><dl className="lt-session-facts"><SessionFacts session={selected.published.session} /></dl></> : <p>未公開</p>}
       <label>運営メモ<textarea value={note} onInput={e => setNote(e.currentTarget.value)} /></label>
       <label>発表開始日時<input type="datetime-local" value={startsAt} onInput={e => setStartsAt(e.currentTarget.value)} /></label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      <button disabled={!startsAt || !canReview(selected, "approve")} onClick={() => review("approve")}>承認</button>
+      <button disabled={!startsAt || !canReview(selected, "approve")} onClick={() => review("approve")}>{selected.waitlisted ? "繰り上げを承認" : "承認"}</button>
       <button disabled={!canReapprove(selected)} onClick={() => review("reapprove")}>再承認</button>
       <button disabled={!canReview(selected, "return")} onClick={() => review("return")}>差し戻し</button><button disabled={!canReview(selected, "hold")} onClick={() => review("hold")}>保留</button>
       <button disabled={!canReview(selected, "reject")} onClick={() => review("reject")}>見送り</button>
@@ -110,15 +128,19 @@ export function LtManager() {
       <EmailChangePanel key={selected.id} applicationId={selected.id} applicationVersion={selected.version} onConfirmed={async () => { const updated = await api<OperatorApplication>(`/applications/${encodeURIComponent(selected.id)}`); setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); }} />
     </div> : event ? <div key="event">
       <button onClick={() => { setEvent(null); setApplications([]); }}>開催回一覧に戻る</button><h2>{event.title}</h2>{!event.publishEnabled && <p role="status">非公開・募集停止中です。受付日時を確定して保存してください。</p>}
-      <div className="lt-stats" aria-label="読み込み済み申請の集計"><div><span>読み込み済み申請</span><strong>{applications.length}</strong></div><div><span>承認済み</span><strong>{applications.filter(item => item.review === "approved").length}</strong></div><div><span>審査・保留中</span><strong>{applications.filter(item => ["pending", "held", "resubmitted"].includes(item.review)).length}</strong></div><div><span>辞退の確認待ち</span><strong>{applications.filter(item => item.withdrawal === "requested").length}</strong></div></div>
+      <div className="lt-stats" aria-label="全申請の集計"><div><span>全申請</span><strong>{applications.length}</strong></div><div><span>承認済み</span><strong>{applications.filter(item => item.review === "approved").length}</strong></div><div><span>審査・保留中</span><strong>{applications.filter(item => ["pending", "held", "resubmitted"].includes(item.review)).length}</strong></div><div><span>辞退の確認待ち</span><strong>{applications.filter(item => item.withdrawal === "requested").length}</strong></div></div>
       {applicationCursor && <p className="lt-hint">集計は読み込み済みの申請が対象です。「申請をさらに表示」で追加できます。</p>}
+      <section className="lt-panel" aria-label="いま運営が対応すること"><h3>いま運営が対応すること</h3>
+        {applicationCursor && <p>読み込み済みの申請が対象です。残りの申請も読み込んで確認してください。</p>}
+        {actionItems(applications).length === 0 ? <p>対応待ちはありません</p> : <ul>{actionItems(applications).map(({application, reasons}) => <li key={application.id}><button onClick={() => void run(async () => { const detail = await api<OperatorApplication>(`/applications/${encodeURIComponent(application.id)}`); setSelected(detail); setNote(detail.operatorNote); setStartsAt(""); })}>{application.content.title}</button> — {reasons.join("、")}</li>)}</ul>}
+      </section>
       <section className="lt-panel" id="lt-applications"><div className="lt-panel-heading"><h3>申請一覧</h3></div>{applications.length === 0 && <p>申請はありません</p>}
-      <div className="lt-table-scroll"><table className="lt-table"><thead><tr><th scope="col">発表タイトル / 登壇者</th><th scope="col">審査状況</th><th scope="col">辞退状況</th></tr></thead><tbody>{applications.map(item => <tr key={item.id}><td><button className="lt-title-button" onClick={() => { void run(async () => { const detail = await api<OperatorApplication>(`/applications/${encodeURIComponent(item.id)}`); setSelected(detail); setNote(detail.operatorNote); setStartsAt(""); }); }}>{item.content.title}</button><small>{item.content.speakers.map(speaker => speaker.displayName).join("、")}</small></td><td><span className="lt-badge">{({ pending: "審査待ち", held: "保留", approved: "承認済み", returned: "差し戻し", resubmitted: "再申請", rejected: "見送り", withdrawn: "辞退済み" })[item.review]}</span></td><td>{({ none: "—", requested: "確認待ち", confirmed: "確定" })[item.withdrawal]}</td></tr>)}</tbody></table></div>
+      <div className="lt-table-scroll"><table className="lt-table"><thead><tr><th scope="col">発表タイトル / 登壇者</th><th scope="col">審査状況</th><th scope="col">辞退状況</th></tr></thead><tbody>{applications.map(item => <tr key={item.id}><td><button className="lt-title-button" onClick={() => { void run(async () => { const detail = await api<OperatorApplication>(`/applications/${encodeURIComponent(item.id)}`); setSelected(detail); setNote(detail.operatorNote); setStartsAt(""); }); }}>{item.content.title}</button><small>{item.content.speakers.map(speaker => speaker.displayName).join("、")}</small></td><td><span className="lt-badge">{item.waitlisted ? "キャンセル待ち" : ({ pending: "審査待ち", held: "保留", approved: "承認済み", returned: "差し戻し", resubmitted: "再申請", rejected: "見送り", withdrawn: "辞退済み" })[item.review]}</span></td><td>{({ none: "—", requested: "確認待ち", confirmed: "確定" })[item.withdrawal]}</td></tr>)}</tbody></table></div>
       {applicationCursor && <button onClick={() => void run(async () => { const page = await api<OperatorApplicationPage>(`/events/${encodeURIComponent(event.id)}/applications?cursor=${encodeURIComponent(applicationCursor)}`); setApplications(items => [...items, ...page.items]); setApplicationCursor(page.nextCursor); })}>申請をさらに表示</button>}
       </section><section className="lt-panel" id="lt-timetable"><div className="lt-panel-heading"><h3>タイムテーブル編集</h3></div>{timetable && <TimetableEditor key={`${timetable.eventId}:${timetable.version}:${event.timeZone}`} blocks={timetable.blocks} event={event} applications={applications} disabled={busy || needsReload} onSave={blocks => mutate(`/events/${encodeURIComponent(event.id)}/timetable`, timetable.version, { blocks, expectedEventVersion: event.version }, result => { const saved = result as OperatorTimetable; setTimetable(saved); setEvent(current => current ? syncTimetableEvent(current, saved) : current); }, "PUT")} />}
     </section>
       <section className="lt-panel" id="lt-settings"><div className="lt-panel-heading"><h3>開催回の設定</h3></div><EventForm key={`${event.id}:${event.version}`} value={event} onSave={value => mutate(`/events/${encodeURIComponent(event.id)}`, event.version, value, result => { const updated = result as EventSettings; setEvent(updated); setEvents(items => items.map(item => item.id === updated.id ? updated : item)); }, "PATCH")} />
-      </section><section className="lt-panel" id="lt-exceptions"><h3>例外対応・手動処理</h3><button onClick={() => mutate(`/events/${encodeURIComponent(event.id)}/copy`, event.version, {}, async result => { await loadEvents(); await open(result as EventSettings); })}>設定をコピー</button>
+      </section><section className="lt-panel" id="lt-exceptions"><h3>例外対応・手動処理</h3><button onClick={() => mutate(`/events/${encodeURIComponent(event.id)}/copy`, event.version, {}, async result => { await loadEvents(); await open(result as EventSettings); })}>この運営ルールから次回を作成</button>
       <button disabled={event.state === "cancelled"} onClick={() => setCancelConfirm(true)}>開催中止</button>
       {cancelConfirm && <div role="group" aria-label="開催中止の確認"><p>この開催回を中止しますか？</p><button onClick={() => mutate(`/events/${encodeURIComponent(event.id)}/cancel`, event.version, {}, result => { const updated = result as EventSettings; setEvent(updated); setEvents(items => items.map(item => item.id === updated.id ? updated : item)); setCancelConfirm(false); })}>中止を確定</button><button onClick={() => setCancelConfirm(false)}>中止を取り消す</button></div>}
       </section>

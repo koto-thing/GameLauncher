@@ -700,6 +700,22 @@
               "type": "null"
             }
           ]
+        },
+        "materialReviewed": {
+          "type": "boolean"
+        },
+        "waitlisted": {
+          "type": "boolean"
+        },
+        "materialDeadlineAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -984,6 +1000,22 @@
               "type": "null"
             }
           ]
+        },
+        "materialReviewed": {
+          "type": "boolean"
+        },
+        "waitlisted": {
+          "type": "boolean"
+        },
+        "materialDeadlineAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -1164,13 +1196,22 @@
           ]
         },
         "materialUrl": {
-          "type": "string",
-          "format": "uri",
-          "pattern": "^https?://"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri"
+            },
+            {
+              "const": ""
+            }
+          ]
         },
         "operationId": {
           "type": "string",
           "minLength": 1
+        },
+        "joinWaitlist": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -1437,6 +1478,9 @@
             "automatic",
             "manual"
           ]
+        },
+        "planning": {
+          "$ref": "#/$defs/Planning"
         }
       },
       "required": [
@@ -1518,6 +1562,9 @@
             "automatic",
             "manual"
           ]
+        },
+        "planning": {
+          "$ref": "#/$defs/Planning"
         }
       },
       "required": [
@@ -1604,6 +1651,9 @@
                 "automatic",
                 "manual"
               ]
+            },
+            "planning": {
+              "$ref": "#/$defs/Planning"
             }
           },
           "required": [
@@ -1669,9 +1719,15 @@
               "$ref": "#/$defs/TalkContent"
             },
             "materialUrl": {
-              "type": "string",
-              "format": "uri",
-              "pattern": "^https?://"
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uri"
+                },
+                {
+                  "const": ""
+                }
+              ]
             }
           },
           "required": [
@@ -1820,6 +1876,9 @@
           "type": "string",
           "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
           "format": "date-time"
+        },
+        "locked": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -2261,7 +2320,9 @@
         "reapproved",
         "rejected",
         "withdrawalConfirmed",
-        "eventCancelled"
+        "eventCancelled",
+        "materialReminder",
+        "scheduleChanged"
       ]
     },
     "NotificationOutbox": {
@@ -2505,6 +2566,79 @@
               }
             }
           }
+        }
+      }
+    },
+    "MaterialInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expectedVersion",
+        "operationId",
+        "data"
+      ],
+      "properties": {
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "operationId": {
+          "$ref": "#/$defs/Id"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "materialUrl"
+          ],
+          "properties": {
+            "materialUrl": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uri"
+                },
+                {
+                  "const": ""
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "Planning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relativeRecruitment",
+        "opensDaysBefore",
+        "closesDaysBefore",
+        "materialDaysBefore",
+        "reminderDaysBefore"
+      ],
+      "properties": {
+        "relativeRecruitment": {
+          "type": "boolean"
+        },
+        "opensDaysBefore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 365
+        },
+        "closesDaysBefore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 365
+        },
+        "materialDaysBefore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 365
+        },
+        "reminderDaysBefore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 365
         }
       }
     }

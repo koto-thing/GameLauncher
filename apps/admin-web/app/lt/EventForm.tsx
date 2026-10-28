@@ -60,11 +60,11 @@ export function EventForm({ value, onSave }: { value: EventSettings; onSave: (va
     if (uploading) return;
     try {
       const startsAt = utcEventTime(draft.startsAt, draft.timeZone, value.startsAt);
-      const opensAt = utcEventTime(draft.opensAt, draft.timeZone, value.opensAt);
-      const closesAt = utcEventTime(draft.closesAt, draft.timeZone, value.closesAt);
+      const opensAt = draft.planning?.relativeRecruitment ? new Date(Date.parse(startsAt) - draft.planning.opensDaysBefore * 86400000).toISOString() : utcEventTime(draft.opensAt, draft.timeZone, value.opensAt);
+      const closesAt = draft.planning?.relativeRecruitment ? new Date(Date.parse(startsAt) - draft.planning.closesDaysBefore * 86400000).toISOString() : utcEventTime(draft.closesAt, draft.timeZone, value.closesAt);
       if (Date.parse(opensAt) >= Date.parse(closesAt)) { setError("募集終了日時は募集開始日時より後にしてください"); return; }
       setError("");
-      onSave({ title: draft.title, venue: draft.venue, guidance: draft.guidance, ...(draft.posterUrl?.trim() ? { posterUrl: draft.posterUrl.trim() } : {}), timeZone: draft.timeZone, startsAt, opensAt, closesAt, approvalMode: draft.approvalMode, capacity: draft.capacity, talkMinutes: draft.talkMinutes, transitionMinutes: draft.transitionMinutes });
+      onSave({ title: draft.title, venue: draft.venue, guidance: draft.guidance, ...(draft.posterUrl?.trim() ? { posterUrl: draft.posterUrl.trim() } : {}), timeZone: draft.timeZone, startsAt, opensAt, closesAt, approvalMode: draft.approvalMode, ...(draft.planning ? { planning: draft.planning } : {}), capacity: draft.capacity, talkMinutes: draft.talkMinutes, transitionMinutes: draft.transitionMinutes });
     } catch { setError("日時を確認してください。夏時間の切替で存在しない時刻・重複する時刻は指定できません"); }
   }}>
     <label>承認方式<select value={draft.approvalMode} onChange={e => setDraft({ ...draft, approvalMode: e.currentTarget.value as EventSettings["approvalMode"] })}><option value="automatic">自動承認</option><option value="manual">手動承認</option></select><small>自動承認では初回申請を即時公開し、発表時刻を割り当てます。差し戻し後の再提出と、切替前の審査待ちは手動確認です。</small></label>
@@ -74,8 +74,16 @@ export function EventForm({ value, onSave }: { value: EventSettings; onSave: (va
     <label>ポスター画像<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={e => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (file) void uploadPoster(file); }} /><small>PNG・JPEG・WebP／5MBまで。選択後、「設定を保存」で公開します。</small>{uploading && <span role="status">アップロード中…</span>}</label>
     {draft.posterUrl?.startsWith("https://") && <div className="lt-event-poster"><img src={draft.posterUrl} alt="ポスターのプレビュー" referrerPolicy="no-referrer" /><button type="button" disabled={uploading} onClick={() => setDraft({ ...draft, posterUrl: undefined })}>ポスターを削除</button></div>}
     <label>タイムゾーン<select value={draft.timeZone} onChange={e => setDraft({ ...draft, timeZone: e.currentTarget.value })}>{zones.map(zone => <option key={zone} value={zone}>{zone === "Asia/Tokyo" ? "日本標準時（東京・UTC+09:00）" : zone === "UTC" ? "協定世界時（UTC）" : zone}</option>)}</select><small>以下の日時は選択した地域の時刻です</small></label>
-    {dates.map(key => <label key={key}>{dateLabels[key]}<input type="datetime-local" required step="60" value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.currentTarget.value })} onClick={e => { if (e.currentTarget.showPicker) e.currentTarget.showPicker(); }} /></label>)}
+    {dates.map(key => <label key={key}>{dateLabels[key]}<input type="datetime-local" required={key === "startsAt" || !draft.planning?.relativeRecruitment} disabled={key !== "startsAt" && draft.planning?.relativeRecruitment} step="60" value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.currentTarget.value })} onClick={e => { if (e.currentTarget.showPicker) e.currentTarget.showPicker(); }} /></label>)}
     {(["capacity", "talkMinutes", "transitionMinutes"] as const).map(key => <label key={key}>{({ capacity: "定員", talkMinutes: "発表時間 (分)", transitionMinutes: "転換時間 (分)" })[key]}<input type="number" min={key === "transitionMinutes" ? 0 : 1} required value={draft[key]} onChange={e => setDraft({ ...draft, [key]: Number(e.currentTarget.value) })} /></label>)}
+    <fieldset><legend>開催日から逆算する運営ルール</legend>
+      <label><input type="checkbox" checked={!!draft.planning} onChange={e => setDraft({ ...draft, planning: e.currentTarget.checked ? { relativeRecruitment: true, opensDaysBefore: 28, closesDaysBefore: 7, materialDaysBefore: 3, reminderDaysBefore: 1 } : undefined })} />相対締切・資料リマインドを使用</label>
+      {draft.planning && <><p>1日は24時間として開催開始から逆算します。設定のコピーにも引き継がれます。</p>
+        <label><input type="checkbox" checked={draft.planning.relativeRecruitment} onChange={e => setDraft({ ...draft, planning: { ...draft.planning!, relativeRecruitment: e.currentTarget.checked } })} />募集期間も開催日から逆算</label>
+        {(["opensDaysBefore", "closesDaysBefore", "materialDaysBefore", "reminderDaysBefore"] as const).map(key => <label key={key}>{({ opensDaysBefore: "募集開始（開催の何日前）", closesDaysBefore: "募集終了（開催の何日前）", materialDaysBefore: "資料提出期限（開催の何日前）", reminderDaysBefore: "案内（資料期限の何日前）" })[key]}<input type="number" min="0" max="365" required value={draft.planning![key]} onChange={e => setDraft({ ...draft, planning: { ...draft.planning!, [key]: Number(e.currentTarget.value) } })} /></label>)}
+        <p>未提出・未確認の申請へ期限前に1回案内します。提出済みの資料は運営側で確認済みにしてください。</p>
+      </>}
+    </fieldset>
     {error && <p role="alert">{error}</p>}
     <button disabled={uploading}>設定を保存</button><button type="button" disabled={uploading} onClick={() => { setDraft(editable(value)); setError(""); }}>編集を取り消す</button>
   </form>;

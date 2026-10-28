@@ -8,12 +8,15 @@ mod gate;
 mod input;
 mod lifecycle;
 mod mail;
+mod materials;
 mod operations;
 mod operator;
 mod operator_metadata;
+mod planning;
 mod receipts;
 #[cfg(any(feature = "runtime-tests", feature = "production-api"))]
 mod retention;
+mod schedule_notifications;
 mod session_info;
 #[cfg(feature = "runtime-tests")]
 mod test_hooks;

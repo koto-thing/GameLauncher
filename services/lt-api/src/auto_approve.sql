@@ -21,4 +21,5 @@ SET dto=(
 ),version=version+1,actor_id='system:auto-approval',operation_id='auto-approval:'||id
 WHERE id=?1 AND json_extract(dto,'$.everApproved')=0
  AND json_extract(dto,'$.review')='pending'
+ AND json_extract(dto,'$.waitlisted') IS NOT 1
  AND EXISTS(SELECT 1 FROM lt_recruitment r WHERE r.event_id=a.event_id AND r.approval_mode='automatic');
