@@ -262,6 +262,9 @@ async fn applications(
 ) -> Result<Response> {
     let path = req.path();
     let p: Vec<_> = path.trim_matches('/').split('/').collect();
+    if req.method() == Method::Post && p.len() == 6 && p[3] == "applications" && p[5] == "title" {
+        return crate::title::save(req, db, p[4], owner, false, "applicant").await;
+    }
     if req.method() == Method::Post && p.len() == 6 && p[5] == "material" {
         return crate::materials::save(req, db, p[4], owner, false, "applicant").await;
     }
