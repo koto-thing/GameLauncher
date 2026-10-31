@@ -336,17 +336,17 @@
   },
   {
     "method": "POST",
-    "path": "/api/lt/v1/applications/:id/title",
+    "path": "/api/lt/v1/applications/:id/presentation",
     "access": "owner",
-    "request": "TitleMutation",
+    "request": "PresentationMutation",
     "response": "Application",
     "error": "ApiError"
   },
   {
     "method": "POST",
-    "path": "/api/lt/v1/operator/applications/:id/title",
+    "path": "/api/lt/v1/operator/applications/:id/presentation",
     "access": "lt.operate",
-    "request": "TitleMutation",
+    "request": "PresentationMutation",
     "response": "OperatorApplication",
     "error": "ApiError"
   }

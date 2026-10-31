@@ -25,8 +25,8 @@ mod test_hooks;
 mod views;
 #[cfg(feature = "runtime-tests")]
 pub use test_hooks::{change_mail, fake_mail, retention_test, set_clock, test_dispatch};
+mod presentation;
 mod timetable;
-mod title;
 pub use operator::{fake_dispatch, operator_request};
 
 /// 固定時刻の状態更新と最大1件の配送だけを定期実行する

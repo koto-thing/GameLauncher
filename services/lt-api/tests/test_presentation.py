@@ -1,4 +1,4 @@
-"""実際の保存SQLと全DBトリガーでタイトル変更の境界を検証する"""
+"""実際の保存SQLと全DBトリガーでタイトル・概要変更の境界を検証する"""
 import json
 from pathlib import Path
 import re
@@ -8,7 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 
-class TitleTests(unittest.TestCase):
+class PresentationTests(unittest.TestCase):
     def setUp(self):
         """全スキーマと承認済みの架空申請を用意する
 
@@ -39,17 +39,17 @@ class TitleTests(unittest.TestCase):
         Returns:
             変更された申請件数
         """
-        source = (ROOT / "src/title.rs").read_text(encoding="utf-8")
+        source = (ROOT / "src/presentation.rs").read_text(encoding="utf-8")
         statements = re.findall(r'db.prepare\("([^"]+)"\)', source)
         with self.db:
-            changed = self.db.execute((ROOT / "src/title.sql").read_text(encoding="utf-8"),
-                ("変更後", "application-demo", version, "change", "hash", "operator" if operator else None, None if operator else owner)).rowcount
+            changed = self.db.execute((ROOT / "src/presentation.sql").read_text(encoding="utf-8"),
+                ("変更後", "application-demo", version, "change", "hash", "operator" if operator else None, None if operator else owner, "変更後の概要\n改行を保持")).rowcount
             self.db.execute(statements[-2], ("application-demo", "change", "hash"))
             self.db.execute(statements[-1], ("application-demo", "change"))
         return changed
 
-    def test_owner_and_operator_update_only_title(self):
-        """両権限で公開タイトルを同期し未承認原稿と審査状態を維持する
+    def test_owner_and_operator_update_presentation(self):
+        """両権限でタイトル・概要を同期し他の原稿と審査状態を維持する
 
         Returns:
             なし
@@ -59,8 +59,8 @@ class TitleTests(unittest.TestCase):
         saved = json.loads(self.db.execute("SELECT dto FROM lt_applications").fetchone()[0])
         public = json.loads(self.db.execute("SELECT dto FROM lt_public_talks").fetchone()[0])
         expected = self.original | {"version": 3}
-        expected["content"] = expected["content"] | {"title": "変更後"}
-        expected["published"] = expected["published"] | {"title": "変更後", "version": 3}
+        expected["content"] = expected["content"] | {"title": "変更後", "abstract": "変更後の概要\n改行を保持"}
+        expected["published"] = expected["published"] | {"title": "変更後", "abstract": "変更後の概要\n改行を保持", "version": 3}
         self.assertEqual(saved, expected)
         self.assertEqual(public, expected["published"])
         self.assertEqual(self.db.execute("SELECT count(*) FROM lt_outbox WHERE kind='returned'").fetchone()[0], 0)
@@ -72,7 +72,7 @@ class TitleTests(unittest.TestCase):
             なし
         """
         self.assertEqual(self.save(operator=True), 1)
-        self.assertEqual(self.db.execute("SELECT action FROM lt_audit").fetchone()[0], "titleChanged")
+        self.assertEqual(self.db.execute("SELECT action FROM lt_audit").fetchone()[0], "presentationChanged")
         self.assertEqual(self.db.execute("SELECT count(*) FROM lt_operator_operations").fetchone()[0], 1)
 
     def test_wrong_owner_and_stale_version(self):
@@ -85,6 +85,34 @@ class TitleTests(unittest.TestCase):
         self.assertEqual(self.save(version=2), 0)
         self.assertEqual(self.save(), 1)
         self.assertEqual(self.save(), 0)
+
+    def test_abstract_only_returned_application(self):
+        """差し戻し中の概要だけの変更を通知なしで監査・公開反映する
+
+        Returns:
+            なし
+        """
+        self.db.execute("UPDATE lt_applications SET dto=json_set(dto,'$.content.title','変更後','$.review','returned')")
+        self.assertEqual(self.save(operator=True), 1)
+        self.assertEqual(self.db.execute("SELECT action FROM lt_audit").fetchone()[0], "presentationChanged")
+        self.assertEqual(self.db.execute("SELECT count(*) FROM lt_outbox WHERE kind='returned'").fetchone()[0], 0)
+        saved = json.loads(self.db.execute("SELECT dto FROM lt_applications").fetchone()[0])
+        self.assertEqual(saved['review'], 'returned')
+        self.assertEqual(saved['published']['abstract'], "変更後の概要\n改行を保持")
+
+    def test_unpublished_application_stays_unpublished(self):
+        """未承認の概要を更新しても公開版を作らない
+
+        Returns:
+            なし
+        """
+        self.db.execute("DELETE FROM lt_public_talks")
+        self.db.execute("UPDATE lt_applications SET dto=json_set(dto,'$.review','pending','$.everApproved',json('false'),'$.published',NULL)")
+        self.assertEqual(self.save(), 1)
+        saved = json.loads(self.db.execute("SELECT dto FROM lt_applications").fetchone()[0])
+        self.assertIsNone(saved['published'])
+        self.assertEqual(saved['content']['abstract'], "変更後の概要\n改行を保持")
+        self.assertEqual(self.db.execute("SELECT count(*) FROM lt_public_talks").fetchone()[0], 0)
 
     def test_cancelled_and_expired_event(self):
         """開催中止と保持期限切れの変更を拒否する

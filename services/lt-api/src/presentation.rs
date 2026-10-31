@@ -9,19 +9,20 @@ use worker::*;
 struct Input {
     expected_version: u64,
     operation_id: String,
-    data: Title,
+    data: Presentation,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Title {
+struct Presentation {
     title: String,
+    r#abstract: String,
 }
 
-/// 申請原稿と公開済み発表のタイトルを同じトランザクションで変更する
+/// 申請原稿と公開済み発表のタイトル・概要を同じトランザクションで変更する
 ///
 /// # 引数
-/// - `req`: タイトル変更リクエスト
+/// - `req`: タイトル・概要変更リクエスト
 /// - `db`: 申請と公開版を保存するデータベース
 /// - `id`: 対象の申請ID
 /// - `actor`: 認証済みの運営IDまたは本人メール
@@ -48,6 +49,7 @@ pub async fn save(
     if input.expected_version == 0
         || input.operation_id.trim().is_empty()
         || input.data.title.trim().is_empty()
+        || input.data.r#abstract.trim().is_empty()
     {
         return failure("VALIDATION", 422, request_id);
     }
@@ -55,10 +57,11 @@ pub async fn save(
     // 認証領域ごとの既存receiptで再送と別内容の使い回しを判定する
     let scope = if operator { "operator" } else { "applicant" };
     let hash = Sha256::digest(serde_json::to_vec(&json!([
-        "title",
+        "presentation",
         id,
         input.expected_version,
-        input.data.title
+        input.data.title,
+        input.data.r#abstract
     ]))?)
     .iter()
     .map(|b| format!("{b:02x}"))
@@ -91,10 +94,11 @@ pub async fn save(
 
     // 保存時のJSONを部分更新し、同時に変更された時間割や審査原稿を保持する
     db.batch(vec![
-        db.prepare(include_str!("title.sql")).bind(&[
+        db.prepare(include_str!("presentation.sql")).bind(&[
             input.data.title.trim().into(), id.into(), (input.expected_version as f64).into(),
             input.operation_id.clone().into(), hash.clone().into(),
             if operator { actor.into() } else { JsValue::NULL }, owner,
+            input.data.r#abstract.trim().into(),
         ])?,
         db.prepare("UPDATE lt_public_talks SET dto=(SELECT json_extract(a.dto,'$.published') FROM lt_applications a WHERE a.id=lt_public_talks.id) WHERE id=?1 AND EXISTS(SELECT 1 FROM lt_applications a WHERE a.id=?1 AND a.operation_id=?2 AND a.payload_hash=?3 AND json_type(a.dto,'$.published')='object')")
             .bind(&[id.into(), input.operation_id.clone().into(), hash.clone().into()])?,
@@ -109,7 +113,7 @@ pub async fn save(
     failure("VERSION_CONFLICT", 409, request_id)
 }
 
-/// タイトル変更の契約エラーを生成する
+/// タイトル・概要変更の契約エラーを生成する
 ///
 /// # 引数
 /// - `code`: エラーコード
