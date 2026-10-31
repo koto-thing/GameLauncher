@@ -333,5 +333,21 @@
     "request": "MaterialInput",
     "response": "OperatorApplication",
     "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/applications/:id/title",
+    "access": "owner",
+    "request": "TitleMutation",
+    "response": "Application",
+    "error": "ApiError"
+  },
+  {
+    "method": "POST",
+    "path": "/api/lt/v1/operator/applications/:id/title",
+    "access": "lt.operate",
+    "request": "TitleMutation",
+    "response": "OperatorApplication",
+    "error": "ApiError"
   }
 ]

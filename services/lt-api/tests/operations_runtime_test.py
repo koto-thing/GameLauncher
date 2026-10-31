@@ -2,6 +2,7 @@ import unittest,uuid,json,concurrent.futures,time,urllib.request,urllib.error
 import applicant_runtime_test as applicants
 from applicant_runtime_test import sql,request
 from operator_runtime_test import operate
+from lifecycle_runtime_test import clock
 class Fixture:
  def __enter__(self):
   self.periods=sql('SELECT event_id,opens,closes FROM lt_recruitment');sql('UPDATE lt_recruitment SET opens=0,closes=1');self.ids=[];return self
@@ -41,8 +42,19 @@ def prepared(f):
 
 class OperationsRuntime(unittest.TestCase):
  def test_list_hold_reject_cancel_once(self):
+  """申請順のページングと保留・却下・中止の一度だけの反映を検証する
+
+  Returns:
+      戻り値なし
+  """
   with Fixture() as f:
-   event,_=f.create();id=event['id'];apps=[f.submit(id) for _ in range(4)]
+   event,_=f.create();id=event['id'];apps=[]
+
+   # 固定時計でも申請順を明確にし、ランダムIDの同時刻順序に依存させない
+   for index in range(4):
+    clock('2026-10-25T12:00:0'+str(index)+'.000Z')
+    apps.append(f.submit(id))
+
    self.assertEqual(operate('/applications/'+apps[0][0]['id']+'/approve',mutation(1,{'startsAt':'2026-11-01T01:00:00.000Z','expectedEventVersion':1,'expectedScheduleVersion':1}))[0],200)
    self.assertEqual(operate('/applications/'+apps[1][0]['id']+'/hold',mutation(1,{'note':'運営メモ'}))[0],200)
    self.assertEqual(operate('/applications/'+apps[2][0]['id']+'/reject',mutation(1))[0],200)

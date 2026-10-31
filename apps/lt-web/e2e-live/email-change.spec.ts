@@ -126,6 +126,10 @@ test("実proxyとRustで代表者メール変更を最終確定する", async ({
       .getByRole("button", { name: new RegExp(title) })
       .click();
     await admin
+      .getByRole("navigation", { name: "LT管理メニュー" })
+      .getByRole("button", { name: "登壇申請", exact: true })
+      .click();
+    await admin
       .locator("#lt-applications")
       .getByRole("button", { name: /Email target/ })
       .click();

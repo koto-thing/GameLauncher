@@ -1,6 +1,6 @@
 """CIの架空DBで実Worker・認証proxy・ブラウザー・保持処理を順番に検証する"""
 from pathlib import Path
-import json, os, signal, subprocess, sys, time, urllib.request
+import json, os, re, signal, subprocess, sys, time, urllib.request
 from fixture_diagnostics import startup_diagnostics
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,8 +18,24 @@ os.environ['LT_TEST_BRIDGE_URL'] = 'http://127.0.0.1:18879'
 os.environ['WRANGLER_SEND_METRICS'] = 'false'
 
 def run(args, cwd=API):
+    """検証コマンドを実行し、公開可能な成否だけを表示する
+
+    Args:
+        args: 実行するコマンドと引数
+        cwd: コマンドの作業ディレクトリ
+
+    Returns:
+        戻り値なし
+
+    Raises:
+        RuntimeError: 検証コマンドが失敗した場合
+    """
     # 確認URLを含み得る生ログはCIの公開stdoutに出さない
     result = subprocess.run(args, cwd=cwd, capture_output=True, text=True)
+    for line in result.stdout.splitlines():
+        if re.fullmatch(r'[a-z_]+_test\.py: (PASS|FAIL)', line):
+            print(line, flush=True)
+
     if result.returncode:
         raise RuntimeError('Local verification step failed: ' + ' '.join(args[:3]))
     print('PASS: ' + ' '.join(args[:2]), flush=True)

@@ -11,6 +11,7 @@ import { SessionFacts, SpeakerLinks } from "../../../lt-web/src/SessionFacts";
 import { SessionEditor } from "./SessionEditor";
 import { EventForm } from "./EventForm";
 import { actionItems } from "../../lib/lt/action-items";
+import { canChangeTitle } from "../../../../contracts/lt/application-policy";
 import { TimetableEditor } from "./TimetableEditor";
 const root = "/api/lt/v1/operator";
 type EventView = "overview" | "applications" | "timetable" | "settings" | "exceptions";
@@ -165,6 +166,20 @@ export function LtManager() {
       <button onClick={() => { setSelected(null); setView("applications"); setNote(""); setStartsAt(""); }}><ArrowLeft aria-hidden="true" />申請一覧に戻る</button>
       <h2>{selected.content.title}</h2><p>審査: {selected.waitlisted ? "キャンセル待ち" : selected.review} / 辞退: {selected.withdrawal}</p>
       {selected.review === "approved" && selected.withdrawal === "none" && <SessionEditor key={`${selected.id}:${selected.version}`} application={selected} onSave={(data, done) => mutate(`/applications/${encodeURIComponent(selected.id)}/metadata`, selected.version, data, result => { const updated = result as OperatorApplication; setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); done(); })} />}
+      {canChangeTitle(selected) && <form key={`title:${selected.id}:${selected.version}`} onSubmit={e => {
+        e.preventDefault();
+        const title = String(new FormData(e.currentTarget).get("title")).trim();
+        if (!title) return;
+        mutate(`/applications/${encodeURIComponent(selected.id)}/title`, selected.version, { title }, result => {
+          const updated = result as OperatorApplication;
+          setSelected(updated);
+          setApplications(items => items.map(item => item.id === updated.id ? updated : item));
+        });
+      }}>
+        <label>発表タイトル<input name="title" required pattern=".*\S.*" defaultValue={selected.content.title} /></label>
+        <p>公開済みの場合は公開ページにも反映されます</p>
+        <button>タイトルを保存</button>
+      </form>}
       <p>代表者メール: {selected.representativeEmail || "未登録（手動受付）"}</p><h3>申請原稿</h3><dl className="lt-session-facts"><SessionFacts session={selected.content.session} /></dl><p style={{ whiteSpace: "pre-wrap" }}>{selected.content.abstract}</p><p>{selected.content.description}</p>
       <p>{selected.content.speakers.map(speaker => speaker.displayName).join("、")}</p>
       {/^(https?):\/\//i.test(selected.materialUrl) ? <a href={selected.materialUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">資料を確認</a> : <p>資料未提出</p>}

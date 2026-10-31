@@ -14,6 +14,7 @@ import type {
 } from "../../../contracts/lt/v1";
 import { request } from "./api";
 import { actions } from "./policy";
+import { canChangeTitle } from "../../../contracts/lt/application-policy";
 import "./style.css";
 import "./theme.css";
 import { ApplicationForm } from "./ApplicationForm";
@@ -39,6 +40,10 @@ let token =
     : null;
 if (token || (!applicationsAvailable && location.pathname.startsWith("/auth/")))
   history.replaceState(null, "", location.pathname);
+/**
+ * 本人申請と公開発表の画面を表示する
+ * @returns 現在のパスに対応する画面
+ */
 function App() {
   const [events, setEvents] = useState<PublicEventPage>({ items: [], nextCursor: null });
   const [detailEvent, setDetailEvent] = useState<PublicEvent | null>(null);
@@ -164,6 +169,55 @@ function App() {
       />
     );
   }
+  /**
+   * 申請状態を保持して発表タイトルだけを変更するフォームを表示する
+   * @param application 変更対象の本人申請
+   * @returns タイトル編集フォームまたは変更不可の場合はnull
+   */
+  function titleForm(application: Application) {
+    if (!canChangeTitle(application)) return null;
+
+    // 保存後の再取得で入力値と版を最新の申請へ揃える
+    return (
+      <form
+        key={`title:${application.id}:${application.version}`}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const title = String(new FormData(e.currentTarget).get("title")).trim();
+          if (!title) return;
+          void run(async () => {
+            const data = { title };
+            const op = await operation(`${application.id}/title`, {
+              expectedVersion: application.version,
+              data,
+            });
+            await api(`/applications/${encodeURIComponent(application.id)}/title`, {
+              method: "POST",
+              body: JSON.stringify({
+                expectedVersion: application.version,
+                operationId: op.id,
+                data,
+              }),
+            });
+            op.complete();
+          });
+        }}
+      >
+        <label>
+          発表タイトル
+          <input
+            name="title"
+            required
+            pattern=".*\S.*"
+            defaultValue={application.content.title}
+            disabled={busy}
+          />
+        </label>
+        <p>公開済みの場合は公開ページにも反映されます</p>
+        <button disabled={busy}>タイトルを保存</button>
+      </form>
+    );
+  }
   return (
     <>
       <header className="applicant-header">
@@ -279,6 +333,7 @@ function App() {
             {(data as ApplicationPage)?.items.map((a) => (
               <article key={a.id}>
                 <h2>{a.content.title}</h2>
+                {titleForm(a)}
                 <p>
                   {a.waitlisted ? "キャンセル待ち（登壇未確定）" : a.review} / {a.withdrawal}
                 </p>
@@ -363,6 +418,7 @@ function App() {
         ) : path.startsWith("/applications/") && data ? (
           <section>
             <h1>{(data as Application).content.title}</h1>
+            {titleForm(data as Application)}
             <p>{(data as Application).review}</p>
             {(data as Application).eventCancelledAt && (
               <p>
