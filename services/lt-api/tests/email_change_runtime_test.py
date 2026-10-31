@@ -22,6 +22,14 @@ def change_token(email):
 def mutation(version,data):return {'expectedVersion':version,'operationId':uuid.uuid4().hex,'data':data}
 class EmailChangeRuntime(unittest.TestCase):
  def setUp(self):
+  """募集期間内の時計でメール変更対象の申請を準備する
+
+  Returns:
+      戻り値なし
+  """
+  clock('2026-10-25T12:00:00.000Z')
+  self.addCleanup(clock, 'real')
+
   sql("UPDATE lt_mail_mode SET mode='fake'");self.helper=applicants.ApplicantRuntime();self.cookie,self.old=self.helper.login();self.body=self.helper.payload()
   status,self.app,_=request('/api/lt/v1/applications',self.body,self.cookie);self.assertEqual(status,200)
   self.path='/applications/'+self.app['id']+'/email-change';self.new=uuid.uuid4().hex+'@example.invalid'

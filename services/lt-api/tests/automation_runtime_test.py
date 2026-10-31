@@ -7,10 +7,20 @@ from applicant_runtime_test import request, sql, OPERATOR_BASE
 from operator_runtime_test import operate
 from operations_runtime_test import Fixture, mutation, prepared
 import schedule_rules_runtime_test as schedules
+from lifecycle_runtime_test import clock
 
 
 class AutomationRuntime(unittest.TestCase):
     """運営自動化の原子的な更新と本人境界を検証する"""
+
+    def setUp(self):
+        """各試験の時計をfixtureの募集期間内に戻す
+
+        Returns:
+            戻り値なし
+        """
+        clock('2026-10-25T12:00:00.000Z')
+        self.addCleanup(clock, 'real')
 
     @classmethod
     def setUpClass(cls):
