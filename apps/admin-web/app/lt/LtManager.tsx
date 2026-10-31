@@ -179,7 +179,8 @@ export function LtManager() {
         });
       }}>
         <label>発表タイトル<input name="title" required pattern=".*\S.*" defaultValue={selected.content.title} /></label>
-        <label>発表概要<textarea name="abstract" required defaultValue={selected.content.abstract} rows={5} /></label>
+        <label htmlFor="lt-presentation-abstract">発表概要</label>
+        <textarea id="lt-presentation-abstract" name="abstract" required defaultValue={selected.content.abstract} rows={5} />
         <p>公開済みの場合はタイトルと概要の両方が公開ページにも反映されます</p>
         <button>タイトル・概要を保存</button>
       </form>}

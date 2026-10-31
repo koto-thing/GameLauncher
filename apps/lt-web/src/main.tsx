@@ -215,16 +215,15 @@ function App() {
             disabled={busy}
           />
         </label>
-        <label>
-          発表概要
-          <textarea
-            name="abstract"
-            required
-            defaultValue={application.content.abstract}
-            disabled={busy}
-            rows={5}
-          />
-        </label>
+        <label htmlFor={`presentation-abstract:${application.id}`}>発表概要</label>
+        <textarea
+          id={`presentation-abstract:${application.id}`}
+          name="abstract"
+          required
+          defaultValue={application.content.abstract}
+          disabled={busy}
+          rows={5}
+        />
         <p>公開済みの場合はタイトルと概要の両方が公開ページにも反映されます</p>
         <button disabled={busy}>タイトル・概要を保存</button>
       </form>
