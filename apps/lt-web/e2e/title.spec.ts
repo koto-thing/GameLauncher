@@ -4,6 +4,10 @@ import fixture from "../../../contracts/lt/application.fixture.json" with { type
 test("承認済み申請のタイトルを一覧と詳細から変更する", async ({ page }) => {
   let application = { ...fixture, review: "approved" };
   const mutations: unknown[] = [];
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
 
   // 通信だけを置き換え、画面から送られる版とタイトルを検証する
   await page.route("**/api/lt/v1/**", async (route) => {
@@ -47,4 +51,5 @@ test("承認済み申請のタイトルを一覧と詳細から変更する", as
   await expect(page.getByRole("heading", { name: "詳細から変更" })).toBeVisible();
   expect(mutations).toHaveLength(2);
   expect(application.review).toBe("approved");
+  expect(errors).toEqual([]);
 });

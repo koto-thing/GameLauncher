@@ -4,6 +4,7 @@ import unittest
 from applicant_runtime_test import request
 from operator_runtime_test import operate
 from operations_runtime_test import Fixture, mutation
+from lifecycle_runtime_test import clock
 
 
 class TitleRuntime(unittest.TestCase):
@@ -13,6 +14,8 @@ class TitleRuntime(unittest.TestCase):
         Returns:
             なし
         """
+        clock('2026-10-25T12:00:00.000Z')
+        self.addCleanup(clock, 'real')
         with Fixture() as fixture:
             event, fields = fixture.create()
             fields['approvalMode'] = 'automatic'

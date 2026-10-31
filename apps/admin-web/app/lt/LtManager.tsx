@@ -166,7 +166,7 @@ export function LtManager() {
       <button onClick={() => { setSelected(null); setView("applications"); setNote(""); setStartsAt(""); }}><ArrowLeft aria-hidden="true" />申請一覧に戻る</button>
       <h2>{selected.content.title}</h2><p>審査: {selected.waitlisted ? "キャンセル待ち" : selected.review} / 辞退: {selected.withdrawal}</p>
       {selected.review === "approved" && selected.withdrawal === "none" && <SessionEditor key={`${selected.id}:${selected.version}`} application={selected} onSave={(data, done) => mutate(`/applications/${encodeURIComponent(selected.id)}/metadata`, selected.version, data, result => { const updated = result as OperatorApplication; setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); done(); })} />}
-      {canChangeTitle(selected) && <form key={`${selected.id}:${selected.version}`} onSubmit={e => {
+      {canChangeTitle(selected) && <form key={`title:${selected.id}:${selected.version}`} onSubmit={e => {
         e.preventDefault();
         const title = String(new FormData(e.currentTarget).get("title")).trim();
         if (!title) return;

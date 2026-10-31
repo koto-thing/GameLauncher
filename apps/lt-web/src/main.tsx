@@ -180,7 +180,7 @@ function App() {
     // 保存後の再取得で入力値と版を最新の申請へ揃える
     return (
       <form
-        key={`${application.id}:${application.version}`}
+        key={`title:${application.id}:${application.version}`}
         onSubmit={(e) => {
           e.preventDefault();
           const title = String(new FormData(e.currentTarget).get("title")).trim();

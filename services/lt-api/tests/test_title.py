@@ -94,7 +94,8 @@ class TitleTests(unittest.TestCase):
         """
         self.db.execute("UPDATE lt_events SET state='cancelled'")
         self.assertEqual(self.save(), 0)
-        self.db.execute("UPDATE lt_events SET state='ended',private_expires=1")
+        self.db.execute("UPDATE lt_events SET state='ended'")
+        self.db.execute("UPDATE lt_events SET private_expires=1")
         self.assertEqual(self.save(), 0)
 
     def test_terminal_application(self):
