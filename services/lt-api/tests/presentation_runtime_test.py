@@ -5,7 +5,7 @@ from applicant_runtime_test import request
 from operator_runtime_test import operate
 from operations_runtime_test import Fixture, mutation
 from lifecycle_runtime_test import clock
-from applicant_runtime_test import ApplicantRuntime
+import applicant_runtime_test as applicants
 
 
 class PresentationRuntime(unittest.TestCase):
@@ -29,7 +29,7 @@ class PresentationRuntime(unittest.TestCase):
 
             # 概要だけの変更でもタイトルと時間割を維持し、再送で版を増やさない
             payload = mutation(app['version'], {'title': app['content']['title'], 'abstract': '本人が変更した概要\n2行目'})
-            other_cookie, _ = ApplicantRuntime().login()
+            other_cookie, _ = applicants.ApplicantRuntime().login()
             self.assertEqual(request(path, payload, other_cookie)[0], 404)
             status, saved, _ = request(path, payload, cookie)
             self.assertEqual(status, 200)
