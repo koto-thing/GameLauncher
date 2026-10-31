@@ -14,7 +14,7 @@ import type {
 } from "../../../contracts/lt/v1";
 import { request } from "./api";
 import { actions } from "./policy";
-import { canChangeTitle } from "../../../contracts/lt/application-policy";
+import { canChangePresentation } from "../../../contracts/lt/application-policy";
 import "./style.css";
 import "./theme.css";
 import { ApplicationForm } from "./ApplicationForm";
@@ -170,28 +170,30 @@ function App() {
     );
   }
   /**
-   * 申請状態を保持して発表タイトルだけを変更するフォームを表示する
+   * 申請状態を保持して発表タイトル・概要を変更するフォームを表示する
    * @param application 変更対象の本人申請
-   * @returns タイトル編集フォームまたは変更不可の場合はnull
+   * @returns タイトル・概要編集フォームまたは変更不可の場合はnull
    */
-  function titleForm(application: Application) {
-    if (!canChangeTitle(application)) return null;
+  function presentationForm(application: Application) {
+    if (!canChangePresentation(application)) return null;
 
     // 保存後の再取得で入力値と版を最新の申請へ揃える
     return (
       <form
-        key={`title:${application.id}:${application.version}`}
+        key={`presentation:${application.id}:${application.version}`}
         onSubmit={(e) => {
           e.preventDefault();
-          const title = String(new FormData(e.currentTarget).get("title")).trim();
-          if (!title) return;
+          const form = new FormData(e.currentTarget);
+          const title = String(form.get("title")).trim();
+          const abstract = String(form.get("abstract")).trim();
+          if (!title || !abstract) return;
           void run(async () => {
-            const data = { title };
-            const op = await operation(`${application.id}/title`, {
+            const data = { title, abstract };
+            const op = await operation(`${application.id}/presentation`, {
               expectedVersion: application.version,
               data,
             });
-            await api(`/applications/${encodeURIComponent(application.id)}/title`, {
+            await api(`/applications/${encodeURIComponent(application.id)}/presentation`, {
               method: "POST",
               body: JSON.stringify({
                 expectedVersion: application.version,
@@ -213,8 +215,17 @@ function App() {
             disabled={busy}
           />
         </label>
-        <p>公開済みの場合は公開ページにも反映されます</p>
-        <button disabled={busy}>タイトルを保存</button>
+        <label htmlFor={`presentation-abstract:${application.id}`}>発表概要</label>
+        <textarea
+          id={`presentation-abstract:${application.id}`}
+          name="abstract"
+          required
+          defaultValue={application.content.abstract}
+          disabled={busy}
+          rows={5}
+        />
+        <p>公開済みの場合はタイトルと概要の両方が公開ページにも反映されます</p>
+        <button disabled={busy}>タイトル・概要を保存</button>
       </form>
     );
   }
@@ -333,7 +344,7 @@ function App() {
             {(data as ApplicationPage)?.items.map((a) => (
               <article key={a.id}>
                 <h2>{a.content.title}</h2>
-                {titleForm(a)}
+                {presentationForm(a)}
                 <p>
                   {a.waitlisted ? "キャンセル待ち（登壇未確定）" : a.review} / {a.withdrawal}
                 </p>
@@ -418,7 +429,7 @@ function App() {
         ) : path.startsWith("/applications/") && data ? (
           <section>
             <h1>{(data as Application).content.title}</h1>
-            {titleForm(data as Application)}
+            {presentationForm(data as Application)}
             <p>{(data as Application).review}</p>
             {(data as Application).eventCancelledAt && (
               <p>

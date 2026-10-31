@@ -52,4 +52,4 @@ export type EmailChangeVerificationInput = { token: string };
 export type OperatorMetadataInput = { expectedVersion: number; operationId: string; data: { session: { field: "programming" | "sound" | "graphics"; relatedFields: Array<"ENG" | "PRD" | "VA" | "GD" | "SND" | "BP" | "AC">; keywords: Array<string>; platforms: Array<string>; difficulty: "easy" | "normal" | "hard"; prerequisites: string; takeaways: string }; speakerLinks: Array<Array<{ label: string; url: string }>> } };
 export type MaterialInput = { expectedVersion: number; operationId: string; data: { materialUrl: string | "" } };
 export type Planning = { relativeRecruitment: boolean; opensDaysBefore: number; closesDaysBefore: number; materialDaysBefore: number; reminderDaysBefore: number };
-export type TitleMutation = { expectedVersion: number; operationId: string; data: { title: string } };
+export type PresentationMutation = { expectedVersion: number; operationId: string; data: { title: string; abstract: string } };

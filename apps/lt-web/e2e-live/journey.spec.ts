@@ -132,12 +132,16 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
     let published = await (await applicant.request.get(publicUrl)).json();
     expect(published.title).toBe("Live talk");
     expect(JSON.stringify(published)).not.toContain("example.invalid");
-    // 承認後も本人と運営の両画面からタイトルを変更して公開反映する
+    // 承認後も本人と運営の両画面からタイトル・概要を変更して公開反映する
     await page.reload();
     await page.getByLabel("発表タイトル", { exact: true }).fill("Applicant title");
-    await page.getByRole("button", { name: "タイトルを保存", exact: true }).click();
+    await page.getByLabel("発表概要", { exact: true }).fill("Applicant abstract\nSecond line");
+    await page.getByRole("button", { name: "タイトル・概要を保存", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Applicant title", exact: true })).toBeVisible();
     expect((await (await applicant.request.get(publicUrl)).json()).title).toBe("Applicant title");
+    expect((await (await applicant.request.get(publicUrl)).json()).abstract).toBe(
+      "Applicant abstract\nSecond line",
+    );
     await admin.reload();
     await admin
       .locator(".lt-event-list")
@@ -152,9 +156,13 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
       .getByRole("button", { name: "Applicant title", exact: true })
       .click();
     await admin.getByLabel("発表タイトル", { exact: true }).fill("Live talk");
-    await admin.getByRole("button", { name: "タイトルを保存", exact: true }).click();
+    await admin.getByLabel("発表概要", { exact: true }).fill("Operator abstract\nSecond line");
+    await admin.getByRole("button", { name: "タイトル・概要を保存", exact: true }).click();
     await expect(admin.getByRole("heading", { name: "Live talk", exact: true })).toBeVisible();
     expect((await (await applicant.request.get(publicUrl)).json()).title).toBe("Live talk");
+    expect((await (await applicant.request.get(publicUrl)).json()).abstract).toBe(
+      "Operator abstract\nSecond line",
+    );
     await admin.getByRole("button", { name: "差し戻し", exact: true }).click();
     await expect(admin.getByText("保存しました", { exact: true })).toBeVisible();
     await page.reload();

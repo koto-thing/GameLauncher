@@ -94,16 +94,16 @@ EmptyMutationには新タイトル/日時の欄がないため、独立した開
 
 ## 再現と検証
 
-発表タイトルは本人の `POST /api/lt/v1/applications/:id/title` と運営の
-`POST /api/lt/v1/operator/applications/:id/title` から変更できる
-要求は `TitleMutation`（`expectedVersion`、`operationId`、`data: { title }`）で、
-承認後も申請原稿と公開版のタイトルだけを同時に更新する
-差し戻し中の概要などは公開せず、審査状態・時間割・保持期限は変更しない
+発表タイトル・概要は本人の `POST /api/lt/v1/applications/:id/presentation` と運営の
+`POST /api/lt/v1/operator/applications/:id/presentation` から変更できる
+要求は `PresentationMutation`（`expectedVersion`、`operationId`、`data: { title, abstract }`）で、
+承認後も申請原稿と公開版のタイトル・概要を同時に更新する
+その他の原稿・審査状態・時間割・保持期限は変更しない
 中止・見送り・取り下げ・辞退確定・保持期限切れは変更不可
 
-この機能の反映時には `0045_title_change.sql` をAPI更新前に適用する
-タイトル変更による審査通知の再送を防ぎ、運営の変更を `titleChanged` として記録する
-保存SQLとDBトリガーの回帰テストは `python tests/test_title.py` で実行する
+この機能の反映時には `0046_presentation_change.sql` をAPI更新前に適用する
+変更による審査通知の再送を防ぎ、運営の変更を `presentationChanged` として記録する
+保存SQLとDBトリガーの回帰テストは `python tests/test_presentation.py` で実行する
 
 サービスディレクトリで実行。JSON Schema試験依存は共有`contracts/lt/requirements-test.txt`のjsonschema==4.26.0（必要ならプロジェクトvenvへ入れる）。Node/PMのPC全体設定は変更しない。
 

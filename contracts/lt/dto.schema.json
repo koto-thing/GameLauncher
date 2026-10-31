@@ -2791,7 +2791,7 @@
         }
       }
     },
-    "TitleMutation": {
+    "PresentationMutation": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -2812,10 +2812,16 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "title"
+            "title",
+            "abstract"
           ],
           "properties": {
             "title": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "abstract": {
               "type": "string",
               "minLength": 1,
               "pattern": "\\S"
