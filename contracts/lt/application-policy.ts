@@ -6,7 +6,9 @@ import type { Application } from "./v1";
  * @returns 中止・取り下げ・見送り・辞退確定以外の場合はtrue
  */
 export function canChangeTitle(application: Application): boolean {
-  return application.eventState !== "cancelled"
-    && application.withdrawal !== "confirmed"
-    && !["withdrawn", "rejected"].includes(application.review);
+  return (
+    application.eventState !== "cancelled" &&
+    application.withdrawal !== "confirmed" &&
+    !["withdrawn", "rejected"].includes(application.review)
+  );
 }

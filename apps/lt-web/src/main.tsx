@@ -178,24 +178,45 @@ function App() {
     if (!canChangeTitle(application)) return null;
 
     // 保存後の再取得で入力値と版を最新の申請へ揃える
-    return <form key={`${application.id}:${application.version}`} onSubmit={(e) => {
-      e.preventDefault();
-      const title = String(new FormData(e.currentTarget).get("title")).trim();
-      if (!title) return;
-      void run(async () => {
-        const data = { title };
-        const op = await operation(`${application.id}/title`, { expectedVersion: application.version, data });
-        await api(`/applications/${encodeURIComponent(application.id)}/title`, {
-          method: "POST",
-          body: JSON.stringify({ expectedVersion: application.version, operationId: op.id, data }),
-        });
-        op.complete();
-      });
-    }}>
-      <label>発表タイトル<input name="title" required pattern=".*\S.*" defaultValue={application.content.title} disabled={busy} /></label>
-      <p>公開済みの場合は公開ページにも反映されます</p>
-      <button disabled={busy}>タイトルを保存</button>
-    </form>;
+    return (
+      <form
+        key={`${application.id}:${application.version}`}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const title = String(new FormData(e.currentTarget).get("title")).trim();
+          if (!title) return;
+          void run(async () => {
+            const data = { title };
+            const op = await operation(`${application.id}/title`, {
+              expectedVersion: application.version,
+              data,
+            });
+            await api(`/applications/${encodeURIComponent(application.id)}/title`, {
+              method: "POST",
+              body: JSON.stringify({
+                expectedVersion: application.version,
+                operationId: op.id,
+                data,
+              }),
+            });
+            op.complete();
+          });
+        }}
+      >
+        <label>
+          発表タイトル
+          <input
+            name="title"
+            required
+            pattern=".*\S.*"
+            defaultValue={application.content.title}
+            disabled={busy}
+          />
+        </label>
+        <p>公開済みの場合は公開ページにも反映されます</p>
+        <button disabled={busy}>タイトルを保存</button>
+      </form>
+    );
   }
   return (
     <>

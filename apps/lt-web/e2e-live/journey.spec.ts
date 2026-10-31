@@ -118,6 +118,10 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
       .getByRole("button", { name: new RegExp(fields.title) })
       .click();
     await admin
+      .getByRole("navigation", { name: "LT管理メニュー" })
+      .getByRole("button", { name: "登壇申請", exact: true })
+      .click();
+    await admin
       .locator("#lt-applications")
       .getByRole("button", { name: "Live talk", exact: true })
       .click();
@@ -128,6 +132,29 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
     let published = await (await applicant.request.get(publicUrl)).json();
     expect(published.title).toBe("Live talk");
     expect(JSON.stringify(published)).not.toContain("example.invalid");
+    // 承認後も本人と運営の両画面からタイトルを変更して公開反映する
+    await page.reload();
+    await page.getByLabel("発表タイトル", { exact: true }).fill("Applicant title");
+    await page.getByRole("button", { name: "タイトルを保存", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Applicant title", exact: true })).toBeVisible();
+    expect((await (await applicant.request.get(publicUrl)).json()).title).toBe("Applicant title");
+    await admin.reload();
+    await admin
+      .locator(".lt-event-list")
+      .getByRole("button", { name: new RegExp(fields.title) })
+      .click();
+    await admin
+      .getByRole("navigation", { name: "LT管理メニュー" })
+      .getByRole("button", { name: "登壇申請", exact: true })
+      .click();
+    await admin
+      .locator("#lt-applications")
+      .getByRole("button", { name: "Applicant title", exact: true })
+      .click();
+    await admin.getByLabel("発表タイトル", { exact: true }).fill("Live talk");
+    await admin.getByRole("button", { name: "タイトルを保存", exact: true }).click();
+    await expect(admin.getByRole("heading", { name: "Live talk", exact: true })).toBeVisible();
+    expect((await (await applicant.request.get(publicUrl)).json()).title).toBe("Live talk");
     await admin.getByRole("button", { name: "差し戻し", exact: true }).click();
     await expect(admin.getByText("保存しました", { exact: true })).toBeVisible();
     await page.reload();
@@ -144,6 +171,10 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
     await admin
       .locator(".lt-event-list")
       .getByRole("button", { name: new RegExp(fields.title) })
+      .click();
+    await admin
+      .getByRole("navigation", { name: "LT管理メニュー" })
+      .getByRole("button", { name: "登壇申請", exact: true })
       .click();
     await admin
       .locator("#lt-applications")
@@ -187,6 +218,10 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
       .getByRole("button", { name: new RegExp(fields.title) })
       .click();
     await admin
+      .getByRole("navigation", { name: "LT管理メニュー" })
+      .getByRole("button", { name: "登壇申請", exact: true })
+      .click();
+    await admin
       .locator("#lt-applications")
       .getByRole("button", { name: "Revised talk", exact: true })
       .click();
@@ -197,6 +232,10 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
     await admin.getByRole("button", { name: "申請一覧に戻る" }).click();
     await admin.bringToFront();
 
+    await admin
+      .getByRole("navigation", { name: "LT管理メニュー" })
+      .getByRole("button", { name: "例外対応", exact: true })
+      .click();
     await expect(admin.getByRole("button", { name: "開催中止", exact: true })).toBeEnabled();
     console.log("stage cancel");
     admin.on("request", (r) => {
