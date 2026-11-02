@@ -5,6 +5,21 @@ import { proxyLtCore } from "../lib/lt/proxy-core.ts";
 const url = "https://admin.example.invalid/api/lt/v1/operator/events";
 const identity = role => async () => ({ githubUserId: "fixture-operator", role });
 
+test("申請全体の編集は管理者と幹部だけを内部APIへ渡す", async () => {
+  for (const [role, status] of [["admin", 200], ["executive", 200], ["assistant", 403], [null, 403]]) {
+    let calls = 0;
+    const request = new Request(url.replace("events", "applications/fixture"), {
+      method: "PATCH", headers: { origin: "https://admin.example.invalid", "content-type": "application/json", "x-role": "admin" },
+      body: JSON.stringify({ expectedVersion: 1, operationId: "edit", data: {} }),
+    });
+    const response = await proxyLtCore(request, identity(role), { fetch: async (_request, actor) => {
+      calls++; assert.equal(actor.role, role); return Response.json({ version: 2 });
+    } });
+    assert.equal(response.status, status);
+    assert.equal(calls, status === 200 ? 1 : 0);
+  }
+});
+
 test("未認証・権限不足は内部サービスへ届かない", async () => {
   let calls = 0;
   const adapter = { fetch: async () => { calls++; return Response.json({}); } };

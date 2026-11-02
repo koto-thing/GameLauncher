@@ -127,6 +127,19 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     let _operate = matches!(c.role, Role::Admin | Role::Executive | Role::Assistant);
     let path = req.path();
     let p: Vec<_> = path.trim_matches('/').split('/').collect();
+    // 申請の直接編集は管理者と幹部だけに許可する
+    if req.method() == Method::Get && path == "/api/lt/v1/operator/permissions" {
+        return Response::from_json(
+            &json!({"canEditApplications": matches!(c.role, Role::Admin | Role::Executive)}),
+        );
+    }
+    if req.method() == Method::Patch
+        && p.len() == 6
+        && p[4] == "applications"
+        && !matches!(c.role, Role::Admin | Role::Executive)
+    {
+        return error("FORBIDDEN", 403, c);
+    }
     let db = env.d1("DB")?;
     if req.method() == Method::Get && path == "/api/lt/v1/operator/monitor" {
         return crate::monitor::snapshot(&db, env).await;
@@ -134,6 +147,9 @@ async fn handle(req: &mut Request, env: &Env, c: &OperatorContext) -> Result<Res
     let now = crate::lifecycle::reconcile(&db).await?;
     if !p.starts_with(&["api", "lt", "v1", "operator"]) {
         return error("NOT_FOUND", 404, c);
+    }
+    if req.method() == Method::Patch && p.len() == 6 && p[4] == "applications" {
+        return crate::operator_application::save(req, &db, p[5], &c.actor_id, &c.request_id).await;
     }
     if let Some(response) = crate::events::handle(req, &db, &c.actor_id, &c.request_id).await? {
         return Ok(response);

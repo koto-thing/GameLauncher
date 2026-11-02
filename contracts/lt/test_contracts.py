@@ -66,17 +66,22 @@ class ContractTests(unittest.TestCase):
         fixture["operatorNote"] = "private"
         self.assertFalse(validator.is_valid(fixture))
 
-    # 管理経路と例外権限を公開経路から分離する
     def test_routes_and_capabilities(self):
+        """管理経路と申請編集の権限を公開経路から分離する
+
+        Returns:
+            なし
+        """
         routes = load("routes.json")
         self.assertEqual(len(routes), len({(r["method"],r["path"]) for r in routes}))
         for route in routes:
             if "/operator/" in route["path"]:
-                self.assertIn(route["access"], ["lt.operate","lt.emailChange"])
+                self.assertIn(route["access"], ["lt.operate","lt.emailChange","lt.editApplication"])
             if route["access"] == "public":
                 self.assertNotIn("Application", route["response"])
         policy = load("policy.json")
         self.assertEqual(policy["capabilities"]["lt.emailChange"], ["admin","executive"])
+        self.assertEqual(policy["capabilities"]["lt.editApplication"], ["admin", "executive"])
         self.assertEqual(policy["confirmLinkSeconds"],3600)
         self.assertFalse(policy["sessionSeconds"]["productionEnabled"])
         self.assertEqual(policy["mailAdapter"],"fake")

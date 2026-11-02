@@ -349,5 +349,21 @@
     "request": "PresentationMutation",
     "response": "OperatorApplication",
     "error": "ApiError"
+  },
+  {
+    "method": "GET",
+    "path": "/api/lt/v1/operator/permissions",
+    "access": "lt.operate",
+    "request": null,
+    "response": "OperatorPermissions",
+    "error": "ApiError"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/lt/v1/operator/applications/:id",
+    "access": "lt.editApplication",
+    "request": "EditApplicationInput",
+    "response": "OperatorApplication",
+    "error": "ApiError"
   }
 ]

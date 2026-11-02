@@ -53,9 +53,14 @@ fn text(v: &Value) -> bool {
 }
 
 /// 発表入力を共有契約に従って検証する
-/// 引数: 本文と資料 URL
-/// 戻り値: 検証結果
-fn content(v: &Value, url: &Value) -> bool {
+///
+/// # 引数
+/// - `v`: 発表内容と登壇者情報
+/// - `url`: 非公開の資料URL
+///
+/// # 戻り値
+/// 入力が申請契約を満たす場合はtrue
+pub(crate) fn content(v: &Value, url: &Value) -> bool {
     object(
         v,
         &["title", "abstract", "speakers"],

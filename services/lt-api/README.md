@@ -178,3 +178,15 @@ runtime-testsとlocal-developmentを両方指定した検証bundleだけが固�
 - 要対応一覧は全ページを取得し、辞退確認・審査・保留・資料・キャンセル待ちをまとめる
 
 検証: `tests/automation_runtime_test.py` はローカルWorker・D1で本人境界、資料確認、相対期限、リマインド、繰り上げ、固定枠、通知と再送の重複防止を確認する。テスト接続先は `LT_TEST_API_ORIGIN` / `LT_TEST_OPERATOR_ORIGIN` で指定できる。実メール配送・本番反映は別途運用設定が必要。
+
+## 管理者・幹部による申請情報の編集
+
+管理画面の「申請情報を編集」から、発表タイトル・概要・詳細・分類・登壇者名・所属・プロフィール・関連リンク・資料URLをまとめて更新できる
+`PATCH /api/lt/v1/operator/applications/:id` は `EditApplicationInput` を受け取り、管理者・幹部だけに許可する
+公開済みの発表は公開版にも同じ内容を反映し、未公開の申請は公開しない
+代表者メールの移管は既存の本人確認付きメール変更手順を使用する
+審査状態・時間割・保持期限は維持し、資料URLの変更時は確認済み状態を解除する
+中止・見送り・取り下げ・辞退確定・保持期限切れは編集不可
+再送は既存の操作記録を返し、版競合は409で拒否する
+
+検証は `python tests/test_operator_application.py` と本番機能付きローカルWorkerを使う `python tests/session_runtime_test.py` で実行する

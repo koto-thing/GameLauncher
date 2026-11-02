@@ -12,6 +12,7 @@ mod materials;
 mod monitor;
 mod operations;
 mod operator;
+mod operator_application;
 mod operator_metadata;
 mod planning;
 mod receipts;

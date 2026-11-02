@@ -15,9 +15,14 @@ def render(s):
     return {"integer":"number","number":"number","string":"string","boolean":"boolean","null":"null"}[kind]
 
 def generate():
+    """共有Schemaと権限名からTypeScript型宣言を生成する
+
+    Returns:
+        型宣言ファイルの内容
+    """
     defs=json.loads((ROOT/"dto.schema.json").read_text(encoding="utf-8"))["$defs"]
     header="// 自動生成: generate_types.py を実行する。実行時検証は JSON Schema を使用する\n"
-    aliases='export type Instant = string;\nexport type Id = string;\nexport type Version = number;\nexport type Role = "admin" | "executive" | "assistant" | null;\nexport type Capability = "lt.operate" | "lt.emailChange";\n'
+    aliases='export type Instant = string;\nexport type Id = string;\nexport type Version = number;\nexport type Role = "admin" | "executive" | "assistant" | null;\nexport type Capability = "lt.operate" | "lt.emailChange" | "lt.editApplication";\n'
     return header+aliases+"".join("export type "+k+" = "+render(v)+";\n" for k,v in defs.items())
 
 if __name__=="__main__":
