@@ -155,13 +155,20 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
       .locator("#lt-applications")
       .getByRole("button", { name: "Applicant title", exact: true })
       .click();
-    await admin.getByLabel("発表タイトル", { exact: true }).fill("Live talk");
-    await admin.getByLabel("発表概要", { exact: true }).fill("Operator abstract\nSecond line");
-    await admin.getByRole("button", { name: "タイトル・概要を保存", exact: true }).click();
+    // 管理者・幹部は申請全体の編集フォームから公開内容を更新する
+    await admin.getByRole("button", { name: "申請情報を編集", exact: true }).click();
+    const editForm = admin.locator("form.application-form");
+    await editForm.locator("input[name=title]").fill("Live talk");
+    await editForm.locator("textarea[name=abstract]").fill("Operator abstract\nSecond line");
+    await editForm.getByLabel("名前", { exact: true }).first().fill("Updated speaker");
+    await editForm.getByRole("button", { name: "変更を保存", exact: true }).click();
     await expect(admin.getByRole("heading", { name: "Live talk", exact: true })).toBeVisible();
     expect((await (await applicant.request.get(publicUrl)).json()).title).toBe("Live talk");
     expect((await (await applicant.request.get(publicUrl)).json()).abstract).toBe(
       "Operator abstract\nSecond line",
+    );
+    expect((await (await applicant.request.get(publicUrl)).json()).speakers[0].displayName).toBe(
+      "Updated speaker",
     );
     await admin.getByRole("button", { name: "差し戻し", exact: true }).click();
     await expect(admin.getByText("保存しました", { exact: true })).toBeVisible();
