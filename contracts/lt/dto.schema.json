@@ -2829,6 +2829,18 @@
           }
         }
       }
+    },
+    "OperatorPermissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canEditApplications"
+      ],
+      "properties": {
+        "canEditApplications": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

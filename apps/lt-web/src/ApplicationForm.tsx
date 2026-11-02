@@ -1,3 +1,4 @@
+import { MaterialHelp, MaterialView } from "./MaterialView";
 import { SessionFields, readSession, isSpeakerUrl } from "./SessionFields";
 import { useState } from "react";
 import {
@@ -23,6 +24,7 @@ import "./application.css";
  * @param props.events 選択可能な開催回
  * @param props.busy 送信中の操作を抑止する状態
  * @param props.save 入力した申請を保存する処理
+ * @param props.operatorEdit 管理者・幹部による既存申請の編集か
  * @param props.cancel 編集を取り消す処理
  * @returns 編集画面のReact要素
  */
@@ -32,19 +34,27 @@ export function ApplicationForm({
   busy,
   save,
   cancel,
+  operatorEdit = false,
 }: {
   application: Application | null;
   events: PublicEventPage;
   busy: boolean;
   save: (data: unknown) => void;
   cancel: () => void;
+  operatorEdit?: boolean;
 }) {
   const [speakers, setSpeakers] = useState<Speaker[]>(a?.content.speakers ?? [{ displayName: "" }]);
+  const [materialUrl, setMaterialUrl] = useState(a?.materialUrl ?? "");
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [error, setError] = useState("");
   const openEvents = events.items.filter((e) => ["open", "full"].includes(e.recruitment));
 
-  // 対象の登壇者だけを更新する
+  /**
+   * 対象の登壇者だけを更新する
+   * @param index 更新対象の登壇者の位置
+   * @param update 変更する登壇者情報
+   * @returns 戻り値なし
+   */
   function changeSpeaker(index: number, update: Partial<Speaker>) {
     setSpeakers((items) => items.map((item, i) => (i === index ? { ...item, ...update } : item)));
   }
@@ -56,7 +66,8 @@ export function ApplicationForm({
         e.preventDefault();
         const f = new FormData(e.currentTarget);
         try {
-          if (!privacyAccepted) throw new Error("プライバシーポリシーを確認し、同意してください。");
+          if (!operatorEdit && !privacyAccepted)
+            throw new Error("プライバシーポリシーを確認し、同意してください。");
           const session = readSession(f);
           if (
             speakers.some((s) =>
@@ -299,33 +310,43 @@ export function ApplicationForm({
             <input
               name="materialUrl"
               type="url"
-              defaultValue={a?.materialUrl}
+              value={materialUrl}
+              maxLength={2048}
+              onChange={(event) => setMaterialUrl(event.currentTarget.value)}
               pattern="https?://.*"
               placeholder="https://"
             />
           </label>
+          <MaterialHelp />
+          <MaterialView key={materialUrl.trim()} url={materialUrl} />
         </section>
-        <label className="privacy-consent">
-          <input
-            type="checkbox"
-            name="privacyAccepted"
-            required
-            checked={privacyAccepted}
-            onChange={(e) => setPrivacyAccepted(e.target.checked)}
-          />
-          <span>
-            <a href="/privacy" target="_blank" rel="noopener noreferrer">
-              プライバシーポリシー
-            </a>
-            を確認し、同意します
-          </span>
-        </label>
+        {!operatorEdit && (
+          <label className="privacy-consent">
+            <input
+              type="checkbox"
+              name="privacyAccepted"
+              required
+              checked={privacyAccepted}
+              onChange={(e) => setPrivacyAccepted(e.target.checked)}
+            />
+            <span>
+              <a href="/privacy" target="_blank" rel="noopener noreferrer">
+                プライバシーポリシー
+              </a>
+              を確認し、同意します
+            </span>
+          </label>
+        )}
         <div className="application-actions">
           <button type="button" className="quiet-button" onClick={cancel}>
             <ArrowLeft aria-hidden="true" />
             戻る
           </button>
-          <button type="submit" className="primary-button" disabled={!privacyAccepted}>
+          <button
+            type="submit"
+            className="primary-button"
+            disabled={!operatorEdit && !privacyAccepted}
+          >
             {a ? <Save aria-hidden="true" /> : <Send aria-hidden="true" />}
             {busy ? "送信中…" : a ? "変更を保存" : "申請する"}
           </button>

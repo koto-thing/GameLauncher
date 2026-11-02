@@ -7,7 +7,9 @@ import { canReapprove, canReview, syncTimetableEvent } from "../../lib/lt/operat
 import { useEffect, useRef, useState } from "react";
 import type { EventSettings, OperatorApplication, EventSettingsPage, OperatorApplicationPage, OperatorTimetable } from "../../../../contracts/lt/v1";
 
+import { MaterialView } from "../../../lt-web/src/MaterialView";
 import { SessionFacts, SpeakerLinks } from "../../../lt-web/src/SessionFacts";
+import { ApplicationEditor } from "./ApplicationEditor";
 import { SessionEditor } from "./SessionEditor";
 import { EventForm } from "./EventForm";
 import { actionItems } from "../../lib/lt/action-items";
@@ -77,6 +79,7 @@ async function fetchApplications(eventId: string): Promise<OperatorApplicationPa
  * @returns 編集画面のReact要素
  */
 export function LtManager() {
+  const [canEditApplications, setCanEditApplications] = useState(false);
   const [view, setView] = useState<EventView>("overview");
   const [needsReload, setNeedsReload] = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
@@ -106,6 +109,15 @@ export function LtManager() {
     try { await task(); retry.current = null; } catch (cause) { if (cause instanceof ApiFailure && ([401, 403].includes(cause.status) || cause.code === "VERSION_CONFLICT")) setNeedsReload(true); if (cause instanceof ApiFailure && cause.status >= 400 && cause.status < 500) retry.current = null; setError(cause instanceof Error ? cause.message : "操作できませんでした"); }
     finally { lock.current = false; setBusy(false); setCanRetry(retry.current !== null); }
   }
+  // 表示権限は認証済みAPIから取得し、保存時にはサーバーでも再検証する
+  useEffect(() => {
+    let active = true;
+    void api<{ canEditApplications: boolean }>("/permissions")
+      .then(result => { if (active) setCanEditApplications(result.canEditApplications); })
+      .catch(cause => { if (active) setError(cause instanceof Error ? cause.message : "権限を確認できませんでした"); });
+    return () => { active = false; };
+  }, []);
+
   async function loadEvents() { setEvents(await fetchEvents()); }
   useEffect(() => { let active = true; void fetchEvents().then(items => { if (active) setEvents(items); }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : "読込に失敗しました"); }); return () => { active = false; }; }, []);
 
@@ -165,8 +177,13 @@ export function LtManager() {
     {creating ? <div key="create" className="lt-panel"><button onClick={() => setCreating(false)}>作成を中断</button><h2>開催回を作成</h2><EventForm value={{ id: "", version: 1, state: "scheduled", publishEnabled: false, title: "", venue: "", guidance: "", startsAt: "", timeZone: "", opensAt: "", closesAt: "", approvalMode: "automatic", planning: { relativeRecruitment: true, opensDaysBefore: 28, closesDaysBefore: 7, materialDaysBefore: 3, reminderDaysBefore: 1 }, scheduleMode: "automatic", openingMinutes: 5, breakEvery: 4, breakMinutes: 10, closingMinutes: 5, endsBy: null, capacity: 20, talkMinutes: 10, transitionMinutes: 1 }} onSave={data => { const body = { ...data, operationId: crypto.randomUUID() }; void run(async () => { const created = await api<EventSettings>("/events", "POST", body); await loadEvents(); await open(created); setCreating(false); }); }} /></div> : selected ? <div key="application" className="lt-panel lt-review">
       <button onClick={() => { setSelected(null); setView("applications"); setNote(""); setStartsAt(""); }}><ArrowLeft aria-hidden="true" />申請一覧に戻る</button>
       <h2>{selected.content.title}</h2><p>審査: {selected.waitlisted ? "キャンセル待ち" : selected.review} / 辞退: {selected.withdrawal}</p>
-      {selected.review === "approved" && selected.withdrawal === "none" && <SessionEditor key={`${selected.id}:${selected.version}`} application={selected} onSave={(data, done) => mutate(`/applications/${encodeURIComponent(selected.id)}/metadata`, selected.version, data, result => { const updated = result as OperatorApplication; setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); done(); })} />}
-      {canChangePresentation(selected) && <form key={`presentation:${selected.id}:${selected.version}`} onSubmit={e => {
+      {canEditApplications && canChangePresentation(selected) && <ApplicationEditor key={`application:${selected.id}:${selected.version}`} application={selected} busy={busy || needsReload} onSave={data => mutate(`/applications/${encodeURIComponent(selected.id)}`, selected.version, data, result => {
+        const updated = result as OperatorApplication;
+        setSelected(updated);
+        setApplications(items => items.map(item => item.id === updated.id ? updated : item));
+      }, "PATCH")} />}
+      {!canEditApplications && selected.review === "approved" && selected.withdrawal === "none" && <SessionEditor key={`${selected.id}:${selected.version}`} application={selected} onSave={(data, done) => mutate(`/applications/${encodeURIComponent(selected.id)}/metadata`, selected.version, data, result => { const updated = result as OperatorApplication; setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); done(); })} />}
+      {!canEditApplications && canChangePresentation(selected) && <form key={`presentation:${selected.id}:${selected.version}`} onSubmit={e => {
         e.preventDefault();
         const form = new FormData(e.currentTarget);
         const title = String(form.get("title")).trim();
@@ -186,7 +203,7 @@ export function LtManager() {
       </form>}
       <p>代表者メール: {selected.representativeEmail || "未登録（手動受付）"}</p><h3>申請原稿</h3><dl className="lt-session-facts"><SessionFacts session={selected.content.session} /></dl><p style={{ whiteSpace: "pre-wrap" }}>{selected.content.abstract}</p><p>{selected.content.description}</p>
       <p>{selected.content.speakers.map(speaker => speaker.displayName).join("、")}</p>
-      {/^(https?):\/\//i.test(selected.materialUrl) ? <a href={selected.materialUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">資料を確認</a> : <p>資料未提出</p>}
+      {selected.materialUrl ? <MaterialView key={selected.materialUrl} url={selected.materialUrl} /> : <p>資料未提出</p>}
       {selected.materialUrl && <p>資料: {selected.materialReviewed ? "確認済み" : "未確認"} <button disabled={selected.materialReviewed || selected.withdrawal !== "none" || !["scheduled", "started"].includes(selected.eventState)} onClick={() => mutate(`/applications/${encodeURIComponent(selected.id)}/material`, selected.version, { materialUrl: selected.materialUrl }, result => { const updated = result as OperatorApplication; setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); })}>この資料を確認済みにする</button></p>}
       <div>{selected.content.speakers.map((speaker, index) => <div key={index}><strong>{speaker.displayName}</strong><SpeakerLinks links={speaker.links} /></div>)}</div>
       <h3>公開版</h3>{selected.published ? <><p>{selected.published.title}</p><p>{selected.published.abstract}</p><p>{selected.published.startsAt}</p><dl className="lt-session-facts"><SessionFacts session={selected.published.session} /></dl></> : <p>未公開</p>}

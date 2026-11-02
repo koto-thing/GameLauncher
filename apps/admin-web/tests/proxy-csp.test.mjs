@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildContentSecurityPolicy } from "../lib/csp.ts";
 
+test("LT画面だけに公式スライドの埋め込みを許可する", () => {
+  assert.match(buildContentSecurityPolicy(false, "/lt"), /frame-src https:\/\/docs.google.com https:\/\/onedrive.live.com;/);
+  for (const path of ["/", "/music", "/lt-other", "/api/lt"]) {
+    assert.ok(!buildContentSecurityPolicy(false, path).includes("frame-src"));
+  }
+});
+
 test("only the Music page permits WebAssembly in production", () => {
   const music = buildContentSecurityPolicy(false, "/music");
   assert.match(music, /script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'(?:;|$)/);

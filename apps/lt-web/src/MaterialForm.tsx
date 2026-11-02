@@ -1,3 +1,4 @@
+import { MaterialHelp, MaterialView } from "./MaterialView";
 import { useState } from "react";
 import type { Application } from "../../../contracts/lt/v1";
 
@@ -53,6 +54,8 @@ export function MaterialForm({
           onChange={(event) => setUrl(event.currentTarget.value)}
         />
       </label>
+      <MaterialHelp />
+      {url.trim() !== application.materialUrl && <MaterialView key={url.trim()} url={url} />}
       <button disabled={disabled || url.trim() === application.materialUrl}>資料を保存</button>
     </form>
   );

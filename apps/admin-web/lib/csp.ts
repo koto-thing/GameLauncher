@@ -20,6 +20,7 @@ export function buildContentSecurityPolicy(
     "form-action 'self' https://github.com",
     "frame-ancestors 'none'",
     "img-src 'self' blob: data: https://avatars.githubusercontent.com" + (pathname === "/lt" ? " https:" : ""),
+    ...(pathname === "/lt" ? ["frame-src https://docs.google.com https://onedrive.live.com"] : []),
     "object-src 'none'",
     scriptSrc + (pathname === "/music" ? " 'wasm-unsafe-eval'" : ""),
     "style-src 'self' 'unsafe-inline'",

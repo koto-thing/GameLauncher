@@ -1,11 +1,24 @@
 """CI起動診断が機密や自由形式エラーを公開しないことを検証する"""
 import json
 import unittest
-from fixture_diagnostics import startup_diagnostics
+from fixture_diagnostics import startup_diagnostics, test_failure_diagnostics
 
 
 class StartupDiagnosticsTests(unittest.TestCase):
     """失敗は固定分類だけに限定する"""
+
+    def test_failure_location_excludes_payloads(self):
+        """テスト識別子を残し、本文や確認URLを除外する
+
+        Returns:
+            戻り値なし
+        """
+        text = 'FAIL: test_submit (ApplicantRuntime.test_submit)\n  File "/private/tests/applicant_runtime_test.py", line 50, in test_submit\nAssertionError: 500 != 200\nCookie: synthetic-secret\nhttps://example.invalid/?token=synthetic-secret'
+        result = test_failure_diagnostics(text)
+        self.assertEqual(result['tests'], ['test_submit'])
+        self.assertEqual(result['locations'], [('applicant_runtime_test.py', '50')])
+        self.assertEqual(result['statusComparisons'], [('500', '200')])
+        self.assertNotIn('synthetic-secret', json.dumps(result))
 
     def test_unknown_text_is_not_exposed(self):
         """cookie・body・URL queryと未知の例外本文を返さない"""

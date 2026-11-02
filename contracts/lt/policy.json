@@ -9,6 +9,10 @@
     "lt.emailChange": [
       "admin",
       "executive"
+    ],
+    "lt.editApplication": [
+      "admin",
+      "executive"
     ]
   },
   "confirmLinkSeconds": 3600,

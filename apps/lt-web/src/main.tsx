@@ -1,3 +1,4 @@
+import { MaterialView } from "./MaterialView";
 import { MaterialForm } from "./MaterialForm";
 import { ThemeToggle } from "./ThemeToggle";
 import { LegalPage, SiteFooter } from "./LegalPage";
@@ -364,11 +365,7 @@ function App() {
                     {date(a.published.endsAt, a.eventId)}
                   </p>
                 )}
-                {a.materialUrl && (
-                  <a href={a.materialUrl} rel="noreferrer">
-                    資料
-                  </a>
-                )}
+                <MaterialView key={a.materialUrl} url={a.materialUrl} />
                 {["scheduled", "started"].includes(a.eventState) &&
                   !["rejected", "withdrawn"].includes(a.review) &&
                   a.withdrawal === "none" && (
@@ -430,6 +427,10 @@ function App() {
           <section>
             <h1>{(data as Application).content.title}</h1>
             {presentationForm(data as Application)}
+            <MaterialView
+              key={(data as Application).materialUrl}
+              url={(data as Application).materialUrl}
+            />
             <p>{(data as Application).review}</p>
             {(data as Application).eventCancelledAt && (
               <p>

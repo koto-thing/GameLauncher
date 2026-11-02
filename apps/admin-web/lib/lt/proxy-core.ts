@@ -121,6 +121,10 @@ export async function proxyLtCore(
     if (/\/email-change(?:\/|$)/.test(url.pathname) && user.role === "assistant") {
       throw new Response("Forbidden", { status: 403 });
     }
+    // 申請全体の直接編集は補佐の権限に含めない
+    if (request.method === "PATCH" && /^\/api\/lt\/v1\/operator\/applications\/[^/]+$/.test(url.pathname) && user.role === "assistant") {
+      throw new Response("Forbidden", { status: 403 });
+    }
     if (!adapter) throw new Response("LT 内部サービスは未接続です", { status: 503 });
 
     // ブラウザー由来の Cookie、Authorization、actor、role を内部へ転送しない

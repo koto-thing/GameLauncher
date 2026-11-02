@@ -13,6 +13,12 @@ let nextFailure = 0;
 let denied = false;
 const receipts = new Map();
 function fail(status, code) { return Response.json({ error: { code, requestId: "fixture" } }, { status }); }
+/**
+ * 管理画面の検証操作を架空データへ反映する
+ * @param input 要求先
+ * @param init メソッドと本文
+ * @returns 架空のAPI応答
+ */
 window.fetch = async (input, init) => {
   const path = String(input).split("?")[0]; const body = init?.body ? JSON.parse(String(init.body)) : null;
   await new Promise(resolve => setTimeout(resolve, 100));
@@ -21,6 +27,7 @@ window.fetch = async (input, init) => {
     if (body) notificationsEnabled = body.enabled;
     return Response.json({ enabled: notificationsEnabled, registered: notificationsEnabled, publicKey: "B".repeat(87), userId: "fixture", status: { outcome: "ok", checked_at: Date.now() }, failures: 0 });
   }
+  if (path.endsWith("/permissions")) return Response.json({ canEditApplications: new URLSearchParams(location.search).get("role") !== "assistant" });
   if (path.endsWith("/monitor")) return Response.json({ checkedAt: Date.now(), maintenance: { status: "stale", enabled: true, heartbeat: { startedAt: null, succeededAt: null, completedAt: null, outcome: "never" } }, mail: { mode: "http", configured: true, testRecipientOnly: false, states: [{ state: "uncertain", count: 1 }], backlog: { count: 0, oldestAt: null } }, items: [{ key: "withdrawal:fixture", eventId: event.id, title: event.title, applicationId: application.id, reason: "withdrawal" }] });
   const parts = path.split("/");
   const currentEvent = events.find(item => item.id === parts[6]) ?? event;
@@ -50,6 +57,7 @@ window.fetch = async (input, init) => {
     if (action === "approve" || action === "reapprove") application.published = { ...application.content, id: application.id, eventId: event.id, version: application.version, startsAt: body.data.startsAt ?? event.startsAt, endsAt: "2026-11-01T01:10:00.000Z", cancelled: false };
     if (action === "material") application = { ...application, materialReviewed: true };
     if (action === "confirm-withdrawal") application = { ...application, withdrawal: "confirmed", slotReserved: false, published: null };
+    if (init?.method === "PATCH") application = { ...application, content: body.data.content, materialUrl: body.data.materialUrl };
     result = application;
   } else {
     if (body.expectedVersion !== currentEvent.version) return fail(409, "VERSION_CONFLICT");

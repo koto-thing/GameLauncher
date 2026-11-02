@@ -17,10 +17,24 @@ def cli(args):
     return result.stdout
 
 # 本番と同じ型のHTTP要求をローカルWorkerへ送る
-def request(path, data=None, method=None, operator=False, cookie=None, status=200):
+def request(path, data=None, method=None, operator=False, cookie=None, status=200, role=None):
+    """隔離Workerへ要求し応答のステータスを検証する
+
+    Args:
+        path: APIの相対パス
+        data: 送信するJSON
+        method: HTTPメソッド
+        operator: 運営側Workerを使うか
+        cookie: 本人認証Cookie
+        status: 期待するHTTPステータス
+        role: ローカル内部RPCの検証用役割
+    Returns:
+        応答のJSON
+    """
     headers = {'Content-Type':'application/json', 'Origin':'https://example.invalid', 'X-LT-CSRF':'1'}
     if cookie: headers['Cookie'] = cookie
-    req = urllib.request.Request(f'http://127.0.0.1:{18988 if operator else 18987}/api/lt/v1' + path, data=None if data is None else json.dumps(data).encode(), headers=headers, method=method)
+    prefix = f'/test/role/{role}/api/lt/v1' if role else '/api/lt/v1'
+    req = urllib.request.Request(f'http://127.0.0.1:{18988 if operator else 18987}' + prefix + path, data=None if data is None else json.dumps(data).encode(), headers=headers, method=method)
     try: response = urllib.request.urlopen(req, timeout=15)
     except urllib.error.HTTPError as error: response = error
     with response:
@@ -89,7 +103,47 @@ try:
     public=request('/events/'+event['id']+'/talks/'+app['id'])
     assert public['session']==metadata and public['speakers'][0]['links']==edit['data']['speakerLinks'][0]
     assert public['startsAt']==published['startsAt'] and public['title']==published['title']
-    print('PASS: application round trip; manual approved metadata edit, publication, retry, version conflict, unsafe URL rejection')
+    # 管理者・幹部の編集と補佐の拒否を実際の内部RPCで検証する
+    path = '/operator/applications/' + app['id']
+    for role in ['admin', 'executive', 'assistant']:
+        permissions = request('/operator/permissions', operator=True, role=role)
+        assert permissions['canEditApplications'] == (role != 'assistant')
+    changed_content = {'title':'編集したタイトル', 'abstract':'編集した概要', 'description':'詳細',
+        'speakers':[{'displayName':'更新した登壇者','affiliation':'所属','profile':'紹介'},
+                    {'displayName':'共同登壇者','links':[{'label':'Web','url':'https://example.com'}]}], 'session':metadata}
+    edit = {'expectedVersion':saved['version'],'operationId':uuid.uuid4().hex,
+            'data':{'content':changed_content,'materialUrl':'https://example.com/new-slides'}}
+    request(path, edit, method='PATCH', operator=True, role='assistant', status=403)
+    saved = request(path, edit, method='PATCH', operator=True, role='admin')
+    assert saved['content'] == changed_content and saved['review'] == 'approved'
+    assert saved['materialUrl'] == edit['data']['materialUrl'] and not saved['materialReviewed']
+    assert request(path, edit, method='PATCH', operator=True, role='admin')['version'] == saved['version']
+    request(path, edit | {'operationId':uuid.uuid4().hex}, method='PATCH', operator=True, role='admin', status=409)
+    published = request('/events/'+event['id']+'/talks/'+app['id'])
+    assert published['speakers'] == changed_content['speakers'] and published['description'] == '詳細'
+    assert published['startsAt'] == public['startsAt'] and 'materialUrl' not in published
+
+    # 任意項目の削除と資料確認済み状態の解除を検証する
+    saved = request(path+'/material', {'expectedVersion':saved['version'],'operationId':uuid.uuid4().hex,
+        'data':{'materialUrl':saved['materialUrl']}}, operator=True)
+    assert saved['materialReviewed']
+    del changed_content['description']
+    del changed_content['session']
+    edit = {'expectedVersion':saved['version'],'operationId':uuid.uuid4().hex,
+            'data':{'content':changed_content,'materialUrl':''}}
+    saved = request(path, edit, method='PATCH', operator=True, role='executive')
+    published = request('/events/'+event['id']+'/talks/'+app['id'])
+    assert 'description' not in published and 'session' not in published and not saved['materialReviewed']
+    assert published['speakers'] == changed_content['speakers']
+
+    # 不正な入力や所有者・承認状態の書き換えを拒否する
+    for data in [edit['data'] | {'review':'approved'}, edit['data'] | {'representativeEmail':'other@example.invalid'},
+                 edit['data'] | {'materialUrl':'javascript:alert(1)'},
+                 edit['data'] | {'content':changed_content | {'speakers':[]}},
+                 edit['data'] | {'content':changed_content | {'title':' '}}]:
+        request(path, {'expectedVersion':saved['version'],'operationId':uuid.uuid4().hex,'data':data},
+                method='PATCH', operator=True, role='admin', status=422)
+    print('PASS: session metadata; admin/executive editing; role denial; publication; replay; conflicts; validation; material review reset')
 finally:
     for process in reversed(PROCESSES):
         if os.name=='nt': subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=subprocess.CREATE_NO_WINDOW)

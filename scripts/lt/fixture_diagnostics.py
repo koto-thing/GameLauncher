@@ -2,6 +2,24 @@
 import re
 
 
+def test_failure_diagnostics(text):
+    """テスト失敗の識別子と数値比較だけを抽出する
+
+    Args:
+        text: 子テストの標準出力と標準エラー
+
+    Returns:
+        テスト名、テストファイル内の行番号、HTTPステータス比較、既知の例外型
+    """
+    # 本文・URL・Cookieを含む可能性のある例外メッセージは出力しない
+    return {
+        'tests': sorted(set(re.findall(r'^(?:FAIL|ERROR): (test_[A-Za-z0-9_]+) \(', text, re.M))),
+        'locations': sorted(set(re.findall(r'[/\\]tests[/\\]([a-z_]+_test\.py)\", line ([0-9]+), in test_[A-Za-z0-9_]+', text))),
+        'statusComparisons': re.findall(r'^AssertionError: ([1-5][0-9]{2}) != ([1-5][0-9]{2})$', text, re.M),
+        'exceptionTypes': [name for name in ['AssertionError', 'HTTPError', 'URLError', 'RemoteDisconnected', 'TimeoutError', 'JSONDecodeError', 'ValidationError', 'RuntimeError'] if re.search(r'\b' + name + r'\b', text)],
+    }
+
+
 def startup_diagnostics(text, code):
     """自由形式の例外本文・URL・値を返さず起動失敗を識別する"""
     categories = {
