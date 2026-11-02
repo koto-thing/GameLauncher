@@ -6,12 +6,16 @@ import { defineConfig } from "vite";
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
+/**
+ * 管理アプリと共有フォームの依存関係を同じインストール先から解決する
+ * @returns Cloudflare向けのVite設定
+ */
 export default defineConfig(() => {
   return {
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
-    resolve: { dedupe: ["simple-icons"] },
+    resolve: { dedupe: ["simple-icons", "lucide-react"] },
     plugins: [
       vinext(),
       cloudflare({
