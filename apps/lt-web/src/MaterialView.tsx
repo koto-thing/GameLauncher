@@ -10,7 +10,7 @@ export function MaterialHelp() {
   return (
     <p className="material-help">
       Google
-      スライドは共有URLまたは「ウェブに公開」のURL、PowerPointはOneDriveの「埋め込み」で取得したURL（iframeのsrc）を入力してください。短縮共有URLは通常のリンクとして扱います。閲覧者に必要な共有権限を設定してください。HTMLコードやファイルの直接アップロードには対応していません。
+      スライドは共有URLまたは「ウェブに公開」のURL、PowerPointはOneDriveの「埋め込み」で取得したURL（iframeのsrc）を入力してください。短縮共有URLは通常のリンクとして扱います。公開済みの発表では資料URLも一般向けに表示されます。閲覧者に必要な共有権限を設定してください。HTMLコードやファイルの直接アップロードには対応していません。
     </p>
   );
 }

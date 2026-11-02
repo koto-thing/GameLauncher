@@ -111,3 +111,24 @@ describe("公開時間割と詳細", () => {
     expect(durationMinutes("2026-11-03T23:55:00Z", "2026-11-04T00:05:00Z")).toBe(10);
   });
 });
+
+/**
+ * 公開資料の有無に応じて専用ビューを表示することを検証する
+ * @returns 戻り値なし
+ */
+it("公開詳細は資料付きなら公式ビューを表示し、資料なしなら領域を出さない", () => {
+  const props = { event, talk, view: "list" as const, navigate };
+  expect(renderToStaticMarkup(createElement(PublicTalkDetail, props))).not.toContain("<iframe");
+  const html = renderToStaticMarkup(
+    createElement(PublicTalkDetail, {
+      ...props,
+      talk: {
+        ...talk,
+        cancelled: false,
+        materialUrl: "https://docs.google.com/presentation/d/public-deck/edit",
+      },
+    }),
+  );
+  expect(html).toContain("https://docs.google.com/presentation/d/public-deck/preview");
+  expect(html).toContain("スライドを全画面表示");
+});

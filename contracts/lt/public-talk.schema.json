@@ -167,6 +167,13 @@
         "prerequisites",
         "takeaways"
       ]
+    },
+    "materialUrl": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "format": "uri",
+      "pattern": "^https?://[^/@?#\\s]+(?:[/?#]|$)"
     }
   },
   "required": [
