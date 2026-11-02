@@ -1,0 +1,112 @@
+{
+  "https://lt.koto-thing.com/materials/12bf828d6174cf22/slides.pdf": [
+    {
+      "name": "LT_Kabayaki.pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/12bf828d6174cf22/",
+      "pages": 7
+    }
+  ],
+  "https://lt.koto-thing.com/materials/c63a60ba2c93bb7e/slides.pdf": [
+    {
+      "name": "LT_lumi_パーツアニメーションの作り方.pptm",
+      "baseUrl": "https://lt.koto-thing.com/materials/c63a60ba2c93bb7e/",
+      "pages": 29
+    }
+  ],
+  "https://lt.koto-thing.com/materials/4e5a58b2c8962be8/slides.pdf": [
+    {
+      "name": "LT_midry_AIの話！.pdf",
+      "baseUrl": "https://lt.koto-thing.com/materials/4e5a58b2c8962be8/",
+      "pages": 26
+    }
+  ],
+  "https://lt.koto-thing.com/materials/314e9127ae263928/slides.pdf": [
+    {
+      "name": "LT_midry_低レベルは良いぞと言う話.pdf",
+      "baseUrl": "https://lt.koto-thing.com/materials/314e9127ae263928/",
+      "pages": 58
+    }
+  ],
+  "https://lt.koto-thing.com/materials/fa9775c882da4297/slides.pdf": [
+    {
+      "name": "LT_Ryota_アイワナ.pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/fa9775c882da4297/",
+      "pages": 3
+    }
+  ],
+  "https://lt.koto-thing.com/materials/6ca78ae32de7db39/slides.pdf": [
+    {
+      "name": "LT_seika_ECSのAuthoringを自動生成 のコピー (1).pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/6ca78ae32de7db39/",
+      "pages": 12
+    },
+    {
+      "name": "LT_seika_ECSのAuthoringを自動生成 のコピー.pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/17e83073941e1f7e/",
+      "pages": 12
+    }
+  ],
+  "https://lt.koto-thing.com/materials/228bc55f829abf38/slides.pdf": [
+    {
+      "name": "LT_seika_Unityの接地判定 のコピー.pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/228bc55f829abf38/",
+      "pages": 20
+    }
+  ],
+  "https://lt.koto-thing.com/materials/e719bfec8c9216f8/slides.pdf": [
+    {
+      "name": "LT_TT　初心者向けCinemachine.pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/e719bfec8c9216f8/",
+      "pages": 23
+    }
+  ],
+  "https://lt.koto-thing.com/materials/19a0f89203bca97a/slides.pdf": [
+    {
+      "name": "LT_あや　パーティクルシステムを使ってみよう.pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/19a0f89203bca97a/",
+      "pages": 16
+    }
+  ],
+  "https://lt.koto-thing.com/materials/45c64e8a8e3fd540/slides.pdf": [
+    {
+      "name": "LT_アイリスアウトで学ぶHLSL_alion.pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/45c64e8a8e3fd540/",
+      "pages": 14
+    }
+  ],
+  "https://lt.koto-thing.com/materials/f346e93e4af2b89d/slides.pdf": [
+    {
+      "name": "LT_いっしー_Blenderでのモデリング.pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/f346e93e4af2b89d/",
+      "pages": 18
+    }
+  ],
+  "https://lt.koto-thing.com/materials/2fb6a40e24119a21/slides.pdf": [
+    {
+      "name": "LT_おーたわ_MVC・MVP設計の概要.pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/2fb6a40e24119a21/",
+      "pages": 10
+    }
+  ],
+  "https://lt.koto-thing.com/materials/d9a6d265d911670d/slides.pdf": [
+    {
+      "name": "LT_チームのためのコーディング_alion.pptx.pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/d9a6d265d911670d/",
+      "pages": 22
+    }
+  ],
+  "https://lt.koto-thing.com/materials/dca27beb9c8bcbf8/slides.pdf": [
+    {
+      "name": "LT_ぼたもち_サウンドフォント紹介.pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/dca27beb9c8bcbf8/",
+      "pages": 31
+    }
+  ],
+  "https://lt.koto-thing.com/materials/167f2daf72dafae8/slides.pdf": [
+    {
+      "name": "いっしー_アニメーションを作ろうinBlender.pptx",
+      "baseUrl": "https://lt.koto-thing.com/materials/167f2daf72dafae8/",
+      "pages": 1
+    }
+  ]
+}

@@ -60,9 +60,16 @@ describe("公開時間割と詳細", () => {
       );
       expect(html).toContain(`program-${view}`);
       expect(html).toContain(`/events/event/talks/talk?list=${view === "list" ? 1 : 0}`);
-      expect(html).toContain("13:00");
-      expect(html).toContain("13:15");
-      expect(html).toContain("転換");
+      if (view === "table") {
+        expect(html).toContain("13:00");
+        expect(html).toContain("13:15");
+        expect(html).toContain("転換");
+      } else {
+        expect(html).not.toContain("13:00");
+        expect(html).not.toContain("13:15");
+        expect(html).not.toContain("転換");
+        expect(html).toContain("program-card");
+      }
       expect(html).toContain("登壇中止");
       expect(html).toContain('aria-pressed="true"');
     }

@@ -1,4 +1,5 @@
 import { MaterialView } from "./MaterialView";
+import { ArrowLeft } from "lucide-react";
 import { SessionFacts, SpeakerLinks } from "./SessionFacts";
 import type { PublicEvent, PublicTalk } from "../../../contracts/lt/v1";
 import { publicDate, durationMinutes, followPublicLink } from "./public-display";
@@ -120,7 +121,7 @@ export function PublicTalkDetail({
           href={returnHref}
           onClick={(e) => followPublicLink(e, returnHref, navigate)}
         >
-          ← {back}
+          <ArrowLeft size={18} aria-hidden="true" /> {back}
         </a>
       </div>
     </div>
