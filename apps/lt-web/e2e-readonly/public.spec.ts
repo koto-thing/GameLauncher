@@ -34,6 +34,11 @@ const talk: PublicTalk = {
 };
 
 for (const width of [1280, 390]) {
+  /**
+   * 閲覧専用ページの画面幅別表示と発表カードへの遷移を検証する
+   * @param context ブラウザーページを持つテスト実行環境
+   * @returns 検証の完了を表すPromise
+   */
   test(`閲覧専用 ${width}px: 公開ページと停止中の直接URL`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const forbidden: string[] = [];
@@ -107,7 +112,14 @@ for (const width of [1280, 390]) {
       "aria-pressed",
       "true",
     );
-    await page.locator(".program-session").click();
+    await expect(page.locator(".program-cards time")).toHaveCount(0);
+    await expect(page.locator(".program-cards .interval")).toHaveCount(0);
+    expect(
+      await page
+        .locator(".program-cards")
+        .evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length),
+    ).toBe(2);
+    await page.locator(".program-card").click();
     await expect(page.getByRole("heading", { name: talk.title, exact: true })).toBeVisible();
     await expect(page.getByText(talk.abstract, { exact: true })).toBeVisible();
     for (const path of [
