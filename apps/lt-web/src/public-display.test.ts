@@ -131,4 +131,5 @@ it("公開詳細は資料付きなら公式ビューを表示し、資料なし�
   );
   expect(html).toContain("https://docs.google.com/presentation/d/public-deck/preview");
   expect(html).toContain("スライドを全画面表示");
+  expect(html).not.toContain('loading="lazy"');
 });

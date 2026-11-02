@@ -41,7 +41,7 @@ export function MaterialView({ url }: { url: string }) {
 
   if (!material) return null;
 
-  // 通常資料にはリンクだけを表示し、対応スライドは遅延読込みする
+  // 通常資料はリンクで案内し、対応スライドは表示時に読み込みを開始する
   return (
     <section className="material-view" aria-label="発表資料">
       <div className="material-actions">
@@ -67,7 +67,6 @@ export function MaterialView({ url }: { url: string }) {
             className="material-frame"
             src={material.embedUrl}
             title={`${material.provider}の発表資料`}
-            loading="lazy"
             referrerPolicy="no-referrer"
             allowFullScreen
           />
