@@ -60,3 +60,22 @@ POST/PUT/PATCH/DELETE に X-LT-CSRF:1 と application/json を強制し、GET �
 開発の既存フロー検証はDEV時のみ従来どおり利用できます。閲覧専用は `VITE_LT_APPLICATIONS_ENABLED=false` で検証します。将来の通常機能公開にはフロントbuildとWorker双方の明示設定、および実際のメール配送など必要条件を確認する別作業が必要です。
 
 検証: `npm test`、`npm run check`、`npx tsc --noEmit`、`npm run build`、`node --test worker.test.mjs`、`npx playwright test --config playwright.readonly.config.ts`。ブラウザーfixtureはローカルだけに使用し、公開用bundleへ架空開催や申請データを投入しません。
+
+## 提出資料のスライドビュー
+
+本人の申請一覧・個別詳細・提出フォームと、管理画面の申請詳細で公式スライドビューを表示する
+URL判定は `contracts/lt/material-view.ts`、共通表示は `src/MaterialView.tsx` に集約する
+
+- Google スライド: `docs.google.com/presentation/d/<ID>/edit` などの共有URL、`/d/e/<ID>/pub` などの公開URL
+- PowerPoint: OneDriveの「埋め込み」で取得した `https://onedrive.live.com/embed?resid=...&authkey=...` のURL
+- 通常の資料URL・短縮共有URL・直接の `.pptx` URL: 元資料へのリンクとして表示
+
+提出フォームにはiframeのHTML全体ではなくsrcのURLを入力する
+共有設定は提供元で設定し、埋め込みの読込み完了を運営による確認済みとは扱わない
+元資料の閲覧可否は提供元のログイン状態と共有権限に従う
+一般公開の発表詳細には資料を追加せず、公開DTOと保持期限は変更しない
+ファイル直接アップロード・PDF変換はこの機能の対象外
+
+検証: `npm test`、`npm run build`、`npx tsc --noEmit`、`npx playwright test`
+ブラウザーテストでは外部ビューの通信を架空HTMLに置換し、URL・表示・差し替え・スマートフォン幅・全画面拒否時の案内を検証する
+実資料の共有権限やGoogle/Microsoft側の再生品質は、所有者が提供した閲覧可能な資料で別途確認する

@@ -7,6 +7,7 @@ import { canReapprove, canReview, syncTimetableEvent } from "../../lib/lt/operat
 import { useEffect, useRef, useState } from "react";
 import type { EventSettings, OperatorApplication, EventSettingsPage, OperatorApplicationPage, OperatorTimetable } from "../../../../contracts/lt/v1";
 
+import { MaterialView } from "../../../lt-web/src/MaterialView";
 import { SessionFacts, SpeakerLinks } from "../../../lt-web/src/SessionFacts";
 import { SessionEditor } from "./SessionEditor";
 import { EventForm } from "./EventForm";
@@ -186,7 +187,7 @@ export function LtManager() {
       </form>}
       <p>代表者メール: {selected.representativeEmail || "未登録（手動受付）"}</p><h3>申請原稿</h3><dl className="lt-session-facts"><SessionFacts session={selected.content.session} /></dl><p style={{ whiteSpace: "pre-wrap" }}>{selected.content.abstract}</p><p>{selected.content.description}</p>
       <p>{selected.content.speakers.map(speaker => speaker.displayName).join("、")}</p>
-      {/^(https?):\/\//i.test(selected.materialUrl) ? <a href={selected.materialUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">資料を確認</a> : <p>資料未提出</p>}
+      {selected.materialUrl ? <MaterialView key={selected.materialUrl} url={selected.materialUrl} /> : <p>資料未提出</p>}
       {selected.materialUrl && <p>資料: {selected.materialReviewed ? "確認済み" : "未確認"} <button disabled={selected.materialReviewed || selected.withdrawal !== "none" || !["scheduled", "started"].includes(selected.eventState)} onClick={() => mutate(`/applications/${encodeURIComponent(selected.id)}/material`, selected.version, { materialUrl: selected.materialUrl }, result => { const updated = result as OperatorApplication; setSelected(updated); setApplications(items => items.map(item => item.id === updated.id ? updated : item)); })}>この資料を確認済みにする</button></p>}
       <div>{selected.content.speakers.map((speaker, index) => <div key={index}><strong>{speaker.displayName}</strong><SpeakerLinks links={speaker.links} /></div>)}</div>
       <h3>公開版</h3>{selected.published ? <><p>{selected.published.title}</p><p>{selected.published.abstract}</p><p>{selected.published.startsAt}</p><dl className="lt-session-facts"><SessionFacts session={selected.published.session} /></dl></> : <p>未公開</p>}

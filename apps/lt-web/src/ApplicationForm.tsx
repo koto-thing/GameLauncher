@@ -1,3 +1,4 @@
+import { MaterialHelp, MaterialView } from "./MaterialView";
 import { SessionFields, readSession, isSpeakerUrl } from "./SessionFields";
 import { useState } from "react";
 import {
@@ -40,6 +41,7 @@ export function ApplicationForm({
   cancel: () => void;
 }) {
   const [speakers, setSpeakers] = useState<Speaker[]>(a?.content.speakers ?? [{ displayName: "" }]);
+  const [materialUrl, setMaterialUrl] = useState(a?.materialUrl ?? "");
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [error, setError] = useState("");
   const openEvents = events.items.filter((e) => ["open", "full"].includes(e.recruitment));
@@ -299,11 +301,15 @@ export function ApplicationForm({
             <input
               name="materialUrl"
               type="url"
-              defaultValue={a?.materialUrl}
+              value={materialUrl}
+              maxLength={2048}
+              onChange={(event) => setMaterialUrl(event.currentTarget.value)}
               pattern="https?://.*"
               placeholder="https://"
             />
           </label>
+          <MaterialHelp />
+          <MaterialView key={materialUrl.trim()} url={materialUrl} />
         </section>
         <label className="privacy-consent">
           <input
