@@ -118,7 +118,7 @@ class ScheduleRulesRuntime(unittest.TestCase):
             self.assertEqual(operate(path + '/timetable')[1], table)
 
     def test_manual_approval_uses_closing_slot_and_final_receipt(self):
-        """手動承認でも閉会前へ配置し、休憩追加後の時刻を応答へ記録する
+        """手動承認でも閉会前へ配置し、確定時刻と承認済み資料を公開する
 
         Returns:
             戻り値なし
@@ -137,7 +137,7 @@ class ScheduleRulesRuntime(unittest.TestCase):
                 self.assertEqual(status, 200, approved)
                 self.assertEqual(operate('/applications/' + app['id'] + '/approve', op)[1], approved)
                 public = request('/api/lt/v1/events/' + event['id'] + '/talks/' + app['id'])[1]
-                self.assertEqual(approved['published'], public)
+                self.assertEqual(approved['published'] | {'materialUrl': app['materialUrl']}, public)
             self.assertEqual(approved['published']['startsAt'], '2026-11-01T01:26:00.000Z')
 
 

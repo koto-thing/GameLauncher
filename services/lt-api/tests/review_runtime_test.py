@@ -4,7 +4,7 @@ from applicant_runtime_test import sql,request
 from operator_runtime_test import operate
 class ReviewRuntime(unittest.TestCase):
  def test_return_edit_resubmit_reapprove(self):
-  """差し戻し・本人編集・再提出・手動再承認を検証する
+  """差し戻し中の資料非公開と本人編集・再提出・手動再承認を検証する
 
   Returns:
       戻り値なし
@@ -23,13 +23,15 @@ class ReviewRuntime(unittest.TestCase):
   self.assertNotIn('operatorNote',request(path,cookie=cookie)[1])
   edit=mutation(3,{'content':p['content']|{'title':'再承認本文'},'materialUrl':p['materialUrl']})
   self.assertEqual(request(path,edit,cookie,'PATCH')[1]['version'],4)
-  self.assertEqual(request('/api/lt/v1/events/'+event+'/talks/'+id)[1],published)
+  # 差し戻し中は公開原稿を維持し、資料URLだけを非公開にする
+  self.assertEqual(request('/api/lt/v1/events/'+event+'/talks/'+id)[1],{key:value for key,value in published.items() if key != 'materialUrl'})
   self.assertEqual(request(path+'/resubmit',mutation(4),cookie)[1]['version'],5)
   self.assertEqual(request(path,mutation(5,edit['data']),cookie,'PATCH')[0],409)
   self.assertEqual(operate('/applications/'+id+'/reject',mutation(5))[0],409)
   self.assertEqual(operate('/applications/'+id+'/reapprove',mutation(5,{'expectedEventVersion':999}))[0],409)
   self.assertEqual(operate('/applications/'+id+'/reapprove',mutation(5,{'expectedEventVersion':2}))[0],200)
   new=request('/api/lt/v1/events/'+event+'/talks/'+id)[1];self.assertEqual(new['title'],'再承認本文');self.assertEqual(new['startsAt'],published['startsAt'])
+  self.assertEqual(new['materialUrl'],p['materialUrl'])
   self.assertEqual(sql("SELECT reserved FROM lt_recruitment WHERE event_id='"+event+"'")[0]['reserved'],1)
   self.assertEqual(request(path,cookie=cookie)[1]['retentionExpiresAt'],fixed)
   sql("UPDATE lt_events SET state='cancelled' WHERE id='"+event+"'")

@@ -1,3 +1,10 @@
 licenses/*.txt text eol=lf
 licenses/*.html -text
 *.sh text eol=lf
+
+# 公開資料はバイナリとして保持し、改行変換やテキスト差分を適用しない
+apps/lt-web/public/materials/**/*.pdf binary
+apps/lt-web/public/materials/**/*.pptx binary
+apps/lt-web/public/materials/**/*.pptm binary
+apps/lt-web/public/materials/**/*.jpg binary
+apps/lt-web/public/materials/**/*.png binary

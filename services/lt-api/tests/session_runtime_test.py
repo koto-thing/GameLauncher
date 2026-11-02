@@ -87,7 +87,7 @@ try:
     app = request('/operator/applications/'+app['id']+'/approve',{'expectedVersion':app['version'],'operationId':uuid.uuid4().hex,'data':{'startsAt':settings['startsAt'],'expectedEventVersion':event['version'],'expectedScheduleVersion':schedule['version']}},operator=True)
     published = request('/events/'+event['id']+'/talks/'+app['id'])
     assert published['session']==metadata and published['speakers']==[speaker]
-    assert 'representativeEmail' not in published and 'materialUrl' not in published
+    assert 'representativeEmail' not in published and published['materialUrl'] == 'https://example.com/slides'
     # メール・資料・追加情報がない手動受付済み発表と同じ状態を再現する
     sql.write_text("UPDATE lt_applications SET registration_source='manual',email='',dto=json_set(json_remove(dto,'$.content.session','$.content.speakers[0].links','$.published.session','$.published.speakers[0].links'),'$.representativeEmail','','$.materialUrl','') WHERE id='"+app['id']+"'; UPDATE lt_public_talks SET dto=(SELECT json_extract(dto,'$.published') FROM lt_applications WHERE id='"+app['id']+"') WHERE id='"+app['id']+"';",encoding='utf-8')
     cli(['d1','execute','lt-production-gate-local','--local','--config',CONFIG,'--persist-to',str(STATE/'state'),'--file',str(sql)])
@@ -121,7 +121,7 @@ try:
     request(path, edit | {'operationId':uuid.uuid4().hex}, method='PATCH', operator=True, role='admin', status=409)
     published = request('/events/'+event['id']+'/talks/'+app['id'])
     assert published['speakers'] == changed_content['speakers'] and published['description'] == '詳細'
-    assert published['startsAt'] == public['startsAt'] and 'materialUrl' not in published
+    assert published['startsAt'] == public['startsAt'] and published['materialUrl'] == 'https://example.com/new-slides'
 
     # 任意項目の削除と資料確認済み状態の解除を検証する
     saved = request(path+'/material', {'expectedVersion':saved['version'],'operationId':uuid.uuid4().hex,
@@ -133,7 +133,7 @@ try:
             'data':{'content':changed_content,'materialUrl':''}}
     saved = request(path, edit, method='PATCH', operator=True, role='executive')
     published = request('/events/'+event['id']+'/talks/'+app['id'])
-    assert 'description' not in published and 'session' not in published and not saved['materialReviewed']
+    assert 'description' not in published and 'session' not in published and 'materialUrl' not in published and not saved['materialReviewed']
     assert published['speakers'] == changed_content['speakers']
 
     # 不正な入力や所有者・承認状態の書き換えを拒否する

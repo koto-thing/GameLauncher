@@ -19,6 +19,11 @@ function sql(command: string) {
   );
   return JSON.parse(raw)[0].results;
 }
+/**
+ * 実画面から申請・資料公開・再承認・時間割変更・辞退・中止を検証する
+ * @param browser - 申請者と運営のセッションを作成するブラウザー
+ * @returns 検証完了を表す Promise
+ */
 test("実UIと実routeで確認から公開・再承認・時間割・辞退・中止まで", async ({ browser }) => {
   sql("UPDATE lt_recruitment SET opens=0,closes=1");
   const applicant = await browser.newContext({ timezoneId: "UTC" }),
@@ -131,7 +136,10 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
     const publicUrl = "http://127.0.0.1:18880/api/lt/v1/events/" + event.id + "/talks/" + app.id;
     let published = await (await applicant.request.get(publicUrl)).json();
     expect(published.title).toBe("Live talk");
-    expect(JSON.stringify(published)).not.toContain("example.invalid");
+    // 承認済み資料を公開し、連絡先などの非公開情報は引き続き返さない
+    expect(published.materialUrl).toBe("https://example.invalid/private-material");
+    const { materialUrl: _materialUrl, ...publicContent } = published;
+    expect(JSON.stringify(publicContent)).not.toContain("example.invalid");
     // 承認後も本人と運営の両画面からタイトル・概要を変更して公開反映する
     await page.reload();
     await page.getByLabel("発表タイトル", { exact: true }).fill("Applicant title");
@@ -180,6 +188,7 @@ test("実UIと実routeで確認から公開・再承認・時間割・辞退・�
     await expect(page.getByRole("heading", { name: "本人申請", exact: true })).toBeVisible();
     published = await (await applicant.request.get(publicUrl)).json();
     expect(published.title).toBe("Live talk");
+    expect(published.materialUrl).toBeUndefined();
     await page.getByRole("button", { name: "再提出", exact: true }).click();
     await expect(page.getByRole("button", { name: "再提出", exact: true })).toHaveCount(0);
     await admin.reload();

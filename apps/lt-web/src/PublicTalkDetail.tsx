@@ -1,9 +1,15 @@
+import { MaterialView } from "./MaterialView";
+import { ArrowLeft } from "lucide-react";
 import { SessionFacts, SpeakerLinks } from "./SessionFacts";
 import type { PublicEvent, PublicTalk } from "../../../contracts/lt/v1";
 import { publicDate, durationMinutes, followPublicLink } from "./public-display";
 import type { ScheduleView } from "./PublicSchedule";
 
-/** @brief 公開済みの発表内容と登壇者情報を案内する @param props 発表と開催回 @returns 発表詳細 */
+/**
+ * 公開済みの発表内容、資料と登壇者情報を案内する
+ * @param props 発表、開催回、一覧の表示形式と画面遷移処理
+ * @returns 一般向けの発表詳細
+ */
 export function PublicTalkDetail({
   talk,
   event,
@@ -82,6 +88,13 @@ export function PublicTalkDetail({
           <p className="public-prose">{talk.description}</p>
         </section>
       )}
+      {/* 公開APIが返した資料だけを専用ビューで表示する */}
+      {talk.materialUrl && (
+        <section className="session-section">
+          <h2>発表資料</h2>
+          <MaterialView url={talk.materialUrl} />
+        </section>
+      )}
       <section className="session-section">
         <h2>登壇者</h2>
         <div className="session-speaker-list">
@@ -108,7 +121,7 @@ export function PublicTalkDetail({
           href={returnHref}
           onClick={(e) => followPublicLink(e, returnHref, navigate)}
         >
-          ← {back}
+          <ArrowLeft size={18} aria-hidden="true" /> {back}
         </a>
       </div>
     </div>

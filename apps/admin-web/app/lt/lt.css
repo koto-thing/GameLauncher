@@ -158,3 +158,8 @@
 .lt-rule-tooltip { position: relative; width: fit-content; max-width: 100%; }
 .lt-tooltip { display: none; position: absolute; z-index: 10; top: 100%; left: 0; width: 340px; max-width: min(340px, 65vw); padding: 12px; background: var(--ink); color: var(--panel); border-radius: 6px; box-shadow: 0 4px 16px #0003; font-weight: 400; line-height: 1.6; }
 .lt-rule-tooltip:hover .lt-tooltip, .lt-rule-tooltip:focus-within .lt-tooltip { display: block; }
+
+/* 管理画面では資料を縦横半分の寸法で表示し、狭い画面は可読性を優先する */
+@media (min-width: 769px) {
+  .lt-manager .material-view { width: 50%; }
+}

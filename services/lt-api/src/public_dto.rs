@@ -90,16 +90,31 @@ struct Talk {
     starts_at: String,
     ends_at: String,
     cancelled: bool,
+    #[serde(
+        default,
+        deserialize_with = "optional_text",
+        skip_serializing_if = "Option::is_none"
+    )]
+    material_url: Option<String>,
 }
 
 /// 公開版を具体型で検証し、型不正や必須項目欠落を閉じる
-/// 引数: 保存版、発表フラグ
-/// 戻り値: 正しい公開 DTO または None
+///
+/// # 引数
+/// - `value`: 公開する保存版
+/// - `talk`: 発表詳細ならtrue、開催回ならfalse
+///
+/// # 戻り値
+/// 正しい公開DTO、不正な値を含む場合はNone
 pub fn validate(value: &Value, talk: bool) -> Option<Value> {
     // clone は deserialize 前だけに限定し、未知キーも拒否する
     if talk {
         let dto: Talk = serde_json::from_value(value.clone()).ok()?;
-        if !crate::session_info::valid(value)
+        if dto
+            .material_url
+            .as_ref()
+            .is_some_and(|url| url.is_empty() || !crate::materials::valid_url(url))
+            || !crate::session_info::valid(value)
             || dto.version == 0
             || [&dto.id, &dto.event_id, &dto.title, &dto.abstract_text]
                 .iter()

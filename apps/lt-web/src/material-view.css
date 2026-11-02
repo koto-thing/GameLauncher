@@ -29,3 +29,109 @@
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
+.material-screen:fullscreen {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.material-screen:fullscreen .material-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+.uploaded-slides {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #888;
+  border-radius: 0.5rem;
+  background: #000;
+}
+.uploaded-slide-stage {
+  aspect-ratio: 16/9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.uploaded-slide-stage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.material-view .uploaded-slides .uploaded-slide-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  background: #f8fafc;
+  color: #182238;
+  flex-wrap: wrap;
+}
+/* フォーム共通の縦積み指定を解除し、通常表示と全画面で操作列を揃える */
+.material-view .uploaded-slides .uploaded-slide-controls label {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  white-space: nowrap;
+}
+.material-view .uploaded-slides .uploaded-slide-controls button,
+.material-view .uploaded-slides .uploaded-slide-controls input,
+.material-view .uploaded-slides .uploaded-slide-controls select {
+  box-sizing: border-box;
+  height: 2.25rem;
+  margin: 0;
+  line-height: 1;
+}
+.material-view .uploaded-slides .uploaded-slide-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 2.5rem;
+  min-width: 2.5rem;
+  padding: 0;
+  font-size: 1.5rem;
+}
+.material-view .uploaded-slides .uploaded-slide-controls input {
+  display: inline-block;
+  width: 4rem;
+  min-width: 0;
+  padding: 0 0.5rem;
+  color: #182238;
+  background: #fff;
+  font-size: 1rem;
+}
+.material-view .uploaded-slides .uploaded-slide-controls select {
+  max-width: 100%;
+  min-width: 0;
+  flex: 1;
+  color: #182238;
+  background: #fff;
+}
+.material-screen:fullscreen .uploaded-slides {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+}
+.material-screen:fullscreen .uploaded-slide-stage {
+  flex: 1;
+  min-height: 0;
+  aspect-ratio: auto;
+}
+
+.material-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.material-view svg {
+  flex-shrink: 0;
+  display: block;
+}

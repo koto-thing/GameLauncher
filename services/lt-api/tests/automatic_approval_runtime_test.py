@@ -27,7 +27,7 @@ class AutomaticApprovalRuntime(unittest.TestCase):
         return event, fields
 
     def test_publish_once_and_keep_resubmission_manual(self):
-        """初回公開と再送を確認し、再提出は運営確認待ちに保つ
+        """初回公開と資料URLを確認し、再提出は運営確認待ちで資料を非公開に保つ
 
         Returns:
             戻り値なし
@@ -41,7 +41,8 @@ class AutomaticApprovalRuntime(unittest.TestCase):
             self.assertEqual(app['published']['startsAt'], event['startsAt'])
             self.assertEqual(request('/api/lt/v1/applications', body, cookie)[1], app)
             public_path = '/api/lt/v1/events/' + event['id'] + '/talks/' + app['id']
-            self.assertEqual(request(public_path)[1], app['published'])
+            # 承認済みの資料URLは公開原稿と合わせて返す
+            self.assertEqual(request(public_path)[1], app['published'] | {'materialUrl': body['materialUrl']})
             notices = sql("SELECT kind FROM lt_outbox WHERE application_id='" + app['id'] + "'")
             self.assertEqual(notices, [{'kind': 'approved'}])
 

@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 import fixture from "../../../contracts/lt/application.fixture.json" with { type: "json" };
 
+/**
+ * 資料の表示と差し替え、全画面拒否時の案内を検証する
+ * @param context ブラウザーページを持つテスト実行環境
+ * @returns 検証の完了を表すPromise
+ */
 test("提出資料のビューと差し替えプレビューをPCとスマートフォンで表示する", async ({ page }) => {
   let application = {
     ...fixture,
@@ -52,11 +57,10 @@ test("提出資料のビューと差し替えプレビューをPCとスマート
   const box = await page.locator("iframe").boundingBox();
   expect(box!.width).toBeLessThanOrEqual(390);
   await page.evaluate(() => {
-    HTMLIFrameElement.prototype.requestFullscreen = () => Promise.reject(new Error("denied"));
+    HTMLElement.prototype.requestFullscreen = () => Promise.reject(new Error("denied"));
   });
   await page.getByRole("button", { name: "スライドを全画面表示" }).click();
-  await expect(
-    page.getByText("この環境では全画面表示を開始できません。元の資料を開いてご覧ください。"),
-  ).toBeVisible();
+  await expect(page.getByText("この環境では全画面表示を開始できません。")).toBeVisible();
+  await expect(page.getByRole("link", { name: "元の資料を開く" })).toHaveCount(0);
   expect(application.materialReviewed).toBe(false);
 });
