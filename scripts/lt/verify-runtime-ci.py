@@ -1,7 +1,7 @@
 """CIの架空DBで実Worker・認証proxy・ブラウザー・保持処理を順番に検証する"""
 from pathlib import Path
 import json, os, re, signal, subprocess, sys, time, urllib.request
-from fixture_diagnostics import startup_diagnostics
+from fixture_diagnostics import startup_diagnostics, test_failure_diagnostics
 
 ROOT = Path(__file__).resolve().parents[2]
 API = ROOT / 'services/lt-api'
@@ -37,6 +37,7 @@ def run(args, cwd=API):
             print(line, flush=True)
 
     if result.returncode:
+        print('TEST_FAILURE ' + json.dumps(test_failure_diagnostics(result.stdout + '\n' + result.stderr), sort_keys=True), flush=True)
         raise RuntimeError('Local verification step failed: ' + ' '.join(args[:3]))
     print('PASS: ' + ' '.join(args[:2]), flush=True)
 
