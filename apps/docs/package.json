@@ -14,8 +14,8 @@
     "test": "node --test"
   },
   "devDependencies": {
-    "@redocly/cli": "2.64.0",
-    "vitepress": "2.0.0-alpha.20"
+    "@redocly/cli": "2.72.1",
+    "vitepress": "2.0.0-alpha.21"
   },
   "dependencies": {
     "diff": "9.0.0",
