@@ -1,0 +1,28 @@
+name: Staging R2 image read diagnostic
+on:
+  push:
+    branches: [codex/staging-r2-read-44443310947]
+permissions: {}
+jobs:
+  read:
+    runs-on: ubuntu-24.04
+    environment: staging
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      AWS_RETRY_MODE: standard
+      KEY: v1/assets/sha256/31a9dfa8bb9230d66253a8b903e28ebf16ff660d1d0085050949a619a387be97.png
+    steps:
+      - name: Inspect runner
+        run: aws --version
+      - name: HeadObject with publisher arguments
+        run: aws s3api head-object --bucket pandd-launcher-staging --key "$KEY" --query '{size:ContentLength,sha256:Metadata.sha256,contentType:ContentType}' --output json --endpoint-url "$R2_ENDPOINT"
+      - name: HeadObject with R2 region
+        if: always()
+        run: aws s3api head-object --bucket pandd-launcher-staging --key "$KEY" --region auto --query ContentLength --endpoint-url "$R2_ENDPOINT"
+      - name: Read and verify image
+        if: always()
+        run: |
+          aws s3api get-object --bucket pandd-launcher-staging --key "$KEY" --endpoint-url "$R2_ENDPOINT" "$RUNNER_TEMP/image.png" --query ContentLength
+          echo "31a9dfa8bb9230d66253a8b903e28ebf16ff660d1d0085050949a619a387be97  $RUNNER_TEMP/image.png" | sha256sum --check
