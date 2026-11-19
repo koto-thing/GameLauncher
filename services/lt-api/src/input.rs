@@ -26,3 +26,21 @@ pub async fn json<T: DeserializeOwned>(req: &mut Request) -> Result<T> {
     }
     Ok(serde_json::from_slice(&bytes)?)
 }
+
+/// UTC ミリ秒表記の契約時刻を Unix 時刻に変換する
+///
+/// # 引数
+/// - `s` - UTC のミリ秒精度を表す時刻文字列
+///
+/// # 戻り値
+/// Unix エポックからのミリ秒、形式または日時が不正なら None
+pub(crate) fn millis(s: &str) -> Option<i64> {
+    if s.len() != 24 || !s.ends_with('Z') || s.as_bytes()[19] != b'.' {
+        return None;
+    }
+
+    // 秒と秒内のミリ秒を合わせてエポック以前の時刻にも対応する
+    let date =
+        time::OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339).ok()?;
+    Some(date.unix_timestamp() * 1000 + i64::from(date.millisecond()))
+}

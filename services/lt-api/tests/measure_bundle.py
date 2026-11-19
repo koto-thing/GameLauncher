@@ -13,5 +13,5 @@ if label!='development_with_test_hooks':
  assert 'retention_test' not in Path(files[1]).read_text(encoding='utf-8')
 data['bundles'][label]={Path(f).name:{'bytes':len(Path(f).read_bytes()),'gzip_bytes':len(gzip.compress(Path(f).read_bytes()))} for f in files}
 # bundle測定から未実行の回帰件数やcloud検証結果を上書きしない
-data.update(toolchain='1.94.1',worker='0.8.7',wrangler='4.152.0')
+data.update(toolchain='1.94.1',worker='00aab4612c2acd995df7fb6638353051bf33c5c4',wrangler='4.152.0')
 p.write_text(json.dumps(data,indent=2),encoding='utf-8');print(label+': measured')

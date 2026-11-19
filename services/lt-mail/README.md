@@ -4,7 +4,7 @@
 
 ## 接続API
 
-API Cargo.toml に `lt-mail = { path = "../lt-mail", features = ["worker-runtime"] }` を追加し、内部schedulerから `runtime::enqueue(&db,&Envelope,Clock::System)` と `runtime::dispatch_one(&db,&Transport,unique_attempt_id,Clock::System)` を呼ぶ。提案SQL `proposals/outbox-dispatch.sql` の番号はAPI担当が決める。D1は同じworker 0.8.7。wasm32 targetでcheckする。
+API Cargo.toml に `lt-mail = { path = "../lt-mail", features = ["worker-runtime"] }` を追加し、内部schedulerから `runtime::enqueue(&db,&Envelope,Clock::System)` と `runtime::dispatch_one(&db,&Transport,unique_attempt_id,Clock::System)` を呼ぶ。提案SQL `proposals/outbox-dispatch.sql` の番号はAPI担当が決める。D1は同じworker の固定コミット（Cloudflare workers-rs #1149）。wasm32 targetでcheckする。
 
 Envelope = {id,recipient,kind,expires,action_url}。expiresはepoch秒（既存outboxはミリ秒）。idは既存outbox idと同一。宛先・kindは元outboxに一致しなければ投入不可。jobの配達有効期間は最大24時間という暫定実装上限。確認リンクは1時間以下。保持期限が先ならそちらを優先。未確定保持期限は無期限配達を意味せず、APIが短い配達期限を指定する。確認メールもAPI担当がpurpose付き確認tokenと同じtransactionでoutboxへ投入する必要がある。現在のlt_fake_mailをこのcrateが勝手に読み取ることはない。
 

@@ -1,3 +1,4 @@
+use crate::input::millis;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -179,14 +180,15 @@ mod tests {
     }
 }
 
-/// 正規化された UTC 時刻を検証する
-/// 引数: 時刻文字列
-/// 戻り値: 契約どおりか
+/// 公開データの時刻が UTC ミリ秒表記か確認する
+///
+/// # 引数
+/// - `value` - 公開データに含まれる時刻文字列
+///
+/// # 戻り値
+/// 契約どおりの日時なら true
 fn instant(value: &str) -> bool {
-    value.len() == 24
-        && value.ends_with('Z')
-        && chrono::DateTime::parse_from_rfc3339(value).is_ok()
-        && value.as_bytes().get(19) == Some(&b'.')
+    millis(value).is_some()
 }
 
 /// 明示 null を許可せず省略可能な文字列を読む

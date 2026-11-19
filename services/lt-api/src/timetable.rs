@@ -1,3 +1,4 @@
+use crate::input::millis;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -28,18 +29,6 @@ struct Block {
     ends_at: String,
     #[serde(default)]
     locked: bool,
-}
-
-/// UTCミリ秒表記を検証する
-/// 引数: 時刻文字列
-/// 戻り値: epochミリ秒
-fn millis(s: &str) -> Option<i64> {
-    if s.len() != 24 || !s.ends_with('Z') {
-        return None;
-    }
-    chrono::DateTime::parse_from_rfc3339(s)
-        .ok()
-        .map(|d| d.timestamp_millis())
 }
 
 /// 全発表と直後の入替を検証する

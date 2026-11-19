@@ -1,3 +1,4 @@
+use crate::input::millis;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -58,19 +59,6 @@ pub(crate) fn valid_poster_url(value: &str) -> bool {
         })
 }
 
-/// 入力日時をUTC epochへ変換する
-/// 引数: 契約時刻
-/// 戻り値: ミリ秒またはNone
-fn time(s: &str) -> Option<i64> {
-    if s.len() != 24 || !s.ends_with('Z') {
-        None
-    } else {
-        chrono::DateTime::parse_from_rfc3339(s)
-            .ok()
-            .map(|d| d.timestamp_millis())
-    }
-}
-
 /// IANA timezoneをホストIntlで検証する
 /// 引数: timezone
 /// 戻り値: 有効か
@@ -97,9 +85,11 @@ fn zone(name: &str) -> bool {
 /// # 戻り値
 /// 全設定が有効ならtrue
 fn valid(s: &Settings) -> bool {
-    let (Some(open), Some(close), Some(start)) =
-        (time(&s.opens_at), time(&s.closes_at), time(&s.starts_at))
-    else {
+    let (Some(open), Some(close), Some(start)) = (
+        millis(&s.opens_at),
+        millis(&s.closes_at),
+        millis(&s.starts_at),
+    ) else {
         return false;
     };
     !s.title.trim().is_empty()
@@ -117,7 +107,7 @@ fn valid(s: &Settings) -> bool {
         && s.break_minutes <= 1440
         && (1..=10000).contains(&s.break_every)
         && s.ends_by.as_ref().is_none_or(|end| {
-            s.schedule_mode == "automatic" && time(end).is_some_and(|end| end > start)
+            s.schedule_mode == "automatic" && millis(end).is_some_and(|end| end > start)
         })
         && s.capacity > 0
         && s.talk_minutes > 0
@@ -310,7 +300,7 @@ pub async fn handle(
             closing_minutes: old["closingMinutes"].as_u64().unwrap() as u32,
             ends_by: old["endsBy"]
                 .as_str()
-                .and_then(|end| time(end).zip(time(old["startsAt"].as_str().unwrap())))
+                .and_then(|end| millis(end).zip(millis(old["startsAt"].as_str().unwrap())))
                 .map(|(end, old_start)| instant(start + (end - old_start) as f64)),
             starts_at: instant(start),
             opens_at: instant(start - 7.0 * 86400000.0),
@@ -359,7 +349,7 @@ pub async fn handle(
     // 終了上限がある自動時間割では、休憩と閉会を含めて募集可能数を決める
     if let Some(end) = &settings.ends_by {
         settings.capacity = crate::schedule_rules::capacity(
-            time(end).unwrap() - time(&settings.starts_at).unwrap(),
+            millis(end).unwrap() - millis(&settings.starts_at).unwrap(),
             settings.talk_minutes,
             settings.transition_minutes,
             settings.opening_minutes,

@@ -1,6 +1,5 @@
 use crate::{check_cancelled, files};
 use anyhow::{Context, Result, ensure};
-use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::{
     SigningKey,
     pkcs8::{EncodePrivateKey, EncodePublicKey, spki::der::pem::LineEnding},
@@ -9,6 +8,7 @@ use pandd_distribution_contracts::{crypto, manifest, schema as contracts};
 use rayon::prelude::*;
 use serde_json::{Value, json};
 use std::{fs, io::Write, path::Path};
+use time::{OffsetDateTime, macros::format_description};
 
 /// 公開日時を UTC の共通形式にそろえる
 ///
@@ -16,7 +16,11 @@ use std::{fs, io::Write, path::Path};
 ///
 /// 秒精度の UTC 日時を表す RFC 3339 文字列
 fn utc_now() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
+    OffsetDateTime::now_utc()
+        .format(format_description!(
+            "[year]-[month]-[day]T[hour]:[minute]:[second]Z"
+        ))
+        .expect("UTC timestamp must fit the release format")
 }
 
 /// 既存の鍵を上書きせず OpenSSL 互換の Ed25519 鍵ペアを生成する

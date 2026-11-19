@@ -4,7 +4,7 @@
 
 ## 起動と境界
 
-- Rust 1.94.1、worker/worker-build 0.8.7、Wrangler 4.152.0。Cargo.lock/package-lockを固定。独立workspaceは担当内だけで定義
+- Rust 1.94.1、worker は [上流 PR #1149](https://github.com/cloudflare/workers-rs/pull/1149) の `00aab4612c2acd995df7fb6638353051bf33c5c4` に固定、worker-build は 0.9.0、Wrangler 4.152.0。Cargo.lock/package-lockを固定。独立workspaceは担当内だけで定義
 - 通常buildは本人・運営・fake配達を無効にして501。開発機能は`local-development`と`LOCAL_AUTH=true`の両方が必要。本番有効化なし
 - `entry.mjs`のnamed entrypoint `LtOperator`へservice bindingを設定し、`binding.operate(context, request)`を呼ぶ。管理adapterの`fetch(request, context)`から変換する。contextは検証済み`{actorId,role,requestId}`。Rustがroleから通常運営可否を導出
 - 公開fetchには運営routeを登録しない。LtOperator.fetchも404。actor/role/context headerを公衆URLへ付けても操作不可。proxyは毎回最新の在籍・役割を検証し、ブラウザー由来contextを破棄する必要がある
@@ -109,7 +109,7 @@ EmptyMutationには新タイトル/日時の欄がないため、独立した開
 
 ```powershell
 npm ci
-cargo install worker-build --version 0.8.7 --locked --root .tools
+cargo install worker-build --version 0.9.0 --locked --root .tools
 .tools/bin/worker-build --release . --features local-development,runtime-tests
 $env:WRANGLER_LOG_PATH = Join-Path $PWD '.wrangler/logs'
 $env:WRANGLER_SEND_METRICS = 'false'

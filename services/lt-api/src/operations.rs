@@ -1,3 +1,4 @@
+use crate::input::millis;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use worker::*;
@@ -206,9 +207,7 @@ pub async fn withdraw(
     let public: Value = serde_json::from_str(row["dto"].as_str().unwrap())?;
     let mut blocks: Vec<Value> = serde_json::from_str(row["blocks"].as_str().unwrap())?;
     let before = row["state"] == "scheduled"
-        && chrono::DateTime::parse_from_rfc3339(public["startsAt"].as_str().unwrap())
-            .map(|d| d.timestamp_millis() as f64 > now)
-            .unwrap_or(false);
+        && millis(public["startsAt"].as_str().unwrap()).is_some_and(|ms| ms as f64 > now);
     // 開催前は発表と直後入替を取り除き、その後の休憩・閉会も同じ差分で移動する
     if before {
         let Some(index) = blocks
@@ -228,14 +227,10 @@ pub async fn withdraw(
         {
             return error("INVALID_TRANSITION", 409, request_id);
         }
-        let start =
-            chrono::DateTime::parse_from_rfc3339(blocks[index]["startsAt"].as_str().unwrap())
-                .map_err(|_| Error::RustError("Invalid timetable".into()))?
-                .timestamp_millis();
-        let end =
-            chrono::DateTime::parse_from_rfc3339(blocks[index + 1]["endsAt"].as_str().unwrap())
-                .map_err(|_| Error::RustError("Invalid timetable".into()))?
-                .timestamp_millis();
+        let start = millis(blocks[index]["startsAt"].as_str().unwrap())
+            .ok_or_else(|| Error::RustError("Invalid timetable".into()))?;
+        let end = millis(blocks[index + 1]["endsAt"].as_str().unwrap())
+            .ok_or_else(|| Error::RustError("Invalid timetable".into()))?;
         blocks.drain(index..index + 2);
         let mut shift = end - start;
         for block in blocks.iter_mut().skip(index) {
@@ -243,9 +238,8 @@ pub async fn withdraw(
                 shift = 0;
             }
             for key in ["startsAt", "endsAt"] {
-                let time = chrono::DateTime::parse_from_rfc3339(block[key].as_str().unwrap())
-                    .map_err(|_| Error::RustError("Invalid timetable".into()))?
-                    .timestamp_millis()
+                let time = millis(block[key].as_str().unwrap())
+                    .ok_or_else(|| Error::RustError("Invalid timetable".into()))?
                     - shift;
                 block[key] = json!(
                     js_sys::Date::new(&(time as f64).into())
