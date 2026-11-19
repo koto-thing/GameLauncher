@@ -4,12 +4,14 @@ import { resolve } from "node:path";
 const outputPath = resolve(import.meta.dirname, "..", "dist", "reference", "admin", "index.html");
 let html = await readFile(outputPath, "utf8");
 
-// 事前描画済みの API 本文を配信するため、Redoc のモジュール先読みと再描画処理を除く
+// Redocly emits the full rendered document as HTML. The accompanying client
+// hydration only duplicates that work and can report false hydration mismatch
+// errors, so the Pages artifact deliberately keeps the static HTML and CSS.
 html = html
-  .replace(/<link rel="modulepreload" href="https:\/\/cdn\.redocly\.com\/redoc\/[^>]*>/g, "")
-  .replace(/<script type="module">\s*import \{ hydrate \} from "https:\/\/cdn\.redocly\.com\/redoc\/[\s\S]*?<\/script>/, "");
+  .replace(/<script src="https:\/\/cdn\.redocly\.com\/redoc\/[^>]+><\/script>/, "")
+  .replace(/\s*<script>\s*const __redoc_state = [\s\S]*?Redoc\.hydrate\(__redoc_state, container\);\s*<\/script>/, "");
 
-if (html.includes("__redoc_definition") || html.includes("cdn.redocly.com/redoc/")) {
+if (html.includes("Redoc.hydrate") || html.includes("cdn.redocly.com/redoc/")) {
   throw new Error("Failed to remove Redoc's client hydration from the static API reference.");
 }
 
