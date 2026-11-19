@@ -1,6 +1,5 @@
 use crate::{check_cancelled, files, storage::ObjectStore};
 use anyhow::{Context, Result, ensure};
-use chrono::{DateTime, Duration, Utc};
 use pandd_distribution_contracts::schema as contracts;
 use regex::Regex;
 use serde_json::{Value, json};
@@ -8,6 +7,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
 };
+use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
 /// 削除前に全対象を計画し現在版と直前の版を保持する
 ///
@@ -110,7 +110,7 @@ fn plan(objects: &[Value], read: impl Fn(&str) -> Result<Value>, days: u32) -> R
     }
 
     // 保持対象外かつ猶予期間を過ぎたマニフェストとチャンクだけを選ぶ
-    let cutoff = Utc::now() - Duration::days(days.into());
+    let cutoff = OffsetDateTime::now_utc().saturating_sub(Duration::days(days.into()));
     let mut removed = Vec::new();
     for (key, object) in &inventory {
         let release = roots
@@ -119,10 +119,11 @@ fn plan(objects: &[Value], read: impl Fn(&str) -> Result<Value>, days: u32) -> R
             && key.ends_with("/manifest.json");
         let blob = key.starts_with("v1/blobs/sha256/");
         if (release && !retained.contains(key)) || (blob && !referenced.contains(key)) {
-            let modified = DateTime::parse_from_rfc3339(
+            let modified = OffsetDateTime::parse(
                 object["LastModified"]
                     .as_str()
                     .context("inventory LastModified missing")?,
+                &Rfc3339,
             )?;
             if modified <= cutoff {
                 removed.push(key.clone());
@@ -175,9 +176,9 @@ pub fn local(output: &Path, days: u32, dry_run: bool) -> Result<Vec<PathBuf>> {
     let root = output.canonicalize()?;
     let mut inventory = Vec::new();
     for path in files::regular_files(&root)? {
-        let modified: DateTime<Utc> = path.metadata()?.modified()?.into();
+        let modified: OffsetDateTime = path.metadata()?.modified()?.into();
         inventory.push(
-            json!({"Key": files::object_key(&path, &root)?, "LastModified": modified.to_rfc3339()}),
+            json!({"Key": files::object_key(&path, &root)?, "LastModified": modified.format(&Rfc3339)?}),
         );
     }
 

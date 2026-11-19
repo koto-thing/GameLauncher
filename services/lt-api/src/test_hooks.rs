@@ -1,3 +1,4 @@
+use crate::input::millis;
 use serde_json::Value;
 use worker::*;
 
@@ -60,8 +61,16 @@ pub async fn fake_mail(
 }
 
 /// ローカル検証専用の時計を設定する
-/// 引数: 正規化UTC時刻または real、ローカル環境
-/// 戻り値: 設定完了。通常ビルドには公開しない
+///
+/// # 引数
+/// - `value` - UTC ミリ秒表記の固定日時、または実時計に戻す real
+/// - `env` - テスト用データベースを持つローカル環境
+///
+/// # 戻り値
+/// 設定成功時は値なし
+///
+/// # エラー
+/// テスト環境以外、時刻が不正、またはデータベース操作が失敗した場合
 #[worker::wasm_bindgen::prelude::wasm_bindgen]
 pub async fn set_clock(
     value: String,
@@ -80,14 +89,7 @@ pub async fn set_clock(
     let ms = if value == "real" {
         None
     } else {
-        if value.len() != 24 || !value.ends_with('Z') {
-            return Err(JsValue::from_str("Invalid clock"));
-        }
-        Some(
-            chrono::DateTime::parse_from_rfc3339(&value)
-                .map_err(|_| JsValue::from_str("Invalid clock"))?
-                .timestamp_millis() as f64,
-        )
+        Some(millis(&value).ok_or_else(|| JsValue::from_str("Invalid clock"))? as f64)
     };
     let db = env
         .d1("DB")

@@ -5,7 +5,7 @@
 ## 前提と隔離
 
 - ロックファイルに従うプロジェクトローカル依存を使う。Node／パッケージマネージャーをグローバルに変更しない。公開UIは React + Vite Plus、既存管理UIは React/Vinext のまま。
-- Rust toolchain は `services/lt-api/rust-toolchain.toml`、worker-build は既存の 0.8.7 を使う。以下の `worker-build` はその既存実行ファイルへのパスに置き換える。
+- Rust toolchain は `services/lt-api/rust-toolchain.toml`、worker-build は既存の 0.9.0 を使う。以下の `worker-build` はその既存実行ファイルへのパスに置き換える。
 - 全サーバーは `127.0.0.1` に限定する。以下の Wrangler 設定はローカル専用で、本番配備には使わない。D1 コマンドは必ず `--local` を付ける。
 - 通常APIのDB ID末尾は `000047`、retention専用は `000036`。いずれも架空データ専用。過去の実行済みDBは再利用せず、再現時は設定コピーで未使用のローカルDB ID・worker名と全binding先を揃える。DBを切り替えたら関連proxyも再起動する。既存DBの削除やresetを再現手順に含めない。
 - 時刻固定・fake mail・削除テストを同時実行しない。CLIとHTTPが同じDBを参照することを、架空開催の状態を変更して公開HTTPでも確認してから進める。
