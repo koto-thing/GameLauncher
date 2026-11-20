@@ -891,7 +891,7 @@ export function IntakeUploader() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `${result.artifactId}.pandd-artifact.json`;
+      anchor.download = result.artifactFile.replace(/\.zip$/, ".pandd-artifact.json");
 
       try {
         document.body.appendChild(anchor);
@@ -1452,7 +1452,7 @@ export function IntakeUploader() {
                   </button>
                   <input type="file" aria-label={`${platformLabels[os]}版のビルドフォルダ`}
                     {...{ webkitdirectory: "" }} multiple disabled={isProcessing}
-                    onChange={e => { handleFolderFiles(e.target.files, os); e.target.value = ""; }} />
+                    onChange={e => handleFolderFiles(e.target.files, os)} />
                   </div>
                 ))}
               </div>
@@ -1698,6 +1698,9 @@ export function IntakeUploader() {
                     </div>
                     <div>
                       <span>ゲーム:</span> <b>{descriptorData.gameId}</b> (v{descriptorData.version})
+                    </div>
+                    <div>
+                      <span>配信先:</span> {descriptorData.platform} / {descriptorData.arch}
                     </div>
                     <div>
                       <span>対象ZIP:</span> <code>{descriptorData.artifactFile}</code>
