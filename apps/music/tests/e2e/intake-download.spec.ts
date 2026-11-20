@@ -29,7 +29,7 @@ async function prepareArtifact(page: Page, info: TestInfo): Promise<void> {
   await page.locator('.image-picker-card input[type="file"]').nth(1).setInputFiles(artwork);
   // WebKitのフォルダー選択が戻らない場合も、後続assertionの期限切れと区別する
   await test.step("Buildフォルダーの実入力と検証状態", /** @brief フォルダー入力と検証状態を確認する */ async () => {
-    const folder = page.locator("input[webkitdirectory]");
+    const folder = page.getByLabel("Windows版のビルドフォルダ", { exact: true });
     await folder.evaluate(/** @brief 入力イベントの計数を初期化する */ input => {
       input.setAttribute("data-test-input-events", "0");
       input.setAttribute("data-test-change-events", "0");
@@ -58,7 +58,7 @@ async function prepareArtifact(page: Page, info: TestInfo): Promise<void> {
       });
     }
   });
-  await expect(page.getByRole("button", { name: "Artifactを作成してアップロード", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Windows版をアップロード", exact: true })).toBeEnabled();
 }
 
 test("downloads the sealed descriptor once and allows manual saving again", /** @brief Sealした受付票と保存ファイルが一致し、表示更新で重複保存しないことを検証する */ async ({ page }, info) => {
@@ -67,11 +67,11 @@ test("downloads the sealed descriptor once and allows manual saving again", /** 
   page.on("download", download => downloads.push(download));
   const submitted = page.waitForRequest(request => request.method() === "POST" && new URL(request.url()).pathname === "/api/intake/uploads");
   const downloaded = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Artifactを作成してアップロード", exact: true }).click();
+  await page.getByRole("button", { name: "Windows版をアップロード", exact: true }).click();
 
   const descriptor = (await submitted).postDataJSON();
   const download = await downloaded;
-  expect(download.suggestedFilename()).toBe(`${descriptor.artifactId}.pandd-artifact.json`);
+  expect(download.suggestedFilename()).toBe(descriptor.artifactFile.replace(/\.zip$/, ".pandd-artifact.json"));
   const savedPath = info.outputPath("descriptor.json");
   await download.saveAs(savedPath);
   expect(JSON.parse(await readFile(savedPath, "utf8"))).toEqual(descriptor);
@@ -91,7 +91,7 @@ test("does not automatically download a descriptor when seal fails", /** @brief 
   const downloads: Download[] = [];
   page.on("download", download => downloads.push(download));
   await page.route("**/api/intake/uploads/*/seal", route => route.fulfill({ status: 500, json: { error: "Seal test failure" } }));
-  await page.getByRole("button", { name: "Artifactを作成してアップロード", exact: true }).click();
+  await page.getByRole("button", { name: "Windows版をアップロード", exact: true }).click();
   await expect(page.getByText("エラーが発生しました", { exact: true })).toBeVisible();
   expect(downloads).toHaveLength(0);
   await expect(page.getByRole("button", { name: "Descriptorを保存 (.json)", exact: true })).toBeEnabled();

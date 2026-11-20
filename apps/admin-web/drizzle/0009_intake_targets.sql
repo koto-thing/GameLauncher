@@ -1,0 +1,2 @@
+ALTER TABLE intake_uploads ADD COLUMN platform TEXT NOT NULL DEFAULT 'windows';
+ALTER TABLE intake_uploads ADD COLUMN arch TEXT NOT NULL DEFAULT 'x86_64';

@@ -118,9 +118,15 @@ test("validateDescriptorSchema validates date-time format on createdAt", () => {
   }
 });
 
-test("validateDescriptorSchema enforces const platform and arch", () => {
-  assert.equal(validateDescriptorSchema({ ...validSample, platform: "linux" }).valid, false);
-  assert.equal(validateDescriptorSchema({ ...validSample, arch: "arm64" }).valid, false);
+test("validateDescriptorSchema preserves supported targets and rejects unknown targets", () => {
+  for (const platform of ["linux", "windows", "macos"]) {
+    for (const arch of ["arm64", "x86_64"]) {
+      const descriptor = { ...validSample, platform, arch };
+      assert.deepEqual(validateDescriptorSchema(descriptor).descriptor, descriptor);
+    }
+  }
+  assert.equal(validateDescriptorSchema({ ...validSample, platform: "android" }).valid, false);
+  assert.equal(validateDescriptorSchema({ ...validSample, arch: "i386" }).valid, false);
 });
 
 test("validateDescriptorSchema operates safely in eval/Function-restricted runtime", () => {

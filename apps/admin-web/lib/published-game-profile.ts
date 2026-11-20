@@ -29,26 +29,35 @@ function isPublishedGame(value: unknown): value is PublishedGame {
     isTrustedPublishedAssetUrl(item.heroUrl) && isTrustedPublishedAssetUrl(item.thumbnailUrl);
 }
 
-/** 指定ロケールの公開カタログから、検証済みゲーム情報だけを読み込む */
+/**
+ * 指定言語の各配信先からゲームプロフィールを集約する
+ * @param locale 表示言語
+ * @param fetcher カタログの取得関数
+ * @returns ゲームIDごとの検証済みプロフィール
+ */
 export async function loadPublishedGames(
   locale: string,
   fetcher: typeof fetch = fetch,
 ): Promise<Array<PublishedGame & { environment: PublishedEnvironment }>> {
   const games = new Map<string, PublishedGame & { environment: PublishedEnvironment }>();
   for (const source of PUBLISHED_GAME_ENVIRONMENTS) {
-    const url = `${source.baseUrl}/v1/catalog/${encodeURIComponent(locale)}/windows/x86_64.json`;
-    try {
-      const response = await fetcher(url, { headers: { accept: "application/json" } });
-      if (!response.ok) continue;
-      const catalog = await response.json() as Catalog;
-      if (!Array.isArray(catalog.games)) continue;
-      for (const game of catalog.games) {
-        if (isPublishedGame(game) && !games.has(game.gameId)) {
-          games.set(game.gameId, { ...game, environment: source.environment });
-        }
+    const targets = ["windows", "linux", "macos"].flatMap(platform =>
+      ["x86_64", "arm64"].map(arch => `${platform}/${arch}`));
+    const catalogs = await Promise.all(targets.map(async target => {
+      const url = `${source.baseUrl}/v1/catalog/${encodeURIComponent(locale)}/${target}.json`;
+      try {
+        const response = await fetcher(url, { headers: { accept: "application/json" } });
+        if (!response.ok) return [];
+        const catalog = await response.json() as Catalog;
+        return Array.isArray(catalog.games) ? catalog.games.filter(isPublishedGame) : [];
+      } catch {
+        return [];
       }
-    } catch {
-      // One unavailable environment must not hide profiles from the other one.
+    }));
+
+    // 同じ作品のプロフィールは本番環境のものを優先する
+    for (const game of catalogs.flat()) {
+      if (!games.has(game.gameId)) games.set(game.gameId, { ...game, environment: source.environment });
     }
   }
   return [...games.values()].sort((left, right) => left.gameId.localeCompare(right.gameId));

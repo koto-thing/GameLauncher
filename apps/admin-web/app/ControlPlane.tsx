@@ -27,6 +27,8 @@ type DeploymentRequest = {
   artifactSha256: string;
   gameId: string;
   version: string;
+  platform: string;
+  arch: string;
   requesterGithubUserId: string;
   requesterLogin: string;
   state: string;
@@ -295,6 +297,7 @@ export function ControlPlane() {
           <nav aria-label="GameLauncher管理">
             <button aria-current={tab === "requests" ? "page" : undefined} onClick={() => setTab("requests")}>公開申請</button>
             <a href="/intake">ビルドのアップロード</a>
+            <a href="/game/library">配信中のゲーム</a>
             <a href="/editions">物理配布版</a>
             <a href="/analytics">利用統計</a>
             {dashboard.permissions.canRequest && <button aria-current={tab === "access" ? "page" : undefined} onClick={() => setTab("access")}>運営メンバー・権限</button>}
@@ -509,7 +512,7 @@ function RequestCard({ request, dashboard, busy, runAction }: {
   return (
     <article className={`request-card request-${request.environment}`}>
       <div className="request-main">
-        <div className="request-title"><span className={`environment-pill environment-${request.environment}`}>{environmentLabel}</span><span className={`state-pill state-${request.state}`}>{statusText[request.state] ?? request.state}</span><h3>{request.gameId}</h3><strong>v{request.version}</strong></div>
+        <div className="request-title"><span className={`environment-pill environment-${request.environment}`}>{environmentLabel}</span><span className={`state-pill state-${request.state}`}>{statusText[request.state] ?? request.state}</span><h3>{request.gameId}</h3><strong>v{request.version}</strong><span>{request.platform} / {request.arch}</span></div>
         <div className="request-meta"><span>申請者 <b>@{request.requesterLogin}</b></span><span>{formatBytes(request.sizeBytes)}</span><span>{request.fileCount.toLocaleString("ja-JP")} files</span><span>{formatDate(request.createdAt)}</span>{request.environment === "staging" && request.productionEligibleUntil && <span>本番申請期限 <b>{formatDate(request.productionEligibleUntil)}</b></span>}</div>
         <div className="fingerprint"><span>SHA-256</span><code title={request.artifactSha256}>{shortHash(request.artifactSha256)}</code><small>artifact {request.artifactId.slice(0, 8)}</small></div>
 

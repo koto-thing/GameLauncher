@@ -136,7 +136,7 @@ export async function buildArtifact(
       ? crypto.randomUUID()
       : "00000000-0000-4000-8000-000000000000");
 
-  const artifactStem = `${draft.gameId}-${draft.version}-${artifactId}`;
+  const artifactStem = `${draft.gameId}-${draft.version}-${draft.platform}-${draft.arch}-${artifactId}`;
   const artifactFileName = `${artifactStem}.zip`;
 
   // Stage 3: Create deterministic ZIP
@@ -204,8 +204,8 @@ export async function buildArtifact(
     artifactFile: artifactFileName,
     gameId: draft.gameId.trim(),
     version: draft.version.trim(),
-    platform: "windows",
-    arch: "x86_64",
+    platform: draft.platform,
+    arch: draft.arch,
     sizeBytes: zipSize,
     fileCount: allEntries.length,
     sha256,

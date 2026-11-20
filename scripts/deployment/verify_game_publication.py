@@ -27,23 +27,36 @@ def read_json(url: str) -> tuple[dict, bytes]:
     return json.loads(content.decode("utf-8")), content
 
 
-def verify(metadata_path: Path, public_tree: Path, base_url: str, suspended: bool = False) -> str:
+def verify(metadata_path: Path, public_tree: Path, base_url: str, platform: str, arch: str, suspended: bool) -> str:
+    """指定した配信先の署名済み版とカタログ掲載状態を照合する
+
+    Args:
+        metadata_path: 公開元メタデータ
+        public_tree: 公開用ファイルの保存先
+        base_url: 配信環境のURL
+        platform: 対象OS
+        arch: 対象CPU
+        suspended: 公開停止として検証するか
+
+    Returns:
+        検証したマニフェストのSHA-256
+    """
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     game_id = metadata["gameId"]
     version = metadata["version"]
-    relative = f"v1/games/{game_id}/releases/windows/x86_64/{version}/manifest.json"
+    relative = f"v1/games/{game_id}/releases/{platform}/{arch}/{version}/manifest.json"
     local_manifest = json.loads((public_tree / relative).read_text(encoding="utf-8"))
     remote_manifest, _ = read_json(f"{base_url.rstrip('/')}/{relative}")
     validate_contract(remote_manifest, "game-release.schema.json")
     if canonical_json(local_manifest) != canonical_json(remote_manifest):
         raise ValueError("public manifest differs from the signed local manifest")
-    latest_relative = f"v1/games/{game_id}/releases/windows/x86_64/latest.json"
+    latest_relative = f"v1/games/{game_id}/releases/{platform}/{arch}/latest.json"
     remote_latest, _ = read_json(f"{base_url.rstrip('/')}/{latest_relative}")
     if canonical_json(remote_latest) != canonical_json(remote_manifest):
         raise ValueError("public latest pointer differs from the signed manifest")
     for locale in metadata["display"]:
         validate_locale_tag(locale)
-        catalog_url = f"{base_url.rstrip('/')}/v1/catalog/{locale}/windows/x86_64.json"
+        catalog_url = f"{base_url.rstrip('/')}/v1/catalog/{locale}/{platform}/{arch}.json"
         catalog, _ = read_json(catalog_url)
         validate_contract(catalog, "catalog.schema.json")
         entry = next((item for item in catalog["games"] if item["gameId"] == game_id), None)
@@ -59,10 +72,10 @@ def main() -> int:
     parser.add_argument("--public-tree", type=Path, required=True)
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--digest-output", type=Path, required=True)
-    parser.add_argument("--snapshot", type=Path)
+    parser.add_argument("--snapshot", type=Path, required=True)
     arguments = parser.parse_args()
     snapshot = json.loads(arguments.snapshot.read_text(encoding="utf-8")) if arguments.snapshot else {}
-    digest = verify(arguments.metadata, arguments.public_tree, arguments.base_url, snapshot.get("recovery", {}).get("mode") == "suspend")
+    digest = verify(arguments.metadata, arguments.public_tree, arguments.base_url, snapshot["metadata"]["platform"], snapshot["metadata"]["arch"], snapshot.get("recovery", {}).get("mode") == "suspend")
     arguments.digest_output.write_text(digest + "\n", encoding="ascii")
     return 0
 

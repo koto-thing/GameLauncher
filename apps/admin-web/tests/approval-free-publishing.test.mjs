@@ -41,9 +41,13 @@ test("revoked requester grant blocks Actions preflight", async (t) => {
 
 test("assistant publishes valid staging to production without approval", async (t) => {
   const f = await fixture(t);
+  f.sql.exec("UPDATE intake_uploads SET platform='macos',arch='arm64'");
   const { requestId } = await f.control.createRequest(f.actor, f.input);
   f.sql.prepare("UPDATE deployment_requests SET state='succeeded',production_eligible_until=? WHERE request_id=?").run(new Date(Date.now() + 86400000).toISOString(), requestId);
   const result = await f.control.createProductionRequest(f.actor, { sourceStagingRequestId: requestId });
+  const { metadata_json } = f.sql.prepare("SELECT metadata_json FROM deployment_requests WHERE request_id=?").get(result.requestId);
+  assert.equal(JSON.parse(metadata_json).platform, "macos");
+  assert.equal(JSON.parse(metadata_json).arch, "arm64");
   assert.equal(result.dispatchError, undefined);
   await f.preflight(result.requestId, "production");
   assert.equal(f.state(result.requestId), "running");

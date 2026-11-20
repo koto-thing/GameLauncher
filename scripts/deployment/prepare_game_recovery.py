@@ -18,18 +18,20 @@ def prepare(snapshot: dict, metadata: dict, public_tree: Path, base_url: str) ->
         raise ValueError("invalid recovery mode")
     game_id = metadata["gameId"]
     version = metadata["version"]
-    relative = f"v1/games/{game_id}/releases/windows/x86_64/{version}/manifest.json"
+    platform = snapshot["metadata"]["platform"]
+    arch = snapshot["metadata"]["arch"]
+    relative = f"v1/games/{game_id}/releases/{platform}/{arch}/{version}/manifest.json"
     manifest = json.loads((public_tree / relative).read_text(encoding="utf-8"))
     validate_contract(manifest, "game-release.schema.json")
     if hashlib.sha256(canonical_json(manifest)).hexdigest() != recovery.get("manifestSha256"):
         raise ValueError("recovery manifest differs from the previously verified successful release")
     if recovery["mode"] == "suspend":
-        latest, _ = read_json(f"{base_url.rstrip('/')}/v1/games/{game_id}/releases/windows/x86_64/latest.json")
+        latest, _ = read_json(f"{base_url.rstrip('/')}/v1/games/{game_id}/releases/{platform}/{arch}/latest.json")
         if canonical_json(latest) != canonical_json(manifest):
             raise ValueError("suspension must target the currently published successful version")
         for locale in metadata["display"]:
             validate_locale_tag(locale)
-            path = public_tree / f"v1/catalog/{locale}/windows/x86_64.json"
+            path = public_tree / f"v1/catalog/{locale}/{platform}/{arch}.json"
             catalog = json.loads(path.read_text(encoding="utf-8"))
             catalog["games"] = [game for game in catalog["games"] if game["gameId"] != game_id]
             validate_contract(catalog, "catalog.schema.json")

@@ -325,3 +325,11 @@ input::placeholder, textarea::placeholder { color: var(--muted); }input[readonly
 .access-purpose { white-space: pre-wrap; overflow-wrap: anywhere; }
 .access-page button { padding: .7rem 1rem; cursor: pointer; }
 .access-page button:disabled { cursor: wait; opacity: .6; }
+
+.platform-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; margin: 1rem 0; }
+.platform-choices button { color: inherit; background: transparent; border: 1px solid currentColor; border-radius: .5rem; padding: .8rem; cursor: pointer; }
+.platform-choices button[aria-pressed="true"] { outline: 2px solid var(--blue); }
+.platform-choices small { display: block; overflow-wrap: anywhere; margin-top: .3rem; }
+.platform-choices button, .platform-choices input { width: 100%; }
+.platform-choices input { margin-top: .5rem; }
+@media (max-width: 620px) { .platform-choices { grid-template-columns: 1fr; } }

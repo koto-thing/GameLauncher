@@ -146,10 +146,12 @@ jobs:
         env:
           MANIFEST_PRIVATE_KEY_PEM: ${{ secrets.MANIFEST_PRIVATE_KEY_PEM }}
         run: |
+          platform=$(jq -er '.metadata.platform' request-snapshot.json)
+          arch=$(jq -er '.metadata.arch' request-snapshot.json)
           umask 077
           test -n "$MANIFEST_PRIVATE_KEY_PEM"
           printf '%s' "$MANIFEST_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/production-manifest-private.pem"
-          python -m scripts.deployment.seed_game_catalogs \
+          python -m scripts.deployment.seed_game_catalogs --platform "$platform" --arch "$arch" \
             --metadata deployment/metadata/release.json \
             --output public \
             --base-url "$PRODUCTION_BASE_URL"
@@ -159,8 +161,8 @@ jobs:
             --output public \
             --base-url "$PRODUCTION_BASE_URL" \
             --private-key "$RUNNER_TEMP/production-manifest-private.pem" \
-            --platform windows \
-            --arch x86_64
+            --platform "$platform" \
+            --arch "$arch"
 
       - name: Verify known-good recovery and apply catalogue visibility
         run: >-

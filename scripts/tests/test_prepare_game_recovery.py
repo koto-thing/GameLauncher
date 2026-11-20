@@ -50,15 +50,15 @@ class RecoveryTests(unittest.TestCase):
         """Neither a wrong digest nor unknown mode can reach pointer promotion."""
         for mode in ("rollback", "suspend", "resume"):
             with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, "differs"):
-                prepare({"recovery": {"mode": mode, "manifestSha256": "0" * 64}}, self.metadata, self.output, self.base)
+                prepare({"metadata": {"platform": "windows", "arch": "x86_64"}, "recovery": {"mode": mode, "manifestSha256": "0" * 64}}, self.metadata, self.output, self.base)
         with self.assertRaisesRegex(ValueError, "invalid recovery"):
-            prepare({"recovery": {"mode": "delete"}}, self.metadata, self.output, self.base)
+            prepare({"metadata": {"platform": "windows", "arch": "x86_64"}, "recovery": {"mode": "delete"}}, self.metadata, self.output, self.base)
         for mode in ("rollback", "resume"):
-            prepare({"recovery": {"mode": mode, "manifestSha256": self.digest}}, self.metadata, self.output, self.base)
+            prepare({"metadata": {"platform": "windows", "arch": "x86_64"}, "recovery": {"mode": mode, "manifestSha256": self.digest}}, self.metadata, self.output, self.base)
 
     def test_suspend_current_version_unlists_without_deleting_content(self):
         """Suspension preserves immutable files and refuses a stale version selection."""
-        snapshot = {"recovery": {"mode": "suspend", "manifestSha256": self.digest}}
+        snapshot = {"metadata": {"platform": "windows", "arch": "x86_64"}, "recovery": {"mode": "suspend", "manifestSha256": self.digest}}
         with patch("scripts.deployment.prepare_game_recovery.read_json", return_value=({**self.manifest, "version": "2.0.0"}, b"")):
             with self.assertRaisesRegex(ValueError, "currently published"):
                 prepare(snapshot, self.metadata, self.output, self.base)
@@ -77,7 +77,7 @@ class RecoveryTests(unittest.TestCase):
             path.write_bytes(b"other platform fixture")
         for mode in ("rollback", "suspend", "resume"):
             with patch("scripts.deployment.prepare_game_recovery.read_json", return_value=(self.manifest, b"")):
-                prepare({"recovery": {"mode": mode, "manifestSha256": self.digest}}, self.metadata, self.output, self.base)
+                prepare({"metadata": {"platform": "windows", "arch": "x86_64"}, "recovery": {"mode": mode, "manifestSha256": self.digest}}, self.metadata, self.output, self.base)
             for path in paths:
                 self.assertEqual(path.read_bytes(), b"other platform fixture")
 

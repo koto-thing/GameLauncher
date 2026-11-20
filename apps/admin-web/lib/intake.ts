@@ -65,7 +65,7 @@ function validateDescriptor(input: ArtifactDescriptor): ArtifactDescriptor {
   if (!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(input.version)) {
     throw new Error("バージョンが不正です");
   }
-  if (input.platform !== "windows" || input.arch !== "x86_64") {
+  if (!["linux", "windows", "macos"].includes(input.platform) || !["arm64", "x86_64"].includes(input.arch)) {
     throw new Error("artifact対象環境が不正です");
   }
   if (!Number.isSafeInteger(input.sizeBytes) || input.sizeBytes <= 0 || input.sizeBytes > MAX_ARTIFACT_BYTES) {
@@ -135,6 +135,7 @@ export async function createOrResumeUpload(actor: SessionUser, descriptorInput: 
         number(existing.size_bytes) !== descriptor.sizeBytes ||
         number(existing.file_count) !== descriptor.fileCount ||
         text(existing.game_id) !== descriptor.gameId ||
+        text(existing.platform) !== descriptor.platform || text(existing.arch) !== descriptor.arch ||
         text(existing.version) !== descriptor.version) {
       throw new Error("再開するartifactのdescriptorが初回登録時と一致しません");
     }
@@ -161,13 +162,13 @@ export async function createOrResumeUpload(actor: SessionUser, descriptorInput: 
     await db.batch([
       db.prepare(`INSERT INTO intake_uploads
         (artifact_id, intake_object_key, multipart_upload_id, requester_github_user_id,
-         size_bytes, file_count, claimed_sha256, game_id, version, part_size, part_count,
+         size_bytes, file_count, claimed_sha256, game_id, version, platform, arch, part_size, part_count,
          state, created_at, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?)`)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?)`)
         .bind(
           descriptor.artifactId, key, multipart.uploadId, actor.githubUserId,
           descriptor.sizeBytes, descriptor.fileCount, descriptor.sha256,
-          descriptor.gameId, descriptor.version, INTAKE_PART_SIZE, partCount,
+          descriptor.gameId, descriptor.version, descriptor.platform, descriptor.arch, INTAKE_PART_SIZE, partCount,
           createdAt, expiresAt,
         ),
       audit,
