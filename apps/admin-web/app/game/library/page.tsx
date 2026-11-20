@@ -49,27 +49,29 @@ export default function GameLibrary() {
     finally { setBusy(false); }
   }
 
-  return <main className="panel">
-    <a href="/game">Game Launcher 管理画面へ</a>
+  return <main className="game-library">
+    <a className="library-back" href="/game">← Game Launcher 管理画面へ</a>
+    <header className="library-header">
     <h1>配信中のゲーム</h1>
-    <button type="button" disabled={busy} onClick={() => { setData(null); setNotice(""); setRevision(value => value + 1); }}>一覧を更新</button>
+    <button className="secondary-button" type="button" disabled={busy} onClick={() => { setData(null); setNotice(""); setRevision(value => value + 1); }}>一覧を更新</button>
+    </header>
     <p role="status">{notice || (!data && "配信情報を取得中…")}</p>
     {data?.errors.map(error => <p key={error} role="alert">{error}</p>)}
     {data && !data.games.length && !data.errors.length && <p>現在配信中のゲームはありません。</p>}
-    {!!data?.games.length && <div style={{overflowX: "auto"}}><table><thead><tr>
+    {!!data?.games.length && <div className="library-table"><table aria-label="配信中のゲーム一覧"><thead><tr>
       <th>ゲーム名</th><th>対象OS</th><th>CPU</th><th>バージョン</th><th>公開管理</th>
     </tr></thead><tbody>{data.games.map(game => <tr key={`${game.gameId}-${game.platform}-${game.arch}`}>
       <td><strong>{game.name}</strong><br/><small>{game.gameId}</small></td><td>{labels[game.platform]}</td>
       <td>{game.arch}</td><td>{game.version ?? "取得失敗"}</td>
-      <td>{game.requestId ? <button disabled={busy} onClick={() => { setTarget(game); setReason(""); }}>公開停止</button> : "停止対象の公開記録なし"}</td>
+      <td>{game.requestId ? <button className="danger-outline-button" disabled={busy} onClick={() => { setTarget(game); setReason(""); }}>公開停止</button> : "停止対象の公開記録なし"}</td>
     </tr>)}</tbody></table></div>}
-    {target && <form onSubmit={event => { event.preventDefault(); void suspend(); }}>
+    {target && <form className="library-confirm" onSubmit={event => { event.preventDefault(); void suspend(); }}>
       <h2>{target.name} の公開停止</h2>
       <p>{labels[target.platform]} / {target.arch}（{target.version}）をランチャーの配信一覧から外します。</p>
       <label>停止理由（10～500文字）<textarea required minLength={10} maxLength={500} disabled={busy}
         value={reason} onChange={event => setReason(event.target.value)} /></label>
-      <button type="submit" disabled={busy || reason.trim().length < 10}>この版の公開を停止する</button>
-      <button type="button" disabled={busy} onClick={() => setTarget(null)}>キャンセル</button>
+      <div className="library-actions"><button className="danger-button" type="submit" disabled={busy || reason.trim().length < 10}>この版の公開を停止する</button>
+      <button className="secondary-button" type="button" disabled={busy} onClick={() => setTarget(null)}>キャンセル</button></div>
     </form>}
   </main>;
 }

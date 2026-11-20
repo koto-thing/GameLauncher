@@ -333,3 +333,23 @@ input::placeholder, textarea::placeholder { color: var(--muted); }input[readonly
 .platform-choices button, .platform-choices input { width: 100%; }
 .platform-choices input { margin-top: .5rem; }
 @media (max-width: 620px) { .platform-choices { grid-template-columns: 1fr; } }
+
+/* 配信中のゲーム一覧 */
+.game-library { max-width: 1120px; margin: 0 auto; padding: clamp(20px, 4vw, 48px) clamp(16px, 3vw, 32px); color: var(--ink); }
+.library-back { color: var(--accent-ink); font-size: .875rem; text-decoration: underline; text-underline-offset: .2em; }
+.library-header, .library-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.library-header { justify-content: space-between; margin: 18px 0 24px; }
+.library-header h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2.25rem); font-weight: 750; line-height: 1.25; }
+.game-library > p:not(:empty) { margin: 12px 0; }
+.library-table { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.library-table table { width: 100%; min-width: 610px; border-collapse: collapse; text-align: left; font-size: .875rem; }
+.library-table th, .library-table td { padding: 12px 16px; text-align: left; vertical-align: middle; }
+.library-table th { background: var(--surface-soft); color: var(--muted); white-space: nowrap; }
+.library-table td { border-top: 1px solid var(--line); }
+.library-table td:first-child { width: 50%; overflow-wrap: anywhere; }
+.library-table td:not(:first-child) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.library-table small { color: var(--muted); font-family: var(--font-geist-mono), monospace; }
+.library-table button { padding: 7px 12px; }
+.library-confirm { margin-top: 24px; padding: 20px; display: grid; gap: 14px; border: 1px solid var(--error-line); border-radius: 12px; background: var(--panel); }
+.library-confirm h2 { font-size: 1.25rem; font-weight: 700; }
+.library-confirm textarea { display: block; width: 100%; min-height: 6rem; margin-top: 6px; padding: 10px; color: var(--ink); background: var(--panel); border: 1px solid var(--input-line); border-radius: 6px; }
