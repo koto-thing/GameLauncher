@@ -134,6 +134,8 @@ const statements = [
     claimed_sha256 TEXT NOT NULL,
     game_id TEXT NOT NULL,
     version TEXT NOT NULL,
+    platform TEXT NOT NULL DEFAULT 'windows',
+    arch TEXT NOT NULL DEFAULT 'x86_64',
     part_size INTEGER NOT NULL,
     part_count INTEGER NOT NULL CHECK (part_count > 0 AND part_count <= 80),
     state TEXT NOT NULL CHECK (state IN ('uploading','sealing','sealed','cancelled')),

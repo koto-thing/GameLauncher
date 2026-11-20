@@ -52,6 +52,8 @@ function makeValidDraft(overrides = {}) {
 
   return {
     gameId: "sample-game",
+    platform: "windows",
+    arch: "x86_64",
     version: "1.0.0",
     minimumLauncherVersion: "1.0.1",
     engine: "unity",
@@ -198,7 +200,7 @@ test("validateDraft rejects non-exe entrypoint or entrypoint outside build", () 
   const draft1 = makeValidDraft({ entrypointRelativePath: "bin/game.dll" });
   assert.throws(
     () => validateDraft(draft1),
-    (err) => err instanceof ArtifactValidationError && /Windowsの起動exe/.test(err.message),
+    (err) => err instanceof ArtifactValidationError && /対象OSの起動ファイル/.test(err.message),
   );
 
   const draft2 = makeValidDraft({ entrypointRelativePath: "other/NonExistent.exe" });
@@ -332,7 +334,7 @@ test("normalizeBuildRelativePath rejects leading backslash, UNC, drive-qualified
 test("computeLaunchPaths rejects leading backslash, UNC, drive-qualified, and control characters", () => {
   for (const bad of ["\\bin\\game.exe", "\\\\server\\game.exe", "C:\\game.exe", "game.exe ", "game\0.exe"]) {
     assert.throws(
-      () => computeLaunchPaths(bad),
+      () => computeLaunchPaths(bad, "windows"),
       (err) => err instanceof ArtifactValidationError,
       `computeLaunchPaths should reject ${bad}`,
     );
@@ -444,11 +446,11 @@ test("CRC-32 matches standard test vectors", () => {
 });
 
 test("computeLaunchPaths correctly computes root and nested entrypoints", () => {
-  const root = computeLaunchPaths("MyGame.exe");
+  const root = computeLaunchPaths("MyGame.exe", "windows");
   assert.equal(root.entrypoint, "MyGame.exe");
   assert.equal(root.workingDirectory, ".");
 
-  const nested = computeLaunchPaths("bin/x64/MyGame.exe");
+  const nested = computeLaunchPaths("bin/x64/MyGame.exe", "windows");
   assert.equal(nested.entrypoint, "bin/x64/MyGame.exe");
   assert.equal(nested.workingDirectory, "bin/x64");
 });
@@ -515,7 +517,7 @@ test("buildArtifact produces valid artifact result and descriptor", async () => 
   });
 
   assert.equal(result.artifactId, "11111111-2222-4333-8444-555555555555");
-  assert.equal(result.artifactFile, "sample-game-1.0.0-11111111-2222-4333-8444-555555555555.zip");
+  assert.equal(result.artifactFile, "sample-game-1.0.0-windows-x86_64-11111111-2222-4333-8444-555555555555.zip");
   assert.equal(result.fileCount, 6); // 3 build files + 3 metadata files (release.json, hero.png, thumbnail.webp)
   assert.equal(result.sizeBytes, result.zipBlob.size);
   assert.equal(result.descriptor.sha256, result.sha256);
@@ -613,4 +615,16 @@ test("uploadArtifact seamlessly accepts generated descriptor and zipBlob", async
   assert.equal(uploadResult.artifactId, buildResult.artifactId);
   assert.equal(uploadResult.state, "sealed");
   assert.equal(uploadCompleted, true);
+});
+
+test("Linux and Mac builds retain their launch paths and distribution targets", async () => {
+  for (const [platform, arch, path] of [
+    ["linux", "x86_64", "game.x86_64"],
+    ["macos", "arm64", "Game.app/Contents/MacOS/Game"],
+  ]) {
+    const result = await buildArtifact(makeValidDraft({ platform, arch, entrypointRelativePath: path,
+      buildFiles: [createMockBuildFile(path, "game binary")] }));
+    assert.equal(result.descriptor.platform, platform);
+    assert.equal(result.descriptor.arch, arch);
+  }
 });

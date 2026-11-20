@@ -137,7 +137,8 @@ export async function getDashboard(actor: SessionUser) {
         FROM users u LEFT JOIN active_platform_roles r ON r.github_user_id=u.github_user_id ORDER BY is_admin DESC, login_snapshot`).all<Row>(),
       db.prepare(`SELECT github_user_id, grant_type, granted_by_github_user_id, granted_at
         FROM policy_grants WHERE revoked_at IS NULL ORDER BY grant_type, github_user_id`).all<Row>(),
-      db.prepare(`SELECT r.*, u.login_snapshot AS requester_login, a.size_bytes, a.file_count
+      db.prepare(`SELECT r.*, json_extract(r.metadata_json,'$.platform') AS platform,
+          json_extract(r.metadata_json,'$.arch') AS arch, u.login_snapshot AS requester_login, a.size_bytes, a.file_count
         FROM deployment_requests r
         JOIN users u ON u.github_user_id = r.requester_github_user_id
         JOIN artifacts a ON a.artifact_id = r.artifact_id
@@ -192,6 +193,7 @@ export async function getDashboard(actor: SessionUser) {
       artifactSha256: asString(row.artifact_sha256),
       gameId: asString(row.game_id),
       version: asString(row.version),
+      platform: asString(row.platform), arch: asString(row.arch),
       requesterGithubUserId: asString(row.requester_github_user_id),
       requesterLogin: asString(row.requester_login),
       state: asString(row.state),
@@ -263,12 +265,9 @@ export async function createRequest(actor: SessionUser, input: {
   }
   const requestId = crypto.randomUUID();
   const timestamp = now();
-  const metadata = { gameId, version, platform: "windows", arch: "x86_64" };
-  const metadataJson = stableJson(metadata);
-  const metadataSha256 = await sha256(metadataJson);
   const db = getD1();
   const artifact = await db.prepare(`SELECT a.size_bytes, a.file_count, a.claimed_sha256, a.status,
-      u.game_id, u.version
+      u.game_id, u.version, u.platform, u.arch
     FROM artifacts a JOIN intake_uploads u ON u.artifact_id = a.artifact_id
     WHERE a.artifact_id = ?`).bind(artifactId).first<Row>();
   if (!artifact || artifact.status !== "sealed") {
@@ -281,6 +280,9 @@ export async function createRequest(actor: SessionUser, input: {
       asString(artifact.version) !== version) {
     throw new Error("descriptorとsealed artifactの情報が一致しません");
   }
+  const metadata = { gameId, version, platform: artifact.platform, arch: artifact.arch };
+  const metadataJson = stableJson(metadata);
+  const metadataSha256 = await sha256(metadataJson);
   const audit = await auditRecord(requestId, "request_created", actor, {
     environment: "staging",
     artifactId,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type DragEvent, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import Link from "next/link";
 import type { ArtifactDescriptor } from "@/lib/artifact-limits";
 import { DEFAULT_PROFILE_LOCALES } from "@/lib/profile-locales";
@@ -17,6 +17,8 @@ import {
   validateDraft,
   validateAndCollectBuildFiles,
   computeLaunchPaths,
+  isLaunchCandidate,
+  type Platform,
   GAME_ID_PATTERN,
   VERSION_PATTERN,
   SAVE_NAME_PATTERN,
@@ -111,6 +113,8 @@ function shortHash(hash: string): string {
   return `${hash.slice(0, 10)}…${hash.slice(-6)}`;
 }
 
+const platformLabels = { linux: "Linux", windows: "Windows", macos: "Mac" };
+
 /**
  * ブラウザのFileをArtifactBuilder用のビルド入力へ変換する
  * @param file ファイル選択で取得したブラウザファイル
@@ -120,7 +124,7 @@ function convertWebFileToBuildInput(file: File): BuildInputFile {
   const relativePath = (file as { webkitRelativePath?: string }).webkitRelativePath || file.name;
   const parts = relativePath.split(/[/\\]/);
   // webkitRelativePathがルートフォルダ名（例：「MyGame_Build/MyGame.exe」）で始まる場合、最上位フォルダを削除
-  const strippedRel = parts.length > 1 ? parts.slice(1).join("/") : parts[0];
+  const strippedRel = parts.length > 1 && !parts[0].endsWith(".app") ? parts.slice(1).join("/") : parts.join("/");
 
   return {
     name: file.name,
@@ -184,11 +188,21 @@ export function IntakeUploader() {
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string | null>(null);
   const [focalPoint, setFocalPoint] = useState<{ x: number; y: number }>({ x: 0.5, y: 0.5 });
 
-  const [buildFiles, setBuildFiles] = useState<BuildInputFile[]>([]);
-  const [detectedExecutables, setDetectedExecutables] = useState<string[]>([]);
-  const [entrypointRelativePath, setEntrypointRelativePath] = useState("");
-  const [buildScanErrors, setBuildScanErrors] = useState<string[]>([]);
-  const [buildScanStats, setBuildScanStats] = useState<{ count: number; bytes: number } | null>(null);
+  const [platform, setPlatform] = useState<Platform>("windows");
+  const [builds, setBuilds] = useState<Partial<Record<Platform, {
+    uploaded?: boolean; folder: string; files: BuildInputFile[]; candidates: string[]; entrypoint: string;
+    errors: string[]; stats: { count: number; bytes: number } | null;
+  }>>>({});
+  const [architectures, setArchitectures] = useState<Record<Platform, ReleaseDraft["arch"]>>({
+    linux: "x86_64", windows: "x86_64", macos: "arm64",
+  });
+  const selected = builds[platform];
+  const buildFiles = selected?.files ?? [];
+  const detectedExecutables = selected?.candidates ?? [];
+  const entrypointRelativePath = selected?.entrypoint ?? "";
+  const buildScanErrors = selected?.errors ?? [];
+  const buildScanStats = selected?.stats;
+  const arch = architectures[platform];
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [builtResult, setBuiltResult] = useState<ArtifactBuildResult | null>(null);
@@ -387,12 +401,15 @@ export function IntakeUploader() {
 
   /**
    * Buildフォルダの全ファイルを入力へ変換し、起動候補の抽出と安全性検証を行う
-   * @param fileList フォルダ選択またはドロップで取得したファイル一覧
+   * @param fileList フォルダ選択で取得したファイル一覧
+   * @param target 入力欄に対応するOS
+   * @returns 戻り値なし
    */
-  function handleFolderFiles(fileList: FileList | null) {
+  function handleFolderFiles(fileList: FileList | null, target: Platform) {
     if (!fileList || fileList.length === 0) return;
     setErrorMessage(null);
-    setBuildScanErrors([]);
+    resetForm();
+    setPlatform(target);
 
     const inputs: BuildInputFile[] = [];
     const exes: string[] = [];
@@ -402,7 +419,7 @@ export function IntakeUploader() {
       const converted = convertWebFileToBuildInput(file);
       inputs.push(converted);
 
-      if (converted.relativePath.toLowerCase().endsWith(".exe")) {
+      if (isLaunchCandidate(converted.relativePath, target)) {
         exes.push(converted.relativePath);
       }
     }
@@ -416,27 +433,19 @@ export function IntakeUploader() {
       return a.localeCompare(b);
     });
 
-    setBuildFiles(inputs);
-    setDetectedExecutables(exes);
-
-    // 最優先のexeを起動ファイルとして仮選択する
-    if (exes.length > 0) {
-      setEntrypointRelativePath(exes[0]);
-    } else {
-      setEntrypointRelativePath("");
-    }
-
-    // 収集したファイルのパス安全性・重複・容量を検証する
+    // 選択したOSの入力だけを更新する
+    let stats = null;
+    const errors: string[] = [];
     try {
       const validated = validateAndCollectBuildFiles(inputs);
-      setBuildScanStats({ count: validated.files.length, bytes: validated.totalBytes });
-      if (exes.length === 0) {
-        setBuildScanErrors(["ビルドフォルダ内にWindows起動exe (.exe) が見つかりません"]);
-      }
-    } catch (err) {
-      setBuildScanStats(null);
-      setBuildScanErrors([err instanceof Error ? err.message : "ビルドフォルダの検証に失敗しました"]);
+      stats = { count: validated.files.length, bytes: validated.totalBytes };
+      if (!exes.length) errors.push("対象OSの起動ファイルが見つかりません");
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : "ビルドフォルダの検証に失敗しました");
     }
+    const folder = fileList[0].webkitRelativePath.split("/")[0] || fileList[0].name;
+    setBuilds({ ...builds, [target]: { folder, files: inputs, candidates: exes,
+      entrypoint: target === "linux" && exes.length > 1 ? "" : exes[0] ?? "", stats, errors } });
   }
 
   /** 言語タグを検証して翻訳入力行を追加する */
@@ -541,7 +550,7 @@ export function IntakeUploader() {
         hero: convertWebFileToImageInput(heroFile),
         thumbnail: convertWebFileToImageInput(thumbnailFile),
         focalPoint,
-        buildFiles,
+        platform, arch, buildFiles,
         entrypointRelativePath,
       };
       previewSummary = validateDraft(draft);
@@ -644,15 +653,15 @@ export function IntakeUploader() {
     setIsDragOver(false);
   }
 
-  /** 現在のモードに応じてBuildフォルダまたは既存Artifactを処理する */
+  /**
+   * ドロップされた既存Artifactを受け付ける
+   * @param e ドロップイベント
+   * @returns 戻り値なし
+   */
   function onDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setIsDragOver(false);
-    if (mode === "create") {
-      handleFolderFiles(e.dataTransfer.files);
-    } else {
-      handleExistingDropFiles(e.dataTransfer.files);
-    }
+    if (!isProcessing) handleExistingDropFiles(e.dataTransfer.files);
   }
 
   // 新規Artifactの生成からIntakeへの分割アップロード、Sealまでを実行する
@@ -674,7 +683,7 @@ export function IntakeUploader() {
     }
 
     if (buildFiles.length === 0 || !entrypointRelativePath) {
-      setErrorMessage("Buildフォルダと起動exeを選択してください");
+      setErrorMessage("Buildフォルダと起動ファイルを選択してください");
       return;
     }
 
@@ -695,7 +704,7 @@ export function IntakeUploader() {
         hero: convertWebFileToImageInput(heroFile),
         thumbnail: convertWebFileToImageInput(thumbnailFile),
         focalPoint,
-        buildFiles,
+        platform, arch, buildFiles,
         entrypointRelativePath,
       };
 
@@ -751,6 +760,7 @@ export function IntakeUploader() {
       setSealedArtifactId(uploadRes.artifactId);
 
       // Sealに成功した受付票だけを、今回生成した結果から一度だけ保存する
+      setBuilds(current => ({ ...current, [platform]: { ...current[platform]!, uploaded: true } }));
       downloadGeneratedDescriptor(buildRes);
     } catch (err) {
       if (err instanceof ArtifactBuildCancelledError || err instanceof IntakeCancelledError) {
@@ -1427,41 +1437,38 @@ export function IntakeUploader() {
                 <span className="step-num-badge">STEP 3</span>
                 <div className="step-title-group">
                   <h3>BUILD / ゲームビルドフォルダ & 起動ファイル</h3>
-                  <p>ゲームの実行に必要な全ファイルを含むフォルダを選択し、起動用exeを指定します。</p>
+                  <p>ゲームの実行に必要な全ファイルを含むフォルダを選択し、起動ファイルを指定します。</p>
                 </div>
               </div>
 
-              {/* ビルドフォルダの選択・ドロップ領域 */}
-              <div
-                className={`intake-dropzone ${isDragOver ? "dragover" : ""}`}
-                onDragOver={onDragOver}
-                onDragLeave={onDragLeave}
-                onDrop={onDrop}
-                style={{ marginBottom: "18px" }}
-              >
-                <div className="intake-dropzone-inner">
-                  <span className="dropzone-icon" aria-hidden="true">📁</span>
-                  <div>
-                    <h3>ゲームのBuildフォルダを選択またはドロップ</h3>
-                    <p>Unity、Godot、Siv3Dなどのビルド出力フォルダ全体を一括選択します。</p>
+              <div className="platform-choices">
+                {(["linux", "windows", "macos"] as const).map((os) => (
+                  <div key={os}>
+                  <button type="button" aria-pressed={platform === os} disabled={isProcessing}
+                    onClick={() => { if (platform !== os) { resetForm(); setPlatform(os); } }}>
+                    <strong>{platformLabels[os]}版</strong>
+                    <small>{builds[os]?.folder ?? "未選択"}</small>
+                    {builds[os]?.uploaded && <small>アップロード済み</small>}
+                  </button>
+                  <input type="file" aria-label={`${platformLabels[os]}版のビルドフォルダ`}
+                    {...{ webkitdirectory: "" }} multiple disabled={isProcessing}
+                    onChange={e => { handleFolderFiles(e.target.files, os); e.target.value = ""; }} />
                   </div>
-                  <div className="dropzone-buttons">
-                    <label className="primary-button dropzone-btn">
-                      <span>Buildフォルダを選択</span>
-                      <input
-                        type="file"
-                        {...{ webkitdirectory: "" }}
-                        multiple
-                        style={{ display: "none" }}
-                        disabled={isProcessing}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => handleFolderFiles(e.target.files)}
-                      />
-                    </label>
-                  </div>
-                </div>
+                ))}
+              </div>
+              <div className="form-field-group">
+                <label>対象CPU
+                  <select disabled={isProcessing} value={arch} onChange={(e) => {
+                    resetForm();
+                    if (selected) setBuilds({ ...builds, [platform]: { ...selected, uploaded: false } });
+                    setArchitectures({ ...architectures, [platform]: e.target.value as ReleaseDraft["arch"] });
+                  }}>
+                    <option value="x86_64">x86_64</option><option value="arm64">ARM64</option>
+                  </select>
+                </label>
               </div>
 
-              {/* ビルド検証結果と起動EXEの選択 */}
+              {/* ビルド検証結果と起動ファイルの選択 */}
               {buildScanStats ? (
                 <div className="build-scan-box">
                   <div className="build-scan-stats">
@@ -1491,15 +1498,16 @@ export function IntakeUploader() {
                   ) : (
                     <div className="form-field-group" style={{ marginTop: "10px" }}>
                       <label htmlFor="entrypoint-select">
-                        <span>起動EXE (Entrypoint) *</span>
+                        <span>起動ファイル (Entrypoint) *</span>
                         <span className="field-tip">ゲーム起動用のメイン実行ファイル</span>
                       </label>
                       <select
                         id="entrypoint-select"
                         value={entrypointRelativePath}
                         disabled={isProcessing}
-                        onChange={(e) => setEntrypointRelativePath(e.target.value)}
+                        onChange={(e) => { if (selected) { resetForm(); setBuilds({ ...builds, [platform]: { ...selected, uploaded: false, entrypoint: e.target.value } }); } }}
                       >
+                        <option value="" disabled>起動ファイルを選択</option>
                         {detectedExecutables.map((exe) => (
                           <option key={exe} value={exe}>
                             {exe}
@@ -1509,7 +1517,7 @@ export function IntakeUploader() {
                       {entrypointRelativePath && (
                         <span className="input-help">
                           Artifact内パス: <code>build/{entrypointRelativePath}</code> (Working Directory:{" "}
-                          <code>build/{computeLaunchPaths(entrypointRelativePath).workingDirectory}</code>)
+                          <code>build/{computeLaunchPaths(entrypointRelativePath, platform).workingDirectory}</code>)
                         </span>
                       )}
                     </div>
@@ -1553,7 +1561,7 @@ export function IntakeUploader() {
                       <strong>{engine}</strong>
                     </div>
                     <div>
-                      <span>起動EXE</span>
+                      <span>起動ファイル</span>
                       <code>build/{previewSummary.entrypoint}</code>
                     </div>
                     <div>
@@ -1601,7 +1609,7 @@ export function IntakeUploader() {
                       disabled={!canSubmitBuilder}
                       onClick={startBuildAndUpload}
                     >
-                      {isProcessing ? "処理中…" : "Artifactを作成してアップロード"}
+                      {isProcessing ? "処理中…" : `${platformLabels[platform]}版をアップロード`}
                     </button>
                     {isProcessing && (
                       <button type="button" className="danger-outline-button" onClick={cancelOperation}>

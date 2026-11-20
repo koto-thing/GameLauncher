@@ -39,10 +39,10 @@ function formatDescriptorError(err: ErrorObject): string {
     return "versionは 1.0.0 形式のセマンティックバージョンで指定してください";
   }
   if (path === "/platform") {
-    return "platformは windows である必要があります";
+    return "platformは linux、windows、macos のいずれかである必要があります";
   }
   if (path === "/arch") {
-    return "archは x86_64 である必要があります";
+    return "archは x86_64、arm64 のいずれかである必要があります";
   }
   if (path === "/sizeBytes") {
     return "sizeBytesは1バイト以上5 GiB以下の整数である必要があります";
@@ -83,8 +83,8 @@ export function validateDescriptorSchema(raw: unknown): ValidationResult {
     artifactFile: String(obj.artifactFile),
     gameId: String(obj.gameId),
     version: String(obj.version),
-    platform: "windows",
-    arch: "x86_64",
+    platform: String(obj.platform),
+    arch: String(obj.arch),
     sizeBytes: obj.sizeBytes as number,
     fileCount: obj.fileCount as number,
     sha256: String(obj.sha256),

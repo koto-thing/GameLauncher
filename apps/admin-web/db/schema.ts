@@ -102,6 +102,8 @@ export const intakeUploads = sqliteTable(
     claimedSha256: text("claimed_sha256").notNull(),
     gameId: text("game_id").notNull(),
     version: text("version").notNull(),
+    platform: text("platform").notNull().default("windows"),
+    arch: text("arch").notNull().default("x86_64"),
     partSize: integer("part_size").notNull(),
     partCount: integer("part_count").notNull(),
     state: text("state", { enum: ["uploading", "sealing", "sealed", "cancelled"] }).notNull(),

@@ -12,7 +12,7 @@ import formats from "ajv-formats/dist/formats.js";
 
 "use strict";
 export const validateDescriptorAjv = validate20;
-const schema31 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://pandd.example/schemas/deployment-artifact-descriptor.schema.json","title":"PandD deployment artifact descriptor","type":"object","additionalProperties":false,"required":["schemaVersion","artifactId","artifactFile","gameId","version","platform","arch","sizeBytes","fileCount","sha256","createdAt"],"properties":{"schemaVersion":{"const":1},"artifactId":{"type":"string","pattern":"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},"artifactFile":{"type":"string","pattern":"^[^/\\\\]+\\.zip$","maxLength":180},"gameId":{"type":"string","pattern":"^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"},"version":{"type":"string","pattern":"^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},"platform":{"const":"windows"},"arch":{"const":"x86_64"},"sizeBytes":{"type":"integer","minimum":1,"maximum":5368709120},"fileCount":{"type":"integer","minimum":1,"maximum":50000},"sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"createdAt":{"type":"string","format":"date-time"}}};
+const schema31 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://pandd.example/schemas/deployment-artifact-descriptor.schema.json","title":"PandD deployment artifact descriptor","type":"object","additionalProperties":false,"required":["schemaVersion","artifactId","artifactFile","gameId","version","platform","arch","sizeBytes","fileCount","sha256","createdAt"],"properties":{"schemaVersion":{"const":1},"artifactId":{"type":"string","pattern":"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},"artifactFile":{"type":"string","pattern":"^[^/\\\\]+\\.zip$","maxLength":180},"gameId":{"type":"string","pattern":"^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"},"version":{"type":"string","pattern":"^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},"platform":{"enum":["linux","windows","macos"]},"arch":{"enum":["x86_64","arm64"]},"sizeBytes":{"type":"integer","minimum":1,"maximum":5368709120},"fileCount":{"type":"integer","minimum":1,"maximum":50000},"sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"createdAt":{"type":"string","format":"date-time"}}};
 const func1 = Object.prototype.hasOwnProperty;
 const func2 = (ucs2length.default || ucs2length);
 const pattern4 = new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", "u");
@@ -279,8 +279,9 @@ errors++;
 }
 }
 if(data.platform !== undefined){
-if("windows" !== data.platform){
-const err22 = {instancePath:instancePath+"/platform",schemaPath:"#/properties/platform/const",keyword:"const",params:{allowedValue: "windows"},message:"must be equal to constant"};
+let data5 = data.platform;
+if(!(((data5 === "linux") || (data5 === "windows")) || (data5 === "macos"))){
+const err22 = {instancePath:instancePath+"/platform",schemaPath:"#/properties/platform/enum",keyword:"enum",params:{allowedValues: schema31.properties.platform.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err22];
 }
@@ -291,8 +292,9 @@ errors++;
 }
 }
 if(data.arch !== undefined){
-if("x86_64" !== data.arch){
-const err23 = {instancePath:instancePath+"/arch",schemaPath:"#/properties/arch/const",keyword:"const",params:{allowedValue: "x86_64"},message:"must be equal to constant"};
+let data6 = data.arch;
+if(!((data6 === "x86_64") || (data6 === "arm64"))){
+const err23 = {instancePath:instancePath+"/arch",schemaPath:"#/properties/arch/enum",keyword:"enum",params:{allowedValues: schema31.properties.arch.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err23];
 }

@@ -29,7 +29,11 @@ export type ImageInputFile = {
   arrayBuffer?: () => Promise<ArrayBuffer>;
 };
 
+export type Platform = "linux" | "windows" | "macos";
+
 export type ReleaseDraft = {
+  platform: Platform;
+  arch: "x86_64" | "arm64";
   gameId: string;
   version: string;
   minimumLauncherVersion: string;

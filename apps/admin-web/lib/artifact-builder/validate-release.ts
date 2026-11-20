@@ -10,6 +10,7 @@ import {
   ArtifactValidationError,
   type BuildInputFile,
   type ReleaseDraft,
+  type Platform,
   type ReleasePreview,
 } from "./types.ts";
 
@@ -35,17 +36,34 @@ export function validateLocaleTag(locale: string): string {
   return locale;
 }
 
-/** Artifact内の起動ファイルから実行パスとWorking Directoryを計算する */
-export function computeLaunchPaths(entrypointRelativePath: string): {
+/**
+ * OSに対応する起動ファイル候補を判定する
+ * @param path ビルド内の相対パス
+ * @param platform 配信対象OS
+ * @returns 起動候補として選択できる場合はtrue
+ */
+export function isLaunchCandidate(path: string, platform: Platform): boolean {
+  if (platform === "windows") return /\.exe$/i.test(path);
+  if (platform === "macos") return /\.app\/Contents\/MacOS\/[^/]+$/.test(path);
+  return !/\.(exe|dll|so|json|png|pck|pak|txt|dat)$/i.test(path);
+}
+
+/**
+ * 起動ファイルの相対パスと作業ディレクトリを求める
+ * @param entrypointRelativePath ビルド内の起動ファイル
+ * @param platform 配信対象OS
+ * @returns 正規化した起動パスと親ディレクトリ
+ */
+export function computeLaunchPaths(entrypointRelativePath: string, platform: Platform): {
   entrypoint: string;
   workingDirectory: string;
 } {
   const normalized = normalizeBuildRelativePath(entrypointRelativePath);
   if (!normalized) {
-    throw new ArtifactValidationError("起動exeを選択してください");
+    throw new ArtifactValidationError("起動ファイルを選択してください");
   }
-  if (!normalized.toLowerCase().endsWith(".exe")) {
-    throw new ArtifactValidationError("Windowsの起動exeを選択してください");
+  if (!isLaunchCandidate(normalized, platform)) {
+    throw new ArtifactValidationError("対象OSの起動ファイルを選択してください");
   }
 
   const parts = normalized.split("/");
@@ -201,7 +219,7 @@ export function validateDraft(draft: ReleaseDraft): ReleasePreview {
   let entrypoint = "";
   let workingDirectory = "";
   try {
-    const launch = computeLaunchPaths(draft.entrypointRelativePath);
+    const launch = computeLaunchPaths(draft.entrypointRelativePath, draft.platform);
     entrypoint = launch.entrypoint;
     workingDirectory = launch.workingDirectory;
 
@@ -215,7 +233,7 @@ export function validateDraft(draft: ReleaseDraft): ReleasePreview {
       }
     });
     if (!entryFileExists) {
-      errors.push("起動exeはビルドフォルダ内から選択してください");
+      errors.push("起動ファイルはビルドフォルダ内から選択してください");
     }
   } catch (err) {
     errors.push(err instanceof Error ? err.message : String(err));
