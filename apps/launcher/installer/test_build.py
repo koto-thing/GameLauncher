@@ -30,6 +30,7 @@ class InstallerBuildTests(unittest.TestCase):
             for compression in (None, 1, 5):
                 with self.subTest(compression=compression), \
                      patch("apps.launcher.installer.build.executable", side_effect=lambda _, name: Path(name)), \
+                     patch("apps.launcher.installer.build.prepare_maintenance_update"), \
                      patch("apps.launcher.installer.build.subprocess.run") as run:
                     build_installer(None, source, root / "output", "1.0.0", "file:///repository",
                                     compression=compression)

@@ -1,6 +1,22 @@
+/** @brief コンポーネントの更新処理を登録する */
 function Component() {
-    // Qt IFW constructs this object and calls createOperations during installation
+    // 更新前に IFW へ置き換え用のバイナリとリソースを登録する
+    if (systemInfo.productType === "windows") {
+        installer.installationStarted.connect(this, Component.prototype.prepareMaintenanceTool);
+    }
 }
+
+/** @brief 更新時にインストール先のメンテナンスツールへ PandD のロゴと画面設定を反映する */
+Component.prototype.prepareMaintenanceTool = function() {
+    var edition = installer.componentByName("org.pandd.edition");
+    if (component.updateRequested() || (component.installationRequested() && !edition)) {
+        installer.setInstallerBaseBinary("@TargetDir@/maintenance/installerbase.exe");
+        // 配布版の名前・起動引数・設定は専用リソースが保持する
+        if (!edition) {
+            installer.setValue("DefaultResourceReplacement", installer.value("TargetDir") + "/maintenance/update.rcc");
+        }
+    }
+};
 
 Component.prototype.createOperations = function() {
     component.createOperations();

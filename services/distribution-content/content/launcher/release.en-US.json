@@ -1,6 +1,6 @@
 {
-  "version": "1.4.1",
+  "version": "1.4.2",
   "mandatory": false,
-  "title": "Updated Windows maintenance tool and installer",
+  "title": "Fixed Windows maintenance permissions and updated the tool icon",
   "publishedAt": "2026-11-23T00:00:00+09:00"
 }

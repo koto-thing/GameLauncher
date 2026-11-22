@@ -17,7 +17,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-from apps.launcher.installer.build import executable, configure_metadata
+from apps.launcher.installer.build import executable, configure_metadata, set_application_icon
 from scripts.deployment.actions_control_plane import control_plane_request
 from packages.contracts.validation import (
     CHUNK_SIZE, canonical_json, validate_contract, validate_relative_path,
@@ -198,6 +198,7 @@ def package(work: Path, install_tree: Path, output: Path, version: str, ifw_root
         shutil.copy2(ROOT / "assets/images/PandDLogo.png", config_dir / "PandDLogo.png")
         shutil.copytree(install_tree, packages / "org.pandd.launcher/data")
         config = config_dir / "config.xml"
+        set_application_icon(config, ROOT / "assets/images/PandDLogo.ico")
         configure_metadata(config, packages / "org.pandd.launcher/meta/package.xml", version,
                            f"{ORIGIN}/v1/launcher/ifw/windows/x86_64")
         tree = ET.parse(config)

@@ -1,6 +1,6 @@
 {
-  "version": "1.4.1",
+  "version": "1.4.2",
   "mandatory": false,
-  "title": "Windowsのメンテナンス画面とインストーラーを更新",
+  "title": "Windowsの更新権限とメンテナンスツールのロゴを修正",
   "publishedAt": "2026-11-23T00:00:00+09:00"
 }
