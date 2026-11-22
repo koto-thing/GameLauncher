@@ -12,7 +12,7 @@ use eframe::egui::{
 use pandd_setup::ifw::Stage;
 
 use super::{
-    Action, Screen, View, body, bold, centered_text, framed, hit_area,
+    Action, Screen, Task, View, body, bold, centered_text, fit_line, framed, hit_area,
     palette::{CHARCOAL, CHARCOAL_SOFT, CORAL, CORAL_DEEP, CORAL_LIGHT, CORAL_MIST, WHITE},
     pixel, stage_label, vertical_gradient, wrapped_text,
 };
@@ -48,12 +48,16 @@ const PORTRAITS: &[(&str, &[u8])] = &[
 const PORTRAIT_SIZE: egui::Vec2 = vec2(640.0, 960.0);
 /// 元画像の中での顔の中心
 const FACE_IN_PORTRAIT: egui::Vec2 = vec2(318.0, 196.0);
+/// 選択肢とインストール先の枠を置く、ウィンドウの左端からの距離。章の見出しとそろえる
+const CHOICE_LEFT: f32 = 22.0;
+/// 選択肢とインストール先の枠の幅
+const CHOICE_WIDTH: f32 = 330.0;
 /// 立ち絵を表示する倍率
 const PORTRAIT_SCALE: f32 = 0.6;
 /// 台詞の文字送りの速さ（1秒あたりの文字数）
 const CHARACTERS_PER_SECOND: f32 = 40.0;
-/// ナビ役の名前
-const NAVI_NAME: &str = "ナビ";
+/// 案内役の名前
+const NAVI_NAME: &str = "こと";
 
 /// 立ち絵のテクスチャ
 pub struct Portraits {
@@ -103,7 +107,7 @@ impl Portraits {
     }
 }
 
-/// ナビ役の表情
+/// 案内役の表情
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Expression {
     /// 通常
@@ -112,7 +116,7 @@ enum Expression {
     Smile,
     /// 大喜び。ウインクと頬の赤み
     Joy,
-    /// 困り顔。汗を添える
+    /// 困り顔
     Worried,
     /// 驚き
     Surprised,
@@ -155,19 +159,47 @@ pub fn show(ui: &mut Ui, view: &mut View) -> Option<Action> {
     let line: String = scene.line.chars().take(shown).collect();
     let window = message_window(ui, &line, typing, view.seconds);
 
-    match view.screen {
-        Screen::Welcome => choices(
+    match (view.screen, view.task) {
+        (Screen::Menu, _) => {
+            target(ui, view, typing, "インストール先");
+            choices(
+                ui,
+                view,
+                typing,
+                &[
+                    ("アップデートする", Action::Update),
+                    ("アンインストールする", Action::ConfirmUninstall),
+                    ("やめる", Action::Close),
+                ],
+            )
+        }
+        (Screen::Welcome, Task::Uninstall) => {
+            target(ui, view, typing, "削除する場所");
+            choices(
+                ui,
+                view,
+                typing,
+                &[
+                    ("アンインストールする", Action::Uninstall),
+                    ("もどる", Action::Back),
+                ],
+            )
+        }
+        (Screen::Welcome, _) => choices(
             ui,
             view,
             typing,
             &[("はじめる", Action::Next), ("やめる", Action::Close)],
         ),
-        Screen::Destination => destination(ui, view),
-        Screen::Running => {
+        (Screen::Destination, _) => destination(ui, view),
+        (Screen::Running, _) => {
             progress(ui, window, view);
             None
         }
-        Screen::Finished => choices(
+        (Screen::Finished, Task::Uninstall) => {
+            choices(ui, view, typing, &[("閉じる", Action::Close)])
+        }
+        (Screen::Finished, _) => choices(
             ui,
             view,
             typing,
@@ -176,7 +208,7 @@ pub fn show(ui: &mut Ui, view: &mut View) -> Option<Action> {
                 ("閉じる", Action::Close),
             ],
         ),
-        Screen::Failed => failed(ui, view),
+        (Screen::Failed, _) => failed(ui, view),
     }
 }
 
@@ -190,72 +222,99 @@ pub fn show(ui: &mut Ui, view: &mut View) -> Option<Action> {
 ///
 /// 今の画面の演出
 fn scene_for<'a>(view: &View<'a>) -> Scene<'a> {
-    let update = view.updating;
+    let task = view.task;
     match view.screen {
+        Screen::Menu => Scene {
+            expression: Expression::Smile,
+            line: "こんにちは、ことです。今日はどうしますか？\nアップデートでも、アンインストールでもお手伝いしますよ。",
+            chapter: ("MAINTENANCE", "メンテナンス"),
+        },
+        Screen::Welcome if task == Task::Uninstall => Scene {
+            expression: Expression::Worried,
+            line: "ランチャーをアンインストールするんですね…。\nゲームとセーブデータは別の場所にあるので、そのまま残りますよ。",
+            chapter: ("UNINSTALL", "アンインストール"),
+        },
         Screen::Welcome => Scene {
             expression: Expression::Smile,
-            line: "はじめまして、案内役のナビです。PandD Game Launcher の準備、いっしょに進めていきましょう！",
+            line: "はじめまして、案内役のことです。\nPandD Game Launcher の準備、いっしょに進めていきましょう！",
             chapter: ("STEP 1 / 4", "はじめまして"),
         },
         Screen::Destination if view.directory_problem.is_some() => Scene {
             expression: Expression::Surprised,
-            line: "あっ、そのフォルダには置けないみたいです。別の場所を選んでもらえますか？",
+            line: "あっ、そのフォルダには置けないみたいです。\n別の場所を選んでもらえますか？",
             chapter: ("STEP 2 / 4", "インストール先"),
         },
         Screen::Destination => Scene {
             expression: Expression::Normal,
-            line: "ランチャーはここに置きますね。ほかの場所がよければ、左のパネルで変えられます。",
+            line: "ランチャーはここに置きますね。\nほかの場所がよければ、左のパネルで変えられます。",
             chapter: ("STEP 2 / 4", "インストール先"),
         },
         Screen::Running => {
-            let (expression, line) = match (update, view.progress.stage()) {
-                (true, Stage::Preparing) => (
+            let (expression, line) = match (task, view.progress.stage()) {
+                (Task::Uninstall, _) => (
                     Expression::Normal,
-                    "新しいバージョンを確認しています。少しだけ待っていてくださいね。",
+                    "ランチャーのファイルを削除しています。\n少しだけ待っていてくださいね。",
                 ),
-                (false, Stage::Preparing) => (
+                (Task::Update, Stage::Preparing) => (
                     Expression::Normal,
-                    "配信サーバーに問い合わせています。少しだけ待っていてくださいね。",
+                    "新しいバージョンを確認しています。\n少しだけ待っていてくださいね。",
+                ),
+                (_, Stage::Preparing) => (
+                    Expression::Normal,
+                    "配信サーバーに問い合わせています。\n少しだけ待っていてくださいね。",
                 ),
                 (_, Stage::Downloading) => (
                     Expression::Smile,
-                    "ダウンロード中です。ゲームの更新は、ランチャーが起動するたびに自動で確認されるんですよ。",
+                    "ダウンロード中です。\nゲームの更新は、ランチャーを起動するたびに自動で確認されますよ。",
                 ),
                 (_, Stage::Unpacking) => (
                     Expression::Smile,
-                    "ファイルを展開しています。設定画面では、キャラクターの表示も切り替えられます。",
+                    "ファイルを展開しています。\n設定画面では、キャラクターの表示も切り替えられます。",
                 ),
-                (_, Stage::Finalizing) => (
+                (_, Stage::Finalizing | Stage::Removing) => (
                     Expression::Normal,
-                    "もうすぐです！ 最後の仕上げをしていますね。",
+                    "もうすぐです！\n最後の仕上げをしていますね。",
                 ),
             };
             Scene {
                 expression,
                 line,
-                chapter: if update {
-                    ("UPDATE", "アップデート中")
-                } else {
-                    ("STEP 3 / 4", "インストール")
+                chapter: match task {
+                    Task::Install => ("STEP 3 / 4", "インストール"),
+                    Task::Update => ("UPDATE", "アップデート中"),
+                    Task::Uninstall => ("UNINSTALL", "アンインストール中"),
                 },
             }
         }
-        Screen::Finished => Scene {
-            expression: Expression::Joy,
-            line: if update {
-                "アップデート完了です！ 新しいランチャーで、また遊びましょうね。"
-            } else {
-                "準備ができました！ さっそく遊びましょう。これからよろしくお願いしますね♪"
+        Screen::Finished => match task {
+            Task::Install => Scene {
+                expression: Expression::Joy,
+                line: "準備ができました！ さっそく遊びましょう。\nこれからよろしくお願いしますね♪",
+                chapter: ("STEP 4 / 4", "完了"),
             },
-            chapter: if update {
-                ("UPDATE", "完了")
-            } else {
-                ("STEP 4 / 4", "完了")
+            Task::Update if view.up_to_date => Scene {
+                expression: Expression::Smile,
+                line: "確認しましたが、もう最新のランチャーでした！\nこのまま遊べますよ。",
+                chapter: ("UPDATE", "最新です"),
+            },
+            Task::Update => Scene {
+                expression: Expression::Joy,
+                line: "アップデート完了です！\n新しいランチャーで、また遊びましょうね。",
+                chapter: ("UPDATE", "完了"),
+            },
+            Task::Uninstall => Scene {
+                expression: Expression::Smile,
+                line: "アンインストールが終わりました。\nこれまで遊んでくれて、ありがとうございました！\nまたいつでも待っていますね。",
+                chapter: ("UNINSTALL", "完了"),
             },
         },
         Screen::Failed => Scene {
             expression: Expression::Worried,
-            line: "ごめんなさい、うまくいきませんでした…。ネットワークと空き容量を確かめて、もう一度試してもらえますか？",
+            line: if task == Task::Uninstall {
+                "ごめんなさい、削除できませんでした…。\nランチャーを閉じてから、もう一度試してもらえますか？"
+            } else {
+                "ごめんなさい、うまくいきませんでした…。\nネットワークと空き容量を確かめて、もう一度試してもらえますか？"
+            },
             chapter: ("TROUBLE", "うまくいきませんでした"),
         },
     }
@@ -364,7 +423,7 @@ fn draw_portrait(ui: &Ui, view: &View, expression: Expression, talking: bool) ->
     rect.min + FACE_IN_PORTRAIT * PORTRAIT_SCALE
 }
 
-/// 表情に合わせて頬の赤み、きらめき、汗、驚きの記号を重ねる
+/// 表情に合わせて頬の赤み、きらめき、驚きの記号を重ねる
 ///
 /// # 引数
 ///
@@ -400,25 +459,6 @@ fn draw_effects(ui: &Ui, face: Pos2, expression: Expression, seconds: f32) {
                 sparkle(ui, face + offset, 6.0 + twinkle * 6.0, CORAL);
             }
         }
-        Expression::Worried => {
-            // 右のこめかみに汗のしずく
-            let drop = face + vec2(62.0, -34.0 + (seconds * 1.5).sin() * 2.0);
-            painter.add(Shape::convex_polygon(
-                vec![
-                    drop + vec2(0.0, -14.0),
-                    drop + vec2(-6.5, -1.0),
-                    drop + vec2(6.5, -1.0),
-                ],
-                WHITE,
-                Stroke::NONE,
-            ));
-            painter.circle(
-                drop + vec2(0.0, 1.0),
-                7.0,
-                WHITE,
-                Stroke::new(1.5, CHARCOAL_SOFT),
-            );
-        }
         Expression::Surprised => {
             let bounce = (seconds * 10.0).sin().abs() * 4.0;
             painter.text(
@@ -429,7 +469,7 @@ fn draw_effects(ui: &Ui, face: Pos2, expression: Expression, seconds: f32) {
                 CORAL,
             );
         }
-        Expression::Normal => {}
+        Expression::Normal | Expression::Worried => {}
     }
 }
 
@@ -494,6 +534,44 @@ fn chapter_label(ui: &Ui, chapter: (&str, &str)) {
     );
 }
 
+/// 画面の下にあるメッセージウィンドウの範囲を返す
+///
+/// # 引数
+///
+/// * `area` - ウィンドウ全体
+///
+/// # 戻り値
+///
+/// メッセージウィンドウの範囲
+fn message_rect(area: Rect) -> Rect {
+    Rect::from_min_max(
+        pos2(area.left() + 18.0, area.bottom() - 150.0),
+        pos2(area.right() - 18.0, area.bottom() - 16.0),
+    )
+}
+
+/// メッセージウィンドウの中で台詞を書ける範囲を返す
+///
+/// # 引数
+///
+/// * `window` - メッセージウィンドウの範囲
+///
+/// # 戻り値
+///
+/// 台詞を置く範囲
+fn message_text_rect(window: Rect) -> Rect {
+    window.shrink2(vec2(30.0, 28.0))
+}
+
+/// 台詞のフォントを返す
+///
+/// # 戻り値
+///
+/// 台詞に使う本文のフォント
+fn message_font() -> egui::FontId {
+    body(18.0)
+}
+
 /// 名前札付きのメッセージウィンドウに台詞を描く
 ///
 /// # 引数
@@ -507,11 +585,7 @@ fn chapter_label(ui: &Ui, chapter: (&str, &str)) {
 ///
 /// メッセージウィンドウの範囲
 fn message_window(ui: &Ui, line: &str, typing: bool, seconds: f32) -> Rect {
-    let area = ui.max_rect();
-    let window = Rect::from_min_max(
-        pos2(area.left() + 18.0, area.bottom() - 150.0),
-        pos2(area.right() - 18.0, area.bottom() - 16.0),
-    );
+    let window = message_rect(ui.max_rect());
 
     // 半透明の白い窓に、上辺だけコーラルの線を引く
     ui.painter().rect_filled(
@@ -548,19 +622,19 @@ fn message_window(ui: &Ui, line: &str, typing: bool, seconds: f32) -> Rect {
     ui.painter().text(
         plate.right_center() - vec2(14.0, 0.0),
         Align2::RIGHT_CENTER,
-        "NAVI",
+        "KOTO",
         pixel(7.0),
         CORAL_MIST,
     );
 
-    let text = window.shrink2(vec2(30.0, 28.0));
-    wrapped_text(
-        ui,
+    // 台詞は改行を入れて書いてあるので、折り返さずにそのまま描く
+    let text = message_text_rect(window);
+    ui.painter().text(
         text.left_top(),
+        Align2::LEFT_TOP,
         line,
-        body(18.0),
+        message_font(),
         CHARCOAL,
-        text.width(),
     );
 
     // 台詞を送り終えたら、続きを促す印を弾ませる
@@ -598,15 +672,61 @@ fn choices(ui: &mut Ui, view: &View, typing: bool, options: &[(&str, Action)]) -
     let mut chosen = None;
     for (index, &(label, action)) in options.iter().enumerate() {
         let center = pos2(
-            area.left() + 250.0 + slide,
+            area.left() + CHOICE_LEFT + CHOICE_WIDTH / 2.0 + slide,
             area.top() + 150.0 + index as f32 * 58.0,
         );
-        let rect = Rect::from_center_size(center, vec2(330.0, 46.0));
+        let rect = Rect::from_center_size(center, vec2(CHOICE_WIDTH, 46.0));
         if choice_bar(ui, rect, label) {
             chosen = Some(action);
         }
     }
     chosen
+}
+
+/// 選択肢の上に、メンテナンスの対象のインストール先を添える
+///
+/// # 引数
+///
+/// * `ui` - 描画先
+/// * `view` - セットアップの状態
+/// * `typing` - 台詞を送っている途中なら true。送り終えるまで出さない
+/// * `label` - 場所の見出し
+///
+/// # 戻り値
+///
+/// 戻り値なし
+fn target(ui: &Ui, view: &View, typing: bool, label: &str) {
+    if typing {
+        return;
+    }
+    let area = ui.max_rect();
+    let rect = Rect::from_min_size(
+        pos2(area.left() + CHOICE_LEFT, area.top() + 66.0),
+        vec2(CHOICE_WIDTH, 52.0),
+    );
+    framed(
+        ui,
+        rect,
+        12,
+        Color32::from_rgba_unmultiplied(0xff, 0xff, 0xff, 220),
+        Stroke::new(1.0, CORAL_LIGHT),
+    );
+    let inner = rect.shrink2(vec2(14.0, 8.0));
+    ui.painter().text(
+        inner.left_top(),
+        Align2::LEFT_TOP,
+        label,
+        bold(11.0),
+        CORAL_DEEP,
+    );
+    let font = body(11.0);
+    ui.painter().text(
+        inner.left_top() + vec2(0.0, 16.0),
+        Align2::LEFT_TOP,
+        fit_line(ui, view.final_root, &font, inner.width()),
+        font,
+        CHARCOAL_SOFT,
+    );
 }
 
 /// ノベルゲームの選択肢のバーを描き、押されたかを返す
@@ -740,7 +860,12 @@ fn destination(ui: &mut Ui, view: &mut View) -> Option<Action> {
     let (note, color) = match view.directory_problem {
         Some(problem) => (problem.to_owned(), CORAL_DEEP),
         None => (
-            format!("インストール先: {}", view.final_root),
+            fit_line(
+                ui,
+                &format!("インストール先: {}", view.final_root),
+                &body(12.0),
+                inner.width(),
+            ),
             CHARCOAL_SOFT,
         ),
     };
@@ -843,4 +968,76 @@ fn failed(ui: &mut Ui, view: &View) -> Option<Action> {
         return Some(Action::Retry);
     }
     small_button(ui, close, "閉じる", false).then_some(Action::Close)
+}
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui::{Context, RawInput, Rect, pos2, vec2};
+    use pandd_setup::{ifw::Stage, progress::Progress};
+
+    use super::*;
+
+    /// すべての画面の台詞が、自動で折り返さずにメッセージウィンドウへ収まることを確かめる
+    #[test]
+    fn every_line_fits_the_message_window() {
+        // 本番と同じフォントを読み込み、1フレーム回して反映する
+        let ctx = Context::default();
+        crate::app::install_fonts(&ctx);
+        let _ = ctx.run_ui(RawInput::default(), |_| {});
+
+        // 本番のウィンドウの大きさから、台詞を書ける範囲を求める
+        let area = Rect::from_min_size(pos2(0.0, 0.0), vec2(760.0, 490.0));
+        let text = message_text_rect(message_rect(area));
+
+        let portraits = Portraits::load(&ctx);
+        let stages = [
+            Stage::Preparing,
+            Stage::Downloading,
+            Stage::Unpacking,
+            Stage::Finalizing,
+            Stage::Removing,
+        ];
+        let screens = [
+            Screen::Menu,
+            Screen::Welcome,
+            Screen::Destination,
+            Screen::Running,
+            Screen::Finished,
+            Screen::Failed,
+        ];
+        for task in [Task::Install, Task::Update, Task::Uninstall] {
+            for screen in screens {
+                for stage in stages {
+                    for (problem, up_to_date) in
+                        [(None, false), (Some("問題"), false), (None, true)]
+                    {
+                        let mut progress = Progress::default();
+                        progress.enter(stage);
+                        let mut root = String::new();
+                        let view = View {
+                            task,
+                            screen,
+                            root_text: &mut root,
+                            default_root: "",
+                            final_root: "",
+                            directory_problem: problem,
+                            progress: &progress,
+                            failure: "",
+                            screen_seconds: 0.0,
+                            seconds: 0.0,
+                            up_to_date,
+                            game: None,
+                            portraits: &portraits,
+                        };
+                        let line = scene_for(&view).line;
+                        let galley = ctx.fonts_mut(|fonts| {
+                            fonts.layout_no_wrap(line.to_owned(), message_font(), CHARCOAL)
+                        });
+                        assert!(galley.size().x <= text.width(), "横にはみ出す台詞: {line}");
+                        assert!(galley.size().y <= text.height(), "縦にはみ出す台詞: {line}");
+                    }
+                }
+            }
+        }
+    }
 }

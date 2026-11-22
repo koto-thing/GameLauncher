@@ -76,6 +76,9 @@ def build_installer(ifw_root: Path | None, install_tree: Path, output: Path,
         shutil.copytree(root / "config", config_dir)
         shutil.copy2(root.parents[2] / "assets/images/PandDLogo.png",
                      config_dir / "PandDLogo.png")
+        # Windows では installer と maintenance tool の exe のアイコンもロゴにする
+        if os.name == "nt":
+            set_application_icon(config, root.parents[2] / "assets/images/PandDLogo.ico")
         data = packages / "org.pandd.launcher" / "data"
         with phase("copy install tree"):
             shutil.copytree(install_tree, data)
@@ -96,6 +99,25 @@ def build_installer(ifw_root: Path | None, install_tree: Path, output: Path,
         repository_bytes = sum(path.stat().st_size for path in repository.rglob("*") if path.is_file())
         print(f"IFW repository bytes: {repository_bytes}", flush=True)
     return installer
+
+
+def set_application_icon(config: Path, icon: Path) -> None:
+    """IFW の installer と maintenance tool の exe に付けるアイコンを設定する
+
+    IFW は InstallerApplicationIcon の名前に Windows では .ico を付けて探すので、
+    アイコンを config の隣に置き、拡張子なしの名前を登録する
+
+    Args:
+        config: 作業用にコピーした config.xml
+        icon: 埋め込む .ico ファイル
+    """
+    # アイコンを config の隣へ置く
+    shutil.copy2(icon, config.parent / icon.name)
+
+    # 拡張子なしの名前を config.xml に書き込む
+    tree = ET.parse(config)
+    ET.SubElement(tree.getroot(), "InstallerApplicationIcon").text = icon.stem
+    tree.write(config, encoding="utf-8", xml_declaration=True)
 
 
 def wrap_windows_installer(installer: Path) -> Path:

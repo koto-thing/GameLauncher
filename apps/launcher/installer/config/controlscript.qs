@@ -124,8 +124,26 @@ function inspectDirectory(path) {
     return Number(result[1]) === 0 ? "empty" : "not-empty";
 }
 
+/** @brief Windowsのmaintenance tool画面をPandD Setupのメンテナンス画面へ切り替える */
+function openSetupMaintenance() {
+    // インストーラーと同じ画面で更新かアンインストールを選び、PandD Setupがmaintenance toolを画面なしで実行する
+    var root = installer.toNativeSeparators(installer.value("TargetDir"));
+    var setup = installer.value("TargetDir") + "/bin/PandD Setup.exe";
+    if (!installer.executeDetached(setup, ["--maintenance", "--root", root], root)) {
+        QMessageBox.critical("pandd.setup.launch", "PandD Game Launcher",
+                             "メンテナンス画面を起動できませんでした。\n" +
+                             "対象: " + installer.toNativeSeparators(setup));
+    }
+    gui.rejectWithoutPrompt();
+}
+
 /** @brief IFW introduction pageの表示を初期化する */
 Controller.prototype.IntroductionPageCallback = function() {
+    // page callbackは画面ありの起動でだけ呼ばれる
+    if (systemInfo.productType === "windows" && !installer.isInstaller()) {
+        openSetupMaintenance();
+        return;
+    }
     var page = gui.pageById(QInstaller.Introduction);
     if (page && installer.isInstaller()) {
         try {

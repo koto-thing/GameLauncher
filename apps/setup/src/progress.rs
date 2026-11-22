@@ -119,6 +119,7 @@ fn range_of(stage: Stage) -> (f32, f32) {
         Stage::Downloading => (0.1, 0.55),
         Stage::Unpacking => (0.55, 0.9),
         Stage::Finalizing => (0.9, 0.98),
+        Stage::Removing => (0.0, 0.95),
     }
 }
 

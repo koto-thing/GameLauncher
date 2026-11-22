@@ -25,6 +25,38 @@ pub enum Stage {
     Unpacking,
     /// maintenance tool の書き出しなどの仕上げ
     Finalizing,
+    /// アンインストールでのファイルの削除
+    Removing,
+}
+
+/// IFW の終了コードから判定した結果
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Outcome {
+    /// 通常の完了 (0) か必須コンポーネントの更新完了 (6)
+    Completed,
+    /// 更新するものがなかった。IFW は update を Canceled (3) で終える
+    UpToDate,
+    /// それ以外の終了コード
+    Failed,
+}
+
+impl Outcome {
+    /// IFW の終了コードを結果に変える
+    ///
+    /// # 引数
+    ///
+    /// * `code` - プロセスの終了コード。強制終了などで取れなければ None
+    ///
+    /// # 戻り値
+    ///
+    /// 終了コードに対応する結果
+    pub fn from_code(code: Option<i32>) -> Self {
+        match code {
+            Some(0 | 6) => Self::Completed,
+            Some(3) => Self::UpToDate,
+            _ => Self::Failed,
+        }
+    }
 }
 
 /// IFW の実行中に画面へ送る出来事
@@ -35,10 +67,7 @@ pub enum IfwEvent {
     /// IFW が出力したログ1行
     Log(String),
     /// IFW が終了した
-    Exited {
-        /// 通常の完了または必須コンポーネントの更新完了なら true
-        success: bool,
-    },
+    Exited(Outcome),
     /// IFW を起動できなかった、または終了を待てなかった
     Failed(String),
 }
@@ -83,6 +112,24 @@ impl IfwCommand {
     pub fn update(maintenance_tool: &Path) -> Self {
         let mut arguments: Vec<OsString> = unattended_arguments().collect();
         arguments.push("update".into());
+        Self {
+            program: maintenance_tool.to_owned(),
+            arguments,
+        }
+    }
+
+    /// インストール済みランチャーのアンインストール用コマンドを作る
+    ///
+    /// # 引数
+    ///
+    /// * `maintenance_tool` - インストール先にある IFW の maintenance tool
+    ///
+    /// # 戻り値
+    ///
+    /// すべての component と maintenance tool を確認なしで消す purge コマンド
+    pub fn purge(maintenance_tool: &Path) -> Self {
+        let mut arguments: Vec<OsString> = unattended_arguments().collect();
+        arguments.push("purge".into());
         Self {
             program: maintenance_tool.to_owned(),
             arguments,
@@ -167,7 +214,7 @@ pub fn stage_of(line: &str) -> Option<Stage> {
 pub fn run(command: &IfwCommand, events: &Sender<IfwEvent>) {
     let outcome = run_inner(command, events);
     let event = match outcome {
-        Ok(success) => IfwEvent::Exited { success },
+        Ok(outcome) => IfwEvent::Exited(outcome),
         Err(error) => IfwEvent::Failed(format!("{error:#}")),
     };
     let _ = events.send(event);
@@ -182,12 +229,12 @@ pub fn run(command: &IfwCommand, events: &Sender<IfwEvent>) {
 ///
 /// # 戻り値
 ///
-/// 通常の完了または必須コンポーネントの更新完了なら true
+/// 終了コードから判定した結果
 ///
 /// # エラー
 ///
 /// プロセスを起動できない、または終了を待てない場合
-fn run_inner(command: &IfwCommand, events: &Sender<IfwEvent>) -> Result<bool> {
+fn run_inner(command: &IfwCommand, events: &Sender<IfwEvent>) -> Result<Outcome> {
     // 画面なしで起動し、出力をすべてパイプで受け取る
     let mut process = Command::new(&command.program);
     process
@@ -223,8 +270,7 @@ fn run_inner(command: &IfwCommand, events: &Sender<IfwEvent>) -> Result<bool> {
     }
 
     let status = child.wait().context("IFW の終了を待てません")?;
-    // Qt IFW は必須コンポーネントの更新完了を EssentialUpdated (6) で通知する
-    Ok(matches!(status.code(), Some(0 | 6)))
+    Ok(Outcome::from_code(status.code()))
 }
 
 /// パイプから1行ずつ読み、ログと工程を送る
@@ -313,6 +359,15 @@ mod tests {
     }
 
     #[test]
+    fn reads_outcome_from_exit_code() {
+        assert_eq!(Outcome::from_code(Some(0)), Outcome::Completed);
+        assert_eq!(Outcome::from_code(Some(6)), Outcome::Completed);
+        assert_eq!(Outcome::from_code(Some(3)), Outcome::UpToDate);
+        assert_eq!(Outcome::from_code(Some(1)), Outcome::Failed);
+        assert_eq!(Outcome::from_code(None), Outcome::Failed);
+    }
+
+    #[test]
     fn builds_unattended_install_command() {
         let command = IfwCommand::install(Path::new("setup.exe"), Path::new("C:/Games/PandD"));
         let arguments: Vec<_> = command
@@ -339,6 +394,13 @@ mod tests {
         let command = IfwCommand::update(Path::new("maintenancetool.exe"));
         assert_eq!(command.program(), Path::new("maintenancetool.exe"));
         assert_eq!(command.arguments().last().unwrap(), "update");
+    }
+
+    #[test]
+    fn builds_unattended_purge_command() {
+        let command = IfwCommand::purge(Path::new("maintenancetool.exe"));
+        assert_eq!(command.program(), Path::new("maintenancetool.exe"));
+        assert_eq!(command.arguments().last().unwrap(), "purge");
     }
 
     #[test]
