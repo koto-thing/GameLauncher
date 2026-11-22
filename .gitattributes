@@ -1,4 +1,6 @@
 licenses/*.txt text eol=lf
+# 配布元の CRLF を含むライセンス原文をハッシュ検証用に保持する
+licenses/PressStart2P-OFL.txt -text
 licenses/*.html -text
 *.sh text eol=lf
 
