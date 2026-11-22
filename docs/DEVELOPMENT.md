@@ -59,7 +59,7 @@ To build Qt IFW artifacts, first install the CMake deployment tree and then run:
 
 ```text
 cmake --install build/release --prefix <absolute-staging-path>
-python apps/launcher/installer/build.py --ifw-root <QtIFW> --install-tree <staging> \
+python -m apps.launcher.installer.build --ifw-root <QtIFW> --install-tree <staging> \
   --output <artifacts> --version <major.minor.patch> \
   --repository-url https://downloads.koto-thing.com/v1/launcher/ifw/windows/x86_64
 ```
