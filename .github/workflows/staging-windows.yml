@@ -99,7 +99,7 @@ jobs:
         env:
           STAGING_VERSION: ${{ inputs.version }}
         run: >-
-          python apps/launcher/installer/build.py
+          python -m apps.launcher.installer.build
           --install-tree staging
           --output ifw
           --version "$env:STAGING_VERSION"

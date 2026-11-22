@@ -129,7 +129,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           $version = $env:RELEASE_TAG.TrimStart('v')
-          python apps/launcher/installer/build.py --install-tree staging --output ifw --version $version --repository-url "${{ env.PRODUCTION_BASE_URL }}/v1/launcher/ifw/windows/x86_64"
+          python -m apps.launcher.installer.build --install-tree staging --output ifw --version $version --repository-url "${{ env.PRODUCTION_BASE_URL }}/v1/launcher/ifw/windows/x86_64"
       - name: Package and checksum unsigned artifacts
         shell: pwsh
         run: |
@@ -219,7 +219,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           version=${RELEASE_TAG#v}
-          python apps/launcher/installer/build.py --install-tree staging --output ifw --version "$version" --repository-url "${PRODUCTION_BASE_URL}/v1/launcher/ifw/linux/x86_64"
+          python -m apps.launcher.installer.build --install-tree staging --output ifw --version "$version" --repository-url "${PRODUCTION_BASE_URL}/v1/launcher/ifw/linux/x86_64"
       - name: Package deployment tree
         run: tar -C staging -czf ifw/PandD-Game-Launcher-linux-x86_64.tar.gz .
       - name: Import Linux release signing key
