@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
-from apps.launcher.installer.build import build_installer, configure_metadata
+from apps.launcher.installer.build import build_installer, configure_metadata, set_application_icon
 from apps.launcher.installer.e2e import installed_launcher, maintenance_tool, platform_executable
 
 
@@ -87,6 +87,26 @@ class InstallerBuildTests(unittest.TestCase):
         self.assertEqual(config_root.findtext("TitleColor"), "#ffffff")
         self.assertEqual(config_root.findtext("RunProgram"),
                          "@TargetDir@/bin/PandD Game Launcher")
+
+    def test_windows_executables_use_the_pandd_logo_icon(self) -> None:
+        """installer と maintenance tool の exe のアイコンを PandD のロゴにする"""
+        root = Path(__file__).resolve().parent
+        logo = root.parents[2] / "assets/images/PandDLogo.ico"
+        with tempfile.TemporaryDirectory() as temporary:
+            config = Path(temporary) / "config.xml"
+            shutil.copy2(root / "config/config.xml", config)
+
+            set_application_icon(config, logo)
+
+            # IFW は拡張子なしの名前に .ico を付けて config の隣から探す
+            self.assertEqual(ET.parse(config).getroot().findtext("InstallerApplicationIcon"),
+                             "PandDLogo")
+            self.assertTrue((Path(temporary) / "PandDLogo.ico").is_file())
+
+        # PandD Setup の exe にも同じロゴを埋め込む
+        setup = root.parents[2] / "apps/setup"
+        self.assertIn("PandDLogo.ico", (setup / "assets/windows/setup.rc").read_text(encoding="utf-8"))
+        self.assertIn("embed_resource::compile", (setup / "build.rs").read_text(encoding="utf-8"))
 
     def test_stylesheet_implements_dark_theme_visual_contract(self) -> None:
         """The stylesheet must match the launcher visual language (#11151d, #151a24, #2c3442, #65a7ff)."""
@@ -270,6 +290,17 @@ class InstallerBuildTests(unittest.TestCase):
         # ランチャーの更新は PandD Setup の更新モードを起動する
         self.assertIn('"--update", "--root"', platform)
         self.assertIn('"--wait-pid"', platform)
+
+    def test_windows_maintenance_tool_opens_pandd_setup_maintenance(self) -> None:
+        """Windows の maintenance tool の画面は、PandD Setup のメンテナンス画面に切り替える"""
+        root = Path(__file__).resolve().parent
+        script = (root / "config/controlscript.qs").read_text(encoding="utf-8")
+
+        # 画面ありの maintenance tool だけを切り替え、画面なしの purge と update はそのまま通す
+        self.assertIn('systemInfo.productType === "windows" && !installer.isInstaller()', script)
+        self.assertIn('"/bin/PandD Setup.exe"', script)
+        self.assertIn('["--maintenance", "--root", root]', script)
+        self.assertIn("gui.rejectWithoutPrompt()", script)
 
 
 if __name__ == "__main__":

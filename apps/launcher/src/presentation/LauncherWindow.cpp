@@ -263,7 +263,7 @@ constexpr int gameCardHeight = 146;
 QColor accentColor() {
     // エディション版は配布物のアクセント色へ置き換える
     const auto& edition = EditionProfile::current();
-    return QColor(edition.enabled() ? edition.accent() : QStringLiteral("#e60012"));
+    return QColor(edition.enabled() ? edition.accent() : QStringLiteral("#ff6777"));
 }
 
 /**
@@ -533,7 +533,7 @@ void LauncherWindow::applyTheme() {
                 // 汎用ボタンと入力欄は角丸10pxでそろえる
                 "QPushButton{background:%2;color:%3;border:1px solid %5;border-radius:10px;"
                 "padding:10px 18px;font-size:14px;font-weight:700;}"
-                "QPushButton:hover{border:1px solid #e60012;background:%6;}"
+                "QPushButton:hover{border:1px solid #ff6777;background:%6;}"
                 "QPushButton#account,QPushButton#account:hover{background:transparent;border:0;"
                 "padding:0;}"
                 "QPushButton#settings{padding:0;border-radius:20px;}"
@@ -541,26 +541,26 @@ void LauncherWindow::applyTheme() {
                 "min-height:44px;color:%4;font-size:15px;font-weight:500;}"
                 "QPushButton#nav:hover{background:%6;color:%3;}"
                 "QPushButton#nav:checked{background:%7;color:%3;font-weight:700;}"
-                "QFrame#navigationIndicator{background:#e60012;border-radius:2px;}"
+                "QFrame#navigationIndicator{background:#ff6777;border-radius:2px;}"
                 "QFrame#divider{background:%5;margin:0 4px;}"
                 "QLabel#version{color:%4;font-family:'Saira';font-size:11px;font-weight:600;"
                 "padding:6px 14px 0;}"
-                "QPushButton#primary{background:#e60012;color:white;border:0;font-size:17px;"
+                "QPushButton#primary{background:#ff6777;color:white;border:0;font-size:17px;"
                 "font-weight:800;min-width:260px;min-height:52px;border-radius:12px;}"
-                "QPushButton#primary:hover{background:#c90010;}"
+                "QPushButton#primary:hover{background:#d94a5b;}"
                 "QPushButton#primary:disabled{background:%5;color:%4;}"
-                "QPushButton#accent{background:#e60012;color:white;border:0;}"
-                "QPushButton#accent:hover{background:#c90010;}"
+                "QPushButton#accent{background:#ff6777;color:white;border:0;}"
+                "QPushButton#accent:hover{background:#d94a5b;}"
                 "QPushButton#ghost{background:rgba(43,43,43,170);color:white;"
                 "border:1px solid rgba(255,255,255,40);}"
-                "QPushButton#ghost:hover{border-color:#e60012;}"
+                "QPushButton#ghost:hover{border-color:#ff6777;}"
                 "QPushButton#link{background:transparent;border:0;color:#d6d6d6;"
                 "text-decoration:underline;font-weight:500;}"
                 "QListWidget{background:transparent;border:0;outline:0;color:%3;}"
                 "QListWidget::item{background:%2;color:%3;border:1px solid %5;"
                 "border-radius:10px;padding:10px;margin:6px;}"
-                "QListWidget::item:hover{border:3px solid #e60012;background:%6;}"
-                "QListWidget::item:selected{border:3px solid #e60012;background:%7;}"
+                "QListWidget::item:hover{border:3px solid #ff6777;background:%6;}"
+                "QListWidget::item:selected{border:3px solid #ff6777;background:%7;}"
                 "QListWidget#announcements{background:rgba(43,43,43,180);"
                 "border:1px solid rgba(255,255,255,26);border-radius:10px;color:white;}"
                 "QListWidget#announcements::item,QListWidget#announcements::item:hover,"
@@ -569,16 +569,16 @@ void LauncherWindow::applyTheme() {
                 "QLineEdit,QComboBox,QSpinBox,QTextBrowser{background:%2;color:%3;"
                 "border:2px solid %5;border-radius:10px;padding:8px;}"
                 "QLineEdit{border-radius:12px;padding:10px 14px;font-size:15px;}"
-                "QLineEdit:focus,QComboBox:focus,QSpinBox:focus{border-color:#e60012;}"
+                "QLineEdit:focus,QComboBox:focus,QSpinBox:focus{border-color:#ff6777;}"
                 "QTabWidget::pane{border:1px solid %5;background:%2;}"
                 "QTabBar::tab{background:%1;color:%3;padding:9px 14px;}"
-                "QTabBar::tab:selected{background:#e60012;color:white;}"
+                "QTabBar::tab:selected{background:#ff6777;color:white;}"
                 "QScrollBar:vertical{background:transparent;width:10px;margin:2px;}"
                 "QScrollBar::handle:vertical{background:%5;border-radius:3px;min-height:32px;}"
                 "QScrollBar::add-line,QScrollBar::sub-line{height:0;width:0;}"
                 "QScrollBar::add-page,QScrollBar::sub-page{background:transparent;}"
                 // 文字サイズは 44 / 28 / 24 / 17 / 15 / 13 / 12 / 11px の段階に限る
-                "QLabel#eyebrow{color:#e60012;font-family:'Saira';font-size:12px;"
+                "QLabel#eyebrow{color:#ff6777;font-family:'Saira';font-size:12px;"
                 "font-weight:600;}"
                 "QLabel#pageTitle{font-size:28px;font-weight:800;color:%3;}"
                 "QLabel#sectionTitle{font-size:17px;font-weight:700;color:%3;}"
@@ -595,7 +595,7 @@ void LauncherWindow::applyTheme() {
                 "QLabel#homePreviewSummary{font-size:14px;color:%4;}"
                 "QProgressBar{border:0;border-radius:3px;background:rgba(255,255,255,40);"
                 "max-height:6px;}"
-                "QProgressBar::chunk{background:#e60012;border-radius:3px;}")
+                "QProgressBar::chunk{background:#ff6777;border-radius:3px;}")
             .arg(background, surface, text, muted, border, hover, selected));
 
     // 単色アイコンを現在のthemeの文字色とアクセント色で塗り直す
@@ -610,8 +610,8 @@ void LauncherWindow::applyTheme() {
     const auto& edition = EditionProfile::current();
     if (edition.enabled()) {
         auto sheet = styleSheet();
-        sheet.replace("#e60012", edition.accent());
-        sheet.replace("#c90010", QColor(edition.accent()).darker(115).name());
+        sheet.replace("#ff6777", edition.accent());
+        sheet.replace("#d94a5b", QColor(edition.accent()).darker(115).name());
         sheet += QString("QWidget#page{background-image:url(\"%1\");background-position:center;"
                          "background-repeat:no-repeat;}")
                      .arg(QDir::fromNativeSeparators(edition.asset("background.png")));

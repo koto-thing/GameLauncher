@@ -40,6 +40,11 @@ pub enum Mode {
         /// 終了を待つランチャーのプロセス ID
         wait_pid: Option<u32>,
     },
+    /// インストール済みランチャーの更新かアンインストールを画面で選ぶ
+    Maintenance {
+        /// ランチャーのインストール先
+        root: PathBuf,
+    },
 }
 
 /// 起動引数を解釈した結果
@@ -53,8 +58,9 @@ pub struct Options {
 
 /// 起動引数を解釈する
 ///
-/// 引数なしなら新規インストール、`--update --root <dir> [--wait-pid <pid>]` なら更新。
-/// どちらも `--theme navi|arcade` で最初の見た目を選べる
+/// 引数なしなら新規インストール、`--update --root <dir> [--wait-pid <pid>]` なら更新、
+/// `--maintenance --root <dir>` なら更新かアンインストールを選ぶメンテナンス。
+/// どれも `--theme navi|arcade` で最初の見た目を選べる
 ///
 /// # 引数
 ///
@@ -66,10 +72,11 @@ pub struct Options {
 ///
 /// # エラー
 ///
-/// 不明な引数、値の欠落、`--update` なのに `--root` がない場合
+/// 不明な引数、値の欠落、`--update` や `--maintenance` なのに `--root` がない場合
 pub fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Options> {
     let mut arguments = arguments.into_iter();
     let mut update = false;
+    let mut maintenance = false;
     let mut root = None;
     let mut wait_pid = None;
     let mut theme = ThemeKind::default();
@@ -78,6 +85,7 @@ pub fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Options> {
         let argument = argument.to_string_lossy().into_owned();
         match argument.as_str() {
             "--update" => update = true,
+            "--maintenance" => maintenance = true,
             "--root" => root = Some(PathBuf::from(value(&mut arguments, "--root")?)),
             "--wait-pid" => {
                 let text = value(&mut arguments, "--wait-pid")?;
@@ -98,12 +106,19 @@ pub fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Options> {
         }
     }
 
-    // 更新はインストール先が必須で、新規インストールでは更新用の引数を受け付けない
-    let mode = match (update, root) {
-        (true, Some(root)) => Mode::Update { root, wait_pid },
-        (true, None) => bail!("--update には --root が必要です"),
-        (false, None) if wait_pid.is_none() => Mode::Install,
-        (false, _) => bail!("--root と --wait-pid は --update と一緒に指定してください"),
+    // 更新とメンテナンスはインストール先が必須で、新規インストールではどちらの引数も受け付けない
+    let mode = match (update, maintenance, root) {
+        (true, true, _) => bail!("--update と --maintenance は同時に指定できません"),
+        (true, false, Some(root)) => Mode::Update { root, wait_pid },
+        (false, true, Some(root)) if wait_pid.is_none() => Mode::Maintenance { root },
+        (false, true, Some(_)) => bail!("--wait-pid は --update と一緒に指定してください"),
+        (_, true, None) | (true, _, None) => {
+            bail!("--update と --maintenance には --root が必要です")
+        }
+        (false, false, None) if wait_pid.is_none() => Mode::Install,
+        (false, false, _) => {
+            bail!("--root と --wait-pid は --update か --maintenance と一緒に指定してください")
+        }
     };
     Ok(Options { mode, theme })
 }
@@ -179,11 +194,25 @@ mod tests {
     }
 
     #[test]
+    fn parses_maintenance_arguments() {
+        let options = parse_strings(&["--maintenance", "--root", "C:/PandD"]).unwrap();
+        assert_eq!(
+            options.mode,
+            Mode::Maintenance {
+                root: PathBuf::from("C:/PandD")
+            }
+        );
+    }
+
+    #[test]
     fn rejects_incomplete_arguments() {
         assert!(parse_strings(&["--update"]).is_err());
         assert!(parse_strings(&["--root", "C:/PandD"]).is_err());
         assert!(parse_strings(&["--wait-pid", "x", "--update", "--root", "C:/"]).is_err());
         assert!(parse_strings(&["--theme", "retro"]).is_err());
         assert!(parse_strings(&["--unknown"]).is_err());
+        assert!(parse_strings(&["--maintenance"]).is_err());
+        assert!(parse_strings(&["--maintenance", "--update", "--root", "C:/"]).is_err());
+        assert!(parse_strings(&["--maintenance", "--root", "C:/", "--wait-pid", "1"]).is_err());
     }
 }

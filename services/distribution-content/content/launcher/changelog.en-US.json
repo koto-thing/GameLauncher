@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.4.1",
+      "title": "Updated Windows maintenance tool and installer",
+      "publishedAt": "2026-11-23T00:00:00+09:00",
+      "changes": [
+        "Choose between updating and uninstalling the launcher from the maintenance screen",
+        "Added the PandD icon to the Windows installer and maintenance tool"
+      ]
+    },
+    {
       "version": "1.4.0",
       "title": "Redesigned launcher and Windows setup",
       "publishedAt": "2026-11-22T00:00:00+09:00",

@@ -33,10 +33,23 @@ use eframe::egui::{
 };
 use pandd_setup::{ifw::Stage, progress::Progress, shooter::Game};
 
+/// セットアップで行う作業。画面の文言を切り替える
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Task {
+    /// 新規インストール
+    Install,
+    /// 更新
+    Update,
+    /// アンインストール
+    Uninstall,
+}
+
 /// セットアップの画面
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Screen {
-    /// あいさつと開始
+    /// メンテナンスで更新かアンインストールかを選ぶ
+    Menu,
+    /// あいさつと開始。アンインストールでは実行前の確認
     Welcome,
     /// インストール先の選択
     Destination,
@@ -61,6 +74,12 @@ pub enum Action {
     UseDefault,
     /// インストールを始める
     Install,
+    /// 更新を始める
+    Update,
+    /// アンインストールの確認画面へ進む
+    ConfirmUninstall,
+    /// アンインストールを始める
+    Uninstall,
     /// もう一度実行する
     Retry,
     /// ランチャーを起動して閉じる
@@ -71,15 +90,15 @@ pub enum Action {
 
 /// テーマが描画に使う、セットアップの今の状態
 pub struct View<'a> {
-    /// 更新モードなら true
-    pub updating: bool,
+    /// 行っている作業
+    pub task: Task,
     /// 今の画面
     pub screen: Screen,
     /// 入力中のインストール先
     pub root_text: &'a mut String,
     /// 既定のインストール先
     pub default_root: &'a str,
-    /// 実際にインストールするディレクトリ
+    /// 実際にインストールする、または更新やアンインストールの対象のディレクトリ
     pub final_root: &'a str,
     /// インストール先の問題。なければ None
     pub directory_problem: Option<&'a str>,
@@ -91,6 +110,8 @@ pub struct View<'a> {
     pub screen_seconds: f32,
     /// 起動からの秒数
     pub seconds: f32,
+    /// 更新が終わり、更新するものがなかったなら true
+    pub up_to_date: bool,
     /// アーケードのシューティング。実行画面に入るまでは None
     pub game: Option<&'a Game>,
     /// キャラクターナビの立ち絵
@@ -156,6 +177,7 @@ pub fn stage_label(stage: Stage) -> &'static str {
         Stage::Downloading => "パッケージをダウンロード中",
         Stage::Unpacking => "ファイルを展開中",
         Stage::Finalizing => "仕上げ中",
+        Stage::Removing => "ファイルを削除中",
     }
 }
 
@@ -280,6 +302,48 @@ pub fn wrapped_text(
     let rect = Rect::from_min_size(position, galley.size());
     ui.painter().galley(position, galley, color);
     rect
+}
+
+/// 1行に収まらない文字列を、前後を残して真ん中を「…」で省く
+///
+/// パスは区切りがないと折り返せず枠からはみ出すので、
+/// ドライブと末尾のフォルダ名が見えるように中ほどを削る
+///
+/// # 引数
+///
+/// * `ui` - 文字幅の計測に使う
+/// * `text` - 収めたい文字列
+/// * `font` - 描くときのフォント
+/// * `width` - 収める幅
+///
+/// # 戻り値
+///
+/// 幅に収まればそのまま、収まらなければ真ん中を省いた文字列
+pub fn fit_line(ui: &Ui, text: &str, font: &FontId, width: f32) -> String {
+    let fits = |candidate: &str| {
+        ui.painter()
+            .layout_no_wrap(candidate.to_owned(), font.clone(), Color32::WHITE)
+            .size()
+            .x
+            <= width
+    };
+    if fits(text) {
+        return text.to_owned();
+    }
+
+    // 前後から同じ数ずつ残し、収まる最大の数を探す
+    let characters: Vec<char> = text.chars().collect();
+    let mut keep = characters.len() / 2;
+    while keep > 0 {
+        let head: String = characters[..keep].iter().collect();
+        let tail: String = characters[characters.len() - keep..].iter().collect();
+        let candidate = format!("{head}…{tail}");
+        if fits(&candidate) {
+            return candidate;
+        }
+        keep -= 1;
+    }
+    "…".to_owned()
 }
 
 /// 中央揃えで文字を描く

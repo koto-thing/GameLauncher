@@ -10,7 +10,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use pandd_setup::ifw::{self, IfwCommand, IfwEvent};
+use pandd_setup::ifw::{self, IfwCommand, IfwEvent, Stage};
 use tempfile::TempDir;
 
 /// release build で埋め込んだ IFW online installer。埋め込みなしの build では空
@@ -37,6 +37,11 @@ pub enum Plan {
         /// 終了を待つランチャーのプロセス ID
         wait_pid: Option<u32>,
     },
+    /// maintenance tool でアンインストールする
+    Uninstall {
+        /// インストール先
+        root: PathBuf,
+    },
 }
 
 /// 実行中の IFW
@@ -60,7 +65,7 @@ pub fn has_embedded_installer() -> bool {
 ///
 /// # 引数
 ///
-/// * `plan` - 新規インストールか更新か
+/// * `plan` - 新規インストール、更新、アンインストールのどれか
 ///
 /// # 戻り値
 ///
@@ -105,6 +110,16 @@ pub fn start(plan: &Plan) -> Result<Job> {
                 _workspace: None,
             })
         }
+        Plan::Uninstall { root } => {
+            // purge のログには工程の区切りがないので、始める前に削除の工程へ進める
+            let command = IfwCommand::purge(&root.join(MAINTENANCE_TOOL));
+            let _ = sender.send(IfwEvent::Stage(Stage::Removing));
+            thread::spawn(move || ifw::run(&command, &sender));
+            Ok(Job {
+                events,
+                _workspace: None,
+            })
+        }
     }
 }
 
@@ -133,12 +148,12 @@ pub fn launch_launcher(root: &Path) -> Result<()> {
 
 /// 更新対象の中から起動されていたら、一時ディレクトリへ自分を複製して起動し直す
 ///
-/// 更新中の maintenance tool は `bin` の中身を置き換えるため、
-/// 実行中のこの exe がその中にあると更新に失敗する
+/// 更新やアンインストール中の maintenance tool は `bin` の中身を置き換えたり消したりするため、
+/// 実行中のこの exe がその中にあると失敗する
 ///
 /// # 引数
 ///
-/// * `root` - 更新するランチャーのインストール先
+/// * `root` - 更新またはアンインストールするランチャーのインストール先
 ///
 /// # 戻り値
 ///
@@ -157,6 +172,7 @@ pub fn relaunch_outside(root: &Path) -> Result<bool> {
     }
 
     // プロセスごとの一時ディレクトリへ複製し、同じ引数で起動する
+    // 作業ディレクトリも移し、インストール先のディレクトリを掴んだままにしない
     let directory = env::temp_dir().join(format!("pandd-setup-{}", std::process::id()));
     fs::create_dir_all(&directory)
         .with_context(|| format!("{} を作れません", directory.display()))?;
@@ -164,6 +180,7 @@ pub fn relaunch_outside(root: &Path) -> Result<bool> {
     fs::copy(&current, &copy).with_context(|| format!("{} へ複製できません", copy.display()))?;
     Command::new(&copy)
         .args(env::args_os().skip(1))
+        .current_dir(&directory)
         .spawn()
         .with_context(|| format!("{} を起動できません", copy.display()))?;
     Ok(true)

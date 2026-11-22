@@ -4,7 +4,7 @@ if(CMAKE_HOST_WIN32)
     list(APPEND VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/triplets")
 endif()
 
-project(PandDGameLauncher VERSION 1.4.0 LANGUAGES CXX)
+project(PandDGameLauncher VERSION 1.4.1 LANGUAGES CXX)
 
 option(PANDD_DOCS_ONLY "Configure only the Launcher Doxygen target" OFF)
 
@@ -325,7 +325,7 @@ if(WIN32)
     target_compile_definitions(PandDUninstaller PRIVATE UNICODE _UNICODE)
     install(TARGETS PandDUninstaller RUNTIME DESTINATION .)
 
-    # ランチャー更新の画面。配布物にはIFW installerを埋め込まない更新専用版を置く
+    # ランチャーの更新とアンインストールの画面。配布物にはIFW installerを埋め込まない版を置く
     set(_pandd_setup_directory "${CMAKE_BINARY_DIR}/setup")
     set(_pandd_setup_executable "${_pandd_setup_directory}/release/pandd-setup.exe")
     file(GLOB_RECURSE _pandd_setup_sources CONFIGURE_DEPENDS
@@ -339,6 +339,8 @@ if(WIN32)
         DEPENDS ${_pandd_setup_sources}
             "${CMAKE_SOURCE_DIR}/apps/setup/Cargo.toml"
             "${CMAKE_SOURCE_DIR}/apps/setup/build.rs"
+            "${CMAKE_SOURCE_DIR}/assets/images/PandDLogo.ico"
+            "${CMAKE_SOURCE_DIR}/assets/images/PandDLogo.png"
             "${CMAKE_SOURCE_DIR}/Cargo.toml" "${CMAKE_SOURCE_DIR}/Cargo.lock"
             "${CMAKE_SOURCE_DIR}/rust-toolchain.toml"
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"

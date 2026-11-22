@@ -1,7 +1,7 @@
 //! PandD Game Launcher のセットアップと更新の画面
 //!
 //! 新規インストールでは埋め込んだ Qt IFW online installer を、
-//! 更新ではインストール先の maintenance tool を画面なしで実行し、
+//! 更新とアンインストールではインストール先の maintenance tool を画面なしで実行し、
 //! その間はキャラクターナビかアーケードの画面を見せる
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
@@ -52,8 +52,8 @@ fn run() -> anyhow::Result<()> {
 
     let options = cli::parse(std::env::args_os().skip(1))?;
 
-    // 更新対象の中で動いていると自分を置き換えられないので、外へ出てから始める
-    if let cli::Mode::Update { root, .. } = &options.mode
+    // 対象の中で動いていると自分を置き換えも削除もできないので、外へ出てから始める
+    if let cli::Mode::Update { root, .. } | cli::Mode::Maintenance { root } = &options.mode
         && session::relaunch_outside(root)?
     {
         return Ok(());
@@ -67,9 +67,18 @@ fn run() -> anyhow::Result<()> {
         std::env::var_os("LOCALAPPDATA").context("LOCALAPPDATA が設定されていません")?;
     let default_root = install_dir::default_root(local_app_data.as_ref());
 
+    let title = match options.mode {
+        cli::Mode::Maintenance { .. } => "PandD Game Launcher のメンテナンス",
+        cli::Mode::Install | cli::Mode::Update { .. } => "PandD Game Launcher セットアップ",
+    };
+    // タイトルバーとタスクバーにも PandD のロゴを出す
+    let icon =
+        eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/images/PandDLogo.png"))
+            .context("同梱のロゴを読めません")?;
     let native = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("PandD Game Launcher セットアップ")
+            .with_title(title)
+            .with_icon(icon)
             .with_inner_size([760.0, 490.0])
             .with_resizable(false)
             .with_maximize_button(false),

@@ -7,7 +7,7 @@ use eframe::egui::{
 };
 use pandd_setup::{
     cli::{Mode, ThemeKind},
-    ifw::IfwEvent,
+    ifw::{IfwEvent, Outcome},
     install_dir::{self, DirectoryState},
     progress::Progress,
     shooter::{Game, Input},
@@ -15,7 +15,7 @@ use pandd_setup::{
 
 use crate::{
     session::{self, Job, Plan},
-    theme::{self, Action, Screen, View, palette},
+    theme::{self, Action, Screen, Task, View, palette},
 };
 
 /// 失敗時に表示する IFW のログの行数
@@ -24,6 +24,8 @@ const LOG_TAIL: usize = 12;
 /// セットアップ画面のアプリ
 pub struct SetupApp {
     mode: Mode,
+    task: Task,
+    up_to_date: bool,
     theme: ThemeKind,
     screen: Screen,
     screen_seconds: f32,
@@ -45,13 +47,14 @@ impl SetupApp {
     /// # 引数
     ///
     /// * `context` - eframe の生成時の情報
-    /// * `mode` - 新規インストールか更新か
+    /// * `mode` - 新規インストール、更新、メンテナンスのどれか
     /// * `theme` - 最初の見た目
     /// * `default_root` - 新規インストールの既定のインストール先
     ///
     /// # 戻り値
     ///
-    /// 新規インストールならあいさつ画面、更新なら実行中の画面から始まるアプリ
+    /// 新規インストールならあいさつ画面、更新なら実行中の画面、
+    /// メンテナンスなら更新かアンインストールかを選ぶ画面から始まるアプリ
     pub fn new(
         context: &eframe::CreationContext<'_>,
         mode: Mode,
@@ -60,10 +63,19 @@ impl SetupApp {
     ) -> Self {
         install_fonts(&context.egui_ctx);
         let default_root = default_root.display().to_string();
+
+        // メンテナンスは選ぶまで作業が決まらないので、更新を仮に置いて選択画面から始める
+        let (task, screen) = match mode {
+            Mode::Install => (Task::Install, Screen::Welcome),
+            Mode::Update { .. } => (Task::Update, Screen::Welcome),
+            Mode::Maintenance { .. } => (Task::Update, Screen::Menu),
+        };
         let mut app = Self {
             mode,
+            task,
+            up_to_date: false,
             theme,
-            screen: Screen::Welcome,
+            screen,
             screen_seconds: 0.0,
             seconds: 0.0,
             root_text: default_root.clone(),
@@ -102,10 +114,10 @@ impl SetupApp {
     ///
     /// # 戻り値
     ///
-    /// 更新ならそのインストール先、新規なら入力から作った専用ディレクトリ
+    /// 更新とメンテナンスならそのインストール先、新規なら入力から作った専用ディレクトリ
     fn final_root(&self) -> Option<PathBuf> {
         match &self.mode {
-            Mode::Update { root, .. } => Some(root.clone()),
+            Mode::Update { root, .. } | Mode::Maintenance { root } => Some(root.clone()),
             Mode::Install => install_dir::final_install_path(&self.root_text),
         }
     }
@@ -114,12 +126,13 @@ impl SetupApp {
     ///
     /// # 引数
     ///
-    /// * `plan` - 新規インストールか更新か
+    /// * `plan` - 新規インストール、更新、アンインストールのどれか
     ///
     /// # 戻り値
     ///
     /// 戻り値なし。始められなければ失敗の画面へ進む
     fn run(&mut self, plan: Plan) {
+        self.up_to_date = false;
         self.progress = Progress::default();
         self.log.clear();
         match session::start(&plan) {
@@ -165,8 +178,13 @@ impl SetupApp {
                         self.log.remove(0);
                     }
                 }
-                Ok(IfwEvent::Exited { success }) => {
-                    finished = Some(success.then(String::new).ok_or_else(|| self.log.join("\n")));
+                Ok(IfwEvent::Exited(outcome)) => {
+                    // 更新するものがないのは、更新のときだけ完了として扱う
+                    finished = Some(match (outcome, self.task) {
+                        (Outcome::Completed, _) => Ok(false),
+                        (Outcome::UpToDate, Task::Update) => Ok(true),
+                        _ => Err(self.log.join("\n")),
+                    });
                     break;
                 }
                 Ok(IfwEvent::Failed(message)) => {
@@ -183,16 +201,17 @@ impl SetupApp {
 
         // 終了したら完了か失敗の画面へ進む
         match finished {
-            Some(Ok(_)) => {
+            Some(Ok(up_to_date)) => {
                 self.job = None;
+                self.up_to_date = up_to_date;
                 self.progress.finish();
                 self.go(Screen::Finished);
             }
             Some(Err(log)) => {
-                let action = if matches!(self.mode, Mode::Update { .. }) {
-                    "アップデート"
-                } else {
-                    "インストール"
+                let action = match self.task {
+                    Task::Install => "インストール",
+                    Task::Update => "アップデート",
+                    Task::Uninstall => "アンインストール",
                 };
                 self.fail(format!("{action}が完了しませんでした\n\n{log}"));
             }
@@ -213,6 +232,8 @@ impl SetupApp {
     fn handle(&mut self, ctx: &egui::Context, action: Action) {
         match action {
             Action::Next => self.go(Screen::Destination),
+            // アンインストールの確認からはメンテナンスの選択へ戻る
+            Action::Back if self.task == Task::Uninstall => self.go(Screen::Menu),
             Action::Back => self.go(Screen::Welcome),
             Action::UseDefault => self.root_text = self.default_root.clone(),
             Action::Browse => {
@@ -224,19 +245,15 @@ impl SetupApp {
                 }
             }
             Action::Install => self.try_install(),
-            Action::Retry => {
-                let plan = match self.mode.clone() {
-                    Mode::Update { root, .. } => Some(Plan::Update {
-                        root,
-                        wait_pid: None,
-                    }),
-                    Mode::Install => self.final_root().map(|root| Plan::Install { root }),
-                };
-                match plan {
-                    Some(plan) => self.run(plan),
-                    None => self.go(Screen::Destination),
-                }
+            Action::Update => {
+                self.task = Task::Update;
+                self.start_task();
             }
+            Action::ConfirmUninstall => {
+                self.task = Task::Uninstall;
+                self.go(Screen::Welcome);
+            }
+            Action::Uninstall | Action::Retry => self.start_task(),
             Action::Launch => {
                 let launched = self
                     .final_root()
@@ -249,6 +266,27 @@ impl SetupApp {
             }
             Action::Close => ctx.send_viewport_cmd(ViewportCommand::Close),
         }
+    }
+
+    /// 今の作業を対象のディレクトリで始める
+    ///
+    /// # 戻り値
+    ///
+    /// 戻り値なし。新規インストールの場所が決まっていなければインストール先の画面へ戻る
+    fn start_task(&mut self) {
+        let Some(root) = self.final_root() else {
+            self.go(Screen::Destination);
+            return;
+        };
+        let plan = match self.task {
+            Task::Install => Plan::Install { root },
+            Task::Update => Plan::Update {
+                root,
+                wait_pid: None,
+            },
+            Task::Uninstall => Plan::Uninstall { root },
+        };
+        self.run(plan);
     }
 
     /// インストール先を検証し、使えるならインストールを始める
@@ -353,7 +391,8 @@ impl eframe::App for SetupApp {
             .map(|root| root.display().to_string())
             .unwrap_or_default();
         let mut view = View {
-            updating: matches!(self.mode, Mode::Update { .. }),
+            task: self.task,
+            up_to_date: self.up_to_date,
             screen: self.screen,
             root_text: &mut self.root_text,
             default_root: &self.default_root,
@@ -432,7 +471,7 @@ fn theme_toggle(ui: &mut Ui, current: ThemeKind) -> bool {
 /// # 戻り値
 ///
 /// 戻り値なし
-fn install_fonts(ctx: &egui::Context) {
+pub(crate) fn install_fonts(ctx: &egui::Context) {
     let mut fonts = FontDefinitions::default();
     for (name, bytes) in [
         (

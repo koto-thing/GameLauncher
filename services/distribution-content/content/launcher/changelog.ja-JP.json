@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.4.1",
+      "title": "Windowsのメンテナンス画面とインストーラーを更新",
+      "publishedAt": "2026-11-23T00:00:00+09:00",
+      "changes": [
+        "メンテナンス画面でランチャーの更新とアンインストールを選択可能",
+        "WindowsのインストーラーとメンテナンスツールにPandDのアイコンを追加"
+      ]
+    },
+    {
       "version": "1.4.0",
       "title": "ランチャーとWindowsセットアップの画面を刷新",
       "publishedAt": "2026-11-22T00:00:00+09:00",
