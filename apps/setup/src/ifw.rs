@@ -36,7 +36,7 @@ pub enum IfwEvent {
     Log(String),
     /// IFW が終了した
     Exited {
-        /// 終了コードが 0 なら true
+        /// 通常の完了または必須コンポーネントの更新完了なら true
         success: bool,
     },
     /// IFW を起動できなかった、または終了を待てなかった
@@ -182,7 +182,7 @@ pub fn run(command: &IfwCommand, events: &Sender<IfwEvent>) {
 ///
 /// # 戻り値
 ///
-/// 終了コードが 0 なら true
+/// 通常の完了または必須コンポーネントの更新完了なら true
 ///
 /// # エラー
 ///
@@ -223,7 +223,8 @@ fn run_inner(command: &IfwCommand, events: &Sender<IfwEvent>) -> Result<bool> {
     }
 
     let status = child.wait().context("IFW の終了を待てません")?;
-    Ok(status.success())
+    // Qt IFW は必須コンポーネントの更新完了を EssentialUpdated (6) で通知する
+    Ok(matches!(status.code(), Some(0 | 6)))
 }
 
 /// パイプから1行ずつ読み、ログと工程を送る
