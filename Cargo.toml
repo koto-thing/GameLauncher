@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/transfer", "packages/local-storage", "packages/file-integrity", "packages/distribution-contracts", "services/deployment_publisher", "apps/launcher/rust"]
+members = ["packages/transfer", "packages/local-storage", "packages/file-integrity", "packages/distribution-contracts", "services/deployment_publisher", "apps/launcher/rust", "apps/setup"]
 exclude = ["packages/music-loudness"]
 resolver = "3"
 

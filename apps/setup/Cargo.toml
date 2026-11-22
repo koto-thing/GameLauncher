@@ -1,0 +1,16 @@
+[package]
+name = "pandd-setup"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+publish = false
+
+[dependencies]
+anyhow = "1"
+tempfile = "3"
+
+[target.'cfg(windows)'.dependencies]
+eframe = { version = "0.35", default-features = false, features = ["default_fonts", "glow"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+rfd = "0.18"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }

@@ -89,8 +89,18 @@
     </message>
     <message>
         <location filename="../src/presentation/LauncherWindow.cpp" line="176"/>
-        <source>▦  ゲーム一覧</source>
-        <translation>▦  Library</translation>
+        <source>詳細を見る</source>
+        <translation>View details</translation>
+    </message>
+    <message>
+        <location filename="../src/presentation/LauncherWindow.cpp" line="176"/>
+        <source>選択中ゲームの詳細を開く</source>
+        <translation>Open the selected game's details</translation>
+    </message>
+    <message>
+        <location filename="../src/presentation/LauncherWindow.cpp" line="176"/>
+        <source>ほかのおすすめ</source>
+        <translation>More recommendations</translation>
     </message>
     <message>
         <location filename="../src/presentation/LauncherWindow.cpp" line="179"/>
@@ -224,8 +234,8 @@ Find games from Home or Discover.</translation>
     </message>
     <message>
         <location filename="../src/presentation/LauncherWindow.cpp" line="447"/>
-        <source>← 戻る</source>
-        <translation>← Back</translation>
+        <source>戻る</source>
+        <translation>Back</translation>
     </message>
     <message>
         <location filename="../src/presentation/LauncherWindow.cpp" line="469"/>

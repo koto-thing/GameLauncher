@@ -24,6 +24,14 @@ LICENSE_SOURCES = {
     # Exact vcpkg GLEW 2.3.1 share/glew/copyright, including Mesa and Khronos notices.
     "GLEW-LICENSE.txt":
         "8991cd11befec7c6a63662700f03c0cc42e864b6e77c7e70b80297c951a7f0ff",
+    # 同梱フォント M PLUS 2 と Saira の google/fonts 配布版 OFL.txt
+    "MPLUS2-OFL.txt":
+        "04971e3fcee60b247395150d93b3616f6a0b092572332c96187b472976553abc",
+    # Windows の PandD Setup が同梱する Press Start 2P の OFL.txt
+    "PressStart2P-OFL.txt":
+        "004fc993a3bdaaf0fd443cb58d7e5c2fd09fc3a93b23309d0005421f7b8b7123",
+    "Saira-OFL.txt":
+        "f2665d4718b452b3818a877191355ac884a6b9b419d35408fe7ee487e9e8f30f",
     "Live2D-Proprietary-Software-License-Agreement.html":
         "e7b4ffc6c636de2cfdd6d2eed6a4e43fa7034e7f15a0c3a15f1603dbb3b4c2b6",
     "Live2D-Open-Software-License-Agreement.html":

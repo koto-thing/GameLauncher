@@ -5,6 +5,8 @@
 #include "presentation/LocalizationManager.h"
 
 #include "infrastructure/EditionProfile.h"
+#include <QAbstractButton>
+#include <QAction>
 #include <QApplication>
 #include <QBitmap>
 #include <QBuffer>
@@ -53,6 +55,8 @@
 #include <QSystemTrayIcon>
 #include <QTabWidget>
 #include <QTextBrowser>
+#include <QTextLayout>
+#include <QTextOption>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -130,6 +134,90 @@ class ElidedLabel final : public QLabel {
     QString fullText_;
 };
 
+/** @brief 割り当てられた高さに収まる行数まで表示し、最終行を末尾省略する複数行ラベル */
+class ClampedTextLabel final : public QLabel {
+  public:
+    /**
+     * @brief 内容の長さで周囲のlayoutを押し広げない複数行ラベルを作る
+     * @param parent 親widget
+     */
+    explicit ClampedTextLabel(QWidget* parent = nullptr) : QLabel(parent) {
+        // 行分割は自前で行い、大きさはlayoutの割り当てに従う
+        setWordWrap(false);
+        setAlignment(Qt::AlignLeft | Qt::AlignTop);
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    }
+
+    /**
+     * @brief 完全な文字列を保持し、表示領域に応じて描画文字列を更新する
+     * @param text 表示する完全な文字列
+     */
+    void setFullText(const QString& text) {
+        fullText_ = text;
+        setToolTip(fullText_);
+        updateDisplayedText();
+    }
+
+  protected:
+    /**
+     * @brief resize後に表示文字列を更新する
+     * @param event resize event
+     */
+    void resizeEvent(QResizeEvent* event) override {
+        QLabel::resizeEvent(event);
+        updateDisplayedText();
+    }
+
+    /**
+     * @brief stylesheetによるfont変更後に表示文字列を更新する
+     * @param event 変更event
+     */
+    void changeEvent(QEvent* event) override {
+        QLabel::changeEvent(event);
+        if (event->type() == QEvent::FontChange) {
+            updateDisplayedText();
+        }
+    }
+
+  private:
+    /** @brief 現在の幅で折り返し、高さに収まらない行を最終行の省略記号へまとめる */
+    void updateDisplayedText() {
+        // 改行を保ったまま現在の幅で行へ分割する
+        auto text = fullText_;
+        text.replace(QLatin1Char('\n'), QChar::LineSeparator);
+        QTextLayout layout(text, font());
+        QTextOption option;
+        option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+        layout.setTextOption(option);
+        QList<QTextLine> lines;
+        layout.beginLayout();
+        for (auto line = layout.createLine(); line.isValid(); line = layout.createLine()) {
+            line.setLineWidth(width());
+            lines.append(line);
+        }
+        layout.endLayout();
+
+        // 収まる行数を超える分は最終行へまとめて末尾を省略する
+        const QFontMetrics metrics(font());
+        const auto maximumLines =
+            std::max<qsizetype>(1, height() / std::max(1, metrics.lineSpacing()));
+        QStringList visible;
+        for (qsizetype index = 0; index < lines.size() && index < maximumLines; ++index) {
+            const auto& line = lines.at(index);
+            const auto isLastVisible = index == maximumLines - 1 && lines.size() > maximumLines;
+            auto lineText = isLastVisible ? text.mid(line.textStart())
+                                          : text.mid(line.textStart(), line.textLength());
+            lineText.replace(QChar::LineSeparator, QLatin1Char(' '));
+            visible.append(isLastVisible
+                               ? metrics.elidedText(lineText.trimmed(), Qt::ElideRight, width())
+                               : lineText.trimmed());
+        }
+        setText(visible.join(QLatin1Char('\n')));
+    }
+
+    QString fullText_;
+};
+
 /** @brief 元画像の縦横比を保って表示領域内へ収めるラベル */
 class AspectRatioPixmapLabel final : public QLabel {
   public:
@@ -163,48 +251,98 @@ class AspectRatioPixmapLabel final : public QLabel {
     QPixmap sourcePixmap_;
 };
 
-constexpr int gameThumbnailWidth = 190;
-constexpr int gameThumbnailHeight = 107;
-constexpr int gameCardWidth = 200;
-constexpr int gameCardHeight = 120;
+constexpr int gameThumbnailWidth = 196;
+constexpr int gameThumbnailHeight = 110;
+constexpr int gameCardWidth = 212;
+constexpr int gameCardHeight = 146;
 
-/** @brief 16:9画像へタイトルを重ねてゲームカードを描画する */
+/**
+ * @brief 既定配色またはエディション指定のアクセント色を返す
+ * @return 選択状態や主要操作に使うアクセント色
+ */
+QColor accentColor() {
+    // エディション版は配布物のアクセント色へ置き換える
+    const auto& edition = EditionProfile::current();
+    return QColor(edition.enabled() ? edition.accent() : QStringLiteral("#e60012"));
+}
+
+/**
+ * @brief 単色SVGアイコンを指定色で塗り、通常時と選択時の状態を持つiconを作る
+ * @param resourcePath currentColorで描かれたSVGのresource path
+ * @param normal 通常時の色
+ * @param checked 選択時の色
+ * @return 2つの状態を持つicon
+ */
+QIcon tintedIcon(const QString& resourcePath, const QColor& normal, const QColor& checked) {
+    // SVGを読み込み、currentColorを状態ごとの色へ置換して高解像度で描画する
+    QFile file(resourcePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    const auto source = file.readAll();
+    auto render = [&source](const QColor& color) {
+        auto svg = source;
+        svg.replace("currentColor", color.name().toLatin1());
+        QBuffer buffer(&svg);
+        buffer.open(QIODevice::ReadOnly);
+        QImageReader reader(&buffer, "svg");
+        reader.setScaledSize(QSize(48, 48));
+        return QPixmap::fromImage(reader.read());
+    };
+
+    QIcon icon;
+    icon.addPixmap(render(normal), QIcon::Normal, QIcon::Off);
+    icon.addPixmap(render(checked), QIcon::Normal, QIcon::On);
+    return icon;
+}
+
+/** @brief 16:9画像の下へタイトルを置いてゲームカードを描画する */
 class GameCardDelegate final : public QStyledItemDelegate {
   public:
     using QStyledItemDelegate::QStyledItemDelegate;
 
-    /** @brief 固定寸法のゲームカードを描画する */
+    /**
+     * @brief 固定寸法のゲームカードを描画する
+     * @param painter 描画先
+     * @param option 描画領域と選択状態
+     * @param index 描画するゲーム項目
+     */
     void paint(QPainter* painter, const QStyleOptionViewItem& option,
                const QModelIndex& index) const override {
-        const QRect card(option.rect.left() + 5, option.rect.top() + 6, gameThumbnailWidth,
+        const QRect card(option.rect.left() + 8, option.rect.top() + 4, gameThumbnailWidth,
                          gameThumbnailHeight);
         const auto selected = option.state.testFlag(QStyle::State_Selected);
         const auto hovered = option.state.testFlag(QStyle::State_MouseOver);
         const auto icon = index.data(Qt::DecorationRole).value<QIcon>();
 
+        // 角丸に切り抜いたサムネイルを描画する
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
         QPainterPath clip;
-        clip.addRoundedRect(card, 8, 8);
+        clip.addRoundedRect(card, 10, 10);
         painter->setClipPath(clip);
         painter->fillRect(card, option.palette.color(QPalette::Base));
         icon.paint(painter, card, Qt::AlignCenter, QIcon::Normal, QIcon::On);
-
-        constexpr int titleHeight = 27;
-        const QRect titleArea(card.left(), card.bottom() - titleHeight + 1, card.width(),
-                              titleHeight);
-        painter->fillRect(titleArea, QColor(0, 0, 0, 170));
-        painter->setPen(Qt::white);
-        const auto title = option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight,
-                                                         titleArea.width() - 16);
-        painter->drawText(titleArea.adjusted(8, 0, -8, 0), Qt::AlignCenter, title);
         painter->setClipping(false);
-        const auto& edition = EditionProfile::current();
-        painter->setPen(QPen(selected || hovered
-                                 ? QColor(edition.enabled() ? edition.accent() : "#e60012")
-                                 : option.palette.color(QPalette::Mid),
-                             selected || hovered ? 3 : 1));
-        painter->drawRoundedRect(card.adjusted(1, 1, -1, -1), 8, 8);
+
+        // 選択中とhover中はアクセント色の太枠で囲む
+        painter->setPen(
+            QPen(selected || hovered ? accentColor() : option.palette.color(QPalette::Mid),
+                 selected || hovered ? 3 : 1));
+        painter->setBrush(Qt::NoBrush);
+        const auto inset = selected || hovered ? 1.5 : 0.5;
+        painter->drawRoundedRect(QRectF(card).adjusted(inset, inset, -inset, -inset), 10, 10);
+
+        // 画像を隠さないようタイトルはサムネイルの下へ置く
+        auto font = option.font;
+        font.setPixelSize(13);
+        font.setWeight(QFont::Bold);
+        painter->setFont(font);
+        painter->setPen(option.palette.color(QPalette::Text));
+        const QRect titleArea(card.left() + 2, card.bottom() + 6, card.width() - 4, 22);
+        const auto title = QFontMetrics(font).elidedText(index.data().toString(), Qt::ElideRight,
+                                                         titleArea.width());
+        painter->drawText(titleArea, Qt::AlignLeft | Qt::AlignVCenter, title);
         painter->restore();
     }
 
@@ -269,7 +407,6 @@ void LauncherWindow::buildUi() {
     setWindowIcon(logoIcon);
     setMinimumSize(960, 600);
     resize(1280, 720);
-    applyTheme();
 
     auto* central = new QWidget(this);
     auto* layout = new QHBoxLayout(central);
@@ -281,31 +418,44 @@ void LauncherWindow::buildUi() {
     sidebar->setObjectName("sidebar");
     sidebar->setFixedWidth(190);
     auto* sidebarLayout = new QVBoxLayout(sidebar);
-    sidebarLayout->setContentsMargins(8, 4, 8, 16);
-    sidebarLayout->setSpacing(8);
+    sidebarLayout->setContentsMargins(12, 8, 12, 16);
+    sidebarLayout->setSpacing(4);
     auto* brand = new QLabel(sidebar);
     const QPixmap sourceLogo(logoPath);
     const auto visibleLogoBounds = QRegion(sourceLogo.mask()).boundingRect();
     const auto visibleLogo =
         visibleLogoBounds.isValid() ? sourceLogo.copy(visibleLogoBounds) : sourceLogo;
-    brand->setPixmap(visibleLogo.scaled(174, 72, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    brand->setFixedHeight(76);
+    brand->setPixmap(visibleLogo.scaled(166, 68, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    brand->setFixedHeight(84);
     brand->setAlignment(Qt::AlignCenter);
     sidebarLayout->addWidget(brand);
-    homeButton_ = new QPushButton(tr("トップ"), sidebar);
-    homeButton_->setObjectName("nav");
-    homeButton_->setCheckable(true);
-    discoverButton_ = new QPushButton(tr("さがす"), sidebar);
-    discoverButton_->setObjectName("nav");
-    discoverButton_->setCheckable(true);
+
+    // 各ナビゲーション項目へ線画アイコンを付ける
+    auto createNavButton = [this, sidebar](const QString& text, const QString& icon) {
+        auto* button = new QPushButton(text, sidebar);
+        button->setObjectName("nav");
+        button->setCheckable(true);
+        button->setIconSize(QSize(20, 20));
+        themedIconButtons_.emplace_back(button, icon);
+        return button;
+    };
+    homeButton_ = createNavButton(tr("トップ"), QStringLiteral(":/icons/home.svg"));
+    discoverButton_ = createNavButton(tr("さがす"), QStringLiteral(":/icons/search.svg"));
     sidebarLayout->addWidget(homeButton_);
     sidebarLayout->addWidget(discoverButton_);
     sidebarLayout->addStretch(1);
-    libraryButton_ = new QPushButton(tr("▦  ゲーム一覧"), sidebar);
-    libraryButton_->setObjectName("libraryNav");
-    libraryButton_->setCheckable(true);
+    auto* divider = new QFrame(sidebar);
+    divider->setObjectName("divider");
+    divider->setFixedHeight(1);
+    sidebarLayout->addWidget(divider);
+    sidebarLayout->addSpacing(4);
+    libraryButton_ = createNavButton(tr("ゲーム一覧"), QStringLiteral(":/icons/library.svg"));
     libraryButton_->setAccessibleName(tr("所持ゲーム一覧を開く"));
     sidebarLayout->addWidget(libraryButton_);
+    auto* version = new QLabel(
+        QStringLiteral("LAUNCHER v%1").arg(QCoreApplication::applicationVersion()), sidebar);
+    version->setObjectName("version");
+    sidebarLayout->addWidget(version);
     navigationIndicator_ = new QFrame(sidebar);
     navigationIndicator_->setObjectName("navigationIndicator");
     navigationIndicator_->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -347,6 +497,8 @@ void LauncherWindow::buildUi() {
         trayIcon_->show();
     }
 
+    // 全pageの部品が揃ってからthemeとアイコン色を適用する
+    applyTheme();
     connect(homeButton_, &QPushButton::clicked, this, [this] { navigateTo(0); });
     connect(discoverButton_, &QPushButton::clicked, this, [this] { navigateTo(1); });
     connect(libraryButton_, &QPushButton::clicked, this, [this] {
@@ -364,58 +516,97 @@ void LauncherWindow::buildUi() {
 /** @brief 現在の設定に応じたwidget themeを適用する */
 void LauncherWindow::applyTheme() {
     // theme paletteを一度に組み立てる
+    // darkはロゴの文字色 #3a3a3a を軸にした青みのないチャコール系で、
+    // hoverと選択中はロゴの「a」のピンク #ff6777 を8%・15%重ねた色にする
     const auto dark = viewModel_.settings().darkTheme;
-    const auto background = dark ? "#17181c" : "#f5f5f5";
-    const auto surface = dark ? "#24262c" : "#ffffff";
-    const auto text = dark ? "#f4f4f5" : "#242424";
-    const auto muted = dark ? "#a9abb3" : "#676767";
-    const auto border = dark ? "#3a3d45" : "#d7d7d7";
-    const auto hover = dark ? "#34272c" : "#fff7f8";
-    const auto selected = dark ? "#3d242a" : "#fff4f5";
+    const auto background = dark ? "#2b2b2b" : "#f5f5f5";
+    const auto surface = dark ? "#353535" : "#ffffff";
+    const auto text = dark ? "#f5f5f5" : "#242424";
+    const auto muted = dark ? "#b0b0b0" : "#676767";
+    const auto border = dark ? "#474747" : "#d7d7d7";
+    const auto hover = dark ? "#45393a" : "#fff7f8";
+    const auto selected = dark ? "#533c3f" : "#fff4f5";
     setStyleSheet(
         QString("QMainWindow,QWidget#page,QDialog{background:%1;color:%3;}"
                 "QFrame#sidebar{background:%2;border-right:1px solid %5;}"
                 "QLabel,QCheckBox,QRadioButton,QGroupBox,QTabWidget{color:%3;}"
-                "QPushButton{background:%2;color:%3;border:1px solid %5;border-radius:8px;"
-                "padding:10px 16px;font-weight:600;}"
+                // 汎用ボタンと入力欄は角丸10pxでそろえる
+                "QPushButton{background:%2;color:%3;border:1px solid %5;border-radius:10px;"
+                "padding:10px 18px;font-size:14px;font-weight:700;}"
                 "QPushButton:hover{border:1px solid #e60012;background:%6;}"
                 "QPushButton#account,QPushButton#account:hover{background:transparent;border:0;"
                 "padding:0;}"
-                "QPushButton#settings{padding:0;}"
-                "QPushButton#nav{border:0;border-radius:8px;text-align:left;padding:12px;}"
-                "QPushButton#libraryNav{text-align:left;min-height:38px;}"
-                "QPushButton#nav:checked,QPushButton#libraryNav:checked{background:transparent;"
-                "color:%3;border:0;}"
+                "QPushButton#settings{padding:0;border-radius:20px;}"
+                "QPushButton#nav{border:0;border-radius:10px;text-align:left;padding:0 14px;"
+                "min-height:44px;color:%4;font-size:15px;font-weight:500;}"
+                "QPushButton#nav:hover{background:%6;color:%3;}"
+                "QPushButton#nav:checked{background:%7;color:%3;font-weight:700;}"
                 "QFrame#navigationIndicator{background:#e60012;border-radius:2px;}"
-                "QPushButton#primary{background:#e60012;color:white;border:0;font-size:18px;"
-                "min-width:260px;min-height:38px;}"
+                "QFrame#divider{background:%5;margin:0 4px;}"
+                "QLabel#version{color:%4;font-family:'Saira';font-size:11px;font-weight:600;"
+                "padding:6px 14px 0;}"
+                "QPushButton#primary{background:#e60012;color:white;border:0;font-size:17px;"
+                "font-weight:800;min-width:260px;min-height:52px;border-radius:12px;}"
                 "QPushButton#primary:hover{background:#c90010;}"
+                "QPushButton#primary:disabled{background:%5;color:%4;}"
+                "QPushButton#accent{background:#e60012;color:white;border:0;}"
+                "QPushButton#accent:hover{background:#c90010;}"
+                "QPushButton#ghost{background:rgba(43,43,43,170);color:white;"
+                "border:1px solid rgba(255,255,255,40);}"
+                "QPushButton#ghost:hover{border-color:#e60012;}"
+                "QPushButton#link{background:transparent;border:0;color:#d6d6d6;"
+                "text-decoration:underline;font-weight:500;}"
                 "QListWidget{background:transparent;border:0;outline:0;color:%3;}"
                 "QListWidget::item{background:%2;color:%3;border:1px solid %5;"
                 "border-radius:10px;padding:10px;margin:6px;}"
                 "QListWidget::item:hover{border:3px solid #e60012;background:%6;}"
                 "QListWidget::item:selected{border:3px solid #e60012;background:%7;}"
+                "QListWidget#announcements{background:rgba(43,43,43,180);"
+                "border:1px solid rgba(255,255,255,26);border-radius:10px;color:white;}"
+                "QListWidget#announcements::item,QListWidget#announcements::item:hover,"
+                "QListWidget#announcements::item:selected{background:transparent;border:0;"
+                "margin:0;padding:6px 12px;color:white;}"
                 "QLineEdit,QComboBox,QSpinBox,QTextBrowser{background:%2;color:%3;"
-                "border:2px solid %5;border-radius:8px;padding:8px;}"
-                "QLineEdit{border-radius:22px;padding:10px 18px;font-size:16px;}"
+                "border:2px solid %5;border-radius:10px;padding:8px;}"
+                "QLineEdit{border-radius:12px;padding:10px 14px;font-size:15px;}"
                 "QLineEdit:focus,QComboBox:focus,QSpinBox:focus{border-color:#e60012;}"
                 "QTabWidget::pane{border:1px solid %5;background:%2;}"
                 "QTabBar::tab{background:%1;color:%3;padding:9px 14px;}"
                 "QTabBar::tab:selected{background:#e60012;color:white;}"
-                "QLabel#pageTitle{font-size:30px;font-weight:700;color:%3;}"
-                "QLabel#sectionTitle{font-size:20px;font-weight:700;color:%3;}"
-                "QLabel#muted{color:%4;font-size:14px;}"
-                "QLabel#empty{color:%4;font-size:17px;background:%2;"
-                "border:1px dashed %5;border-radius:12px;padding:28px;}"
-                "QLabel#heroTitle{font-size:36px;font-weight:700;color:white;}"
-                "QFrame#homePreview{background:%2;border:1px solid %5;border-radius:12px;}"
-                "QLabel#homePreviewImage{background:%2;border:1px solid %5;border-radius:12px;}"
-                "QLabel#homePreviewTitle{font-size:28px;font-weight:700;color:%3;}"
-                "QLabel#homePreviewSummary{font-size:15px;color:%4;}"
-                "QProgressBar{border:0;border-radius:5px;background:%5;color:%3;"
-                "text-align:center;}"
-                "QProgressBar::chunk{background:#e60012;border-radius:5px;}")
+                "QScrollBar:vertical{background:transparent;width:10px;margin:2px;}"
+                "QScrollBar::handle:vertical{background:%5;border-radius:3px;min-height:32px;}"
+                "QScrollBar::add-line,QScrollBar::sub-line{height:0;width:0;}"
+                "QScrollBar::add-page,QScrollBar::sub-page{background:transparent;}"
+                // 文字サイズは 44 / 28 / 24 / 17 / 15 / 13 / 12 / 11px の段階に限る
+                "QLabel#eyebrow{color:#e60012;font-family:'Saira';font-size:12px;"
+                "font-weight:600;}"
+                "QLabel#pageTitle{font-size:28px;font-weight:800;color:%3;}"
+                "QLabel#sectionTitle{font-size:17px;font-weight:700;color:%3;}"
+                "QLabel#muted{color:%4;font-size:13px;}"
+                "QLabel#empty{color:%4;font-size:15px;background:%2;"
+                "border:1px dashed %5;border-radius:14px;padding:28px;}"
+                "QLabel#heroTitle{font-size:44px;font-weight:800;color:white;}"
+                "QLabel#heroSummary{font-size:15px;color:#e0e0e0;}"
+                "QLabel#transfer{font-family:'Saira';font-size:13px;font-weight:500;"
+                "color:#c4c4c4;}"
+                "QFrame#homePreview{background:%2;border:1px solid %5;border-radius:14px;}"
+                "QLabel#homePreviewImage{background:%2;border:1px solid %5;border-radius:14px;}"
+                "QLabel#homePreviewTitle{font-size:24px;font-weight:800;color:%3;}"
+                "QLabel#homePreviewSummary{font-size:14px;color:%4;}"
+                "QProgressBar{border:0;border-radius:3px;background:rgba(255,255,255,40);"
+                "max-height:6px;}"
+                "QProgressBar::chunk{background:#e60012;border-radius:3px;}")
             .arg(background, surface, text, muted, border, hover, selected));
+
+    // 単色アイコンを現在のthemeの文字色とアクセント色で塗り直す
+    for (const auto& [target, path] : themedIconButtons_) {
+        const auto icon = tintedIcon(path, QColor(muted), accentColor());
+        if (auto* button = qobject_cast<QAbstractButton*>(target)) {
+            button->setIcon(icon);
+        } else if (auto* action = qobject_cast<QAction*>(target)) {
+            action->setIcon(icon);
+        }
+    }
     const auto& edition = EditionProfile::current();
     if (edition.enabled()) {
         auto sheet = styleSheet();
@@ -428,39 +619,84 @@ void LauncherWindow::applyTheme() {
     }
 }
 
+/**
+ * @brief アカウントと設定のボタンをheader行へ追加する
+ * @param page ボタンの親page
+ * @param row ボタンを追加するheader行
+ */
+void LauncherWindow::addHeaderActions(QWidget* page, QBoxLayout* row) {
+    // アカウントは準備中のため操作を持たない領域として確保する
+    auto* account = new QPushButton(page);
+    account->setObjectName("account");
+    account->setToolTip(tr("アカウント（準備中）"));
+    account->setAccessibleName(tr("アカウント（準備中）"));
+    account->setFixedSize(40, 40);
+    row->addWidget(account, 0, Qt::AlignTop);
+
+    // 設定ボタンのアイコンはthemeに合わせて塗り直す
+    auto* settings = new QPushButton(page);
+    settings->setObjectName("settings");
+    settings->setIconSize(QSize(18, 18));
+    settings->setToolTip(tr("設定"));
+    settings->setAccessibleName(tr("設定を開く"));
+    settings->setFixedSize(40, 40);
+    themedIconButtons_.emplace_back(settings, QStringLiteral(":/icons/settings.svg"));
+    row->addWidget(settings, 0, Qt::AlignTop);
+    connect(settings, &QPushButton::clicked, this, &LauncherWindow::showSettingsDialog);
+}
+
+/**
+ * @brief 英字ラベル、見出し、補足文、header操作を持つpage headerを作る
+ * @param page headerの親page
+ * @param eyebrow 見出し上に置く英字ラベル
+ * @param title page見出し
+ * @param hint 見出し下の補足文。空なら表示しない
+ * @return pageのlayoutへ追加するheader layout
+ */
+QLayout* LauncherWindow::createPageHeader(QWidget* page, const QString& eyebrow,
+                                          const QString& title, const QString& hint) {
+    // 英字ラベルは字間を広げてアクセント書体で表示する
+    auto* titles = new QVBoxLayout();
+    titles->setSpacing(2);
+    auto* eyebrowLabel = new QLabel(eyebrow, page);
+    eyebrowLabel->setObjectName("eyebrow");
+    auto eyebrowFont = eyebrowLabel->font();
+    eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 2);
+    eyebrowLabel->setFont(eyebrowFont);
+    titles->addWidget(eyebrowLabel);
+    auto* titleLabel = new QLabel(title, page);
+    titleLabel->setObjectName("pageTitle");
+    titles->addWidget(titleLabel);
+    if (!hint.isEmpty()) {
+        auto* hintLabel = new QLabel(hint, page);
+        hintLabel->setObjectName("muted");
+        titles->addSpacing(4);
+        titles->addWidget(hintLabel);
+    }
+
+    // 見出しを左、header操作を右上へ配置する
+    auto* row = new QHBoxLayout();
+    row->setSpacing(10);
+    row->addLayout(titles);
+    row->addStretch();
+    addHeaderActions(page, row);
+    return row;
+}
+
 /** @brief おすすめゲームを表示するhome pageを構築する */
 QWidget* LauncherWindow::createHomePage() {
     // page本体とheaderを構築する
     auto* page = new QWidget(this);
     page->setObjectName("page");
     auto* layout = new QVBoxLayout(page);
-    layout->setContentsMargins(42, 32, 42, 32);
-    auto* headerRow = new QHBoxLayout();
-    auto* header = new QLabel(tr("あなたへのおすすめ"), page);
-    header->setObjectName("pageTitle");
-    headerRow->addWidget(header);
-    headerRow->addStretch();
-    auto* account = new QPushButton(page);
-    account->setObjectName("account");
-    account->setToolTip(tr("アカウント（準備中）"));
-    account->setAccessibleName(tr("アカウント（準備中）"));
-    account->setFixedSize(44, 44);
-    headerRow->addWidget(account);
-    auto* settings = new QPushButton(page);
-    settings->setObjectName("settings");
-    settings->setIcon(QIcon(QStringLiteral(":/images/settings.svg")));
-    settings->setIconSize(QSize(20, 20));
-    settings->setToolTip(tr("設定"));
-    settings->setAccessibleName(tr("設定を開く"));
-    settings->setFixedSize(44, 44);
-    headerRow->addWidget(settings);
-    layout->addLayout(headerRow);
-    auto* hint = new QLabel(tr("まだ持っていないゲームから、新しいお気に入りを見つけよう"), page);
-    hint->setObjectName("muted");
-    layout->addWidget(hint);
+    layout->setContentsMargins(40, 28, 40, 28);
+    layout->setSpacing(20);
+    layout->addLayout(
+        createPageHeader(page, QStringLiteral("RECOMMENDED"), tr("あなたへのおすすめ"),
+                         tr("まだ持っていないゲームから、新しいお気に入りを見つけよう")));
 
     auto* previewRow = new QHBoxLayout();
-    previewRow->setSpacing(24);
+    previewRow->setSpacing(20);
     homePreviewImage_ = new AspectRatioPixmapLabel(page);
     homePreviewImage_->setObjectName("homePreviewImage");
     homePreviewImage_->setAlignment(Qt::AlignCenter);
@@ -471,17 +707,26 @@ QWidget* LauncherWindow::createHomePage() {
     auto* information = new QFrame(page);
     information->setObjectName("homePreview");
     auto* informationLayout = new QVBoxLayout(information);
-    informationLayout->setContentsMargins(28, 28, 28, 28);
-    informationLayout->setSpacing(16);
+    informationLayout->setContentsMargins(24, 24, 24, 24);
+    informationLayout->setSpacing(14);
     homePreviewTitle_ = new QLabel(information);
     homePreviewTitle_->setObjectName("homePreviewTitle");
     homePreviewTitle_->setWordWrap(true);
-    homePreviewSummary_ = new QLabel(information);
+    homePreviewSummary_ = new ClampedTextLabel(information);
     homePreviewSummary_->setObjectName("homePreviewSummary");
-    homePreviewSummary_->setWordWrap(true);
-    homePreviewSummary_->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     informationLayout->addWidget(homePreviewTitle_);
     informationLayout->addWidget(homePreviewSummary_, 1);
+
+    // 選択中ゲームの詳細pageへ直接移動する導線
+    auto* openDetail = new QPushButton(tr("詳細を見る"), information);
+    openDetail->setObjectName("accent");
+    openDetail->setAccessibleName(tr("選択中ゲームの詳細を開く"));
+    informationLayout->addWidget(openDetail, 0, Qt::AlignLeft);
+    connect(openDetail, &QPushButton::clicked, this, [this] {
+        if (auto* current = homeList_->currentItem()) {
+            showGame(current->data(Qt::UserRole).toString());
+        }
+    });
     previewRow->addWidget(information, 1);
     layout->addLayout(previewRow, 3);
 
@@ -499,7 +744,11 @@ QWidget* LauncherWindow::createHomePage() {
     auto* recommendations = new QWidget(page);
     auto* recommendationsLayout = new QVBoxLayout(recommendations);
     recommendationsLayout->setContentsMargins(0, 0, 0, 0);
+    recommendationsLayout->setSpacing(8);
     recommendationsLayout->addStretch();
+    auto* recommendationsTitle = new QLabel(tr("ほかのおすすめ"), recommendations);
+    recommendationsTitle->setObjectName("sectionTitle");
+    recommendationsLayout->addWidget(recommendationsTitle);
     recommendationsLayout->addWidget(homeList_);
     recommendationsLayout->addWidget(homeEmpty_);
     recommendationsLayout->addStretch();
@@ -511,7 +760,6 @@ QWidget* LauncherWindow::createHomePage() {
     });
     connect(homeList_, &QListWidget::itemActivated, this,
             [this](QListWidgetItem* item) { showGame(item->data(Qt::UserRole).toString()); });
-    connect(settings, &QPushButton::clicked, this, &LauncherWindow::showSettingsDialog);
     return page;
 }
 
@@ -521,31 +769,15 @@ QWidget* LauncherWindow::createDiscoverPage() {
     auto* page = new QWidget(this);
     page->setObjectName("page");
     auto* layout = new QVBoxLayout(page);
-    layout->setContentsMargins(42, 32, 42, 32);
-    auto* headerRow = new QHBoxLayout();
-    auto* header = new QLabel(tr("ゲームをさがす"), page);
-    header->setObjectName("pageTitle");
-    headerRow->addWidget(header);
-    headerRow->addStretch();
-    auto* account = new QPushButton(page);
-    account->setObjectName("account");
-    account->setToolTip(tr("アカウント（準備中）"));
-    account->setAccessibleName(tr("アカウント（準備中）"));
-    account->setFixedSize(44, 44);
-    headerRow->addWidget(account);
-    auto* settings = new QPushButton(page);
-    settings->setObjectName("settings");
-    settings->setIcon(QIcon(QStringLiteral(":/images/settings.svg")));
-    settings->setIconSize(QSize(20, 20));
-    settings->setToolTip(tr("設定"));
-    settings->setAccessibleName(tr("設定を開く"));
-    settings->setFixedSize(44, 44);
-    headerRow->addWidget(settings);
-    layout->addLayout(headerRow);
+    layout->setContentsMargins(40, 28, 40, 28);
+    layout->setSpacing(20);
+    layout->addLayout(createPageHeader(page, QStringLiteral("DISCOVER"), tr("ゲームをさがす")));
     searchInput_ = new QLineEdit(page);
     searchInput_->setPlaceholderText(tr("ゲーム名やキーワードで検索"));
     searchInput_->setClearButtonEnabled(true);
     searchInput_->setAccessibleName(tr("未所持ゲームを検索"));
+    themedIconButtons_.emplace_back(searchInput_->addAction(QIcon(), QLineEdit::LeadingPosition),
+                                    QStringLiteral(":/icons/search.svg"));
     layout->addWidget(searchInput_);
     auto* section = new QLabel(tr("まだ持っていないゲーム"), page);
     section->setObjectName("sectionTitle");
@@ -561,7 +793,6 @@ QWidget* LauncherWindow::createDiscoverPage() {
     connect(searchInput_, &QLineEdit::textChanged, this, &LauncherWindow::refreshDiscover);
     connect(discoverList_, &QListWidget::itemActivated, this,
             [this](QListWidgetItem* item) { showGame(item->data(Qt::UserRole).toString()); });
-    connect(settings, &QPushButton::clicked, this, &LauncherWindow::showSettingsDialog);
     return page;
 }
 
@@ -571,30 +802,10 @@ QWidget* LauncherWindow::createLibraryPage() {
     auto* page = new QWidget(this);
     page->setObjectName("page");
     auto* layout = new QVBoxLayout(page);
-    layout->setContentsMargins(42, 32, 42, 32);
-    auto* headerRow = new QHBoxLayout();
-    auto* header = new QLabel(tr("ゲーム一覧"), page);
-    header->setObjectName("pageTitle");
-    headerRow->addWidget(header);
-    headerRow->addStretch();
-    auto* account = new QPushButton(page);
-    account->setObjectName("account");
-    account->setToolTip(tr("アカウント（準備中）"));
-    account->setAccessibleName(tr("アカウント（準備中）"));
-    account->setFixedSize(44, 44);
-    headerRow->addWidget(account);
-    auto* settings = new QPushButton(page);
-    settings->setObjectName("settings");
-    settings->setIcon(QIcon(QStringLiteral(":/images/settings.svg")));
-    settings->setIconSize(QSize(20, 20));
-    settings->setToolTip(tr("設定"));
-    settings->setAccessibleName(tr("設定を開く"));
-    settings->setFixedSize(44, 44);
-    headerRow->addWidget(settings);
-    layout->addLayout(headerRow);
-    auto* hint = new QLabel(tr("持っているゲームを選んでプレイ"), page);
-    hint->setObjectName("muted");
-    layout->addWidget(hint);
+    layout->setContentsMargins(40, 28, 40, 28);
+    layout->setSpacing(20);
+    layout->addLayout(createPageHeader(page, QStringLiteral("LIBRARY"), tr("ゲーム一覧"),
+                                       tr("持っているゲームを選んでプレイ")));
     libraryList_ = new QListWidget(page);
     configureGameCardList(libraryList_);
     libraryList_->setAccessibleName(tr("所持ゲーム一覧"));
@@ -606,7 +817,6 @@ QWidget* LauncherWindow::createLibraryPage() {
     layout->addWidget(libraryEmpty_);
     connect(libraryList_, &QListWidget::itemActivated, this,
             [this](QListWidgetItem* item) { showGame(item->data(Qt::UserRole).toString()); });
-    connect(settings, &QPushButton::clicked, this, &LauncherWindow::showSettingsDialog);
     return page;
 }
 
@@ -633,10 +843,16 @@ QWidget* LauncherWindow::createDetailPage() {
         });
     }
     auto* layout = new QVBoxLayout(page);
-    layout->setContentsMargins(46, 30, 46, 34);
+    layout->setContentsMargins(44, 28, 44, 32);
+    layout->setSpacing(14);
 
+    // 背景の上に置く操作は半透明のghost styleで統一する
     auto* top = new QHBoxLayout();
-    auto* back = new QPushButton(tr("← 戻る"), page);
+    top->setSpacing(10);
+    auto* back = new QPushButton(tr("戻る"), page);
+    back->setObjectName("ghost");
+    back->setIcon(tintedIcon(QStringLiteral(":/icons/back.svg"), Qt::white, Qt::white));
+    back->setIconSize(QSize(16, 16));
     top->addWidget(back);
     top->addStretch();
     stagingBadge_ = new QLabel("STAGING", page);
@@ -644,21 +860,9 @@ QWidget* LauncherWindow::createDetailPage() {
         "background:#b45309;padding:6px 10px;border-radius:5px;font-weight:700;");
     stagingBadge_->setVisible(QString(PANDD_DISTRIBUTION_ENV) == "staging");
     top->addWidget(stagingBadge_);
-    auto* account = new QPushButton(page);
-    account->setObjectName("account");
-    account->setToolTip(tr("アカウント（準備中）"));
-    account->setAccessibleName(tr("アカウント（準備中）"));
-    account->setFixedSize(44, 44);
-    top->addWidget(account);
-    auto* settings = new QPushButton(page);
-    settings->setObjectName("settings");
-    settings->setIcon(QIcon(QStringLiteral(":/images/settings.svg")));
-    settings->setIconSize(QSize(20, 20));
-    settings->setToolTip(tr("設定"));
-    settings->setAccessibleName(tr("設定を開く"));
-    settings->setFixedSize(44, 44);
-    top->addWidget(settings);
+    addHeaderActions(page, top);
     auto* tools = new QPushButton(tr("ツール"), page);
+    tools->setObjectName("ghost");
     top->addWidget(tools);
     layout->addLayout(top);
 
@@ -669,7 +873,7 @@ QWidget* LauncherWindow::createDetailPage() {
     summary_ = new QLabel(page);
     summary_->setWordWrap(true);
     summary_->setMaximumWidth(650);
-    summary_->setStyleSheet("font-size:15px;color:#d5dce8;");
+    summary_->setObjectName("heroSummary");
     layout->addWidget(summary_);
     playStatisticsLabel_ = new QLabel(page);
     playStatisticsLabel_->setWordWrap(true);
@@ -677,19 +881,27 @@ QWidget* LauncherWindow::createDetailPage() {
     playStatisticsLabel_->setAccessibleName(tr("この端末のプレイ記録"));
     layout->addWidget(playStatisticsLabel_);
     announcements_ = new QListWidget(page);
-    announcements_->setMaximumHeight(140);
+    announcements_->setObjectName("announcements");
+    announcements_->setMaximumWidth(760);
+    announcements_->setMaximumHeight(120);
     announcements_->setAccessibleName(tr("お知らせ"));
     layout->addWidget(announcements_);
 
+    // 進捗は数値を上、細いバーを下に置いて主操作ボタンの下端へそろえる
     auto* actionRow = new QHBoxLayout();
+    actionRow->setSpacing(24);
     auto* progressLayout = new QVBoxLayout();
+    progressLayout->setSpacing(8);
+    progressLayout->addStretch();
     progressBar_ = new QProgressBar(page);
     progressBar_->setRange(0, 100);
+    progressBar_->setTextVisible(false);
+    progressBar_->setFixedHeight(6);
     progressBar_->setVisible(false);
     transferLabel_ = new QLabel(page);
-    transferLabel_->setStyleSheet("color:#b8c2d1;");
-    progressLayout->addWidget(progressBar_);
+    transferLabel_->setObjectName("transfer");
     progressLayout->addWidget(transferLabel_);
+    progressLayout->addWidget(progressBar_);
     actionRow->addLayout(progressLayout, 1);
     primaryButton_ = new QPushButton(tr("ダウンロード"), page);
     primaryButton_->setObjectName("primary");
@@ -698,7 +910,7 @@ QWidget* LauncherWindow::createDetailPage() {
     layout->addLayout(actionRow);
     locateButton_ = new QPushButton(tr("インストール済みですか？ ゲームの場所を特定"), page);
     locateButton_->setAccessibleName(tr("既存ゲームの場所を選択"));
-    locateButton_->setStyleSheet("background:transparent;color:#c9d7ea;text-decoration:underline;");
+    locateButton_->setObjectName("link");
     layout->addWidget(locateButton_, 0, Qt::AlignRight);
     if (EditionProfile::current().enabled()) {
         auto* mediaButton = new QPushButton(tr("配布媒体からインストール"), page);
@@ -717,7 +929,6 @@ QWidget* LauncherWindow::createDetailPage() {
 
     connect(back, &QPushButton::clicked, this,
             [this] { navigateTo(selectedGameInstalled() ? 2 : 0); });
-    connect(settings, &QPushButton::clicked, this, &LauncherWindow::showSettingsDialog);
     connect(tools, &QPushButton::clicked, this, &LauncherWindow::showToolsMenu);
     connect(primaryButton_, &QPushButton::clicked, this, &LauncherWindow::runPrimaryAction);
     connect(locateButton_, &QPushButton::clicked, this, [this] {
@@ -909,7 +1120,7 @@ void LauncherWindow::refreshData() {
     } else {
         homePreviewImage_->setSourcePixmap({});
         homePreviewTitle_->clear();
-        homePreviewSummary_->clear();
+        homePreviewSummary_->setFullText({});
     }
     libraryEmpty_->setVisible(libraryList_->count() == 0);
     libraryList_->setVisible(libraryList_->count() != 0);
@@ -933,7 +1144,7 @@ void LauncherWindow::updateHomeSelection(const QString& gameId) {
     }
 
     homePreviewTitle_->setText(QString::fromStdString(iterator->name));
-    homePreviewSummary_->setText(QString::fromStdString(iterator->summary));
+    homePreviewSummary_->setFullText(QString::fromStdString(iterator->summary));
     const auto imageUrl = QString::fromStdString(iterator->thumbnailUrl);
     const QPixmap image =
         heroCache_.contains(imageUrl)
@@ -1009,7 +1220,8 @@ void LauncherWindow::updateNavigationIndicator(bool animated) {
         return;
     }
 
-    const QRect target(selectedButton->x(), selectedButton->y(), 5, selectedButton->height());
+    // indicatorはsidebar左端に置き、選択項目の上下を少し詰める
+    const QRect target(0, selectedButton->y() + 10, 4, selectedButton->height() - 20);
     navigationIndicator_->show();
     navigationIndicator_->raise();
     navigationIndicatorAnimation_->stop();

@@ -9,7 +9,12 @@
 #include <QPixmap>
 #include <QSet>
 
+#include <utility>
+#include <vector>
+
+class QBoxLayout;
 class QLabel;
+class QLayout;
 class QLineEdit;
 class QListWidget;
 class QFrame;
@@ -23,6 +28,7 @@ class QNetworkAccessManager;
 namespace pandd {
 
 class ElidedLabel;
+class ClampedTextLabel;
 class AspectRatioPixmapLabel;
 class GameDetailPage;
 
@@ -45,6 +51,24 @@ class LauncherWindow final : public QMainWindow {
 
     /** @brief 現在設定に応じたライトまたはダークテーマを適用する */
     void applyTheme();
+
+    /**
+     * @brief アカウントと設定のボタンをheader行へ追加する
+     * @param page ボタンの親page
+     * @param row ボタンを追加するheader行
+     */
+    void addHeaderActions(QWidget* page, QBoxLayout* row);
+
+    /**
+     * @brief 英字ラベル、見出し、補足文、header操作を持つpage headerを作る
+     * @param page headerの親page
+     * @param eyebrow 見出し上に置く英字ラベル
+     * @param title page見出し
+     * @param hint 見出し下の補足文。空なら表示しない
+     * @return pageのlayoutへ追加するheader layout
+     */
+    QLayout* createPageHeader(QWidget* page, const QString& eyebrow, const QString& title,
+                              const QString& hint = {});
 
     /** @brief 未所持ゲームを紹介するトップページを構築する */
     QWidget* createHomePage();
@@ -121,7 +145,7 @@ class LauncherWindow final : public QMainWindow {
     QLabel* homeEmpty_{nullptr};
     AspectRatioPixmapLabel* homePreviewImage_{nullptr};
     QLabel* homePreviewTitle_{nullptr};
-    QLabel* homePreviewSummary_{nullptr};
+    ClampedTextLabel* homePreviewSummary_{nullptr};
     QLabel* discoverEmpty_{nullptr};
     QLabel* libraryEmpty_{nullptr};
     QPushButton* homeButton_{nullptr};
@@ -139,6 +163,8 @@ class LauncherWindow final : public QMainWindow {
     QProgressBar* progressBar_{nullptr};
     QLabel* transferLabel_{nullptr};
     QSystemTrayIcon* trayIcon_{nullptr};
+    /** @brief theme変更時に塗り直す単色アイコンの持ち主（buttonまたはaction）とSVG path */
+    std::vector<std::pair<QObject*, QString>> themedIconButtons_;
     GameDetailPage* detailPage_{nullptr};
     Live2DAssetCatalog live2dAssets_;
     VrmAssetCatalog vrmAssets_;
