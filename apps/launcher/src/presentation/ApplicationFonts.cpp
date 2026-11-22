@@ -10,7 +10,8 @@ namespace pandd {
 /**
  * @brief 同梱フォントを登録してアプリケーション既定フォントへ設定する
  * @param application 既定フォントを設定するアプリケーション
- * @return 戻り値なし。登録できないフォントは警告を記録し、OS既定フォントのまま続行する
+ * @note 戻り値なし
+ * @note フォントを登録できない場合は警告を記録する
  */
 void installApplicationFonts(QApplication& application) {
     // 本文用と英数アクセント用の可変フォントを登録する
