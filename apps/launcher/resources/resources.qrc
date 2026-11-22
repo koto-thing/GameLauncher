@@ -2,7 +2,13 @@
     <qresource prefix="/">
         <file>images/launcher_background_placeholder.png</file>
         <file>images/placeholder_100x100.png</file>
-        <file>images/settings.svg</file>
+        <file>icons/home.svg</file>
+        <file>icons/search.svg</file>
+        <file>icons/library.svg</file>
+        <file>icons/back.svg</file>
+        <file>icons/settings.svg</file>
+        <file>fonts/MPLUS2-Variable.ttf</file>
+        <file>fonts/Saira-Variable.ttf</file>
         <file alias="images/PandDLogo.png">../../../assets/images/PandDLogo.png</file>
         <file alias="i18n/locales.json">../translations/locales.json</file>
         <file alias="legal/THIRD_PARTY_NOTICES.md">../../../THIRD_PARTY_NOTICES.md</file>

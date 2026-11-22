@@ -251,6 +251,26 @@ class InstallerBuildTests(unittest.TestCase):
         self.assertIn('"iconPath=@TargetDir@/bin/PandD Game Launcher.exe"', script)
         self.assertNotIn('"@StartMenuDir@/PandD Game Launcher.lnk"', script)
 
+    def test_windows_installs_and_updates_through_pandd_setup(self) -> None:
+        """Windows の新規インストールと更新は、どちらも PandD Setup の画面を通す"""
+        root = Path(__file__).resolve().parents[3]
+        cmake = (root / "CMakeLists.txt").read_text(encoding="utf-8")
+        build_script = (Path(__file__).resolve().parent / "build.py").read_text(encoding="utf-8")
+        platform = (root / "apps/launcher/src/infrastructure/PlatformServices.cpp").read_text(
+            encoding="utf-8")
+
+        # 配布物には更新専用の PandD Setup をランチャーの隣に置く
+        self.assertIn('DESTINATION bin RENAME "PandD Setup.exe"', cmake)
+        self.assertIn("--unset=PANDD_IFW_INSTALLER", cmake)
+
+        # 公開用 installer は IFW を埋め込んだ PandD Setup に置き換える
+        self.assertIn('environment["PANDD_IFW_INSTALLER"]', build_script)
+        self.assertIn('"PandD-Game-Launcher-IFW-Installer.exe"', build_script)
+
+        # ランチャーの更新は PandD Setup の更新モードを起動する
+        self.assertIn('"--update", "--root"', platform)
+        self.assertIn('"--wait-pid"', platform)
+
 
 if __name__ == "__main__":
     unittest.main()

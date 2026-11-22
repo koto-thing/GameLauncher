@@ -945,6 +945,9 @@ void LauncherIntegrationTests::resolvesMaintenanceToolFromInstalledLayout() {
     QVERIFY(QDir().mkpath(applicationDirectory));
     QCOMPARE(MaintenanceToolService::executablePathForApplicationDirectory(applicationDirectory),
              expected);
+    QCOMPARE(
+        MaintenanceToolService::setupExecutablePathForApplicationDirectory(applicationDirectory),
+        QDir(applicationDirectory).filePath("PandD Setup.exe"));
 }
 
 void LauncherIntegrationTests::checksAndAppliesLauncherUpdate() {

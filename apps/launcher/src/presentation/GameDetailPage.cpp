@@ -3,14 +3,48 @@
 #include "presentation/Live2DBackgroundWidget.h"
 #include "presentation/vrm/VrmBackgroundWidget.h"
 
+#include <QLinearGradient>
+#include <QPainter>
 #include <QResizeEvent>
 
 namespace pandd {
+namespace {
+
+/** @brief 背景の上で白文字を読めるよう左下を暗くする操作領域 */
+class ScrimWidget final : public QWidget {
+  public:
+    using QWidget::QWidget;
+
+  protected:
+    /**
+     * @brief 左から右、下から上へ薄れる暗幕を描画する
+     * @param event 再描画要求
+     */
+    void paintEvent(QPaintEvent* event) override {
+        Q_UNUSED(event)
+        QPainter painter(this);
+
+        // 見出しと説明文が載る左側を暗くする
+        QLinearGradient horizontal(0, 0, width(), 0);
+        horizontal.setColorAt(0.0, QColor(20, 20, 20, 220));
+        horizontal.setColorAt(0.45, QColor(20, 20, 20, 130));
+        horizontal.setColorAt(0.75, QColor(20, 20, 20, 0));
+        painter.fillRect(rect(), horizontal);
+
+        // 進捗と主操作が載る下端を暗くする
+        QLinearGradient vertical(0, height(), 0, 0);
+        vertical.setColorAt(0.0, QColor(20, 20, 20, 230));
+        vertical.setColorAt(0.45, QColor(20, 20, 20, 0));
+        painter.fillRect(rect(), vertical);
+    }
+};
+
+} // namespace
 
 /** @brief 合成背景の上へゲーム詳細操作を重ねる */
 GameDetailPage::GameDetailPage(QWidget* parent)
     : QWidget(parent), background_(new Live2DBackgroundWidget(this)),
-      vrmBackground_(new VrmBackgroundWidget(this)), content_(new QWidget(this)) {
+      vrmBackground_(new VrmBackgroundWidget(this)), content_(new ScrimWidget(this)) {
     // 背景を操作領域より下へ固定してmouse入力を通常部品へ渡す
     background_->lower();
     vrmBackground_->hide();

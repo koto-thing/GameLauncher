@@ -259,17 +259,42 @@ OperationResult MaintenanceToolService::check() {
     return OperationResult::success();
 }
 
-/** @brief Maintenance Toolへ更新適用を委譲する */
+/**
+ * @brief ランチャー終了後も動く独立processとして更新を始める
+ *
+ * Windowsでは更新画面のPandD SetupがMaintenance Toolを画面なしで実行し、
+ * それ以外のOSではMaintenance Toolの更新画面を開く
+ *
+ * @return 更新processを起動できたら成功
+ */
 OperationResult MaintenanceToolService::apply() {
-    // Launcher終了後も継続できる独立processとしてupdaterを起動
-    const auto executable = executablePath();
-    if (!QFileInfo::exists(executable) ||
-        !QProcess::startDetached(executable, {"--start-updater"},
-                                 QFileInfo(executable).absolutePath())) {
+    const auto tool = executablePath();
+    const auto root = QFileInfo(tool).absolutePath();
+#if defined(Q_OS_WIN)
+    // ランチャーの終了を待ってから更新するよう自分のprocess IDを渡す
+    const auto program =
+        setupExecutablePathForApplicationDirectory(QCoreApplication::applicationDirPath());
+    const QStringList arguments{"--update", "--root", QDir::toNativeSeparators(root), "--wait-pid",
+                                QString::number(QCoreApplication::applicationPid())};
+#else
+    const auto program = tool;
+    const QStringList arguments{"--start-updater"};
+#endif
+    if (!QFileInfo::exists(program) || !QProcess::startDetached(program, arguments, root)) {
         return platformFailure(ErrorCode::LauncherUpdateFailed, "更新ツールを起動できません",
-                               executable);
+                               program);
     }
     return OperationResult::success();
+}
+
+/**
+ * @brief Application directoryから更新画面PandD Setupのpathを返す
+ * @param applicationDirectory ランチャー本体があるdirectory
+ * @return ランチャー本体と同じdirectoryにあるPandD Setup.exeのpath
+ */
+QString MaintenanceToolService::setupExecutablePathForApplicationDirectory(
+    const QString& applicationDirectory) {
+    return QDir(applicationDirectory).filePath("PandD Setup.exe");
 }
 
 /** @brief Application配置からMaintenance Toolの実行pathを解決する */

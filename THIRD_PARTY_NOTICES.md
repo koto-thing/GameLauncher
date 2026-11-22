@@ -19,6 +19,14 @@ generated SBOM is the authoritative version inventory for each platform release.
 - Live2D Cubism Framework: Live2D Open Software License Agreement
 - GLEW 2.3.1: the complete GLEW, Mesa, and Khronos notices in
   `licenses/GLEW-LICENSE.txt`, represented as `LicenseRef-GLEW` in the SBOM
+- M PLUS 2 font (variable, from google/fonts): OFL-1.1, `licenses/MPLUS2-OFL.txt`
+- Saira font (variable, from google/fonts): OFL-1.1, `licenses/Saira-OFL.txt`
+- Windows PandD Setup (installer and updater front end): bundles static Medium and
+  ExtraBold instances of M PLUS 2 and the Press Start 2P font (OFL-1.1,
+  `licenses/PressStart2P-OFL.txt`), and links egui/eframe and their Rust
+  dependencies (MIT or Apache-2.0); the SBOM lists the locked crates. The navigator
+  portraits in `apps/setup/assets/navi` are rendered from the project's own VRM model,
+  whose author permits this use
 
 The GLEW text is an exact copy of vcpkg 2.3.1's installed
 `share/glew/copyright`, reviewed locally at

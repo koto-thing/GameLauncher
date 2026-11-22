@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.4.0",
+      "title": "Redesigned launcher and Windows setup",
+      "publishedAt": "2026-11-22T00:00:00+09:00",
+      "changes": [
+        "Redesigned game cards and navigation across Home, Discover, and Library",
+        "Improved text contrast and download progress visibility on game detail pages",
+        "Added a Windows setup interface for new installations and launcher updates, with switchable Navigator and Arcade themes"
+      ]
+    },
+    {
       "version": "1.3.0",
       "title": "Improved downloads and installation",
       "publishedAt": "2026-10-25T00:00:00+09:00",

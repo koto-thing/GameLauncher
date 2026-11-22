@@ -13,10 +13,25 @@ from typing import Any
 from scripts.release import collect_licenses
 
 
-def launcher_rust_packages(project_root: Path) -> list[dict[str, Any]]:
-    """Inventory the launcher's locked Rust dependency closure, including build dependencies"""
+def launcher_rust_packages(project_root: Path, system_name: str) -> list[dict[str, Any]]:
+    """配布物に含まれる Rust crate の依存閉包を Cargo.lock から列挙する
+
+    Windows では更新とインストールの画面 PandD Setup も配布物に含める
+
+    Args:
+        project_root: Cargo.lock があるリポジトリのルート
+        system_name: CMake が記録した build 対象の OS 名
+
+    Returns:
+        crates.io から取得する crate の SPDX package 一覧
+
+    Raises:
+        ValueError: Cargo.lock の依存を一意に解決できない場合
+    """
     lock = tomllib.loads((project_root / "Cargo.lock").read_text(encoding="utf-8"))
     pending = ["pandd-launcher-rust"]
+    if system_name == "Windows":
+        pending.append("pandd-setup")
     visited: set[tuple[str, str]] = set()
     result = []
     while pending:
@@ -189,7 +204,7 @@ def generate_document(metadata: dict[str, Any], version: str,
             "relatedSpdxElement": package_id,
         })
 
-    for package in launcher_rust_packages(project_root):
+    for package in launcher_rust_packages(project_root, metadata["systemName"]):
         packages.append(package)
         relationships.append({
             "spdxElementId": "SPDXRef-Package-Launcher",

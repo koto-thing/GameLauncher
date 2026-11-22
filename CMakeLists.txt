@@ -4,7 +4,7 @@ if(CMAKE_HOST_WIN32)
     list(APPEND VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/triplets")
 endif()
 
-project(PandDGameLauncher VERSION 1.3.0 LANGUAGES CXX)
+project(PandDGameLauncher VERSION 1.4.0 LANGUAGES CXX)
 
 option(PANDD_DOCS_ONLY "Configure only the Launcher Doxygen target" OFF)
 
@@ -282,6 +282,8 @@ qt_add_executable(GameLauncher WIN32 MACOSX_BUNDLE
     apps/launcher/src/presentation/LocalizationManager.h
     apps/launcher/src/presentation/LauncherWindow.cpp
     apps/launcher/src/presentation/LauncherWindow.h
+    apps/launcher/src/presentation/ApplicationFonts.cpp
+    apps/launcher/src/presentation/ApplicationFonts.h
     apps/launcher/resources/resources.qrc
     apps/launcher/resources/windows/GameLauncher.rc
 )
@@ -322,6 +324,29 @@ if(WIN32)
     )
     target_compile_definitions(PandDUninstaller PRIVATE UNICODE _UNICODE)
     install(TARGETS PandDUninstaller RUNTIME DESTINATION .)
+
+    # ランチャー更新の画面。配布物にはIFW installerを埋め込まない更新専用版を置く
+    set(_pandd_setup_directory "${CMAKE_BINARY_DIR}/setup")
+    set(_pandd_setup_executable "${_pandd_setup_directory}/release/pandd-setup.exe")
+    file(GLOB_RECURSE _pandd_setup_sources CONFIGURE_DEPENDS
+        "${CMAKE_SOURCE_DIR}/apps/setup/src/*.rs"
+        "${CMAKE_SOURCE_DIR}/apps/setup/assets/*")
+    add_custom_command(
+        OUTPUT "${_pandd_setup_executable}"
+        COMMAND "${CMAKE_COMMAND}" -E env --unset=PANDD_IFW_INSTALLER
+            "${PANDD_CARGO_EXECUTABLE}" build --locked --release -p pandd-setup
+            --target-dir "${_pandd_setup_directory}"
+        DEPENDS ${_pandd_setup_sources}
+            "${CMAKE_SOURCE_DIR}/apps/setup/Cargo.toml"
+            "${CMAKE_SOURCE_DIR}/apps/setup/build.rs"
+            "${CMAKE_SOURCE_DIR}/Cargo.toml" "${CMAKE_SOURCE_DIR}/Cargo.lock"
+            "${CMAKE_SOURCE_DIR}/rust-toolchain.toml"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Building the PandD Setup updater"
+        VERBATIM
+    )
+    add_custom_target(pandd_setup ALL DEPENDS "${_pandd_setup_executable}")
+    install(PROGRAMS "${_pandd_setup_executable}" DESTINATION bin RENAME "PandD Setup.exe")
 
     install(IMPORTED_RUNTIME_ARTIFACTS GLEW::GLEW DESTINATION bin)
     install(FILES "${OPENSSL_CRYPTO_RUNTIME_DEBUG}" DESTINATION bin CONFIGURATIONS Debug)

@@ -1,6 +1,7 @@
 #include "bootstrap/AppContainer.h"
 #include "infrastructure/FileLogger.h"
 #include "infrastructure/QtRepositories.h"
+#include "presentation/ApplicationFonts.h"
 #include "presentation/LauncherViewModel.h"
 #include "presentation/LauncherWindow.h"
 #include "presentation/LocalizationManager.h"
@@ -38,6 +39,7 @@ int main(int argc, char* argv[]) {
         return 3;
     }
     pandd::FileLogger::install();
+    pandd::installApplicationFonts(application);
 
     // 保存済み言語をwindow構築前に適用
     pandd::JsonStateRepository initialState;

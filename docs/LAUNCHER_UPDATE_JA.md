@@ -3,22 +3,17 @@
 この文書は、インストール済みランチャーをQt Maintenance Tool経由で新しい
 バージョンへ更新するための手順です。
 
-## 今回のリリース準備: 1.3.0
+## v1.4.0 のリリース準備
 
-Rust化したゲームのダウンロード・検証・インストール処理を配布する通常更新です。
-更新は任意（`mandatory: false`）で、利用者によるRustのインストールは不要です。
-日英のリリース情報・更新履歴とCMakeを `1.3.0` に揃えています。
-`publishedAt` は2026年10月25日（日本時間）の予定日です。公開日が変わる場合は、
-日英のリリース情報と新しい更新履歴の4か所を同時に更新してください。
+ランチャーのゲーム一覧と詳細画面を刷新し、Windows の新規インストールと更新に PandD Setup を導入します。
+今回の更新は任意です。日英のリリース情報と更新履歴には日本時間の2026年11月22日を設定しています。
 
-公開前の順序:
-
-1. Rust移行とこのリリース準備を含むPR #114のCIを確認してmasterへマージする
-2. `python -m scripts.release.validate_release_version v1.3.0` が成功することを確認する
-3. **Publish Windows staging** をマージ後のmasterで実行し、`version` に `1.3.0` を指定する
-4. 1.2.0からMaintenance Toolで更新し、設定・既存ゲーム・セーブデータの保持を確認する
-5. ダウンロードの途中再開、速度制限、一時停止・キャンセル、ゲーム起動と修復を確認する
-6. WindowsとLinuxの配布ビルド・公開前確認を満たしたmasterに `v1.3.0` タグを付けてpushする
+1. UI とセットアップの変更を含む PR の CI を確認し、master へマージする
+2. `python -m scripts.release.validate_release_version v1.4.0` でバージョンを検証する
+3. マージ後の master で **Publish Windows staging** を実行し、`version` に `1.4.0` を指定する
+4. Windows で新規インストールと 1.3.0 からの更新を試し、既存の設定・ゲーム・セーブデータの保持を確認する
+5. ランチャーでゲームの検索・起動とプレイ統計を確認し、PandD Setup の両テーマで進捗表示を確認する
+6. Windows と Linux の配布ビルド・公開前確認を終えた master に `v1.4.0` タグを付けて push する
 
 タグpushは **Publish desktop production** を開始し、本番配布物と更新情報を公開します。
 準備段階ではタグ作成、staging実行、本番公開を行いません。

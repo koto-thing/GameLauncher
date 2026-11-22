@@ -66,6 +66,14 @@ class MaintenanceToolService final : public ILauncherUpdateService {
     [[nodiscard]] static QString
     executablePathForApplicationDirectory(const QString& applicationDirectory);
 
+    /**
+     * @brief Application directoryから更新画面PandD Setupのpathを返す
+     * @param applicationDirectory ランチャー本体があるdirectory
+     * @return ランチャー本体と同じdirectoryにあるPandD Setup.exeのpath
+     */
+    [[nodiscard]] static QString
+    setupExecutablePathForApplicationDirectory(const QString& applicationDirectory);
+
   private:
     /** @brief OS別Maintenance Tool実行パスを返す */
     [[nodiscard]] static QString executablePath();

@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ランチャー外観改善案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+2:wght@400;500;700;800&family=Saira:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* 既存パレット（LauncherWindow::applyTheme）をそのまま使い、提案ページ自体も同じ暗色世界に置く
+   layout: 上に比較モック、下にフォント案と改善点の一覧 */
+:root {
+  color-scheme: dark;
+  --bg: #17181c;
+  --surface: #24262c;
+  --text: #f4f4f5;
+  --muted: #a9abb3;
+  --border: #3a3d45;
+  --hover: #34272c;
+  --selected: #3d242a;
+  --accent: #e60012;
+  --accent-hover: #c90010;
+  --display: "Saira", "M PLUS 2", sans-serif;
+  --body: "M PLUS 2", "Yu Gothic UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 48px 24px 96px; display: grid; gap: 64px; }
+header.top { display: grid; gap: 12px; max-width: 760px; }
+.eyebrow {
+  font-family: var(--display); font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+  font-size: 12px; color: var(--accent);
+}
+h1 { font-size: 40px; line-height: 1.25; margin: 0; font-weight: 800; text-wrap: balance; }
+h2 { font-size: 24px; margin: 0; font-weight: 700; text-wrap: balance; }
+h3 { font-size: 17px; margin: 0; font-weight: 700; }
+p { margin: 0; }
+.lead { color: var(--muted); font-size: 16px; max-width: 65ch; }
+section { display: grid; gap: 20px; }
+.section-head { display: grid; gap: 6px; }
+.section-head p { color: var(--muted); max-width: 65ch; }
+
+/* ---------- 操作バー ---------- */
+.controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg-label { font-size: 12px; color: var(--muted); margin-right: 6px; }
+.seg button {
+  font: inherit; font-size: 13px; font-weight: 500; color: var(--muted); background: transparent;
+  border: 0; border-radius: 7px; padding: 6px 12px; cursor: pointer;
+}
+.seg button:hover { color: var(--text); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.seg button:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ctl { display: inline-flex; align-items: center; }
+
+/* ---------- モック外枠 ---------- */
+.stage {
+  border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: #0e0f12;
+  position: relative;
+}
+.stage-bar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #1d1e23;
+  border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted);
+}
+.stage-bar .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+.stage-bar .state { margin-left: auto; font-family: var(--display); letter-spacing: .08em; }
+.stage-bar .state b { color: var(--accent); font-weight: 600; }
+.viewport { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; }
+.scaler { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; }
+
+/* =====================================================================
+   ランチャー本体モック（1280x720 実寸）
+   ===================================================================== */
+.app {
+  --a-bg: #17181c; --a-surface: #24262c; --a-text: #f4f4f5; --a-muted: #a9abb3;
+  --a-border: #3a3d45; --a-hover: #34272c; --a-selected: #3d242a;
+  --a-accent: #e60012; --a-accent-hover: #c90010;
+  --f-body: "M PLUS 2", sans-serif; --f-display: "Saira", "M PLUS 2", sans-serif;
+  width: 1280px; height: 720px; display: flex; background: var(--a-bg); color: var(--a-text);
+  font-family: var(--f-body); font-size: 14px; line-height: 1.5; overflow: hidden;
+}
+.app.light {
+  --a-bg: #f5f5f5; --a-surface: #ffffff; --a-text: #242424; --a-muted: #676767;
+  --a-border: #d7d7d7; --a-hover: #fff7f8; --a-selected: #fff4f5;
+}
+.app[data-font="b"] { --f-body: "Zen Kaku Gothic New", sans-serif; --f-display: "Barlow Semi Condensed", "Zen Kaku Gothic New", sans-serif; }
+.app[data-font="c"] { --f-body: "IBM Plex Sans JP", sans-serif; --f-display: "IBM Plex Mono", "IBM Plex Sans JP", monospace; }
+
+/* サイドバー */
+.sb { width: 190px; flex: none; background: var(--a-surface); border-right: 1px solid var(--a-border); display: flex; flex-direction: column; padding: 18px 12px 16px; gap: 4px; }
+.logo { height: 64px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
+.logo span { font-family: var(--f-display); font-weight: 700; font-size: 30px; letter-spacing: .02em; }
+.logo span i { font-style: normal; color: var(--a-accent); }
+.nav { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 14px; border-radius: 10px; color: var(--a-muted); font-weight: 500; font-size: 15px; position: relative; }
+.nav svg { width: 20px; height: 20px; flex: none; }
+.nav.on { background: var(--a-selected); color: var(--a-text); font-weight: 700; }
+.nav.on::before { content: ""; position: absolute; left: -12px; top: 10px; bottom: 10px; width: 4px; border-radius: 0 3px 3px 0; background: var(--a-accent); }
+.nav.on svg { color: var(--a-accent); }
+.sb .grow { flex: 1; }
+.sb .divider { height: 1px; background: var(--a-border); margin: 8px 4px; }
+.sb .ver { font-family: var(--f-display); font-size: 11px; color: var(--a-muted); padding: 6px 14px 0; letter-spacing: .06em; }
+
+/* メイン */
+.main { flex: 1; position: relative; display: flex; flex-direction: column; padding: 28px 40px 28px; gap: 20px; min-width: 0; }
+.hdr { display: flex; align-items: center; gap: 12px; }
+.hdr .t { display: grid; gap: 2px; margin-right: auto; }
+.hdr .ey { font-family: var(--f-display); font-weight: 600; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--a-accent); }
+.hdr h4 { margin: 0; font-size: 28px; font-weight: 800; line-height: 1.2; letter-spacing: .01em; }
+.app[data-font="c"] .hdr h4 { font-weight: 700; }
+.icon-btn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--a-surface); border: 1px solid var(--a-border); color: var(--a-muted); }
+.icon-btn svg { width: 18px; height: 18px; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #3a3d45, #24262c); border: 2px solid var(--a-border); display: grid; place-items: center; font-family: var(--f-display); font-weight: 700; color: var(--a-muted); font-size: 14px; }
+
+/* ホーム：ヒーロー */
+.hero { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; flex: 1; min-height: 0; }
+.hero-art { position: relative; border-radius: 14px; overflow: hidden; }
+.hero-art .art { position: absolute; inset: 0; }
+.hero-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,.72) 100%); }
+.hero-art .cap { position: absolute; left: 24px; bottom: 20px; right: 24px; z-index: 1; color: #fff; display: grid; gap: 6px; }
+.badge { justify-self: start; font-family: var(--f-display); font-weight: 700; font-size: 11px; letter-spacing: .14em; padding: 3px 9px; border-radius: 4px; background: var(--a-accent); color: #fff; }
+.hero-art .cap b { font-size: 30px; font-weight: 800; line-height: 1.2; text-shadow: 0 2px 12px rgba(0,0,0,.5); }
+.info { background: var(--a-surface); border: 1px solid var(--a-border); border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+.info .gt { font-size: 22px; font-weight: 800; line-height: 1.3; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--a-border); color: var(--a-muted); }
+.info .sum { color: var(--a-muted); font-size: 14px; line-height: 1.75; flex: 1; }
+.meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 12px; color: var(--a-muted); }
+.meta dd { margin: 0; color: var(--a-text); font-family: var(--f-display); font-weight: 600; font-variant-numeric: tabular-nums; }
+.meta dt { margin: 0; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 44px; padding: 0 22px; border-radius: 10px; font-weight: 700; font-size: 15px; border: 1px solid var(--a-border); background: var(--a-surface); color: var(--a-text); }
+.btn.pri { background: var(--a-accent); border-color: var(--a-accent); color: #fff; }
+.btn svg { width: 18px; height: 18px; }
+
+/* カード列 */
+.row-head { display: flex; align-items: baseline; gap: 12px; }
+.row-head h5 { margin: 0; font-size: 17px; font-weight: 700; }
+.row-head span { font-size: 12px; color: var(--a-muted); font-family: var(--f-display); letter-spacing: .06em; }
+.cards { display: flex; gap: 14px; }
+.cards.grid { flex-wrap: wrap; gap: 18px 14px; }
+.card { width: 196px; flex: none; display: grid; gap: 8px; }
+.card .th { position: relative; height: 110px; border-radius: 10px; overflow: hidden; outline: 1px solid var(--a-border); outline-offset: -1px; }
+.card .th .art { position: absolute; inset: 0; }
+.card.hot .th { outline: 3px solid var(--a-accent); outline-offset: -3px; }
+.card .nm { font-size: 13px; font-weight: 700; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .sub { font-size: 11px; color: var(--a-muted); margin-top: -6px; }
+.card .own { position: absolute; top: 8px; right: 8px; font-family: var(--f-display); font-size: 10px; font-weight: 700; letter-spacing: .1em; padding: 2px 7px; border-radius: 4px; background: rgba(0,0,0,.6); color: #fff; }
+
+/* さがす */
+.search { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 18px; border-radius: 12px; background: var(--a-surface); border: 2px solid var(--a-accent); color: var(--a-muted); font-size: 15px; }
+.search svg { width: 18px; height: 18px; color: var(--a-text); }
+.search .caret { width: 2px; height: 20px; background: var(--a-accent); margin-left: -8px; }
+.search kbd { margin-left: auto; font-family: var(--f-display); font-size: 11px; border: 1px solid var(--a-border); border-radius: 5px; padding: 1px 7px; color: var(--a-muted); }
+
+/* 詳細 */
+.detail { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 28px 44px 32px; gap: 14px; color: #fff; }
+.detail .bg { position: absolute; inset: 0; }
+.detail .scrim { position: absolute; inset: 0; background:
+  linear-gradient(90deg, rgba(10,10,14,.88) 0%, rgba(10,10,14,.55) 45%, rgba(10,10,14,0) 75%),
+  linear-gradient(0deg, rgba(10,10,14,.9) 0%, rgba(10,10,14,0) 45%); }
+.detail > *:not(.bg):not(.scrim) { position: relative; }
+.detail .bar { display: flex; align-items: center; gap: 10px; }
+.ghost { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 10px; background: rgba(23,24,28,.55); border: 1px solid rgba(255,255,255,.14); font-weight: 600; font-size: 14px; color: #fff; }
+.ghost svg { width: 16px; height: 16px; }
+.detail .icon-btn { background: rgba(23,24,28,.55); border-color: rgba(255,255,255,.14); color: #fff; }
+.detail .spacer { flex: 1; }
+.detail .ttl { font-size: 46px; font-weight: 800; line-height: 1.15; text-shadow: 0 2px 18px rgba(0,0,0,.55); max-width: 760px; }
+.detail .ds { max-width: 600px; color: #d5dce8; font-size: 15px; line-height: 1.75; }
+.news { display: flex; gap: 10px; max-width: 760px; }
+.news div { flex: 1; background: rgba(23,24,28,.62); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 10px 14px; display: grid; gap: 2px; }
+.news small { font-family: var(--f-display); font-size: 11px; color: #b8c2d1; letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+.news span { font-size: 13px; font-weight: 600; }
+.act { display: flex; align-items: flex-end; gap: 24px; }
+.prog { flex: 1; display: grid; gap: 8px; max-width: 760px; }
+.prog .track { height: 6px; border-radius: 3px; background: rgba(255,255,255,.16); overflow: hidden; }
+.prog .fill { height: 100%; width: 62%; background: var(--a-accent); border-radius: 3px; }
+.prog .lbl { display: flex; justify-content: space-between; font-family: var(--f-display); font-size: 12px; color: #b8c2d1; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.prog .lbl b { color: #fff; font-weight: 600; }
+.big { height: 56px; min-width: 260px; font-size: 18px; border-radius: 12px; box-shadow: 0 8px 28px rgba(230,0,18,.35); }
+.big .k { font-family: var(--f-display); letter-spacing: .1em; }
+.locate { align-self: flex-end; font-size: 13px; color: #c9d7ea; }
+.locate u { text-underline-offset: 3px; }
+
+/* ---------------------------------------------------------------
+   現状再現モード：既存QSSの値をそのまま当て、フォントは未指定（OS既定）
+   --------------------------------------------------------------- */
+.app.before { --f-body: "MS UI Gothic", "Yu Gothic UI", "Meiryo UI", sans-serif; --f-display: var(--f-body); letter-spacing: 0; }
+.before .sb { padding: 4px 8px 16px; gap: 8px; }
+.before .logo { height: 76px; margin: 0; }
+.before .logo span { font-family: var(--f-body); font-weight: 700; font-size: 28px; }
+.before .nav { color: var(--a-text); font-weight: 600; font-size: 13px; height: auto; padding: 12px; border-radius: 8px; }
+.before .nav svg, .before .sb .divider, .before .sb .ver, .before .hdr .ey, .before .tags, .before .meta, .before .card .sub, .before .card .own, .before .row-head, .before .search svg, .before .search kbd, .before .hero-art::after, .before .hero-art .cap, .before .news small, .before .detail .scrim { display: none; }
+.before .nav.on { background: transparent; font-weight: 600; }
+.before .nav.on::before { left: -8px; top: 8px; bottom: 8px; width: 4px; border-radius: 2px; }
+.before .nav.lib { border: 1px solid var(--a-border); background: var(--a-surface); min-height: 38px; }
+.before .hdr h4 { font-size: 30px; font-weight: 700; letter-spacing: 0; }
+.before .main { padding: 32px 42px; gap: 8px; }
+.before .hdr .t { gap: 4px; }
+.before .hdr .t .hint { display: block; }
+.hint { display: none; color: var(--a-muted); font-size: 14px; }
+.before .hint { display: block; }
+.before .avatar { background: transparent; border: 0; color: transparent; }
+.before .icon-btn { border-radius: 8px; width: 44px; height: 44px; }
+.before .hero { gap: 24px; margin-top: 8px; }
+.before .hero-art { border-radius: 12px; border: 1px solid var(--a-border); }
+.before .info { border-radius: 12px; padding: 28px; gap: 16px; }
+.before .info .gt { font-size: 28px; font-weight: 700; }
+.before .info .sum { font-size: 15px; line-height: 1.5; }
+.before .info .btn { display: none; }
+.before .cards { gap: 10px; align-self: center; margin: auto 0; }
+.before .card { width: 190px; gap: 0; }
+.before .card .th { height: 107px; border-radius: 8px; }
+.before .card .nm { position: absolute; left: 0; right: 0; bottom: 0; height: 27px; line-height: 27px; text-align: center; background: rgba(0,0,0,.67); color: #fff; font-weight: 400; font-size: 12px; padding: 0 8px; z-index: 1; }
+.before .card { position: relative; }
+.before .search { border-radius: 22px; padding: 10px 18px; height: auto; font-size: 16px; border-color: var(--a-accent); }
+.before .grid-title { font-size: 20px; font-weight: 700; }
+.grid-title { display: none; }
+.before .grid-title { display: block; margin-top: 4px; }
+.before .detail { padding: 30px 46px 34px; }
+.before .ghost { background: var(--a-surface); border-color: var(--a-border); color: var(--a-text); border-radius: 8px; font-size: 13px; }
+.before .detail .icon-btn { background: var(--a-surface); border-color: var(--a-border); color: var(--a-muted); }
+.before .detail .ttl { font-size: 36px; font-weight: 700; text-shadow: none; }
+.before .news { flex-direction: column; gap: 0; background: var(--a-surface); border: 1px solid var(--a-border); border-radius: 10px; }
+.before .news div { background: transparent; border: 0; border-radius: 0; padding: 8px 12px; }
+.before .news span { font-weight: 400; color: var(--a-text); }
+.before .prog .track { height: 18px; border-radius: 5px; background: var(--a-border); }
+.before .prog .fill { border-radius: 5px; }
+.before .big { box-shadow: none; border-radius: 8px; height: 38px; font-size: 18px; }
+.before .big svg { display: none; }
+.before .big .k { font-family: var(--f-body); letter-spacing: 0; }
+.before .prog .lbl b { font-weight: 400; }
+
+/* ---------- 下段：フォント案 ---------- */
+.fonts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.fcard { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; display: grid; gap: 14px; align-content: start; position: relative; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.fcard:hover { border-color: #55303a; background: #282229; }
+.fcard[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.fcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.fcard .rec { position: absolute; top: 18px; right: 18px; font-family: var(--display); font-size: 11px; font-weight: 700; letter-spacing: .12em; background: var(--accent); color: #fff; border-radius: 4px; padding: 2px 8px; }
+.fcard .lab { font-family: var(--display); font-weight: 600; font-size: 12px; letter-spacing: .14em; color: var(--muted); }
+.spec-big { font-size: 30px; font-weight: 800; line-height: 1.25; }
+.spec-latin { font-size: 22px; letter-spacing: .06em; }
+.spec-body { font-size: 14px; color: var(--muted); line-height: 1.8; }
+.fnames { font-size: 13px; display: grid; gap: 2px; border-top: 1px solid var(--border); padding-top: 12px; }
+.fnames b { font-weight: 700; }
+.fnames span { color: var(--muted); }
+.fcard ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+.f-a .spec-big, .f-a .spec-body { font-family: "M PLUS 2", sans-serif; } .f-a .spec-latin { font-family: "Saira", sans-serif; font-weight: 600; }
+.f-b .spec-big, .f-b .spec-body { font-family: "Zen Kaku Gothic New", sans-serif; } .f-b .spec-big { font-weight: 900; } .f-b .spec-latin { font-family: "Barlow Semi Condensed", sans-serif; font-weight: 600; }
+.f-c .spec-big, .f-c .spec-body { font-family: "IBM Plex Sans JP", sans-serif; } .f-c .spec-big { font-weight: 700; } .f-c .spec-latin { font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 19px; }
+
+/* ---------- 改善点 ---------- */
+.points { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 40px; counter-reset: p; }
+.pt { display: grid; grid-template-columns: 40px 1fr; gap: 4px 14px; padding: 18px 0; border-top: 1px solid var(--border); }
+.pt::before { counter-increment: p; content: counter(p, decimal-leading-zero); font-family: var(--display); font-weight: 700; font-size: 20px; color: var(--accent); grid-row: span 3; line-height: 1.3; }
+.pt p { color: var(--muted); font-size: 14px; }
+.how { font-size: 12px; font-family: var(--display); letter-spacing: .04em; color: var(--muted); }
+.how b { color: var(--text); font-weight: 600; }
+
+.palette { display: flex; flex-wrap: wrap; gap: 10px; }
+.sw { display: grid; gap: 4px; font-size: 12px; color: var(--muted); width: 104px; }
+.sw i { display: block; height: 40px; border-radius: 8px; border: 1px solid var(--border); }
+.sw code { font-family: "IBM Plex Mono", monospace; color: var(--text); font-size: 12px; }
+
+.impl { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; display: grid; gap: 14px; }
+.impl ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--muted); font-size: 14px; max-width: 80ch; }
+.impl ol b { color: var(--text); }
+.impl code { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--text); background: #1b1c20; border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; }
+
+@media (max-width: 900px) {
+  .fonts { grid-template-columns: 1fr; }
+  .points { grid-template-columns: 1fr; }
+  h1 { font-size: 30px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .scaler .app { transition: background-color .2s; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="eyebrow">PandD Game Launcher · Visual Refresh</div>
+    <h1>ランチャー外観の改善案</h1>
+    <p class="lead">配色は現行の <code style="font-family:'IBM Plex Mono',monospace">applyTheme()</code> の値をそのまま使い、フォントを同梱して全体の文字組みを作り直す案。下のモックで「現状」と「改善案」を切り替えて比較できる。どの改善もQtのスタイルシートと <code style="font-family:'IBM Plex Mono',monospace">QPainter</code> の範囲で実装できるものに絞っている。</p>
+  </header>
+
+  <section>
+    <div class="section-head">
+      <div class="eyebrow">01 · Compare</div>
+      <h2>画面モック</h2>
+      <p>1280×720（ランチャーの既定ウィンドウサイズ）で描いたものを縮小表示している。</p>
+    </div>
+
+    <div class="controls" role="group" aria-label="モックの表示切替">
+      <div class="ctl"><span class="seg-label">版</span>
+        <div class="seg" data-key="ver">
+          <button type="button" data-v="before">現状</button>
+          <button type="button" data-v="after" aria-pressed="true">改善案</button>
+        </div></div>
+      <div class="ctl"><span class="seg-label">画面</span>
+        <div class="seg" data-key="screen">
+          <button type="button" data-v="home" aria-pressed="true">トップ</button>
+          <button type="button" data-v="discover">さがす</button>
+          <button type="button" data-v="library">ゲーム一覧</button>
+          <button type="button" data-v="detail">詳細</button>
+        </div></div>
+      <div class="ctl"><span class="seg-label">テーマ</span>
+        <div class="seg" data-key="theme">
+          <button type="button" data-v="dark" aria-pressed="true">ダーク</button>
+          <button type="button" data-v="light">ライト</button>
+        </div></div>
+      <div class="ctl"><span class="seg-label">フォント</span>
+        <div class="seg" data-key="font">
+          <button type="button" data-v="a" aria-pressed="true">A 推奨</button>
+          <button type="button" data-v="b">B</button>
+          <button type="button" data-v="c">C</button>
+        </div></div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span>PandD Game Launcher</span>
+        <span class="state" id="stateLabel"></span></div>
+      <div class="viewport" id="viewport"><div class="scaler" id="scaler"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="eyebrow">02 · Typeface</div>
+      <h2>フォント案</h2>
+      <p>今はフォントを指定していないため、WindowsではMS UI Gothic系にフォールバックし、細く字面が小さい状態になっている。3案とも SIL Open Font License 1.1 で、アプリへの同梱と再配布ができる。カードを押すと上のモックに反映される。</p>
+    </div>
+    <div class="fonts" id="fontCards">
+      <button type="button" class="fcard f-a" data-font="a" aria-pressed="true">
+        <span class="rec">推奨</span>
+        <span class="lab">A · MODERN GEOMETRIC</span>
+        <span class="spec-big">星屑リフレクター</span>
+        <span class="spec-latin">PLAY · v2.4.1 · 62%</span>
+        <span class="spec-body">まだ持っていないゲームから、新しいお気に入りを見つけよう。ダウンロード 48.2 MB/s</span>
+        <span class="fnames"><b>本文 M PLUS 2</b><span>英数アクセント Saira</span></span>
+        <ul><li>字面が大きく、小さなUI文字でもつぶれにくい</li><li>可変ウェイトで1ファイルに太さを全部持てる</li><li>Sairaのやや角張った英数がゲームらしさを出す</li></ul>
+      </button>
+      <button type="button" class="fcard f-b" data-font="b" aria-pressed="false">
+        <span class="lab">B · SHARP & BOLD</span>
+        <span class="spec-big">星屑リフレクター</span>
+        <span class="spec-latin">PLAY · v2.4.1 · 62%</span>
+        <span class="spec-body">まだ持っていないゲームから、新しいお気に入りを見つけよう。ダウンロード 48.2 MB/s</span>
+        <span class="fnames"><b>本文 Zen Kaku Gothic New</b><span>英数アクセント Barlow Semi Condensed</span></span>
+        <ul><li>Black（900）の見出しに迫力が出る</li><li>Barlowの縦長な英数でスポーティな印象</li><li>ウェイトごとにファイルが分かれ、同梱が増える</li></ul>
+      </button>
+      <button type="button" class="fcard f-c" data-font="c" aria-pressed="false">
+        <span class="lab">C · TECH / INDUSTRIAL</span>
+        <span class="spec-big">星屑リフレクター</span>
+        <span class="spec-latin">PLAY · v2.4.1 · 62%</span>
+        <span class="spec-body">まだ持っていないゲームから、新しいお気に入りを見つけよう。ダウンロード 48.2 MB/s</span>
+        <span class="fnames"><b>本文 IBM Plex Sans JP</b><span>英数アクセント IBM Plex Mono</span></span>
+        <ul><li>端正で読みやすく、ツール寄りの落ち着いた印象</li><li>等幅の数字で進捗や容量の桁がそろう</li><li>ゲームの華やかさはA・Bより控えめ</li></ul>
+      </button>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="eyebrow">03 · Changes</div>
+      <h2>改善ポイント</h2>
+    </div>
+    <div class="points">
+      <div class="pt"><h3>フォントを同梱して全体に適用</h3><p>本文用と英数アクセント用の2書体を持つ。ページ見出しは800、本文は400〜500で、ウェイト差で階層を作る。</p><div class="how">実装 <b>QFontDatabase + QApplication::setFont</b></div></div>
+      <div class="pt"><h3>文字サイズの段階を整理</h3><p>46 / 28 / 22 / 17 / 15 / 13 / 11px の7段に統一。見出しの上に小さな英字ラベル（RECOMMENDED など）を置き、何の画面かをひと目でわかるようにする。</p><div class="how">実装 <b>QSS objectName ごとの font-size</b></div></div>
+      <div class="pt"><h3>サイドバーにアイコンと選択中の面</h3><p>「▦」の文字記号をやめ、3項目とも線画アイコンにそろえる。選択中は既存の selected 色で面を敷き、左端のアクセントバーはアニメーション付きのまま残す。</p><div class="how">実装 <b>SVGリソース + QPushButton::setIcon</b></div></div>
+      <div class="pt"><h3>トップのヒーローに情報を足す</h3><p>サムネイル下部に暗いグラデーションを敷いてタイトルを重ね、右パネルにタグ・容量・バージョンと「詳細を見る」ボタンを置く。</p><div class="how">実装 <b>QPainter のグラデーション描画 + QLabel</b></div></div>
+      <div class="pt"><h3>ゲームカードのタイトルを画像の外へ</h3><p>画像に黒帯を重ねる方式をやめ、タイトルと補足を画像の下に出す。画像が隠れず、長いタイトルも読める。所持済みには小さなバッジを付ける。</p><div class="how">実装 <b>GameCardDelegate::paint の変更</b></div></div>
+      <div class="pt"><h3>詳細画面の可読性</h3><p>背景モデルの上に左下からのスクリムを敷き、白文字のコントラストを確保する。お知らせは日付付きの横並びカードに、進捗は細いバーと速度・残り時間の数値表示にする。</p><div class="how">実装 <b>GameDetailPage の重ね描き + QSS</b></div></div>
+      <div class="pt"><h3>ボタンと入力欄の形をそろえる</h3><p>角丸を 10px 系に統一し、アカウント・設定は円形のアイコンボタンに。検索欄には虫眼鏡アイコンを付ける。</p><div class="how">実装 <b>QSS + QLineEdit::addAction</b></div></div>
+      <div class="pt"><h3>キーボード操作時のフォーカス表示</h3><p>Tab移動中の要素にアクセント色の枠を出す。今はフォーカス位置が見えにくい。</p><div class="how">実装 <b>QSS :focus</b></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="eyebrow">04 · Palette</div>
+      <h2>維持する配色</h2>
+      <p>ダークテーマの値。ライトテーマも現行値のまま使い、新しい色は足さない。エディション版の accent 置換もそのまま効く。</p>
+    </div>
+    <div class="palette">
+      <div class="sw"><i style="background:#17181c"></i>background<code>#17181c</code></div>
+      <div class="sw"><i style="background:#24262c"></i>surface<code>#24262c</code></div>
+      <div class="sw"><i style="background:#3a3d45"></i>border<code>#3a3d45</code></div>
+      <div class="sw"><i style="background:#34272c"></i>hover<code>#34272c</code></div>
+      <div class="sw"><i style="background:#3d242a"></i>selected<code>#3d242a</code></div>
+      <div class="sw"><i style="background:#a9abb3"></i>muted<code>#a9abb3</code></div>
+      <div class="sw"><i style="background:#f4f4f5"></i>text<code>#f4f4f5</code></div>
+      <div class="sw"><i style="background:#e60012"></i>accent<code>#e60012</code></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="eyebrow">05 · Next</div>
+      <h2>実装の進め方</h2>
+    </div>
+    <div class="impl">
+      <ol>
+        <li><b>フォントだけ先に入れる。</b>選んだ書体を <code>apps/launcher/resources/fonts/</code> に置いて <code>resources.qrc</code> に登録し、起動時に <code>QFontDatabase::addApplicationFont</code> で読み込んで <code>QApplication::setFont</code> する。これだけで全画面の見え方が変わる。</li>
+        <li><b>文字サイズとウェイトを整える。</b><code>applyTheme()</code> のQSSで見出し・本文・補足のサイズを7段にそろえ、英数ラベルに <code>font-family</code> でアクセント書体を当てる。</li>
+        <li><b>サイドバーとヘッダー。</b>アイコンSVGを追加し、4画面で重複しているヘッダー生成を1つの関数にまとめる。</li>
+        <li><b>カードとトップのヒーロー。</b><code>GameCardDelegate</code> と home page のレイアウトを変更する。</li>
+        <li><b>詳細画面。</b>スクリム、お知らせ、進捗表示を変更する。</li>
+      </ol>
+      <p style="color:var(--muted);font-size:13px">フォント同梱に伴い <code>THIRD_PARTY_NOTICES.md</code> にOFLの表記を追加する。日本語フォントはファイルが大きいので、インストーラーのサイズが増える。</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/** ゲームのダミーデータ（サムネイルはCSSグラデーションで描く） */
+const GAMES = [
+  { n: "星屑リフレクター", g: "アクション・シューティング", art: "radial-gradient(circle at 70% 30%, #ffd1e0 0 3%, transparent 4%), radial-gradient(circle at 30% 60%, #fff 0 1%, transparent 2%), radial-gradient(circle at 80% 75%, #fff 0 .8%, transparent 1.6%), radial-gradient(ellipse at 65% 40%, #e60012 0%, #6b0d3a 35%, #1b1036 70%, #07060f 100%)", own: false },
+  { n: "NEON DRIFT 2099", g: "レース", art: "linear-gradient(180deg, transparent 55%, #e60012 55.5%, transparent 56.5%), repeating-linear-gradient(90deg, transparent 0 38px, rgba(255,255,255,.08) 38px 40px), linear-gradient(180deg, #120a2a 0%, #3b1360 50%, #0b0b18 56%, #15151c 100%)", own: true },
+  { n: "ミドリの迷宮", g: "パズル・探索", art: "repeating-linear-gradient(45deg, rgba(0,0,0,.18) 0 14px, transparent 14px 28px), radial-gradient(circle at 40% 45%, #b8f0a0 0%, #3d8a4f 40%, #143322 100%)", own: false },
+  { n: "Clockwork Harbor", g: "シミュレーション", art: "radial-gradient(circle at 75% 35%, #ffcf7a 0 9%, transparent 10%), linear-gradient(180deg, #f5a65b 0%, #b8566a 45%, #2a3f6b 46%, #142540 100%)", own: true },
+  { n: "影送りの社", g: "ホラー・ADV", art: "linear-gradient(90deg, transparent 44%, #2a0a0e 44% 47%, transparent 47% 53%, #2a0a0e 53% 56%, transparent 56%), linear-gradient(180deg, transparent 30%, #2a0a0e 30% 34%, transparent 34%), radial-gradient(ellipse at 50% 100%, #7a1018 0%, #1a0c10 55%, #08070a 100%)", own: false },
+  { n: "Pixel Garden", g: "クラフト", art: "repeating-conic-gradient(#6fd3c2 0 25%, #4fb3a6 0 50%) 0 0 / 22px 22px, #4fb3a6", own: false },
+  { n: "Tidal Runner", g: "ランアクション", art: "radial-gradient(ellipse at 50% 120%, #9be3ff 0%, transparent 50%), repeating-radial-gradient(circle at 50% 140%, transparent 0 18px, rgba(255,255,255,.12) 18px 20px), linear-gradient(180deg, #0d3b66 0%, #0a6e8a 100%)", own: true },
+  { n: "灯火ノ旅団", g: "RPG", art: "radial-gradient(circle at 30% 70%, #ffb347 0 4%, rgba(255,140,40,.35) 10%, transparent 22%), radial-gradient(circle at 62% 64%, #ffb347 0 3%, rgba(255,140,40,.3) 8%, transparent 18%), linear-gradient(180deg, #1c1f3a 0%, #2d2140 60%, #120f1c 100%)", own: true },
+];
+
+/** 線画アイコン */
+const ICON = {
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  lib: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg>',
+};
+
+/** 現在の表示状態 */
+const state = { ver: "after", screen: "home", theme: "dark", font: "a" };
+
+/**
+ * ゲームカード1枚のHTMLを返す
+ * @param {object} g ゲームデータ
+ * @param {boolean} hot 選択中として強調するか
+ * @param {boolean} showOwn 所持バッジを出すか
+ * @returns {string} カードのHTML
+ */
+function card(g, hot, showOwn) {
+  return `<div class="card${hot ? " hot" : ""}"><div class="th"><div class="art" style="background:${g.art}"></div>${showOwn && g.own ? '<span class="own">OWNED</span>' : ""}</div><div class="nm">${g.n}</div><div class="sub">${g.g}</div></div>`;
+}
+
+/**
+ * ページヘッダーのHTMLを返す
+ * @param {string} ey 英字ラベル
+ * @param {string} title 見出し
+ * @param {string} hint 現状版で見出し下に出す補足文
+ * @returns {string} ヘッダーのHTML
+ */
+function header(ey, title, hint) {
+  return `<div class="hdr"><div class="t"><span class="ey">${ey}</span><h4>${title}</h4><span class="hint">${hint}</span></div><div class="avatar">K</div><div class="icon-btn">${ICON.gear}</div></div>`;
+}
+
+/**
+ * 画面ごとのメイン領域HTMLを返す
+ * @param {string} screen 画面ID
+ * @returns {string} メイン領域のHTML
+ */
+function mainBody(screen) {
+  if (screen === "home") {
+    const g = GAMES[0];
+    return `<div class="main">${header("Recommended", "あなたへのおすすめ", "まだ持っていないゲームから、新しいお気に入りを見つけよう")}
+      <div class="hero"><div class="hero-art"><div class="art" style="background:${g.art}"></div><div class="cap"><span class="badge">NEW</span><b>${g.n}</b></div></div>
+      <div class="info"><div class="gt">${g.n}</div><div class="tags"><span class="tag">アクション</span><span class="tag">シューティング</span><span class="tag">1人用</span></div>
+      <div class="sum">反射する星屑を操り、迫りくる艦隊を撃ち返す縦スクロールシューティング。全8ステージ、ボスごとに変わる反射ギミックが特徴。</div>
+      <dl class="meta"><dt>容量</dt><dd>1.8 GB</dd><dt>バージョン</dt><dd>v2.4.1</dd></dl>
+      <span class="btn pri">${ICON.info}詳細を見る</span></div></div>
+      <div class="row-head"><h5>ほかのおすすめ</h5><span>${GAMES.length - 1} TITLES</span></div>
+      <div class="cards">${GAMES.slice(0, 5).map((x, i) => card(x, i === 0, false)).join("")}</div></div>`;
+  }
+  if (screen === "discover") {
+    return `<div class="main">${header("Discover", "ゲームをさがす", "")}
+      <div class="search">${ICON.search}<span class="caret"></span>ゲーム名やキーワードで検索<kbd>Ctrl K</kbd></div>
+      <div class="row-head"><h5>まだ持っていないゲーム</h5><span>4 TITLES</span></div><div class="grid-title">まだ持っていないゲーム</div>
+      <div class="cards grid">${GAMES.filter(x => !x.own).map((x, i) => card(x, i === 1, false)).join("")}</div></div>`;
+  }
+  if (screen === "library") {
+    return `<div class="main">${header("Library", "ゲーム一覧", "持っているゲームを選んでプレイ")}
+      <div class="row-head"><h5>インストール済み</h5><span>4 TITLES</span></div>
+      <div class="cards grid">${GAMES.filter(x => x.own).map((x, i) => card(x, i === 0, true)).join("")}</div></div>`;
+  }
+  const g = GAMES[7];
+  return `<div class="main" style="padding:0"><div class="detail"><div class="bg" style="background:${g.art}"></div><div class="scrim"></div>
+    <div class="bar"><span class="ghost">${ICON.back}戻る</span><span class="spacer"></span><div class="avatar">K</div><div class="icon-btn">${ICON.gear}</div><span class="ghost">ツール</span></div>
+    <div class="spacer"></div>
+    <div class="ttl">${g.n}</div>
+    <div class="ds">焚き火から焚き火へ、夜の大陸を渡る旅団の物語。仲間の灯火を集めて闇を払うターン制RPG。</div>
+    <div class="news"><div><small>2026.11.18</small><span>冬のイベント「霜灯り」開催</span></div><div><small>2026.11.02</small><span>v2.4.1 不具合修正</span></div><div><small>2026.10.20</small><span>新章「北の果て」追加</span></div></div>
+    <div class="act"><div class="prog"><div class="lbl"><span><b>62%</b> · 1.1 / 1.8 GB</span><span>48.2 MB/s · 残り 15秒</span></div><div class="track"><div class="fill"></div></div></div>
+    <span class="btn pri big">${ICON.play}<span class="k">ダウンロード中</span></span></div>
+    <span class="locate"><u>インストール済みですか？ ゲームの場所を特定</u></span></div></div>`;
+}
+
+/** 状態に合わせてモックを描き直す */
+function render() {
+  const navOn = { home: 0, discover: 1, library: 2, detail: -1 }[state.screen];
+  const nav = (i, icon, label, extra) => `<div class="nav${navOn === i ? " on" : ""}${extra || ""}">${icon}${label}</div>`;
+  const app = `<div class="app ${state.ver === "before" ? "before" : ""} ${state.theme === "light" ? "light" : ""}" data-font="${state.font}">
+    <aside class="sb"><div class="logo"><span>Pand<i>D</i></span></div>
+      ${nav(0, ICON.home, "トップ")}${nav(1, ICON.search, "さがす")}
+      <div class="grow"></div><div class="divider"></div>
+      ${nav(2, ICON.lib, state.ver === "before" ? "▦&nbsp;&nbsp;ゲーム一覧" : "ゲーム一覧", " lib")}
+      <div class="ver">LAUNCHER v1.8.0</div></aside>
+    ${mainBody(state.screen)}</div>`;
+  document.getElementById("scaler").innerHTML = app;
+
+  // 操作ボタンと説明ラベルを状態にそろえる
+  document.querySelectorAll(".seg").forEach(seg => {
+    seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === state[seg.dataset.key])));
+  });
+  document.querySelectorAll("#fontCards .fcard").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.font === state.font)));
+  const fontName = { a: "M PLUS 2 + SAIRA", b: "ZEN KAKU GOTHIC NEW + BARLOW", c: "IBM PLEX SANS JP + MONO" }[state.font];
+  document.getElementById("stateLabel").innerHTML = state.ver === "before" ? "<b>現状</b> · OS既定フォント" : `<b>改善案</b> · ${fontName}`;
+  fit();
+}
+
+/** ビューポート幅に合わせて1280x720のモックを縮小する */
+function fit() {
+  const vp = document.getElementById("viewport");
+  document.getElementById("scaler").style.transform = `scale(${vp.clientWidth / 1280})`;
+}
+
+document.querySelectorAll(".seg").forEach(seg => {
+  seg.addEventListener("click", e => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    state[seg.dataset.key] = b.dataset.v;
+    if (seg.dataset.key === "font") state.ver = "after";
+    render();
+  });
+});
+document.getElementById("fontCards").addEventListener("click", e => {
+  const c = e.target.closest(".fcard");
+  if (!c) return;
+  state.font = c.dataset.font;
+  state.ver = "after";
+  render();
+  document.querySelector(".stage").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+});
+window.addEventListener("resize", fit);
+render();
+</script>
+</body>
+</html>

@@ -16,6 +16,7 @@
       "components": [
         "apps/docs",
         "apps/launcher",
+        "apps/setup",
         "apps/launcher-download-web",
         "apps/launcher-download-worker",
         "apps/music",

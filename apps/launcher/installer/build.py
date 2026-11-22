@@ -98,8 +98,41 @@ def build_installer(ifw_root: Path | None, install_tree: Path, output: Path,
     return installer
 
 
+def wrap_windows_installer(installer: Path) -> Path:
+    """IFW installer を PandD Setup の画面に埋め込み、公開用のファイル名で置き直す
+
+    Args:
+        installer: binarycreator が出力した installer の拡張子なしのパス
+
+    Returns:
+        公開用 installer の拡張子なしのパス。中身は PandD Setup になる
+
+    Raises:
+        subprocess.CalledProcessError: PandD Setup の build に失敗した場合
+    """
+    # IFW 本体は監査できるよう公開用 installer の隣に別名で残す
+    public = installer.with_suffix(".exe")
+    engine = installer.with_name("PandD-Game-Launcher-IFW-Installer.exe")
+    public.replace(engine)
+
+    # IFW 本体をインストール処理として埋め込んだ PandD Setup を build する
+    root = Path(__file__).resolve().parents[3]
+    environment = os.environ.copy()
+    environment["PANDD_IFW_INSTALLER"] = str(engine.resolve())
+    subprocess.run(["cargo", "build", "--locked", "--release", "-p", "pandd-setup"],
+                   check=True, cwd=root, env=environment)
+    shutil.copy2(root / "target" / "release" / "pandd-setup.exe", public)
+    return installer
+
+
 def main() -> int:
-    """Populate package data, run repogen, then create an online installer."""
+    """package data を用意して repogen と binarycreator を実行する
+
+    Windows では作った installer を PandD Setup の画面で包む
+
+    Returns:
+        正常終了なら 0
+    """
     # Parse release build arguments
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ifw-root", type=Path)
@@ -109,8 +142,11 @@ def main() -> int:
     parser.add_argument("--repository-url", required=True)
     arguments = parser.parse_args()
     # Build the installer from the supplied install tree
-    build_installer(arguments.ifw_root, arguments.install_tree, arguments.output,
-                    arguments.version, arguments.repository_url)
+    installer = build_installer(arguments.ifw_root, arguments.install_tree, arguments.output,
+                                arguments.version, arguments.repository_url)
+    # Windows では PandD Setup の画面からインストールする
+    if os.name == "nt":
+        wrap_windows_installer(installer)
     return 0
 
 
