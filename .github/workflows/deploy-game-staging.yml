@@ -220,7 +220,8 @@ jobs:
             --metadata deployment/metadata/release.json \
             --public-tree public \
             --base-url "$STAGING_BASE_URL" \
-            --digest-output "$RUNNER_TEMP/manifest.sha256"
+            --digest-output "$RUNNER_TEMP/manifest.sha256" \
+            --snapshot request-snapshot.json
 
       - name: Record successful deployment
         env:
