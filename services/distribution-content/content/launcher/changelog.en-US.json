@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.4.2",
+      "title": "Fixed Windows maintenance permissions and updated the tool icon",
+      "publishedAt": "2026-11-23T00:00:00+09:00",
+      "changes": [
+        "Windows now requests administrator approval for updates and uninstalls in protected install folders",
+        "Existing installations receive the PandD icon when the maintenance tool is updated"
+      ]
+    },
+    {
       "version": "1.4.1",
       "title": "Updated Windows maintenance tool and installer",
       "publishedAt": "2026-11-23T00:00:00+09:00",

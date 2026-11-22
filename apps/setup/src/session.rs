@@ -103,7 +103,7 @@ pub fn start(plan: &Plan) -> Result<Job> {
                     let _ = sender.send(IfwEvent::Failed(format!("{error:#}")));
                     return;
                 }
-                ifw::run(&command, &sender);
+                run_maintenance(&command, &root, &sender);
             });
             Ok(Job {
                 events,
@@ -114,13 +114,96 @@ pub fn start(plan: &Plan) -> Result<Job> {
             // purge のログには工程の区切りがないので、始める前に削除の工程へ進める
             let command = IfwCommand::purge(&root.join(MAINTENANCE_TOOL));
             let _ = sender.send(IfwEvent::Stage(Stage::Removing));
-            thread::spawn(move || ifw::run(&command, &sender));
+            thread::spawn(move || run_maintenance(&command, &root, &sender));
             Ok(Job {
                 events,
                 _workspace: None,
             })
         }
     }
+}
+
+/// 更新先に書き込み権限がなければ IFW の実行だけを昇格する
+fn run_maintenance(command: &IfwCommand, root: &Path, sender: &mpsc::Sender<IfwEvent>) {
+    // ユーザーごとのインストールでは通常権限のログと進捗を使う
+    match tempfile::tempfile_in(root) {
+        Ok(probe) => {
+            drop(probe);
+            ifw::run(command, sender);
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            let event = match run_elevated(command, root) {
+                Ok(ifw::Outcome::Failed) => IfwEvent::Failed(format!(
+                    "メンテナンスに失敗しました。詳細は {} を確認してください",
+                    root.join("InstallationLog.txt").display()
+                )),
+                Ok(outcome) => IfwEvent::Exited(outcome),
+                Err(error) => IfwEvent::Failed(format!("{error:#}")),
+            };
+            let _ = sender.send(event);
+        }
+        Err(error) => {
+            let _ = sender.send(IfwEvent::Failed(format!("{}: {error}", root.display())));
+        }
+    }
+}
+
+/// Windows の同意画面を通してインストール済みの IFW を実行し、終了コードを取得する
+fn run_elevated(command: &IfwCommand, root: &Path) -> Result<ifw::Outcome> {
+    use std::os::windows::{
+        ffi::OsStrExt,
+        io::{AsRawHandle, FromRawHandle, OwnedHandle},
+    };
+    use windows_sys::Win32::{
+        Foundation::WAIT_OBJECT_0,
+        System::Threading::{GetExitCodeProcess, INFINITE, WaitForSingleObject},
+        UI::Shell::{
+            SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW,
+        },
+    };
+
+    // update と purge の引数は IFW 用の固定語だけ。パスは個別に渡す
+    let program: Vec<_> = command
+        .program()
+        .as_os_str()
+        .encode_wide()
+        .chain([0])
+        .collect();
+    let directory: Vec<_> = root.as_os_str().encode_wide().chain([0]).collect();
+    let args = command.arguments().join(std::ffi::OsStr::new(" "));
+    let args: Vec<_> = args.encode_wide().chain([0]).collect();
+    let mut info = SHELLEXECUTEINFOW {
+        cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
+        fMask: SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC,
+        lpVerb: windows_sys::w!("runas"),
+        lpFile: program.as_ptr(),
+        lpParameters: args.as_ptr(),
+        lpDirectory: directory.as_ptr(),
+        ..Default::default()
+    };
+
+    // SAFETY: 文字列は呼び出し中有効で、返されたハンドルはこの関数で所有する
+    if unsafe { ShellExecuteExW(&mut info) } == 0 {
+        return Err(std::io::Error::last_os_error())
+            .context("管理者権限でメンテナンスを開始できませんでした");
+    }
+    anyhow::ensure!(
+        !info.hProcess.is_null(),
+        "メンテナンスのプロセスを取得できません"
+    );
+    let child = unsafe { OwnedHandle::from_raw_handle(info.hProcess) };
+    let mut code = 0;
+
+    // SAFETY: 終了を待つ間ハンドルは有効で、code は書き込み可能
+    unsafe {
+        if WaitForSingleObject(child.as_raw_handle(), INFINITE) != WAIT_OBJECT_0
+            || GetExitCodeProcess(child.as_raw_handle(), &mut code) == 0
+        {
+            return Err(std::io::Error::last_os_error())
+                .context("メンテナンスの終了を確認できません");
+        }
+    }
+    Ok(ifw::Outcome::from_code(Some(code as i32)))
 }
 
 /// インストール済みのランチャーを起動する

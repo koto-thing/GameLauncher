@@ -86,6 +86,9 @@ def build_installer(ifw_root: Path | None, install_tree: Path, output: Path,
         configure_metadata(config, packages / "org.pandd.launcher/meta/package.xml",
                            version, repository_url)
 
+        if os.name == "nt":
+            prepare_maintenance_update(ifw_root, work, config, packages, data)
+
         # Generate the repository and online installer
         with phase("repogen"):
             subprocess.run([executable(ifw_root, "repogen"), *compression_arguments,
@@ -99,6 +102,29 @@ def build_installer(ifw_root: Path | None, install_tree: Path, output: Path,
         repository_bytes = sum(path.stat().st_size for path in repository.rglob("*") if path.is_file())
         print(f"IFW repository bytes: {repository_bytes}", flush=True)
     return installer
+
+
+def prepare_maintenance_update(ifw_root: Path | None, work: Path, config: Path,
+                               packages: Path, data: Path) -> None:
+    """既存の Windows インストールにもロゴと最新の IFW 画面設定を配信する"""
+    # Qt の素の installerbase にアイコンを設定し、更新用のバイナリを作る
+    destination = data / "maintenance"
+    destination.mkdir()
+    tools = work / "icon-tools"
+    tools.mkdir()
+    for filename in ("package.json", "package-lock.json"):
+        shutil.copy2(Path(__file__).with_name(filename), tools / filename)
+    subprocess.run([shutil.which("npm.cmd") or "npm", "ci", "--ignore-scripts", "--no-audit",
+                    "--no-fund"], cwd=tools, check=True)
+    subprocess.run(["node", tools / "node_modules/resedit-cli/dist/cli.js",
+                    executable(ifw_root, "installerbase"), destination / "installerbase.exe",
+                    "--ignore-signed", "--delete-allicon", "--icon", config.parent / "PandDLogo.ico"],
+                   check=True)
+
+    # 過去にインストールした maintenance tool の control script とウィンドウアイコンも更新する
+    subprocess.run([executable(ifw_root, "binarycreator"), "-c", config, "-p", packages, "-rcc"],
+                   cwd=work, check=True)
+    (work / "update.rcc").replace(destination / "update.rcc")
 
 
 def set_application_icon(config: Path, icon: Path) -> None:

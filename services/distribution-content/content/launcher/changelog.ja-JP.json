@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.4.2",
+      "title": "Windowsの更新権限とメンテナンスツールのロゴを修正",
+      "publishedAt": "2026-11-23T00:00:00+09:00",
+      "changes": [
+        "Program Files など書き込みに管理者権限が必要な場所では、更新・アンインストール時にWindowsの確認画面を表示",
+        "既存のインストールでも、更新時にメンテナンスツールのアイコンをPandDのロゴに変更"
+      ]
+    },
+    {
       "version": "1.4.1",
       "title": "Windowsのメンテナンス画面とインストーラーを更新",
       "publishedAt": "2026-11-23T00:00:00+09:00",

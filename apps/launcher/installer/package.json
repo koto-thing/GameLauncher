@@ -1,0 +1,7 @@
+{
+  "name": "pandd-windows-installer-tools",
+  "private": true,
+  "dependencies": {
+    "resedit-cli": "3.1.1"
+  }
+}
