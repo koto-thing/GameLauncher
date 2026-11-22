@@ -648,27 +648,24 @@ void LauncherWindow::addHeaderActions(QWidget* page, QBoxLayout* row) {
 /**
  * @brief 英字ラベル、見出し、補足文、header操作を持つpage headerを作る
  * @param page headerの親page
- * @param eyebrow 見出し上に置く英字ラベル
- * @param title page見出し
- * @param hint 見出し下の補足文。空なら表示しない
+ * @param text ページに表示する英字ラベル、見出し、補足文
  * @return pageのlayoutへ追加するheader layout
  */
-QLayout* LauncherWindow::createPageHeader(QWidget* page, const QString& eyebrow,
-                                          const QString& title, const QString& hint) {
+QLayout* LauncherWindow::createPageHeader(QWidget* page, const PageHeaderText& text) {
     // 英字ラベルは字間を広げてアクセント書体で表示する
     auto* titles = new QVBoxLayout();
     titles->setSpacing(2);
-    auto* eyebrowLabel = new QLabel(eyebrow, page);
+    auto* eyebrowLabel = new QLabel(text.eyebrow, page);
     eyebrowLabel->setObjectName("eyebrow");
     auto eyebrowFont = eyebrowLabel->font();
     eyebrowFont.setLetterSpacing(QFont::AbsoluteSpacing, 2);
     eyebrowLabel->setFont(eyebrowFont);
     titles->addWidget(eyebrowLabel);
-    auto* titleLabel = new QLabel(title, page);
+    auto* titleLabel = new QLabel(text.title, page);
     titleLabel->setObjectName("pageTitle");
     titles->addWidget(titleLabel);
-    if (!hint.isEmpty()) {
-        auto* hintLabel = new QLabel(hint, page);
+    if (!text.hint.isEmpty()) {
+        auto* hintLabel = new QLabel(text.hint, page);
         hintLabel->setObjectName("muted");
         titles->addSpacing(4);
         titles->addWidget(hintLabel);
@@ -691,9 +688,10 @@ QWidget* LauncherWindow::createHomePage() {
     auto* layout = new QVBoxLayout(page);
     layout->setContentsMargins(40, 28, 40, 28);
     layout->setSpacing(20);
-    layout->addLayout(
-        createPageHeader(page, QStringLiteral("RECOMMENDED"), tr("あなたへのおすすめ"),
-                         tr("まだ持っていないゲームから、新しいお気に入りを見つけよう")));
+    layout->addLayout(createPageHeader(
+        page, {.eyebrow = QStringLiteral("RECOMMENDED"),
+               .title = tr("あなたへのおすすめ"),
+               .hint = tr("まだ持っていないゲームから、新しいお気に入りを見つけよう")}));
 
     auto* previewRow = new QHBoxLayout();
     previewRow->setSpacing(20);
@@ -771,7 +769,8 @@ QWidget* LauncherWindow::createDiscoverPage() {
     auto* layout = new QVBoxLayout(page);
     layout->setContentsMargins(40, 28, 40, 28);
     layout->setSpacing(20);
-    layout->addLayout(createPageHeader(page, QStringLiteral("DISCOVER"), tr("ゲームをさがす")));
+    layout->addLayout(createPageHeader(
+        page, {.eyebrow = QStringLiteral("DISCOVER"), .title = tr("ゲームをさがす")}));
     searchInput_ = new QLineEdit(page);
     searchInput_->setPlaceholderText(tr("ゲーム名やキーワードで検索"));
     searchInput_->setClearButtonEnabled(true);
@@ -804,8 +803,9 @@ QWidget* LauncherWindow::createLibraryPage() {
     auto* layout = new QVBoxLayout(page);
     layout->setContentsMargins(40, 28, 40, 28);
     layout->setSpacing(20);
-    layout->addLayout(createPageHeader(page, QStringLiteral("LIBRARY"), tr("ゲーム一覧"),
-                                       tr("持っているゲームを選んでプレイ")));
+    layout->addLayout(createPageHeader(page, {.eyebrow = QStringLiteral("LIBRARY"),
+                                              .title = tr("ゲーム一覧"),
+                                              .hint = tr("持っているゲームを選んでプレイ")}));
     libraryList_ = new QListWidget(page);
     configureGameCardList(libraryList_);
     libraryList_->setAccessibleName(tr("所持ゲーム一覧"));

@@ -59,16 +59,20 @@ class LauncherWindow final : public QMainWindow {
      */
     void addHeaderActions(QWidget* page, QBoxLayout* row);
 
+    /** @brief ページ上部に表示するテキスト */
+    struct PageHeaderText {
+        QString eyebrow; ///< 見出し上の英字ラベル
+        QString title;   ///< ページ見出し
+        QString hint{};  ///< 見出し下の補足文
+    };
+
     /**
      * @brief 英字ラベル、見出し、補足文、header操作を持つpage headerを作る
      * @param page headerの親page
-     * @param eyebrow 見出し上に置く英字ラベル
-     * @param title page見出し
-     * @param hint 見出し下の補足文。空なら表示しない
+     * @param text ページに表示する英字ラベル、見出し、補足文
      * @return pageのlayoutへ追加するheader layout
      */
-    QLayout* createPageHeader(QWidget* page, const QString& eyebrow, const QString& title,
-                              const QString& hint = {});
+    QLayout* createPageHeader(QWidget* page, const PageHeaderText& text);
 
     /** @brief 未所持ゲームを紹介するトップページを構築する */
     QWidget* createHomePage();
