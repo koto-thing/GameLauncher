@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.4.3",
+      "title": "Redesigned Windows setup and maintenance tool themes",
+      "publishedAt": "2026-11-24T00:00:00+09:00",
+      "changes": [
+        "Added daytime, evening, and nighttime backgrounds to the Navi theme and a Japanese pixel font to the Arcade theme",
+        "Added homing shots that track nearby enemies in the setup mini-game"
+      ]
+    },
+    {
       "version": "1.4.2",
       "title": "Fixed Windows maintenance permissions and updated the tool icon",
       "publishedAt": "2026-11-23T00:00:00+09:00",

@@ -1,125 +1,98 @@
 //! アーケードのテーマ
 //!
-//! ゲームセンターの筐体風の画面で、インストール中はシューティングを遊べる。
-//! インストールが終わるとボスが出現する
+//! SPACE YAKUZA の画面に寄せた、暗い宇宙とティールの格子の横シューティング。
+//! インストールの進捗は HUD の DIST バーで見せ、終わるとボスが出現する
 
 use eframe::egui::{
-    self, Align2, Color32, CornerRadius, Pos2, Rect, Stroke, StrokeKind, TextEdit, Ui, Visuals,
-    pos2, vec2,
+    Align2, Color32, CornerRadius, FontId, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, Ui,
+    Visuals, pos2, vec2,
 };
-use pandd_setup::shooter::{BOSS_HEALTH, EXPLOSION_SECONDS, Game, Phase, Vec2 as GameVec};
-
-use super::{
-    Action, Screen, Task, View, body, bold, centered_text, fit_line, framed, hit_area, palette,
-    pixel, sprite, stage_label, wrapped_text,
+use pandd_setup::{
+    ifw::Stage,
+    shooter::{BOSS_HEALTH, EXPLOSION_SECONDS, Game, Phase, Vec2 as GameVec},
 };
 
-// ロゴの配色を夜の筐体向けに割り当てる
-const BLACK: Color32 = palette::NIGHT;
-const RED: Color32 = palette::CORAL_DEEP;
-const RED_SOFT: Color32 = palette::CORAL;
-const RED_DARK: Color32 = Color32::from_rgb(0x5c, 0x22, 0x2a);
-const GOLD: Color32 = palette::CORAL_LIGHT;
-const GREY: Color32 = palette::CHARCOAL_SOFT;
-const WHITE: Color32 = palette::WHITE;
+use super::{Action, Screen, Task, View, centered_text, dot, fit_line, hit_area, pixel};
+
+// SPACE YAKUZA の配色
+const SPACE: Color32 = Color32::from_rgb(0x01, 0x02, 0x09);
+const PANEL: Color32 = Color32::from_rgb(0x0a, 0x11, 0x24);
+const BLACK: Color32 = Color32::from_rgb(0x00, 0x00, 0x00);
+const TEAL: Color32 = Color32::from_rgb(0x19, 0xa7, 0xa7);
+const STAR: Color32 = Color32::from_rgb(0xb8, 0xcc, 0xff);
+const BUTTON: Color32 = Color32::from_rgb(0x33, 0x4d, 0x8c);
+const BUTTON_LIGHT: Color32 = Color32::from_rgb(0x47, 0x6e, 0xbf);
+const BUTTON_DARK: Color32 = Color32::from_rgb(0x1f, 0x33, 0x66);
+const CYAN: Color32 = Color32::from_rgb(0x3f, 0xb8, 0xff);
+const FRAME: Color32 = Color32::from_rgb(0x19, 0xa7, 0xe0);
+const YELLOW: Color32 = Color32::from_rgb(0xff, 0xd2, 0x3a);
+const ORANGE: Color32 = Color32::from_rgb(0xf2, 0xa3, 0x3a);
+const ORANGE_LIGHT: Color32 = Color32::from_rgb(0xff, 0xd0, 0x8a);
+const ORANGE_DARK: Color32 = Color32::from_rgb(0xa8, 0x66, 0x1a);
+const INK: Color32 = Color32::from_rgb(0x1a, 0x0d, 0x00);
+const RED: Color32 = Color32::from_rgb(0xff, 0x4d, 0x5e);
+const HULL_RED: Color32 = Color32::from_rgb(0xb3, 0x12, 0x1f);
+const HULL_DARK: Color32 = Color32::from_rgb(0x7a, 0x0d, 0x16);
+const HULL_GREY: Color32 = Color32::from_rgb(0x9a, 0x9a, 0xa4);
+const NOSE: Color32 = Color32::from_rgb(0x3f, 0xe0, 0xe8);
+const NOSE_DARK: Color32 = Color32::from_rgb(0x1c, 0x9a, 0xa2);
+const SHOT_CORE: Color32 = Color32::from_rgb(0xbf, 0xe3, 0xff);
+const WHITE: Color32 = Color32::from_rgb(0xf4, 0xf6, 0xff);
+const TEXT: Color32 = Color32::from_rgb(0xcf, 0xd6, 0xf5);
+const GREY: Color32 = Color32::from_rgb(0xb3, 0xb3, 0xb3);
+const DIM: Color32 = Color32::from_rgb(0x77, 0x77, 0x77);
+
+/// HUD の高さ
+pub const HUD_HEIGHT: f32 = 46.0;
+/// 字幕とボタンを置く下段の高さ
+pub const FOOTER_HEIGHT: f32 = 46.0;
 
 /// ボタンの文言の大きさ
-const BUTTON_FONT_SIZE: f32 = 11.0;
-/// ボタンの文言を縮めるときの下限
-const BUTTON_FONT_MIN: f32 = 8.0;
-/// ボタンの左右に残す余白
-const BUTTON_PADDING: f32 = 10.0;
-/// 下段に横並びにするボタン列の幅
-const BUTTON_ROW_WIDTH: f32 = 680.0;
-/// 横並びのボタンの間隔
-const BUTTON_GAP: f32 = 12.0;
-/// メンテナンスの選択画面のボタン。文言、操作、主ボタンかどうか
-const MENU_BUTTONS: &[(&str, Action, bool)] = &[
-    ("UPDATE  アップデート", Action::Update, true),
+const BUTTON_FONT_SIZE: f32 = 10.0;
+/// タイトル画面に縦に並べるボタンの幅
+const MENU_WIDTH: f32 = 240.0;
+/// タイトル画面に縦に並べるボタンの高さ
+const MENU_HEIGHT: f32 = 44.0;
+/// インストール先の画面で左に並べるボタンの幅
+const LIST_WIDTH: f32 = 200.0;
+/// 下段の字幕の文字間隔
+const CAPTION_SPACING: f32 = 6.0;
+
+/// ボタンの文言、補足、操作、主ボタンかどうか
+type MenuButton = (&'static str, &'static str, Action, bool);
+
+/// 新規インストールのタイトル画面のボタン
+const TITLE_BUTTONS: &[MenuButton] = &[
+    ("START", "インストール", Action::Next, true),
+    ("EXIT", "やめる", Action::Close, false),
+];
+/// メンテナンスの選択画面のボタン
+const MENU_BUTTONS: &[MenuButton] = &[
+    ("UPDATE", "アップデート", Action::Update, false),
     (
-        "UNINSTALL  アンインストール",
+        "UNINSTALL",
+        "アンインストール",
         Action::ConfirmUninstall,
         false,
     ),
-    ("やめる", Action::Close, false),
+    ("EXIT", "やめる", Action::Close, false),
 ];
-/// アンインストールの確認画面のボタン。文言、操作、主ボタンかどうか
-const CONFIRM_BUTTONS: &[(&str, Action, bool)] = &[
-    ("START  アンインストール", Action::Uninstall, true),
-    ("BACK  もどる", Action::Back, false),
+/// アンインストールの確認画面のボタン
+const CONFIRM_BUTTONS: &[MenuButton] = &[
+    ("START", "アンインストール", Action::Uninstall, true),
+    ("BACK", "もどる", Action::Back, false),
 ];
-
-/// ボタン列に並べたときの1つのボタンの幅を返す
-///
-/// # 引数
-///
-/// * `count` - 並べるボタンの数
-///
-/// # 戻り値
-///
-/// 間隔を除いて列の幅を等分した幅
-fn button_width(count: usize) -> f32 {
-    (BUTTON_ROW_WIDTH - BUTTON_GAP * (count as f32 - 1.0)) / count as f32
-}
-
-/// HUD の高さ
-pub const HUD_HEIGHT: f32 = 52.0;
-/// 進捗バーを置く下段の高さ
-pub const FOOTER_HEIGHT: f32 = 50.0;
-
-const SHIP: &[&str] = &[
-    ".....W.....",
-    "....WRW....",
-    "....WRW....",
-    "...WWRWW...",
-    "..WWWWWWW..",
-    ".WWRWWWRWW.",
-    "WWRRWWWRRWW",
-    "W..RR.RR..W",
-    "....Y.Y....",
+/// インストール先の画面で左に並べるボタン
+const DESTINATION_BUTTONS: &[MenuButton] = &[
+    ("DEFAULT", "おすすめの場所", Action::UseDefault, false),
+    ("BROWSE", "フォルダを選ぶ", Action::Browse, false),
+    ("INSTALL", "インストール", Action::Install, true),
 ];
-const DRONE: &[&str] = &[
-    "...GGGGG...",
-    ".GGGGGGGGG.",
-    "GGRGGRGGRGG",
-    "GGGGGGGGGGG",
-    ".G.G.G.G.G.",
-    "..Y.....Y..",
+/// 失敗の画面のボタン
+const FAILED_BUTTONS: &[MenuButton] = &[
+    ("CONTINUE", "もう一度", Action::Retry, true),
+    ("EXIT", "閉じる", Action::Close, false),
 ];
-const BOSS: &[&str] = &[
-    "....KKKKKKKKKKKK....",
-    "..KKGGGGGGGGGGGGKK..",
-    ".KGGGGRRRRRRRRGGGGK.",
-    "KGGGGRRWWWWWWRRGGGGK",
-    "KGGGRRWWYYYYWWRRGGGK",
-    "KGGGRRWWYYYYWWRRGGGK",
-    "KGGGGRRWWWWWWRRGGGGK",
-    ".KGGGGRRRRRRRRGGGGK.",
-    "..KKGGGGGGGGGGGGKK..",
-    "KK..KGGK....KGGK..KK",
-    "GK...KK......KK...KG",
-    "G..................G",
-];
-
-/// ドット絵の文字を色に変える
-///
-/// # 引数
-///
-/// * `cell` - 点描データの1文字
-///
-/// # 戻り値
-///
-/// 対応する色。透明なら None
-fn palette(cell: char) -> Option<Color32> {
-    match cell {
-        'W' => Some(WHITE),
-        'R' => Some(RED),
-        'Y' => Some(GOLD),
-        'G' => Some(Color32::from_rgb(0x8a, 0x8a, 0x9a)),
-        'K' => Some(Color32::from_rgb(0x3a, 0x3a, 0x4a)),
-        _ => None,
-    }
-}
 
 /// アーケードの画面を描き、押された操作を返す
 ///
@@ -134,408 +107,296 @@ fn palette(cell: char) -> Option<Color32> {
 pub fn show(ui: &mut Ui, view: &mut View) -> Option<Action> {
     ui.ctx().set_visuals(Visuals::dark());
     let area = ui.max_rect();
-    ui.painter().rect_filled(area, CornerRadius::ZERO, BLACK);
+    ui.painter().rect_filled(area, CornerRadius::ZERO, SPACE);
 
     let action = match view.screen {
-        Screen::Menu => maintenance_title(ui, view),
-        Screen::Welcome if view.task == Task::Uninstall => maintenance_title(ui, view),
-        Screen::Welcome => title(ui, view),
-        Screen::Destination => select_player(ui, view),
-        Screen::Running | Screen::Finished => stage(ui, view),
-        Screen::Failed => game_over(ui, view),
-    };
-    draw_scanlines(ui, area);
-    action
-}
-
-/// スコア、ハイスコア、残機を上段に描く
-///
-/// # 引数
-///
-/// * `ui` - 描画先
-/// * `game` - シューティングの状態。始まる前は None
-///
-/// # 戻り値
-///
-/// 戻り値なし
-fn hud(ui: &Ui, game: Option<&Game>) {
-    let area = ui.max_rect();
-    let score = game.map_or(0, |game| game.score);
-    let high = game.map_or(0, |game| game.high_score);
-    let top = area.top() + 10.0;
-    let painter = ui.painter();
-    painter.text(
-        pos2(area.left() + 24.0, top),
-        Align2::LEFT_TOP,
-        "1UP",
-        pixel(11.0),
-        RED_SOFT,
-    );
-    painter.text(
-        pos2(area.left() + 24.0, top + 18.0),
-        Align2::LEFT_TOP,
-        format!("{score:07}"),
-        pixel(11.0),
-        WHITE,
-    );
-    painter.text(
-        pos2(area.center().x, top),
-        Align2::CENTER_TOP,
-        "HI-SCORE",
-        pixel(11.0),
-        RED_SOFT,
-    );
-    painter.text(
-        pos2(area.center().x, top + 18.0),
-        Align2::CENTER_TOP,
-        format!("{high:07}"),
-        pixel(11.0),
-        WHITE,
-    );
-
-    // 残機は小さな自機で並べる
-    if let Some(game) = game {
-        painter.text(
-            pos2(area.right() - 200.0, top),
-            Align2::LEFT_TOP,
-            "LIVES",
-            pixel(11.0),
-            RED_SOFT,
-        );
-        for index in 0..game.player.lives {
-            sprite(
-                ui,
-                SHIP,
-                palette,
-                pos2(area.right() - 192.0 + index as f32 * 18.0, top + 24.0),
-                1.4,
-            );
+        Screen::Menu => title(ui, view, "メンテナンス", MENU_BUTTONS),
+        Screen::Welcome if view.task == Task::Uninstall => {
+            title(ui, view, "アンインストール", CONFIRM_BUTTONS)
         }
-    }
+        Screen::Welcome => title(ui, view, "セットアップ", TITLE_BUTTONS),
+        Screen::Destination => destination(ui, view),
+        Screen::Running | Screen::Finished => stage(ui, view),
+        Screen::Failed => failed(ui, view),
+    };
+
+    // テーマの切り替えは、どの画面でも左下に置く
+    let toggle = Rect::from_min_size(
+        pos2(area.left() + 12.0, area.bottom() - 36.0),
+        vec2(88.0, 26.0),
+    );
+    let toggled = space_button(ui, toggle, "THEME", None, false).then_some(Action::ToggleTheme);
+    draw_scanlines(ui, area);
+    action.or(toggled)
 }
 
-/// 夕日と流れるグリッドを描く
+/// 流れる星を描く
 ///
 /// # 引数
 ///
-/// * `ui` - 描画先
-/// * `horizon` - 地平線の y 座標
+/// * `painter` - 描画先
+/// * `area` - 星を散らす範囲
 /// * `seconds` - 起動からの秒数
+/// * `speed` - 流れる速さの倍率
 ///
 /// # 戻り値
 ///
 /// 戻り値なし
-fn draw_sunset(ui: &Ui, horizon: f32, seconds: f32) {
-    let area = ui.max_rect();
-    let painter = ui.painter();
-
-    // 横縞で切った半円の夕日
-    let center = pos2(area.center().x, horizon);
-    let radius = 118.0;
-    let mut y = horizon - radius;
-    let mut band = 0;
-    while y < horizon {
-        let gap = 2.0 + band as f32 * 0.6;
-        let height = 12.0 - band as f32 * 0.4;
-        let mid = (y + height / 2.0 - center.y).abs().min(radius);
-        let half = (radius * radius - mid * mid).sqrt();
-        let color = if band < 5 { GOLD } else { RED_SOFT };
+fn draw_stars(painter: &Painter, area: Rect, seconds: f32, speed: f32) {
+    for index in 0..110u32 {
+        let seed = index.wrapping_mul(2_654_435_761);
+        let velocity = (10 + seed % 30) as f32 * speed;
+        let travel = (seed % 997) as f32 / 997.0 * area.width() + seconds * velocity;
+        let x = area.right() - travel % area.width();
+        let y = area.top() + (seed / 997 % 991) as f32 / 991.0 * area.height();
+        let (size, color) = if seed % 7 == 0 {
+            (2.0, STAR)
+        } else {
+            (1.0, STAR.gamma_multiply(0.6))
+        };
         painter.rect_filled(
-            Rect::from_min_max(
-                pos2(center.x - half, y),
-                pos2(center.x + half, (y + height).min(horizon)),
-            ),
+            Rect::from_min_size(pos2(x, y), vec2(size, size)),
             CornerRadius::ZERO,
             color,
         );
-        y += height + gap;
-        band += 1;
-    }
-
-    // 奥へ集まる縦線と、手前へ流れる横線で床を作る
-    painter.line_segment(
-        [pos2(area.left(), horizon), pos2(area.right(), horizon)],
-        Stroke::new(3.0, RED_SOFT),
-    );
-    let grid = Stroke::new(1.5, Color32::from_rgba_unmultiplied(0xe6, 0x00, 0x12, 140));
-    for index in -12..=12 {
-        let x = center.x + index as f32 * 70.0;
-        painter.line_segment(
-            [
-                pos2(center.x + index as f32 * 8.0, horizon),
-                pos2(x, area.bottom()),
-            ],
-            grid,
-        );
-    }
-    let depth = area.bottom() - horizon;
-    let scroll = seconds.fract();
-    for index in 0..8 {
-        let t = (index as f32 + scroll) / 8.0;
-        let y = horizon + depth * t * t;
-        painter.line_segment([pos2(area.left(), y), pos2(area.right(), y)], grid);
     }
 }
 
-/// 影付きのドット文字を描く
-///
-/// # 引数
-///
-/// * `ui` - 描画先
-/// * `center` - 文字の中心
-/// * `text` - 文字列
-/// * `size` - 大きさ
-/// * `color` - 文字の色
-///
-/// # 戻り値
-///
-/// 戻り値なし
-fn shadow_text(ui: &Ui, center: Pos2, text: &str, size: f32, color: Color32) {
-    let depth = (size / 14.0).max(2.0);
-    centered_text(
-        ui,
-        center + vec2(depth * 2.0, depth * 2.0),
-        text,
-        pixel(size),
-        RED_DARK,
-    );
-    centered_text(ui, center + vec2(depth, depth), text, pixel(size), RED);
-    centered_text(ui, center, text, pixel(size), color);
-}
-
-/// 点滅させるかを返す
-///
-/// # 引数
-///
-/// * `seconds` - 起動からの秒数
-/// * `rate` - 1秒あたりの点滅回数
-///
-/// # 戻り値
-///
-/// 表示する時間帯なら true
-fn blink(seconds: f32, rate: f32) -> bool {
-    (seconds * rate * 2.0) as i32 % 2 == 0
-}
-
-/// 筐体風のボタンを描き、押されたかを返す
+/// 面取りの影が付いた SPACE YAKUZA のボタンを描き、押されたかを返す
 ///
 /// # 引数
 ///
 /// * `ui` - 配置先
 /// * `rect` - ボタンの範囲
-/// * `label` - 文言
-/// * `primary` - 赤い主ボタンなら true
+/// * `label` - 英字の文言
+/// * `note` - 文言の下に添える日本語。なければ None
+/// * `hot` - オレンジの主ボタンなら true
 ///
 /// # 戻り値
 ///
 /// 押されたら true
-fn arcade_button(ui: &mut Ui, rect: Rect, label: &str, primary: bool) -> bool {
+fn space_button(ui: &mut Ui, rect: Rect, label: &str, note: Option<&str>, hot: bool) -> bool {
     let response = hit_area(ui, rect);
-    let pressed = response.is_pointer_button_down_on();
-    let (face, edge) = if primary {
-        (RED, Color32::from_rgb(0x6a, 0x00, 0x08))
-    } else {
-        (
-            Color32::from_rgb(0x2a, 0x2a, 0x36),
-            Color32::from_rgb(0x12, 0x12, 0x1a),
-        )
+    let hovered = response.hovered();
+    let (fill, light, dark, ink) = match (hot, hovered) {
+        (true, false) => (ORANGE, ORANGE_LIGHT, ORANGE_DARK, INK),
+        (true, true) => (ORANGE_LIGHT, ORANGE_LIGHT, ORANGE_DARK, INK),
+        (false, false) => (BUTTON, BUTTON_LIGHT, BUTTON_DARK, WHITE),
+        (false, true) => (BUTTON_LIGHT, BUTTON_LIGHT, BUTTON_DARK, WHITE),
     };
-    let sink = if pressed { 4.0 } else { 0.0 };
-    ui.painter()
-        .rect_filled(rect.translate(vec2(0.0, 6.0)), CornerRadius::ZERO, edge);
-    let face_rect = rect.translate(vec2(0.0, sink));
-    ui.painter()
-        .rect_filled(face_rect, CornerRadius::ZERO, face);
-    if response.hovered() {
-        ui.painter().rect_stroke(
-            face_rect,
-            CornerRadius::ZERO,
-            Stroke::new(2.0, GOLD),
-            StrokeKind::Inside,
-        );
+
+    // 押している間は明暗を入れ替えて、へこんだように見せる
+    let (top_left, bottom_right) = if response.is_pointer_button_down_on() {
+        (dark, light)
+    } else {
+        (light, dark)
+    };
+    let painter = ui.painter();
+    painter.rect_filled(rect, CornerRadius::ZERO, fill);
+    let edge = 3.0;
+    for (strip, color) in [
+        (
+            Rect::from_min_size(rect.min, vec2(rect.width(), edge)),
+            top_left,
+        ),
+        (
+            Rect::from_min_size(rect.min, vec2(edge, rect.height())),
+            top_left,
+        ),
+        (
+            Rect::from_min_max(pos2(rect.left(), rect.bottom() - edge), rect.max),
+            bottom_right,
+        ),
+        (
+            Rect::from_min_max(pos2(rect.right() - edge, rect.top()), rect.max),
+            bottom_right,
+        ),
+    ] {
+        painter.rect_filled(strip, CornerRadius::ZERO, color);
     }
-    let font = label_font(ui, label, face_rect.width() - BUTTON_PADDING * 2.0);
-    centered_text(ui, face_rect.center(), label, font, WHITE);
+
+    match note {
+        Some(note) => {
+            centered_text(
+                ui,
+                rect.center() - vec2(0.0, 8.0),
+                label,
+                pixel(BUTTON_FONT_SIZE),
+                ink,
+            );
+            let note_color = if hot { INK } else { TEXT };
+            centered_text(
+                ui,
+                rect.center() + vec2(0.0, 9.0),
+                note,
+                dot(12.0),
+                note_color,
+            );
+        }
+        None => centered_text(ui, rect.center(), label, pixel(8.0), ink),
+    }
     response.clicked()
 }
 
-/// ボタンの文言を、ボタンの幅に収まる大きさのドットフォントで返す
+/// ボタンを縦に並べ、押された操作を返す
+///
+/// # 引数
+///
+/// * `ui` - 配置先
+/// * `left_top` - 最初のボタンの左上
+/// * `width` - ボタンの幅
+/// * `buttons` - 並べるボタン
+///
+/// # 戻り値
+///
+/// 押されたボタンの操作
+fn button_column(
+    ui: &mut Ui,
+    left_top: Pos2,
+    width: f32,
+    buttons: &[MenuButton],
+) -> Option<Action> {
+    let mut chosen = None;
+    for (index, &(label, note, action, hot)) in buttons.iter().enumerate() {
+        let rect = Rect::from_min_size(
+            left_top + vec2(0.0, index as f32 * (MENU_HEIGHT + 14.0)),
+            vec2(width, MENU_HEIGHT),
+        );
+        if space_button(ui, rect, label, Some(note), hot) {
+            chosen = Some(action);
+        }
+    }
+    chosen
+}
+
+/// 1文字ずつ間隔を空けた文字列の幅を返す
 ///
 /// # 引数
 ///
 /// * `ui` - 文字幅の計測に使う
-/// * `label` - 文言
-/// * `width` - 文言を収める幅
+/// * `text` - 文字列
+/// * `font` - フォント
+/// * `spacing` - 文字の間隔
 ///
 /// # 戻り値
 ///
-/// 11px から小さくしていき、最初に収まった大きさのフォント。収まらなければ最小の大きさ
-fn label_font(ui: &Ui, label: &str, width: f32) -> egui::FontId {
-    let fits = |size: f32| {
-        ui.painter()
-            .layout_no_wrap(label.to_owned(), pixel(size), WHITE)
-            .size()
-            .x
-            <= width
-    };
-    let mut size = BUTTON_FONT_SIZE;
-    while size > BUTTON_FONT_MIN && !fits(size) {
-        size -= 0.5;
-    }
-    pixel(size)
+/// 描いたときの幅
+fn spaced_width(ui: &Ui, text: &str, font: &FontId, spacing: f32) -> f32 {
+    let glyphs: f32 = text
+        .chars()
+        .map(|glyph| {
+            ui.painter()
+                .layout_no_wrap(glyph.to_string(), font.clone(), WHITE)
+                .size()
+                .x
+        })
+        .sum();
+    glyphs + spacing * text.chars().count().saturating_sub(1) as f32
 }
 
-/// タイトル画面を描く
+/// 1文字ずつ間隔を空けて、字幕のように文字を描く
 ///
 /// # 引数
 ///
 /// * `ui` - 描画先
-/// * `view` - セットアップの状態
+/// * `left_center` - 書き出しの左端の中央
+/// * `text` - 文字列
+/// * `font` - フォント
+/// * `color` - 文字の色
+/// * `spacing` - 文字の間隔
 ///
 /// # 戻り値
 ///
-/// 押されたボタンの操作
-fn title(ui: &mut Ui, view: &View) -> Option<Action> {
-    let area = ui.max_rect();
-    draw_sunset(ui, area.top() + 262.0, view.seconds);
-    hud(ui, None);
-
-    shadow_text(
-        ui,
-        pos2(area.center().x, area.top() + 128.0),
-        "PANDD",
-        62.0,
-        WHITE,
-    );
-    // 夕日の縞と重なっても読めるよう、暗い帯の上に置く
-    let subtitle = pos2(area.center().x, area.top() + 184.0);
-    ui.painter().rect_filled(
-        Rect::from_center_size(subtitle, vec2(236.0, 24.0)),
-        CornerRadius::ZERO,
-        BLACK,
-    );
-    centered_text(ui, subtitle, "GAME LAUNCHER", pixel(13.0), WHITE);
-    if blink(view.seconds, 1.0) {
-        centered_text(
-            ui,
-            pos2(area.center().x, area.top() + 300.0),
-            "INSERT COIN",
-            pixel(18.0),
-            GOLD,
+/// 戻り値なし
+fn spaced_text(ui: &Ui, left_center: Pos2, text: &str, font: FontId, color: Color32, spacing: f32) {
+    let mut x = left_center.x;
+    for glyph in text.chars() {
+        let galley = ui
+            .painter()
+            .layout_no_wrap(glyph.to_string(), font.clone(), color);
+        let width = galley.size().x;
+        ui.painter().text(
+            pos2(x, left_center.y),
+            Align2::LEFT_CENTER,
+            glyph,
+            font.clone(),
+            color,
         );
+        x += width + spacing;
     }
-    let start =
-        Rect::from_center_size(pos2(area.center().x, area.top() + 362.0), vec2(300.0, 46.0));
-    let chosen = arcade_button(ui, start, "START  インストール", true).then_some(Action::Next);
+}
+
+/// タイトルの「PANDD LAUNCHER」と副題を描く
+///
+/// # 引数
+///
+/// * `ui` - 描画先
+/// * `subtitle` - 副題
+///
+/// # 戻り値
+///
+/// 戻り値なし
+fn logo(ui: &Ui, subtitle: &str) {
+    let area = ui.max_rect();
+    let center = pos2(area.center().x, area.top() + 92.0);
     centered_text(
         ui,
-        pos2(area.center().x, area.bottom() - 22.0),
-        "© PANDD   CREDIT 00",
-        pixel(9.0),
-        GREY,
+        center + vec2(3.0, 3.0),
+        "PANDD LAUNCHER",
+        pixel(30.0),
+        BUTTON_DARK,
     );
-    chosen
+    centered_text(ui, center, "PANDD LAUNCHER", pixel(30.0), WHITE);
+    centered_text(ui, center + vec2(0.0, 48.0), subtitle, dot(18.0), TEXT);
 }
 
-/// メンテナンスの選択画面か、アンインストールの確認画面を描く
+/// SPACE YAKUZA のタイトル画面のように、ロゴの下にボタンを縦に並べる
 ///
 /// # 引数
 ///
 /// * `ui` - 描画先
 /// * `view` - セットアップの状態
+/// * `subtitle` - ロゴの下の副題
+/// * `buttons` - 並べるボタン
 ///
 /// # 戻り値
 ///
 /// 押されたボタンの操作
-fn maintenance_title(ui: &mut Ui, view: &View) -> Option<Action> {
+fn title(ui: &mut Ui, view: &View, subtitle: &str, buttons: &[MenuButton]) -> Option<Action> {
     let area = ui.max_rect();
-    draw_sunset(ui, area.top() + 262.0, view.seconds);
-    hud(ui, None);
+    draw_stars(ui.painter(), area, view.seconds, 1.0);
+    logo(ui, subtitle);
 
-    shadow_text(
-        ui,
-        pos2(area.center().x, area.top() + 118.0),
-        "PANDD",
-        62.0,
-        WHITE,
-    );
-    let subtitle = pos2(area.center().x, area.top() + 174.0);
-    ui.painter().rect_filled(
-        Rect::from_center_size(subtitle, vec2(236.0, 24.0)),
-        CornerRadius::ZERO,
-        BLACK,
-    );
-    centered_text(ui, subtitle, "GAME LAUNCHER", pixel(13.0), WHITE);
-    // 選択画面と、アンインストールの確認画面で文言を変える
-    let menu = view.screen == Screen::Menu;
-    let (headline, label, note_text) = if menu {
-        (
-            "SELECT MODE",
-            "TARGET",
-            "アップデートかアンインストールを選んでください",
-        )
+    // メンテナンスでは対象の場所と、残るものを添える
+    let notes: &[(&str, Color32)] = match (view.screen, view.task) {
+        (Screen::Menu, _) => &[("アップデートかアンインストールを選んでください", GREY)],
+        (Screen::Welcome, Task::Uninstall) => {
+            &[("インストールしたゲームとセーブデータは残ります", YELLOW)]
+        }
+        _ => &[],
+    };
+    let mut top = area.top() + 196.0;
+    if !notes.is_empty() {
+        let font = dot(13.0);
+        let target = fit_line(ui, &format!("TARGET  {}", view.final_root), &font, 600.0);
+        centered_text(ui, pos2(area.center().x, top), &target, font, CYAN);
+        for &(note, color) in notes {
+            top += 20.0;
+            centered_text(ui, pos2(area.center().x, top), note, dot(13.0), color);
+        }
+        top += 26.0;
     } else {
-        (
-            "THANK YOU FOR PLAYING",
-            "REMOVE",
-            "インストールしたゲームとセーブデータは残ります",
-        )
-    };
-    if blink(view.seconds, 1.0) {
-        centered_text(
-            ui,
-            pos2(area.center().x, area.top() + 222.0),
-            headline,
-            pixel(16.0),
-            GOLD,
-        );
+        top += 22.0;
     }
-
-    // 地平線の下に、対象の場所と補足を暗い帯で読ませる
-    let note = Rect::from_center_size(pos2(area.center().x, area.top() + 306.0), vec2(600.0, 58.0));
-    framed(
+    button_column(
         ui,
-        note,
-        0,
-        Color32::from_rgb(0x0d, 0x0d, 0x14),
-        Stroke::new(2.0, Color32::from_rgb(0x44, 0x44, 0x50)),
-    );
-    let font = body(12.0);
-    let target = fit_line(
-        ui,
-        &format!("{label}  {}", view.final_root),
-        &font,
-        note.width() - 28.0,
-    );
-    centered_text(ui, note.center() - vec2(0.0, 12.0), &target, font, WHITE);
-    centered_text(
-        ui,
-        note.center() + vec2(0.0, 12.0),
-        note_text,
-        body(12.0),
-        GREY,
-    );
-
-    // 選択画面は3つ、確認画面は2つのボタンを横に並べる
-    let buttons = if menu { MENU_BUTTONS } else { CONFIRM_BUTTONS };
-    let width = button_width(buttons.len());
-    let mut chosen = None;
-    for (index, &(label, action, primary)) in buttons.iter().enumerate() {
-        let rect = Rect::from_min_size(
-            pos2(
-                area.center().x - BUTTON_ROW_WIDTH / 2.0 + index as f32 * (width + BUTTON_GAP),
-                area.bottom() - 84.0,
-            ),
-            vec2(width, 44.0),
-        );
-        if arcade_button(ui, rect, label, primary) {
-            chosen = Some(action);
-        }
-    }
-    chosen
+        pos2(area.center().x - MENU_WIDTH / 2.0, top),
+        MENU_WIDTH,
+        buttons,
+    )
 }
 
-/// インストール先を選ぶ画面を描く
+/// インストール先を選ぶ画面を描く。左にボタン、右に行き先のパネルを置く
 ///
 /// # 引数
 ///
@@ -545,118 +406,93 @@ fn maintenance_title(ui: &mut Ui, view: &View) -> Option<Action> {
 /// # 戻り値
 ///
 /// 押されたボタンの操作
-fn select_player(ui: &mut Ui, view: &mut View) -> Option<Action> {
+fn destination(ui: &mut Ui, view: &View) -> Option<Action> {
     let area = ui.max_rect();
-    hud(ui, None);
-    shadow_text(
+    draw_stars(ui.painter(), area, view.seconds, 1.0);
+    centered_text(
         ui,
-        pos2(area.center().x, area.top() + 92.0),
-        "SELECT PLAYER",
-        22.0,
+        pos2(area.center().x, area.top() + 44.0),
+        "SELECT DESTINATION",
+        pixel(20.0),
         WHITE,
     );
 
-    // 1P は既定の場所、2P は好きな場所
-    let custom = view.root_text.trim() != view.default_root;
-    let mut chosen = None;
-    let left = Rect::from_min_size(
-        pos2(area.left() + 48.0, area.top() + 128.0),
-        vec2(320.0, 150.0),
+    // 行き先のパネル
+    let panel = Rect::from_min_size(area.left_top() + vec2(272.0, 88.0), vec2(452.0, 300.0));
+    ui.painter().rect_filled(panel, CornerRadius::ZERO, PANEL);
+    ui.painter().rect_stroke(
+        panel,
+        CornerRadius::ZERO,
+        Stroke::new(4.0, FRAME),
+        StrokeKind::Inside,
     );
-    let right = left.translate(vec2(344.0, 0.0));
-    for (rect, number, caption, selected, action) in [
-        (left, "1P", "RECOMMENDED", !custom, Action::UseDefault),
-        (right, "2P", "CUSTOM", custom, Action::Browse),
-    ] {
-        let response = hit_area(ui, rect);
-        let border = if selected {
-            GOLD
-        } else {
-            Color32::from_rgb(0x44, 0x44, 0x50)
-        };
-        framed(
-            ui,
-            rect,
-            0,
-            Color32::from_rgb(0x0d, 0x0d, 0x14),
-            Stroke::new(4.0, border),
-        );
-        let mut label = number.to_owned();
-        if selected && blink(view.seconds, 1.5) {
-            label.push_str(" ◀");
-        }
-        ui.painter().text(
-            rect.left_top() + vec2(16.0, 16.0),
-            Align2::LEFT_TOP,
-            label,
-            pixel(15.0),
-            GOLD,
-        );
-        ui.painter().text(
-            rect.left_top() + vec2(16.0, 44.0),
-            Align2::LEFT_TOP,
-            caption,
-            pixel(9.0),
-            WHITE,
-        );
-        let description = if number == "1P" {
-            fit_line(ui, view.default_root, &body(13.0), rect.width() - 32.0)
-        } else {
-            "好きなフォルダを選ぶ（クリックで参照）".to_owned()
-        };
-        wrapped_text(
-            ui,
-            rect.left_top() + vec2(16.0, 70.0),
-            &description,
-            body(13.0),
-            Color32::from_rgb(0xcc, 0xcc, 0xd4),
-            rect.width() - 32.0,
-        );
-        if response.clicked() {
-            chosen = Some(action);
-        }
-    }
+    let inner = panel.shrink(24.0);
+    centered_text(
+        ui,
+        pos2(panel.center().x, inner.top() + 10.0),
+        "INSTALL TO",
+        pixel(18.0),
+        YELLOW,
+    );
+    centered_text(
+        ui,
+        pos2(panel.center().x, inner.top() + 40.0),
+        "DESTINATION",
+        pixel(8.0),
+        FRAME,
+    );
+    let path = if view.final_root.is_empty() {
+        "フォルダを選んでください".to_owned()
+    } else {
+        fit_line(ui, view.final_root, &dot(15.0), inner.width())
+    };
+    centered_text(
+        ui,
+        pos2(panel.center().x, inner.top() + 72.0),
+        &path,
+        dot(15.0),
+        YELLOW,
+    );
+    let rule = inner.top() + 108.0;
+    ui.painter().line_segment(
+        [pos2(inner.left(), rule), pos2(inner.right(), rule)],
+        Stroke::new(2.0, FRAME),
+    );
+    centered_text(
+        ui,
+        pos2(panel.center().x, rule + 22.0),
+        "BRIEFING",
+        pixel(8.0),
+        FRAME,
+    );
 
-    // 直接入力もできるようにし、実際の場所と問題を添える
-    let field = Rect::from_min_size(pos2(left.left(), left.bottom() + 18.0), vec2(664.0, 30.0));
-    ui.put(
-        field,
-        TextEdit::singleline(view.root_text)
-            .font(body(13.0))
-            .text_color(WHITE)
-            .margin(egui::Margin::symmetric(8, 6)),
-    );
-    let (note, color) = match view.directory_problem {
-        Some(problem) => (problem.to_owned(), RED_SOFT),
+    // 問題があれば赤で、なければ保存先の補足を出す
+    let (briefing, color) = match view.directory_problem {
+        Some(problem) => (problem, RED),
         None => (
-            fit_line(
-                ui,
-                &format!("INSTALL TO  {}", view.final_root),
-                &body(12.0),
-                field.width(),
-            ),
-            GREY,
+            "ゲームとセーブデータは別の場所に保存されます。\nインストール中はシューティングで遊べます。",
+            TEXT,
         ),
     };
-    wrapped_text(
-        ui,
-        field.left_bottom() + vec2(0.0, 6.0),
-        &note,
-        body(12.0),
-        color,
-        field.width(),
-    );
+    let galley = ui
+        .painter()
+        .layout(briefing.to_owned(), dot(14.0), color, inner.width());
+    let position = pos2(panel.center().x - galley.size().x / 2.0, rule + 42.0);
+    ui.painter().galley(position, galley, color);
 
-    let start = Rect::from_min_size(
-        pos2(right.right() - 300.0, area.bottom() - 70.0),
-        vec2(300.0, 44.0),
+    let left = area.left() + 40.0;
+    let chosen = button_column(
+        ui,
+        pos2(left, area.top() + 100.0),
+        LIST_WIDTH,
+        DESTINATION_BUTTONS,
     );
-    if arcade_button(ui, start, "START  インストール", true) {
-        chosen = Some(Action::Install);
-    }
-    let back = Rect::from_min_size(pos2(left.left(), area.bottom() - 70.0), vec2(140.0, 44.0));
-    if arcade_button(ui, back, "BACK", false) {
-        chosen = Some(Action::Back);
+    let back = Rect::from_min_size(
+        pos2(left, panel.bottom() - MENU_HEIGHT),
+        vec2(LIST_WIDTH, MENU_HEIGHT),
+    );
+    if space_button(ui, back, "BACK", Some("もどる"), false) {
+        return Some(Action::Back);
     }
     chosen
 }
@@ -675,7 +511,252 @@ fn to_screen(field: Rect, position: GameVec) -> Pos2 {
     field.left_top() + vec2(position.x, position.y)
 }
 
-/// シューティングのフィールドと進捗を描く
+/// 作業の英語名を返す
+///
+/// # 引数
+///
+/// * `task` - 作業
+///
+/// # 戻り値
+///
+/// HUD の STAGE の横に出す名前
+fn task_name(task: Task) -> &'static str {
+    match task {
+        Task::Install => "INSTALL",
+        Task::Update => "UPDATE",
+        Task::Uninstall => "UNINSTALL",
+    }
+}
+
+/// 下段に出す、工程の字幕を返す
+///
+/// # 引数
+///
+/// * `stage` - IFW の工程
+///
+/// # 戻り値
+///
+/// 字幕の英文
+fn caption(stage: Stage) -> &'static str {
+    match stage {
+        Stage::Preparing => "CHECKING UPDATES.",
+        Stage::Downloading => "DOWNLOADING PACKAGES.",
+        Stage::Unpacking => "UNPACKING FILES.",
+        Stage::Finalizing => "FINALIZING.",
+        Stage::Removing => "REMOVING FILES.",
+    }
+}
+
+/// 上段に残機、STAGE、SCORE、DIST バー、ハイスコア、進捗率を描く
+///
+/// DIST バーはインストールの進捗で、右端の旗に着くと完了する
+///
+/// # 引数
+///
+/// * `ui` - 描画先
+/// * `view` - セットアップの状態
+/// * `game` - シューティングの状態
+///
+/// # 戻り値
+///
+/// 戻り値なし
+fn hud(ui: &Ui, view: &View, game: &Game) {
+    let area = ui.max_rect();
+    let bar = Rect::from_min_size(area.left_top(), vec2(area.width(), HUD_HEIGHT));
+    let painter = ui.painter();
+    painter.rect_filled(bar, CornerRadius::ZERO, BLACK);
+    painter.line_segment(
+        [bar.left_bottom(), bar.right_bottom()],
+        Stroke::new(1.0, TEAL),
+    );
+    let top = bar.top();
+
+    // 左は 1P と残機
+    painter.text(
+        pos2(bar.left() + 110.0, top + 6.0),
+        Align2::CENTER_TOP,
+        "1P",
+        pixel(10.0),
+        CYAN,
+    );
+    painter.text(
+        pos2(bar.left() + 20.0, top + 31.0),
+        Align2::LEFT_CENTER,
+        "LIFE",
+        pixel(7.0),
+        CYAN,
+    );
+    for index in 0..game.player.lives {
+        draw_ship(
+            painter,
+            pos2(bar.left() + 90.0 + index as f32 * 36.0, top + 31.0),
+            0.6,
+        );
+    }
+
+    // 中央は STAGE、SCORE、DIST
+    let center = bar.center().x;
+    painter.text(
+        pos2(center, top + 4.0),
+        Align2::CENTER_TOP,
+        format!("STAGE 1/1  {}", task_name(view.task)),
+        pixel(10.0),
+        YELLOW,
+    );
+    painter.text(
+        pos2(center, top + 18.0),
+        Align2::CENTER_TOP,
+        format!("SCORE {:06}", game.score),
+        pixel(9.0),
+        WHITE,
+    );
+    let fraction = view.progress.fraction();
+    let track = Rect::from_min_size(pos2(center - 48.0, top + 38.0), vec2(200.0, 1.0));
+    painter.text(
+        pos2(track.left() - 40.0, track.center().y),
+        Align2::LEFT_CENTER,
+        "DIST",
+        pixel(7.0),
+        ORANGE,
+    );
+    painter.rect_filled(track, CornerRadius::ZERO, DIM);
+    for tick in 0..=10 {
+        let x = track.left() + tick as f32 * track.width() / 10.0;
+        painter.rect_filled(
+            Rect::from_min_size(pos2(x, track.top() - 2.0), vec2(1.0, 3.0)),
+            CornerRadius::ZERO,
+            DIM,
+        );
+    }
+    painter.rect_filled(
+        Rect::from_center_size(
+            pos2(track.left() + track.width() * fraction, track.center().y),
+            vec2(10.0, 5.0),
+        ),
+        CornerRadius::ZERO,
+        ORANGE,
+    );
+    let pole = pos2(track.right() + 14.0, track.bottom());
+    painter.rect_filled(
+        Rect::from_min_size(pole - vec2(0.0, 11.0), vec2(1.0, 11.0)),
+        CornerRadius::ZERO,
+        GREY,
+    );
+    painter.rect_filled(
+        Rect::from_min_size(pole - vec2(-1.0, 11.0), vec2(6.0, 4.0)),
+        CornerRadius::ZERO,
+        GREY,
+    );
+
+    // 右はハイスコアと進捗率
+    painter.text(
+        pos2(bar.right() - 20.0, top + 6.0),
+        Align2::RIGHT_TOP,
+        format!("HI {:06}", game.high_score),
+        pixel(9.0),
+        GREY,
+    );
+    painter.text(
+        pos2(bar.right() - 20.0, top + 22.0),
+        Align2::RIGHT_TOP,
+        format!("{}%", (fraction * 100.0) as u32),
+        pixel(10.0),
+        YELLOW,
+    );
+}
+
+/// 自機を描く。グレーの胴体にティールの線とシアンの三角の機首
+///
+/// # 引数
+///
+/// * `painter` - 描画先
+/// * `center` - 機体の中心
+/// * `scale` - 大きさの倍率
+///
+/// # 戻り値
+///
+/// 戻り値なし
+fn draw_ship(painter: &Painter, center: Pos2, scale: f32) {
+    let at = |x: f32, y: f32| center + vec2(x, y) * scale;
+    painter.rect_filled(
+        Rect::from_min_max(at(-26.0, -5.0), at(4.0, 5.0)),
+        CornerRadius::ZERO,
+        HULL_GREY,
+    );
+    painter.rect_filled(
+        Rect::from_min_max(at(-20.0, -2.0), at(-4.0, 2.0)),
+        CornerRadius::ZERO,
+        TEAL,
+    );
+    painter.add(Shape::convex_polygon(
+        vec![at(4.0, -9.0), at(20.0, 5.0), at(4.0, 5.0)],
+        NOSE,
+        Stroke::NONE,
+    ));
+    painter.add(Shape::convex_polygon(
+        vec![at(4.0, 5.0), at(20.0, 5.0), at(4.0, 9.0)],
+        NOSE_DARK,
+        Stroke::NONE,
+    ));
+}
+
+/// 敵機を描く。赤い胴体とオレンジの三角の機首が左を向く
+///
+/// # 引数
+///
+/// * `painter` - 描画先
+/// * `center` - 機体の中心
+/// * `scale` - 大きさの倍率
+///
+/// # 戻り値
+///
+/// 戻り値なし
+fn draw_enemy(painter: &Painter, center: Pos2, scale: f32) {
+    let at = |x: f32, y: f32| center + vec2(x, y) * scale;
+    painter.rect_filled(
+        Rect::from_min_max(at(-8.0, -5.0), at(24.0, 5.0)),
+        CornerRadius::ZERO,
+        HULL_RED,
+    );
+    painter.rect_filled(
+        Rect::from_min_max(at(2.0, -2.0), at(16.0, 2.0)),
+        CornerRadius::ZERO,
+        ORANGE_DARK,
+    );
+    painter.add(Shape::convex_polygon(
+        vec![at(-20.0, 5.0), at(-8.0, -8.0), at(-4.0, 5.0)],
+        ORANGE,
+        Stroke::NONE,
+    ));
+    painter.add(Shape::convex_polygon(
+        vec![at(-8.0, -8.0), at(-2.0, 5.0), at(-4.0, 5.0)],
+        ORANGE_DARK,
+        Stroke::NONE,
+    ));
+}
+
+/// ロックオン中の相手を黄色の角括弧で囲む
+///
+/// # 引数
+///
+/// * `painter` - 描画先
+/// * `center` - 相手の中心
+/// * `radius` - 囲む大きさの半分
+///
+/// # 戻り値
+///
+/// 戻り値なし
+fn draw_lock_on(painter: &Painter, center: Pos2, radius: f32) {
+    let stroke = Stroke::new(2.0, YELLOW);
+    let arm = 7.0;
+    for (sx, sy) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+        let corner = center + vec2(sx * radius, sy * radius);
+        painter.line_segment([corner, corner - vec2(0.0, sy * arm)], stroke);
+        painter.line_segment([corner, corner - vec2(sx * arm, 0.0)], stroke);
+    }
+}
+
+/// シューティングのフィールド、HUD、下段を描く
 ///
 /// # 引数
 ///
@@ -691,97 +772,115 @@ fn stage(ui: &mut Ui, view: &View) -> Option<Action> {
         pos2(area.left(), area.top() + HUD_HEIGHT),
         pos2(area.right(), area.bottom() - FOOTER_HEIGHT),
     );
-    hud(ui, view.game);
-    let game = view.game?;
+    let Some(game) = view.game else {
+        return footer(ui, view);
+    };
     let painter = ui.painter().with_clip_rect(field);
+    draw_stars(&painter, field, view.seconds, 3.0);
 
-    // 奥行きのある星空を流す
-    for index in 0..70u32 {
-        let seed = index.wrapping_mul(2_654_435_761);
-        let speed = 30.0 + (seed % 90) as f32;
-        let x = (seed % 997) as f32 / 997.0 * field.width();
-        let y = ((seed / 997 % 991) as f32 / 991.0 * field.height() + view.seconds * speed)
-            % field.height();
-        let shade = (90 + seed % 150) as u8;
-        painter.rect_filled(
-            Rect::from_min_size(field.left_top() + vec2(x, y), vec2(2.0, 2.0)),
-            CornerRadius::ZERO,
-            Color32::from_gray(shade),
-        );
+    // 左へ流れる縦線と、固定の横線で格子を作る
+    let grid = Stroke::new(1.0, Color32::from_rgba_unmultiplied(0x19, 0x78, 0x78, 72));
+    let scroll = (view.seconds * 60.0) % 160.0;
+    let mut x = field.left() - scroll;
+    while x < field.right() {
+        painter.line_segment([pos2(x, field.top()), pos2(x, field.bottom())], grid);
+        x += 160.0;
+    }
+    for y in [field.top() + 18.0, field.center().y, field.bottom() - 18.0] {
+        painter.line_segment([pos2(field.left(), y), pos2(field.right(), y)], grid);
     }
 
     for enemy in &game.enemies {
-        sprite(ui, DRONE, palette, to_screen(field, enemy.position), 3.0);
+        draw_enemy(&painter, to_screen(field, enemy.position), 1.0);
     }
     if let Some(boss) = game.boss {
         let center = to_screen(field, boss.position);
-        sprite(ui, BOSS, palette, center, 5.0);
+        painter.rect_filled(
+            Rect::from_min_max(center + vec2(-24.0, -40.0), center + vec2(90.0, 40.0)),
+            CornerRadius::ZERO,
+            HULL_DARK,
+        );
+        draw_enemy(&painter, center + vec2(-20.0, -20.0), 1.8);
+        draw_enemy(&painter, center + vec2(-20.0, 20.0), 1.8);
+        painter.rect_filled(
+            Rect::from_center_size(center + vec2(30.0, 0.0), vec2(22.0, 10.0)),
+            CornerRadius::ZERO,
+            YELLOW,
+        );
 
         // ボスの耐久力をフィールド上部に出す
         let bar = Rect::from_min_size(
-            field.left_top() + vec2(180.0, 8.0),
-            vec2(field.width() - 360.0, 8.0),
+            field.left_top() + vec2(200.0, 10.0),
+            vec2(field.width() - 400.0, 6.0),
         );
-        painter.rect_filled(bar, CornerRadius::ZERO, Color32::from_rgb(0x30, 0x10, 0x14));
+        painter.rect_filled(bar, CornerRadius::ZERO, Color32::from_rgb(0x33, 0x11, 0x11));
         let health = boss.health as f32 / BOSS_HEALTH as f32;
         painter.rect_filled(
             Rect::from_min_size(bar.min, vec2(bar.width() * health, bar.height())),
             CornerRadius::ZERO,
-            RED_SOFT,
+            RED,
         );
         painter.text(
             bar.left_center() - vec2(10.0, 0.0),
             Align2::RIGHT_CENTER,
             "BOSS",
-            pixel(9.0),
-            GOLD,
+            pixel(8.0),
+            RED,
         );
     }
+    if let Some(target) = game.lock_target() {
+        let boss = game.boss.is_some_and(|boss| boss.position == target);
+        let (offset, radius) = if boss {
+            (vec2(30.0, 0.0), 56.0)
+        } else {
+            (vec2(2.0, 0.0), 22.0)
+        };
+        draw_lock_on(&painter, to_screen(field, target) + offset, radius);
+    }
+
+    // 自機の弾は進む向きに伸びた青い光、敵の弾は赤い光
     for shot in &game.shots {
-        let center = to_screen(field, shot.position);
-        painter.rect_filled(
-            Rect::from_center_size(center, vec2(3.0, 10.0)),
-            CornerRadius::ZERO,
-            GOLD,
+        let head = to_screen(field, shot.position);
+        let length = shot.velocity.x.hypot(shot.velocity.y).max(1.0);
+        let direction = vec2(shot.velocity.x, shot.velocity.y) / length;
+        painter.line_segment(
+            [head - direction * 16.0, head],
+            Stroke::new(6.0, Color32::from_rgba_unmultiplied(0x28, 0x6e, 0xff, 90)),
         );
+        painter.line_segment([head - direction * 9.0, head], Stroke::new(2.5, SHOT_CORE));
     }
     for shot in &game.enemy_shots {
         let center = to_screen(field, shot.position);
-        painter.circle_filled(center, 4.5, RED_SOFT);
-        painter.circle_filled(center, 2.0, WHITE);
+        painter.circle_filled(center, 5.0, RED.gamma_multiply(0.5));
+        painter.circle_filled(center, 2.5, RED);
     }
     for explosion in &game.explosions {
         let t = explosion.age / EXPLOSION_SECONDS;
         let center = to_screen(field, explosion.position);
-        let radius = (6.0 + t * 22.0) * explosion.scale;
-        painter.circle_stroke(
-            center,
-            radius,
-            Stroke::new(3.0, GOLD.gamma_multiply(1.0 - t)),
-        );
+        let radius = (4.0 + t * 26.0) * explosion.scale;
+        let color = if t < 0.3 {
+            WHITE
+        } else {
+            ORANGE.gamma_multiply(1.0 - t)
+        };
         for index in 0..8 {
             let angle = index as f32 / 8.0 * std::f32::consts::TAU;
-            let dot = center + vec2(angle.cos(), angle.sin()) * radius * 0.8;
+            let dot = center + vec2(angle.cos(), angle.sin()) * radius;
             painter.rect_filled(
                 Rect::from_center_size(dot, vec2(4.0, 4.0)),
                 CornerRadius::ZERO,
-                RED_SOFT.gamma_multiply(1.0 - t),
+                color,
             );
         }
     }
 
     // 無敵中は自機を点滅させる
-    let player_visible = game.player.invulnerable == 0.0 || blink(view.seconds, 6.0);
-    if player_visible && !matches!(game.phase, Phase::GameOver(_)) {
-        sprite(
-            ui,
-            SHIP,
-            palette,
-            to_screen(field, game.player.position),
-            3.0,
-        );
+    let visible = game.player.invulnerable == 0.0 || (view.seconds * 12.0) as i32 % 2 == 0;
+    if visible && !matches!(game.phase, Phase::GameOver(_)) {
+        draw_ship(&painter, to_screen(field, game.player.position), 1.0);
     }
 
+    hud(ui, view, game);
     overlays(ui, field, view, game);
     footer(ui, view)
 }
@@ -803,19 +902,23 @@ fn overlays(ui: &Ui, field: Rect, view: &View, game: &Game) {
     if view.screen == Screen::Running && view.screen_seconds < 6.0 {
         centered_text(
             ui,
-            pos2(center.x, field.bottom() - 18.0),
-            "←↑↓→ / WASD で移動   Z / SPACE でショット",
-            pixel(10.0),
-            WHITE,
+            pos2(center.x, field.bottom() - 30.0),
+            "MOVE: ARROWS/WASD   SHOT: Z/SPACE",
+            pixel(8.0),
+            GREY,
         );
     }
+    let blink = (view.seconds * 6.0) as i32 % 2 == 0;
     match game.phase {
         Phase::Warning(_) => {
-            let band = Rect::from_center_size(center, vec2(field.width(), 70.0));
-            ui.painter()
-                .rect_filled(band, CornerRadius::ZERO, RED.gamma_multiply(0.35));
-            if blink(view.seconds, 3.0) {
-                shadow_text(ui, center - vec2(0.0, 8.0), "WARNING!!", 28.0, GOLD);
+            let band = Rect::from_center_size(center, vec2(field.width(), 90.0));
+            ui.painter().rect_filled(
+                band,
+                CornerRadius::ZERO,
+                Color32::from_rgba_unmultiplied(0xff, 0x28, 0x3c, 46),
+            );
+            if blink {
+                centered_text(ui, center - vec2(0.0, 10.0), "WARNING", pixel(30.0), RED);
             }
             let finished = match view.task {
                 Task::Install => "インストール完了！ ボスが接近中",
@@ -823,33 +926,47 @@ fn overlays(ui: &Ui, field: Rect, view: &View, game: &Game) {
                 Task::Update => "アップデート完了！ ボスが接近中",
                 Task::Uninstall => "アンインストール完了！ ボスが接近中",
             };
-            centered_text(ui, center + vec2(0.0, 24.0), finished, bold(14.0), WHITE);
+            centered_text(ui, center + vec2(0.0, 26.0), finished, dot(15.0), WHITE);
         }
         Phase::Cleared => {
-            shadow_text(ui, center - vec2(0.0, 30.0), "STAGE CLEAR!", 32.0, GOLD);
+            let headline = center - vec2(0.0, 24.0);
             centered_text(
                 ui,
-                center + vec2(0.0, 16.0),
+                headline + vec2(3.0, 3.0),
+                "MISSION COMPLETE",
+                pixel(24.0),
+                ORANGE_DARK,
+            );
+            centered_text(ui, headline, "MISSION COMPLETE", pixel(24.0), YELLOW);
+            centered_text(
+                ui,
+                center + vec2(0.0, 22.0),
                 "BOSS BONUS  10000",
-                pixel(12.0),
+                pixel(10.0),
                 WHITE,
             );
         }
         Phase::GameOver(remaining) => {
-            shadow_text(ui, center - vec2(0.0, 20.0), "GAME OVER", 30.0, WHITE);
+            centered_text(
+                ui,
+                center - vec2(0.0, 18.0),
+                "GAME OVER",
+                pixel(28.0),
+                WHITE,
+            );
             centered_text(
                 ui,
                 center + vec2(0.0, 22.0),
                 &format!("CONTINUE  {}", remaining.ceil() as u32),
-                pixel(12.0),
-                GOLD,
+                pixel(10.0),
+                YELLOW,
             );
         }
         Phase::Playing | Phase::Boss => {}
     }
 }
 
-/// 下段に 20 マスの進捗と、完了後のボタンを描く
+/// 下段に工程の字幕を、完了後は結果とボタンを描く
 ///
 /// # 引数
 ///
@@ -865,75 +982,53 @@ fn footer(ui: &mut Ui, view: &View) -> Option<Action> {
         pos2(area.left(), area.bottom() - FOOTER_HEIGHT),
         area.right_bottom(),
     );
+    ui.painter().rect_filled(bar, CornerRadius::ZERO, BLACK);
     ui.painter()
-        .rect_filled(bar, CornerRadius::ZERO, Color32::from_rgb(0x0d, 0x0d, 0x14));
-    ui.painter().line_segment(
-        [bar.left_top(), bar.right_top()],
-        Stroke::new(2.0, RED_SOFT),
-    );
+        .line_segment([bar.left_top(), bar.right_top()], Stroke::new(1.0, TEAL));
 
-    if view.screen == Screen::Finished {
-        ui.painter().text(
-            bar.left_center() + vec2(20.0, 0.0),
-            Align2::LEFT_CENTER,
-            match view.task {
-                Task::Install => "INSTALL COMPLETE!",
-                Task::Update if view.up_to_date => "ALREADY UP TO DATE!",
-                Task::Update => "UPDATE COMPLETE!",
-                Task::Uninstall => "UNINSTALL COMPLETE!",
-            },
-            pixel(11.0),
-            GOLD,
+    if view.screen != Screen::Finished {
+        let text = caption(view.progress.stage());
+        let font = pixel(12.0);
+        let width = spaced_width(ui, text, &font, CAPTION_SPACING);
+        spaced_text(
+            ui,
+            pos2(bar.center().x - width / 2.0, bar.center().y),
+            text,
+            font,
+            ORANGE,
+            CAPTION_SPACING,
         );
-        let play = Rect::from_min_size(
-            pos2(bar.right() - 410.0, bar.top() + 8.0),
-            vec2(270.0, 32.0),
-        );
-        let close = Rect::from_min_size(
-            pos2(bar.right() - 128.0, bar.top() + 8.0),
-            vec2(110.0, 32.0),
-        );
-        // アンインストール後は起動するものがないので閉じるだけにする
-        if view.task == Task::Uninstall {
-            return arcade_button(ui, close, "閉じる", true).then_some(Action::Close);
-        }
-        if arcade_button(ui, play, "PLAY  ランチャーを起動", true) {
-            return Some(Action::Launch);
-        }
-        if arcade_button(ui, close, "閉じる", false) {
-            return Some(Action::Close);
-        }
         return None;
     }
 
-    // 1マス 5% のブロックをためていく
-    let fraction = view.progress.fraction();
-    let lit = (fraction * 20.0).round() as usize;
-    let start = bar.left_top() + vec2(20.0, 12.0);
-    for index in 0..20 {
-        let cell = Rect::from_min_size(start + vec2(index as f32 * 22.0, 0.0), vec2(18.0, 18.0));
-        let color = if index < lit {
-            RED_SOFT
-        } else {
-            Color32::from_rgb(0x22, 0x22, 0x2a)
-        };
-        ui.painter().rect_filled(cell, CornerRadius::ZERO, color);
+    let result = match view.task {
+        Task::Install => "INSTALL COMPLETE.",
+        Task::Update if view.up_to_date => "UP TO DATE.",
+        Task::Update => "UPDATE COMPLETE.",
+        Task::Uninstall => "UNINSTALL COMPLETE.",
+    };
+    spaced_text(
+        ui,
+        pos2(bar.left() + 116.0, bar.center().y),
+        result,
+        pixel(10.0),
+        YELLOW,
+        3.0,
+    );
+    let close = Rect::from_min_size(
+        pos2(bar.right() - 122.0, bar.top() + 7.0),
+        vec2(110.0, 32.0),
+    );
+
+    // アンインストール後は起動するものがないので閉じるだけにする
+    if view.task == Task::Uninstall {
+        return space_button(ui, close, "CLOSE", None, true).then_some(Action::Close);
     }
-    ui.painter().text(
-        start + vec2(20.0 * 22.0 + 10.0, 9.0),
-        Align2::LEFT_CENTER,
-        format!("{:3}%", (fraction * 100.0) as u32),
-        pixel(11.0),
-        WHITE,
-    );
-    ui.painter().text(
-        bar.right_center() - vec2(20.0, 0.0),
-        Align2::RIGHT_CENTER,
-        stage_label(view.progress.stage()),
-        bold(13.0),
-        GREY,
-    );
-    None
+    let launch = Rect::from_min_size(close.left_top() - vec2(170.0, 0.0), vec2(160.0, 32.0));
+    if space_button(ui, launch, "LAUNCH GAME", None, true) {
+        return Some(Action::Launch);
+    }
+    space_button(ui, close, "CLOSE", None, false).then_some(Action::Close)
 }
 
 /// 失敗の画面を描く
@@ -946,58 +1041,74 @@ fn footer(ui: &mut Ui, view: &View) -> Option<Action> {
 /// # 戻り値
 ///
 /// 押されたボタンの操作
-fn game_over(ui: &mut Ui, view: &View) -> Option<Action> {
+fn failed(ui: &mut Ui, view: &View) -> Option<Action> {
     let area = ui.max_rect();
-    hud(ui, view.game);
-    shadow_text(
+    draw_stars(ui.painter(), area, view.seconds, 1.0);
+    centered_text(
         ui,
-        pos2(area.center().x, area.top() + 110.0),
-        "GAME OVER",
-        40.0,
-        WHITE,
+        pos2(area.center().x, area.top() + 52.0),
+        "MISSION FAILED",
+        pixel(26.0),
+        RED,
     );
     centered_text(
         ui,
-        pos2(area.center().x, area.top() + 160.0),
+        pos2(area.center().x, area.top() + 92.0),
         match view.task {
             Task::Install => "インストールに失敗しました",
             Task::Update => "アップデートに失敗しました",
             Task::Uninstall => "アンインストールに失敗しました",
         },
-        bold(16.0),
-        GOLD,
+        dot(17.0),
+        YELLOW,
     );
-    let detail = Rect::from_min_size(
-        pos2(area.left() + 60.0, area.top() + 188.0),
-        vec2(area.width() - 120.0, 180.0),
+
+    // 失敗の内容をパネルに出す
+    let panel = Rect::from_min_size(
+        area.left_top() + vec2(60.0, 118.0),
+        vec2(area.width() - 120.0, 200.0),
     );
-    framed(
-        ui,
-        detail,
-        0,
-        Color32::from_rgb(0x0d, 0x0d, 0x14),
-        Stroke::new(2.0, Color32::from_rgb(0x44, 0x44, 0x50)),
+    ui.painter().rect_filled(panel, CornerRadius::ZERO, PANEL);
+    ui.painter().rect_stroke(
+        panel,
+        CornerRadius::ZERO,
+        Stroke::new(4.0, FRAME),
+        StrokeKind::Inside,
     );
-    let inner = detail.shrink(10.0);
+    ui.painter().text(
+        panel.left_top() + vec2(18.0, 14.0),
+        Align2::LEFT_TOP,
+        "REPORT",
+        pixel(8.0),
+        FRAME,
+    );
+    let clip = Rect::from_min_max(
+        panel.left_top() + vec2(18.0, 34.0),
+        panel.right_bottom() - vec2(18.0, 12.0),
+    );
     let galley = ui
         .painter()
-        .layout(view.failure.to_owned(), body(11.0), GREY, inner.width());
+        .layout(view.failure.to_owned(), dot(13.0), TEXT, clip.width());
     ui.painter()
-        .with_clip_rect(inner)
-        .galley(inner.left_top(), galley, GREY);
+        .with_clip_rect(clip)
+        .galley(clip.left_top(), galley, TEXT);
 
-    let retry = Rect::from_min_size(
-        pos2(area.center().x - 230.0, area.bottom() - 84.0),
-        vec2(220.0, 44.0),
-    );
-    let close = Rect::from_min_size(
-        pos2(area.center().x + 10.0, area.bottom() - 84.0),
-        vec2(220.0, 44.0),
-    );
-    if arcade_button(ui, retry, "CONTINUE  もう一度", true) {
-        return Some(Action::Retry);
+    // ボタンは横に2つ並べる
+    let mut chosen = None;
+    let width = 200.0;
+    for (index, &(label, note, action, hot)) in FAILED_BUTTONS.iter().enumerate() {
+        let rect = Rect::from_min_size(
+            pos2(
+                area.center().x - width - 8.0 + index as f32 * (width + 16.0),
+                panel.bottom() + 24.0,
+            ),
+            vec2(width, MENU_HEIGHT),
+        );
+        if space_button(ui, rect, label, Some(note), hot) {
+            chosen = Some(action);
+        }
     }
-    arcade_button(ui, close, "閉じる", false).then_some(Action::Close)
+    chosen
 }
 
 /// ブラウン管風の走査線を重ねる
@@ -1011,7 +1122,7 @@ fn game_over(ui: &mut Ui, view: &View) -> Option<Action> {
 ///
 /// 戻り値なし
 fn draw_scanlines(ui: &Ui, area: Rect) {
-    let line = Color32::from_rgba_unmultiplied(0, 0, 0, 60);
+    let line = Color32::from_rgba_unmultiplied(0, 0, 0, 46);
     let mut y = area.top();
     while y < area.bottom() {
         ui.painter().rect_filled(
@@ -1029,25 +1140,57 @@ mod tests {
 
     use super::*;
 
-    /// メンテナンスのボタンの文言が、縮める下限の大きさでボタンに収まることを確かめる
+    /// ボタンの左右に残す余白
+    const BUTTON_PADDING: f32 = 10.0;
+
+    /// すべてのボタンの文言と補足が、ボタンの幅に収まることを確かめる
     #[test]
-    fn maintenance_labels_fit_their_buttons() {
+    fn button_labels_fit_their_buttons() {
         // 本番と同じフォントを読み込み、1フレーム回して反映する
         let ctx = Context::default();
         crate::app::install_fonts(&ctx);
         let _ = ctx.run_ui(RawInput::default(), |_| {});
 
-        for buttons in [MENU_BUTTONS, CONFIRM_BUTTONS] {
-            let room = button_width(buttons.len()) - BUTTON_PADDING * 2.0;
-            for &(label, _, _) in buttons {
-                let width = ctx.fonts_mut(|fonts| {
-                    fonts
-                        .layout_no_wrap(label.to_owned(), pixel(BUTTON_FONT_MIN), WHITE)
-                        .size()
-                        .x
-                });
-                assert!(width <= room, "ボタンからはみ出す文言: {label}");
+        let columns = [
+            (TITLE_BUTTONS, MENU_WIDTH),
+            (MENU_BUTTONS, MENU_WIDTH),
+            (CONFIRM_BUTTONS, MENU_WIDTH),
+            (DESTINATION_BUTTONS, LIST_WIDTH),
+            (FAILED_BUTTONS, 200.0),
+        ];
+        for (buttons, width) in columns {
+            let room = width - BUTTON_PADDING * 2.0;
+            for &(label, note, _, _) in buttons {
+                for (text, font) in [(label, pixel(BUTTON_FONT_SIZE)), (note, dot(12.0))] {
+                    let size = ctx.fonts_mut(|fonts| {
+                        fonts.layout_no_wrap(text.to_owned(), font, WHITE).size().x
+                    });
+                    assert!(size <= room, "ボタンからはみ出す文言: {text}");
+                }
             }
+        }
+    }
+
+    /// 最も長い字幕が下段の幅に収まることを確かめる
+    #[test]
+    fn captions_fit_the_footer() {
+        let ctx = Context::default();
+        crate::app::install_fonts(&ctx);
+        let _ = ctx.run_ui(RawInput::default(), |_| {});
+
+        for stage in [
+            Stage::Preparing,
+            Stage::Downloading,
+            Stage::Unpacking,
+            Stage::Finalizing,
+            Stage::Removing,
+        ] {
+            let text = caption(stage);
+            let _ = ctx.run_ui(RawInput::default(), |ui| {
+                let width = spaced_width(ui, text, &pixel(12.0), CAPTION_SPACING);
+                // 左下のテーマ切り替えボタンと重ならない幅
+                assert!(width <= 760.0 - 2.0 * 112.0, "下段からはみ出す字幕: {text}");
+            });
         }
     }
 }

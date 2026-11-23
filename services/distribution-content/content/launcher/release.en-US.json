@@ -1,6 +1,6 @@
 {
-  "version": "1.4.2",
+  "version": "1.4.3",
   "mandatory": false,
-  "title": "Fixed Windows maintenance permissions and updated the tool icon",
-  "publishedAt": "2026-11-23T00:00:00+09:00"
+  "title": "Redesigned Windows setup and maintenance tool themes",
+  "publishedAt": "2026-11-24T00:00:00+09:00"
 }

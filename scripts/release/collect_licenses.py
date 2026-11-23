@@ -30,6 +30,9 @@ LICENSE_SOURCES = {
     # Windows の PandD Setup が同梱する Press Start 2P の OFL.txt
     "PressStart2P-OFL.txt":
         "004fc993a3bdaaf0fd443cb58d7e5c2fd09fc3a93b23309d0005421f7b8b7123",
+    # Windows の PandD Setup が同梱する DotGothic16 の OFL.txt
+    "DotGothic16-OFL.txt":
+        "b6630c61ea078cacd7fabe37d14ffe557a0b45b06683374a9aa9e24262993e33",
     "Saira-OFL.txt":
         "f2665d4718b452b3818a877191355ac884a6b9b419d35408fe7ee487e9e8f30f",
     "Live2D-Proprietary-Software-License-Agreement.html":

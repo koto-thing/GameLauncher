@@ -1,35 +1,29 @@
 //! 2つの見た目（キャラクターナビとアーケード）に共通する画面の型と描画部品
+//!
+//! キャラクターナビは PandD のロゴの配色で恋愛 ADV のプレイ画面に、
+//! アーケードは SPACE YAKUZA の画面に寄せる
 
 pub mod arcade;
 pub mod navi;
 
 /// PandD のロゴを元にした配色
 ///
-/// ロゴのチャコール、コーラルピンク、白を基本に、コーラルの濃淡を足す
+/// ロゴのコーラルピンクと白を基本に、コーラルの濃淡を足す
 pub mod palette {
     use eframe::egui::Color32;
 
-    /// ロゴの文字色。本文と枠線に使う
-    pub const CHARCOAL: Color32 = Color32::from_rgb(0x3a, 0x3a, 0x3a);
-    /// チャコールを薄めた補足の文字色
-    pub const CHARCOAL_SOFT: Color32 = Color32::from_rgb(0x7a, 0x76, 0x78);
-    /// アーケードの背景に使う、チャコールをさらに暗くした色
-    pub const NIGHT: Color32 = Color32::from_rgb(0x16, 0x15, 0x17);
     /// ロゴの「a」のコーラルピンク。主ボタンと強調に使う
     pub const CORAL: Color32 = Color32::from_rgb(0xff, 0x67, 0x77);
     /// 押下中や影に使う濃いコーラル
     pub const CORAL_DEEP: Color32 = Color32::from_rgb(0xd9, 0x4a, 0x5b);
     /// 枠線やハイライトに使う淡いコーラル
     pub const CORAL_LIGHT: Color32 = Color32::from_rgb(0xff, 0xb8, 0xc0);
-    /// 背景に使うごく淡いコーラル
-    pub const CORAL_MIST: Color32 = Color32::from_rgb(0xff, 0xf1, 0xf3);
     /// ロゴの背景の白
     pub const WHITE: Color32 = Color32::WHITE;
 }
 
 use eframe::egui::{
-    self, Align2, Color32, CornerRadius, FontFamily, FontId, Mesh, Pos2, Rect, Response, Sense,
-    Shape, Stroke, StrokeKind, Ui, vec2,
+    self, Align2, Color32, FontFamily, FontId, Mesh, Pos2, Rect, Response, Sense, Shape, Ui,
 };
 use pandd_setup::{ifw::Stage, progress::Progress, shooter::Game};
 
@@ -86,6 +80,8 @@ pub enum Action {
     Launch,
     /// セットアップを閉じる
     Close,
+    /// キャラクターナビとアーケードを切り替える
+    ToggleTheme,
 }
 
 /// テーマが描画に使う、セットアップの今の状態
@@ -104,6 +100,8 @@ pub struct View<'a> {
     pub directory_problem: Option<&'a str>,
     /// IFW の進捗
     pub progress: &'a Progress,
+    /// IFW のログの末尾
+    pub log: &'a [String],
     /// 失敗の内容
     pub failure: &'a str,
     /// 今の画面に入ってからの秒数
@@ -114,14 +112,16 @@ pub struct View<'a> {
     pub up_to_date: bool,
     /// アーケードのシューティング。実行画面に入るまでは None
     pub game: Option<&'a Game>,
-    /// キャラクターナビの立ち絵
-    pub portraits: &'a navi::Portraits,
+    /// キャラクターナビの立ち絵とロゴ
+    pub images: &'a navi::Images,
 }
 
 /// テーマ共通のフォント名
 pub const BOLD: &str = "bold";
 /// アーケード用のドットフォント名
 pub const PIXEL: &str = "pixel";
+/// アーケードの日本語の本文に使うドットフォント名
+pub const DOT: &str = "dot";
 
 /// 太字の日本語フォントを返す
 ///
@@ -149,7 +149,7 @@ pub fn body(size: f32) -> FontId {
     FontId::new(size, FontFamily::Proportional)
 }
 
-/// ドットフォントを返す。日本語は太字の M PLUS 2 で表示する
+/// ドットフォントを返す。日本語は DotGothic16 で表示する
 ///
 /// # 引数
 ///
@@ -160,6 +160,19 @@ pub fn body(size: f32) -> FontId {
 /// Press Start 2P のフォント指定
 pub fn pixel(size: f32) -> FontId {
     FontId::new(size, FontFamily::Name(PIXEL.into()))
+}
+
+/// 日本語の本文用のドットフォントを返す
+///
+/// # 引数
+///
+/// * `size` - 文字の大きさ
+///
+/// # 戻り値
+///
+/// DotGothic16 のフォント指定
+pub fn dot(size: f32) -> FontId {
+    FontId::new(size, FontFamily::Name(DOT.into()))
 }
 
 /// 工程の日本語名を返す
@@ -204,43 +217,6 @@ pub fn vertical_gradient(ui: &Ui, rect: Rect, top: Color32, bottom: Color32) {
     ui.painter().add(Shape::mesh(mesh));
 }
 
-/// 文字列の点描データからドット絵を描く
-///
-/// # 引数
-///
-/// * `ui` - 描画先
-/// * `rows` - 1行ずつの点描データ。`.` は透明
-/// * `palette` - 文字から色を返す関数。None なら描かない
-/// * `center` - ドット絵の中心
-/// * `dot` - 1ドットの大きさ
-///
-/// # 戻り値
-///
-/// 戻り値なし
-pub fn sprite(
-    ui: &Ui,
-    rows: &[&str],
-    palette: impl Fn(char) -> Option<Color32>,
-    center: Pos2,
-    dot: f32,
-) {
-    let width = rows.first().map_or(0, |row| row.chars().count()) as f32 * dot;
-    let height = rows.len() as f32 * dot;
-    let origin = center - vec2(width, height) / 2.0;
-    for (y, row) in rows.iter().enumerate() {
-        for (x, cell) in row.chars().enumerate() {
-            if let Some(color) = palette(cell) {
-                let min = origin + vec2(x as f32 * dot, y as f32 * dot);
-                ui.painter().rect_filled(
-                    Rect::from_min_size(min, vec2(dot, dot)),
-                    CornerRadius::ZERO,
-                    color,
-                );
-            }
-        }
-    }
-}
-
 /// 押せる領域を作り、押されたかとカーソルの状態を返す
 ///
 /// # 引数
@@ -254,54 +230,6 @@ pub fn sprite(
 pub fn hit_area(ui: &mut Ui, rect: Rect) -> Response {
     ui.allocate_rect(rect, Sense::click())
         .on_hover_cursor(egui::CursorIcon::PointingHand)
-}
-
-/// 枠線付きの矩形を描く
-///
-/// # 引数
-///
-/// * `ui` - 描画先
-/// * `rect` - 範囲
-/// * `radius` - 角の丸み
-/// * `fill` - 塗りの色
-/// * `stroke` - 枠線
-///
-/// # 戻り値
-///
-/// 戻り値なし
-pub fn framed(ui: &Ui, rect: Rect, radius: u8, fill: Color32, stroke: Stroke) {
-    let radius = CornerRadius::same(radius);
-    ui.painter().rect_filled(rect, radius, fill);
-    ui.painter()
-        .rect_stroke(rect, radius, stroke, StrokeKind::Inside);
-}
-
-/// 指定幅で折り返して文字を描く
-///
-/// # 引数
-///
-/// * `ui` - 描画先
-/// * `position` - 左上の位置
-/// * `text` - 描く文字列
-/// * `font` - フォント
-/// * `color` - 文字の色
-/// * `width` - 折り返す幅
-///
-/// # 戻り値
-///
-/// 描いた範囲
-pub fn wrapped_text(
-    ui: &Ui,
-    position: Pos2,
-    text: &str,
-    font: FontId,
-    color: Color32,
-    width: f32,
-) -> Rect {
-    let galley = ui.painter().layout(text.to_owned(), font, color, width);
-    let rect = Rect::from_min_size(position, galley.size());
-    ui.painter().galley(position, galley, color);
-    rect
 }
 
 /// 1行に収まらない文字列を、前後を残して真ん中を「…」で省く
