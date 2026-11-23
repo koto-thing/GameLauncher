@@ -1,6 +1,7 @@
-//! インストール中に遊べる縦シューティングのゲームロジック
+//! インストール中に遊べる横シューティングのゲームロジック
 //!
 //! 描画とは切り離し、座標は左上を原点とする画面ピクセルで扱う。
+//! 敵は右から現れ、自機のショットは近くの敵へ曲がって飛ぶ。
 //! インストールが終わるとボスが出現し、倒すとステージクリアになる
 
 /// 2次元の座標と速度
@@ -86,8 +87,8 @@ pub struct Shot {
 pub struct Enemy {
     /// 位置
     pub position: Vec2,
-    /// 横揺れの中心
-    base_x: f32,
+    /// 縦揺れの中心
+    base_y: f32,
     /// 出現からの経過秒数
     pub age: f32,
 }
@@ -149,14 +150,20 @@ pub const EXPLOSION_SECONDS: f32 = 0.5;
 /// 開始時と再開時の残機
 const STARTING_LIVES: u32 = 3;
 const PLAYER_SPEED: f32 = 280.0;
-const SHOT_SPEED: f32 = 560.0;
-const SHOT_COOLDOWN: f32 = 0.12;
-const ENEMY_SPEED: f32 = 90.0;
+/// 撃った直後の弾の速さ。扇状に開いてから敵へ向かう
+const SHOT_LAUNCH_SPEED: f32 = 260.0;
+/// 敵へ向かうときの弾の速さ
+const SHOT_SPEED: f32 = 620.0;
+/// 弾が狙いの方向へ曲がる速さ（1秒あたり）
+const SHOT_TURN_RATE: f32 = 5.0;
+const SHOT_COOLDOWN: f32 = 0.1;
+const ENEMY_SPEED: f32 = 95.0;
 const ENEMY_SPAWN_SECONDS: f32 = 0.9;
 const WARNING_SECONDS: f32 = 2.5;
 const GAME_OVER_SECONDS: f32 = 3.0;
 const BOSS_ENTRY_SECONDS: f32 = 2.0;
-const BOSS_HOME_Y: f32 = 90.0;
+/// ボスが定位置に着いたときの、右端からの距離
+const BOSS_HOME_FROM_RIGHT: f32 = 100.0;
 const INVULNERABLE_SECONDS: f32 = 2.0;
 const PLAYER_RADIUS: f32 = 6.0;
 const ENEMY_RADIUS: f32 = 16.0;
@@ -203,7 +210,7 @@ impl Game {
     ///
     /// # 戻り値
     ///
-    /// 自機が画面下にいる開始状態
+    /// 自機が画面左にいる開始状態
     pub fn new(width: f32, height: f32, seed: u64) -> Self {
         let size = Vec2::new(width, height);
         Self {
@@ -265,7 +272,7 @@ impl Game {
     /// 残機が満タンの自機
     fn fresh_player(size: Vec2) -> Player {
         Player {
-            position: Vec2::new(size.x / 2.0, size.y - 40.0),
+            position: Vec2::new(80.0, size.y / 2.0),
             lives: STARTING_LIVES,
             invulnerable: INVULNERABLE_SECONDS,
             cooldown: 0.0,
@@ -298,19 +305,19 @@ impl Game {
             direction = Vec2::new(direction.x / length, direction.y / length);
         }
         player.position.x =
-            (player.position.x + direction.x * PLAYER_SPEED * dt).clamp(16.0, self.size.x - 16.0);
-        player.position.y = (player.position.y + direction.y * PLAYER_SPEED * dt)
-            .clamp(self.size.y * 0.35, self.size.y - 16.0);
+            (player.position.x + direction.x * PLAYER_SPEED * dt).clamp(16.0, self.size.x * 0.6);
+        player.position.y =
+            (player.position.y + direction.y * PLAYER_SPEED * dt).clamp(12.0, self.size.y - 12.0);
 
-        // 押している間は一定間隔で2連装のショットを撃つ
+        // 押している間は一定間隔で上下に開く2発のホーミングショットを撃つ
         player.invulnerable = (player.invulnerable - dt).max(0.0);
         player.cooldown = (player.cooldown - dt).max(0.0);
         if input.fire && player.cooldown == 0.0 {
             player.cooldown = SHOT_COOLDOWN;
-            for offset in [-7.0, 7.0] {
+            for spread in [-0.8, 0.8] {
                 self.shots.push(Shot {
-                    position: Vec2::new(player.position.x + offset, player.position.y - 12.0),
-                    velocity: Vec2::new(0.0, -SHOT_SPEED),
+                    position: Vec2::new(player.position.x + 18.0, player.position.y),
+                    velocity: Vec2::new(SHOT_LAUNCH_SPEED, spread * SHOT_LAUNCH_SPEED),
                 });
             }
         }
@@ -339,7 +346,7 @@ impl Game {
             Phase::Warning(remaining) if remaining - dt <= 0.0 => {
                 self.phase = Phase::Boss;
                 self.boss = Some(Boss {
-                    position: Vec2::new(self.size.x / 2.0, -BOSS_RADIUS * 2.0),
+                    position: Vec2::new(self.size.x + BOSS_RADIUS * 2.0, self.size.y / 2.0),
                     health: BOSS_HEALTH,
                     age: 0.0,
                     spread_timer: 1.0,
@@ -358,21 +365,20 @@ impl Game {
         }
     }
 
-    /// 横一列に1〜3体の敵を出す
+    /// 右端の外に、横に連なる1〜3体の編隊を出す
     ///
     /// # 戻り値
     ///
     /// 戻り値なし
     fn spawn_wave(&mut self) {
         let count = 1 + self.next_random() % 3;
-        let margin = 60.0;
-        let span = self.size.x - margin * 2.0;
-        let start = margin + (self.next_random() % 1000) as f32 / 1000.0 * span;
+        let margin = 50.0;
+        let span = self.size.y - margin * 2.0;
+        let y = margin + (self.next_random() % 1000) as f32 / 1000.0 * span;
         for index in 0..count {
-            let x = (start + index as f32 * 56.0).min(self.size.x - margin);
             self.enemies.push(Enemy {
-                position: Vec2::new(x, -ENEMY_RADIUS - index as f32 * 30.0),
-                base_x: x,
+                position: Vec2::new(self.size.x + ENEMY_RADIUS + index as f32 * 44.0, y),
+                base_y: y,
                 age: index as f32 * 0.4,
             });
         }
@@ -392,20 +398,20 @@ impl Game {
         let mut fired = Vec::new();
         for enemy in &mut self.enemies {
             enemy.age += dt;
-            enemy.position.y += ENEMY_SPEED * dt;
-            enemy.position.x = enemy.base_x + (enemy.age * 2.2).sin() * 46.0;
+            enemy.position.x -= ENEMY_SPEED * dt;
+            enemy.position.y = enemy.base_y + (enemy.age * 2.2).sin() * 40.0;
             fired.push(enemy.position);
         }
 
-        // 画面内の敵だけが低い確率で撃つ
+        // 画面の右側にいる敵だけが低い確率で撃つ
         for origin in fired {
             let chance = (self.next_random() % 10_000) as f32 / 10_000.0;
-            if origin.y > 0.0 && origin.y < self.size.y * 0.6 && chance < dt * 0.35 {
+            if origin.x < self.size.x && origin.x > self.size.x * 0.4 && chance < dt * 0.35 {
                 self.enemy_shots.push(aimed_shot(origin, target, 170.0));
             }
         }
-        let bottom = self.size.y + ENEMY_RADIUS;
-        self.enemies.retain(|enemy| enemy.position.y < bottom);
+        self.enemies
+            .retain(|enemy| enemy.position.x > -ENEMY_RADIUS * 2.0);
     }
 
     /// ボスを動かし、弾幕と狙い撃ちを出す
@@ -419,20 +425,22 @@ impl Game {
     /// 戻り値なし
     fn update_boss(&mut self, dt: f32) {
         let target = self.player.position;
-        let width = self.size.x;
+        let size = self.size;
         let Some(boss) = &mut self.boss else {
             return;
         };
         boss.age += dt;
 
-        // 登場中は定位置まで降り、その後は左右に揺れる
+        // 登場中は右から定位置まで進み、その後は上下に揺れる
+        let start = size.x + BOSS_RADIUS * 2.0;
+        let home = size.x - BOSS_HOME_FROM_RIGHT;
         if boss.is_entering() {
             let t = boss.age / BOSS_ENTRY_SECONDS;
-            boss.position.y = -BOSS_RADIUS * 2.0 + (BOSS_HOME_Y + BOSS_RADIUS * 2.0) * t;
+            boss.position.x = start + (home - start) * t;
             return;
         }
         let swing = (boss.age - BOSS_ENTRY_SECONDS) * 0.8;
-        boss.position = Vec2::new(width / 2.0 + swing.sin() * width * 0.32, BOSS_HOME_Y);
+        boss.position = Vec2::new(home, size.y / 2.0 + swing.sin() * size.y * 0.32);
 
         // 扇状の弾幕。耐久力が半分を切ると間隔が縮む
         let enraged = boss.health * 2 < BOSS_HEALTH;
@@ -442,11 +450,11 @@ impl Game {
             let count = if enraged { 9 } else { 7 };
             let phase = boss.age * 0.7;
             for index in 0..count {
-                let angle = std::f32::consts::FRAC_PI_2
+                let angle = std::f32::consts::PI
                     + (index as f32 - (count - 1) as f32 / 2.0) * 0.22
                     + phase.sin() * 0.15;
                 self.enemy_shots.push(Shot {
-                    position: Vec2::new(boss.position.x, boss.position.y + 30.0),
+                    position: Vec2::new(boss.position.x - 30.0, boss.position.y),
                     velocity: Vec2::new(angle.cos() * 150.0, angle.sin() * 150.0),
                 });
             }
@@ -456,12 +464,51 @@ impl Game {
         boss.aimed_timer -= dt;
         if enraged && boss.aimed_timer <= 0.0 {
             boss.aimed_timer = 0.45;
-            let origin = Vec2::new(boss.position.x, boss.position.y + 30.0);
+            let origin = Vec2::new(boss.position.x - 30.0, boss.position.y);
             self.enemy_shots.push(aimed_shot(origin, target, 220.0));
         }
     }
 
+    /// 弾が狙う相手の位置を返す
+    ///
+    /// # 引数
+    ///
+    /// * `from` - 弾や自機の位置
+    ///
+    /// # 戻り値
+    ///
+    /// 前方にいる最も近い敵か、登場を終えたボスの位置。いなければ None
+    fn nearest_target(&self, from: Vec2) -> Option<Vec2> {
+        let boss = self
+            .boss
+            .filter(|boss| !boss.is_entering())
+            .map(|boss| boss.position);
+        self.enemies
+            .iter()
+            .map(|enemy| enemy.position)
+            .filter(|position| position.x > from.x - 40.0 && position.x < self.size.x)
+            .chain(boss)
+            .min_by(|a, b| {
+                a.distance_squared(from)
+                    .total_cmp(&b.distance_squared(from))
+            })
+    }
+
+    /// 自機がロックオンしている相手の位置を返す
+    ///
+    /// # 戻り値
+    ///
+    /// ショットが向かう相手の位置。いなければ None
+    pub fn lock_target(&self) -> Option<Vec2> {
+        if matches!(self.phase, Phase::GameOver(_)) {
+            return None;
+        }
+        self.nearest_target(self.player.position)
+    }
+
     /// すべての弾を動かし、画面外へ出た弾を消す
+    ///
+    /// 自機の弾は近くの敵へ向きを変え、敵がいなければ右へ加速する
     ///
     /// # 引数
     ///
@@ -471,6 +518,25 @@ impl Game {
     ///
     /// 戻り値なし
     fn move_shots(&mut self, dt: f32) {
+        let turn = (SHOT_TURN_RATE * dt).min(1.0);
+        let targets: Vec<Option<Vec2>> = self
+            .shots
+            .iter()
+            .map(|shot| self.nearest_target(shot.position))
+            .collect();
+        for (shot, target) in self.shots.iter_mut().zip(targets) {
+            let desired = match target {
+                Some(target) => {
+                    let (dx, dy) = (target.x - shot.position.x, target.y - shot.position.y);
+                    let length = dx.hypot(dy).max(1.0);
+                    Vec2::new(dx / length * SHOT_SPEED, dy / length * SHOT_SPEED)
+                }
+                None => Vec2::new(SHOT_SPEED, 0.0),
+            };
+            shot.velocity.x += (desired.x - shot.velocity.x) * turn;
+            shot.velocity.y += (desired.y - shot.velocity.y) * turn;
+        }
+
         let size = self.size;
         let inside = |shot: &Shot| {
             shot.position.x > -20.0
@@ -690,7 +756,7 @@ mod tests {
         let mut game = Game::new(760.0, 400.0, 7);
         game.phase = Phase::Boss;
         game.boss = Some(Boss {
-            position: Vec2::new(380.0, BOSS_HOME_Y),
+            position: Vec2::new(660.0, 200.0),
             health: 2,
             age: BOSS_ENTRY_SECONDS,
             spread_timer: 10.0,
@@ -707,12 +773,12 @@ mod tests {
         let mut game = Game::new(760.0, 400.0, 7);
         game.enemies.push(Enemy {
             position: Vec2::new(380.0, 100.0),
-            base_x: 380.0,
+            base_y: 100.0,
             age: 0.0,
         });
         game.shots.push(Shot {
-            position: Vec2::new(380.0, 105.0),
-            velocity: Vec2::new(0.0, -SHOT_SPEED),
+            position: Vec2::new(375.0, 100.0),
+            velocity: Vec2::new(SHOT_SPEED, 0.0),
         });
         game.resolve_hits();
         assert!(game.enemies.is_empty());
@@ -730,7 +796,34 @@ mod tests {
         game.player.invulnerable = f32::INFINITY;
         run(&mut game, 5.0, input, false);
         assert!(game.player.position.x >= 16.0);
-        assert!(game.player.position.y >= 400.0 * 0.35);
+        assert!(game.player.position.y >= 12.0);
+    }
+
+    #[test]
+    fn shots_curve_toward_the_nearest_enemy() {
+        let mut game = Game::new(760.0, 400.0, 7);
+        game.enemies.push(Enemy {
+            position: Vec2::new(500.0, 50.0),
+            base_y: 50.0,
+            age: 0.0,
+        });
+        game.shots.push(Shot {
+            position: Vec2::new(100.0, 300.0),
+            velocity: Vec2::new(SHOT_LAUNCH_SPEED, 0.0),
+        });
+        game.move_shots(0.1);
+        assert!(game.shots[0].velocity.y < 0.0, "上の敵へ曲がっていない");
+        assert_eq!(game.lock_target(), Some(Vec2::new(500.0, 50.0)));
+    }
+
+    #[test]
+    fn enemies_come_from_the_right() {
+        let mut game = Game::new(760.0, 400.0, 7);
+        game.spawn_wave();
+        assert!(game.enemies.iter().all(|enemy| enemy.position.x > 760.0));
+        let before = game.enemies[0].position.x;
+        game.update_enemies(0.5);
+        assert!(game.enemies[0].position.x < before);
     }
 
     #[test]

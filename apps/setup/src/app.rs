@@ -2,9 +2,7 @@
 
 use std::{path::PathBuf, sync::Arc, sync::mpsc::TryRecvError};
 
-use eframe::egui::{
-    self, FontData, FontDefinitions, FontFamily, Key, Rect, Stroke, Ui, ViewportCommand, pos2, vec2,
-};
+use eframe::egui::{self, FontData, FontDefinitions, FontFamily, Key, Ui, ViewportCommand};
 use pandd_setup::{
     cli::{Mode, ThemeKind},
     ifw::{IfwEvent, Outcome},
@@ -15,10 +13,10 @@ use pandd_setup::{
 
 use crate::{
     session::{self, Job, Plan},
-    theme::{self, Action, Screen, Task, View, palette},
+    theme::{self, Action, Screen, Task, View},
 };
 
-/// 失敗時に表示する IFW のログの行数
+/// 画面で見せる IFW のログの行数
 const LOG_TAIL: usize = 12;
 
 /// セットアップ画面のアプリ
@@ -38,7 +36,7 @@ pub struct SetupApp {
     log: Vec<String>,
     failure: String,
     game: Option<Game>,
-    portraits: theme::navi::Portraits,
+    images: theme::navi::Images,
 }
 
 impl SetupApp {
@@ -86,7 +84,7 @@ impl SetupApp {
             log: Vec::new(),
             failure: String::new(),
             game: None,
-            portraits: theme::navi::Portraits::load(&context.egui_ctx),
+            images: theme::navi::Images::load(&context.egui_ctx),
         };
 
         // 更新はランチャー側で確認済みなので、すぐに始める
@@ -265,6 +263,7 @@ impl SetupApp {
                 }
             }
             Action::Close => ctx.send_viewport_cmd(ViewportCommand::Close),
+            Action::ToggleTheme => self.theme = self.theme.toggled(),
         }
     }
 
@@ -399,70 +398,25 @@ impl eframe::App for SetupApp {
             final_root: &final_root,
             directory_problem: problem.as_deref(),
             progress: &self.progress,
+            log: &self.log,
             failure: &self.failure,
             screen_seconds: self.screen_seconds,
             seconds: self.seconds,
             game: self.game.as_ref(),
-            portraits: &self.portraits,
+            images: &self.images,
         };
         let action = match self.theme {
             ThemeKind::Navi => theme::navi::show(ui, &mut view),
             ThemeKind::Arcade => theme::arcade::show(ui, &mut view),
         };
-        let toggled = theme_toggle(ui, self.theme);
-
         if let Some(action) = action {
             self.handle(&ctx, action);
-        }
-        if toggled {
-            self.theme = self.theme.toggled();
         }
         ctx.request_repaint();
     }
 }
 
-/// 右上にテーマの切り替えボタンを描き、押されたかを返す
-///
-/// # 引数
-///
-/// * `ui` - 描画先
-/// * `current` - 今のテーマ
-///
-/// # 戻り値
-///
-/// 押されたら true
-fn theme_toggle(ui: &mut Ui, current: ThemeKind) -> bool {
-    let area = ui.max_rect();
-    let rect = Rect::from_min_size(
-        pos2(area.right() - 138.0, area.top() + 8.0),
-        vec2(128.0, 24.0),
-    );
-    let (label, fill, text, border) = match current {
-        ThemeKind::Navi => (
-            "テーマ ◀▶ ナビ",
-            palette::WHITE,
-            palette::CHARCOAL,
-            palette::CORAL_LIGHT,
-        ),
-        ThemeKind::Arcade => (
-            "テーマ ◀▶ アーケード",
-            palette::NIGHT,
-            palette::CORAL_LIGHT,
-            palette::CHARCOAL_SOFT,
-        ),
-    };
-    let response = theme::hit_area(ui, rect);
-    let border = if response.hovered() {
-        palette::CORAL
-    } else {
-        border
-    };
-    theme::framed(ui, rect, 12, fill, Stroke::new(1.5, border));
-    theme::centered_text(ui, rect.center(), label, theme::bold(11.0), text);
-    response.clicked()
-}
-
-/// 同梱の M PLUS 2 と Press Start 2P を egui に登録する
+/// 同梱の M PLUS 2、Press Start 2P、DotGothic16 を egui に登録する
 ///
 /// # 引数
 ///
@@ -486,13 +440,17 @@ pub(crate) fn install_fonts(ctx: &egui::Context) {
             "press-start",
             include_bytes!("../assets/fonts/PressStart2P-Regular.ttf").as_slice(),
         ),
+        (
+            "dotgothic",
+            include_bytes!("../assets/fonts/DotGothic16-Regular.ttf").as_slice(),
+        ),
     ] {
         fonts
             .font_data
             .insert(name.to_owned(), Arc::new(FontData::from_static(bytes)));
     }
 
-    // 本文は M PLUS 2 を優先し、ドット文字で出せない日本語は太字で補う
+    // 本文は M PLUS 2 を優先し、ドット文字で出せない日本語は DotGothic16 で補う
     for family in [FontFamily::Proportional, FontFamily::Monospace] {
         fonts
             .families
@@ -506,7 +464,15 @@ pub(crate) fn install_fonts(ctx: &egui::Context) {
     );
     fonts.families.insert(
         FontFamily::Name(theme::PIXEL.into()),
-        vec!["press-start".to_owned(), "mplus-extrabold".to_owned()],
+        vec![
+            "press-start".to_owned(),
+            "dotgothic".to_owned(),
+            "mplus-extrabold".to_owned(),
+        ],
+    );
+    fonts.families.insert(
+        FontFamily::Name(theme::DOT.into()),
+        vec!["dotgothic".to_owned(), "mplus-medium".to_owned()],
     );
     ctx.set_fonts(fonts);
 }
